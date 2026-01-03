@@ -1,0 +1,200 @@
+import { useMemo } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts";
+import { LineChart as LineChartIcon, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { DataPoint, SelectedMetric } from "@shared/schema";
+import { cn } from "@/lib/utils";
+
+function sanitizeKey(key: string): string {
+  return key.replace(/\./g, "_");
+}
+
+interface MetricsChartProps {
+  data: DataPoint[];
+  selectedMetrics: SelectedMetric[];
+  currentTick: number;
+  windowSize: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetZoom: () => void;
+  isAutoZoom: boolean;
+}
+
+export function MetricsChart({
+  data,
+  selectedMetrics,
+  currentTick,
+  windowSize,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
+  isAutoZoom,
+}: MetricsChartProps) {
+  const visibleData = useMemo(() => {
+    if (data.length === 0) return [];
+
+    if (isAutoZoom) {
+      if (data.length <= windowSize) {
+        return data;
+      }
+      return data;
+    }
+
+    const startTick = Math.max(1, currentTick - windowSize + 1);
+    return data.filter((d) => d.tick >= startTick && d.tick <= currentTick);
+  }, [data, currentTick, windowSize, isAutoZoom]);
+
+  const domain = useMemo(() => {
+    if (data.length === 0) return { x: [0, 50], y: [0, 100] };
+
+    const xMin = visibleData.length > 0 ? Math.min(...visibleData.map((d) => d.tick)) : 0;
+    const xMax = visibleData.length > 0 ? Math.max(...visibleData.map((d) => d.tick)) : 50;
+
+    let yMin = Infinity;
+    let yMax = -Infinity;
+
+    visibleData.forEach((point) => {
+      selectedMetrics.forEach((metric) => {
+        const sanitizedKey = sanitizeKey(metric.fullPath);
+        const val = point[sanitizedKey];
+        if (typeof val === "number" && !isNaN(val)) {
+          yMin = Math.min(yMin, val);
+          yMax = Math.max(yMax, val);
+        }
+      });
+    });
+
+    if (!isFinite(yMin)) yMin = 0;
+    if (!isFinite(yMax)) yMax = 100;
+
+    const yPadding = (yMax - yMin) * 0.1 || 10;
+    return {
+      x: [xMin, xMax],
+      y: [Math.max(0, yMin - yPadding), yMax + yPadding],
+    };
+  }, [visibleData, selectedMetrics, data.length]);
+
+  if (selectedMetrics.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-card border border-card-border rounded-md">
+        <LineChartIcon className="w-16 h-16 text-muted-foreground/30 mb-4" />
+        <p className="text-lg font-medium text-muted-foreground">No metrics selected</p>
+        <p className="text-sm text-muted-foreground/70 mt-1">
+          Select components from the sidebar to begin plotting
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex flex-col h-full bg-card border border-card-border rounded-md">
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onZoomIn}
+          data-testid="button-zoom-in"
+          aria-label="Zoom in"
+        >
+          <ZoomIn className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onZoomOut}
+          data-testid="button-zoom-out"
+          aria-label="Zoom out"
+        >
+          <ZoomOut className="w-4 h-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onResetZoom}
+          data-testid="button-reset-zoom"
+          aria-label="Reset zoom"
+          className={cn(!isAutoZoom && "text-primary")}
+        >
+          <RotateCcw className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <div className="flex-1 p-4 pt-12">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={visibleData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+            <XAxis
+              dataKey="tick"
+              domain={domain.x}
+              type="number"
+              tickFormatter={(v) => v.toLocaleString()}
+              className="text-xs fill-muted-foreground"
+            />
+            <YAxis
+              domain={domain.y}
+              tickFormatter={(v) => {
+                if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+                if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+                return v.toFixed(0);
+              }}
+              className="text-xs fill-muted-foreground"
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(var(--popover))",
+                border: "1px solid hsl(var(--popover-border))",
+                borderRadius: "var(--radius)",
+                fontSize: "12px",
+              }}
+              labelFormatter={(label) => `Tick ${label}`}
+              formatter={(value: number, name: string) => [
+                typeof value === "number" ? value.toLocaleString() : value,
+                selectedMetrics.find((m) => sanitizeKey(m.fullPath) === name)?.label || name,
+              ]}
+            />
+            <Legend
+              verticalAlign="top"
+              height={36}
+              formatter={(value) => {
+                const metric = selectedMetrics.find((m) => sanitizeKey(m.fullPath) === value);
+                return <span className="text-xs">{metric?.label || value}</span>;
+              }}
+            />
+            <ReferenceLine
+              x={currentTick}
+              stroke="hsl(var(--primary))"
+              strokeDasharray="5 5"
+              strokeWidth={2}
+            />
+            {selectedMetrics.map((metric) => {
+              const sanitizedKey = sanitizeKey(metric.fullPath);
+              return (
+                <Line
+                  key={metric.fullPath}
+                  type="monotone"
+                  dataKey={sanitizedKey}
+                  name={sanitizedKey}
+                  stroke={metric.color}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 2 }}
+                  isAnimationActive={false}
+                />
+              );
+            })}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
