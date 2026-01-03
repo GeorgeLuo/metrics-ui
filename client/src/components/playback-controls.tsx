@@ -63,8 +63,8 @@ export function PlaybackControls({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-between sm:gap-4">
+        <div className="flex items-center gap-1 shrink-0">
           <Button
             variant="ghost"
             size="icon"
@@ -145,16 +145,16 @@ export function PlaybackControls({
           </Button>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Speed:</span>
+            <span className="text-muted-foreground hidden sm:inline">Speed:</span>
             <Select
               value={speed.toString()}
               onValueChange={(v) => onSpeedChange(parseFloat(v))}
               disabled={disabled}
             >
               <SelectTrigger
-                className="w-20 h-8"
+                className="w-16 sm:w-20 h-8"
                 data-testid="select-speed"
                 aria-label="Playback speed"
               >
@@ -170,11 +170,11 @@ export function PlaybackControls({
             </Select>
           </div>
 
-          <div className="flex flex-col items-end gap-0.5">
-            <span className="font-mono text-sm" data-testid="text-tick-position">
-              Tick {currentTick.toLocaleString()} / {totalTicks.toLocaleString()}
+          <div className="flex flex-col items-center sm:items-end gap-0.5">
+            <span className="font-mono text-xs sm:text-sm" data-testid="text-tick-position">
+              {currentTick.toLocaleString()} / {totalTicks.toLocaleString()}
             </span>
-            <span className="font-mono text-xs text-muted-foreground" data-testid="text-current-time">
+            <span className="font-mono text-xs text-muted-foreground hidden sm:block" data-testid="text-current-time">
               {currentTime}
             </span>
           </div>
