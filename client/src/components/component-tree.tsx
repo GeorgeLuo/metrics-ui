@@ -8,17 +8,22 @@ import type { ComponentNode, SelectedMetric } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 const CHART_COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
+  "hsl(0, 0%, 20%)",
+  "hsl(0, 0%, 40%)",
+  "hsl(0, 0%, 55%)",
+  "hsl(0, 0%, 70%)",
+  "hsl(0, 0%, 35%)",
+  "hsl(0, 0%, 50%)",
+  "hsl(0, 0%, 65%)",
+  "hsl(0, 0%, 25%)",
 ];
 
 interface ComponentTreeProps {
+  captureId: string;
   components: ComponentNode[];
   selectedMetrics: SelectedMetric[];
   onSelectionChange: (metrics: SelectedMetric[]) => void;
+  colorOffset?: number;
 }
 
 function getValueTypeIcon(type: ComponentNode["valueType"]) {
@@ -39,6 +44,7 @@ function getValueTypeIcon(type: ComponentNode["valueType"]) {
 interface TreeNodeProps {
   node: ComponentNode;
   level: number;
+  captureId: string;
   selectedMetrics: SelectedMetric[];
   onToggle: (node: ComponentNode, checked: boolean) => void;
   expandedNodes: Set<string>;
@@ -49,6 +55,7 @@ interface TreeNodeProps {
 function TreeNode({
   node,
   level,
+  captureId,
   selectedMetrics,
   onToggle,
   expandedNodes,
@@ -56,8 +63,8 @@ function TreeNode({
   searchQuery,
 }: TreeNodeProps) {
   const isExpanded = expandedNodes.has(node.id);
-  const isSelected = selectedMetrics.some((m) => m.fullPath === node.id);
-  const selectedMetric = selectedMetrics.find((m) => m.fullPath === node.id);
+  const isSelected = selectedMetrics.some((m) => m.fullPath === node.id && m.captureId === captureId);
+  const selectedMetric = selectedMetrics.find((m) => m.fullPath === node.id && m.captureId === captureId);
   const hasChildren = node.children.length > 0;
 
   const matchesSearch =
@@ -82,12 +89,12 @@ function TreeNode({
     <div>
       <div
         className={cn(
-          "flex items-center gap-2 py-1.5 px-2 rounded-md group transition-colors",
+          "flex items-center gap-2 py-1 px-2 group transition-colors",
           "hover-elevate cursor-pointer",
           isSelected && "bg-primary/10"
         )}
-        style={{ paddingLeft: `${level * 16 + 8}px` }}
-        data-testid={`tree-node-${node.id}`}
+        style={{ paddingLeft: `${level * 12 + 8}px` }}
+        data-testid={`tree-node-${captureId}-${node.id}`}
       >
         {hasChildren ? (
           <button
@@ -97,27 +104,27 @@ function TreeNode({
             aria-label={isExpanded ? "Collapse" : "Expand"}
           >
             {isExpanded ? (
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
             ) : (
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+              <ChevronRight className="w-3 h-3 text-muted-foreground" />
             )}
           </button>
         ) : (
-          <span className="w-3.5" />
+          <span className="w-3" />
         )}
 
         {node.isLeaf && node.valueType === "number" && (
           <Checkbox
             checked={isSelected}
             onCheckedChange={(checked) => onToggle(node, !!checked)}
-            data-testid={`checkbox-${node.id}`}
+            data-testid={`checkbox-${captureId}-${node.id}`}
             aria-label={`Select ${node.label}`}
           />
         )}
 
         <span
           className={cn(
-            "flex-1 text-sm truncate",
+            "flex-1 text-xs truncate",
             isSelected ? "font-medium" : "text-foreground/90"
           )}
         >
@@ -126,7 +133,7 @@ function TreeNode({
 
         {selectedMetric && (
           <div
-            className="w-3 h-3 rounded-full shrink-0"
+            className="w-2 h-2 rounded-full shrink-0"
             style={{ backgroundColor: selectedMetric.color }}
           />
         )}
@@ -143,6 +150,7 @@ function TreeNode({
               key={child.id}
               node={child}
               level={level + 1}
+              captureId={captureId}
               selectedMetrics={selectedMetrics}
               onToggle={onToggle}
               expandedNodes={expandedNodes}
@@ -157,9 +165,11 @@ function TreeNode({
 }
 
 export function ComponentTree({
+  captureId,
   components,
   selectedMetrics,
   onSelectionChange,
+  colorOffset = 0,
 }: ComponentTreeProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
@@ -188,8 +198,9 @@ export function ComponentTree({
 
   const handleToggle = (node: ComponentNode, checked: boolean) => {
     if (checked) {
-      const colorIndex = selectedMetrics.length % CHART_COLORS.length;
+      const colorIndex = (selectedMetrics.length + colorOffset) % CHART_COLORS.length;
       const newMetric: SelectedMetric = {
+        captureId,
         path: node.path,
         fullPath: node.id,
         label: node.label,
@@ -197,61 +208,49 @@ export function ComponentTree({
       };
       onSelectionChange([...selectedMetrics, newMetric]);
     } else {
-      onSelectionChange(selectedMetrics.filter((m) => m.fullPath !== node.id));
+      onSelectionChange(selectedMetrics.filter((m) => !(m.fullPath === node.id && m.captureId === captureId)));
     }
   };
 
   if (components.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-        <Braces className="w-10 h-10 text-muted-foreground/50 mb-3" />
-        <p className="text-sm text-muted-foreground">No components available</p>
-        <p className="text-xs text-muted-foreground/70 mt-1">
-          Upload a capture file to see components
-        </p>
+      <div className="flex flex-col items-center justify-center py-4 text-center">
+        <p className="text-xs text-muted-foreground">No components available</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-sidebar-border">
+    <div className="flex flex-col">
+      <div className="px-2 pb-2">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search components..."
+            placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9"
-            data-testid="input-search-components"
+            className="pl-7 h-7 text-xs"
+            data-testid={`input-search-${captureId}`}
           />
         </div>
-        {selectedMetrics.length > 0 && (
-          <div className="mt-2">
-            <Badge variant="secondary" className="text-xs">
-              {selectedMetrics.length} selected
-            </Badge>
-          </div>
-        )}
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2">
-          {components.map((node) => (
-            <TreeNode
-              key={node.id}
-              node={node}
-              level={0}
-              selectedMetrics={selectedMetrics}
-              onToggle={handleToggle}
-              expandedNodes={expandedNodes}
-              onExpand={handleExpand}
-              searchQuery={searchQuery}
-            />
-          ))}
-        </div>
-      </ScrollArea>
+      <div className="max-h-48 overflow-y-auto">
+        {components.map((node) => (
+          <TreeNode
+            key={node.id}
+            node={node}
+            level={0}
+            captureId={captureId}
+            selectedMetrics={selectedMetrics}
+            onToggle={handleToggle}
+            expandedNodes={expandedNodes}
+            onExpand={handleExpand}
+            searchQuery={searchQuery}
+          />
+        ))}
+      </div>
     </div>
   );
 }

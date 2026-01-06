@@ -17,17 +17,33 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
-import { Activity, LayoutDashboard, X } from "lucide-react";
+import { Activity, X, FileText, Trash2 } from "lucide-react";
 import type {
   ComponentNode,
   SelectedMetric,
   PlaybackState,
   DataPoint,
   CaptureRecord,
+  CaptureSession,
 } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const INITIAL_WINDOW_SIZE = 50;
+
+const GRAYSCALE_COLORS = [
+  "hsl(0, 0%, 20%)",
+  "hsl(0, 0%, 40%)",
+  "hsl(0, 0%, 55%)",
+  "hsl(0, 0%, 70%)",
+  "hsl(0, 0%, 35%)",
+  "hsl(0, 0%, 50%)",
+  "hsl(0, 0%, 65%)",
+  "hsl(0, 0%, 25%)",
+];
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 9);
+}
 
 function parseComponentTree(records: CaptureRecord[]): ComponentNode[] {
   if (records.length === 0) return [];
@@ -99,42 +115,48 @@ function sanitizeKey(key: string): string {
 }
 
 function extractDataPoints(
-  records: CaptureRecord[],
+  captures: CaptureSession[],
   selectedMetrics: SelectedMetric[]
 ): DataPoint[] {
-  return records.map((record) => {
-    const point: DataPoint = { tick: record.tick };
+  const tickMap = new Map<number, DataPoint>();
 
-    selectedMetrics.forEach((metric) => {
-      const pathParts = metric.path;
-      let value: unknown = record.value;
-
-      for (const part of pathParts) {
-        if (value && typeof value === "object" && part in value) {
-          value = (value as Record<string, unknown>)[part];
-        } else {
-          value = null;
-          break;
-        }
+  const activeCaptures = captures.filter(c => c.isActive);
+  
+  activeCaptures.forEach(capture => {
+    const captureMetrics = selectedMetrics.filter(m => m.captureId === capture.id);
+    
+    capture.records.forEach(record => {
+      if (!tickMap.has(record.tick)) {
+        tickMap.set(record.tick, { tick: record.tick });
       }
+      
+      const point = tickMap.get(record.tick)!;
+      
+      captureMetrics.forEach(metric => {
+        const pathParts = metric.path;
+        let value: unknown = record.value;
 
-      const sanitizedKey = sanitizeKey(metric.fullPath);
-      point[sanitizedKey] = typeof value === "number" ? value : null;
+        for (const part of pathParts) {
+          if (value && typeof value === "object" && part in value) {
+            value = (value as Record<string, unknown>)[part];
+          } else {
+            value = null;
+            break;
+          }
+        }
+
+        const dataKey = `${capture.id}_${sanitizeKey(metric.fullPath)}`;
+        point[dataKey] = typeof value === "number" ? value : null;
+      });
     });
-
-    return point;
   });
+
+  return Array.from(tickMap.values()).sort((a, b) => a.tick - b.tick);
 }
 
 export default function Home() {
-  const [records, setRecords] = useState<CaptureRecord[]>([]);
-  const [components, setComponents] = useState<ComponentNode[]>([]);
+  const [captures, setCaptures] = useState<CaptureSession[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>([]);
-  const [uploadedFile, setUploadedFile] = useState<{
-    name: string;
-    size: number;
-    tickCount: number;
-  } | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const [playbackState, setPlaybackState] = useState<PlaybackState>({
@@ -148,6 +170,11 @@ export default function Home() {
   const [isAutoZoom, setIsAutoZoom] = useState(true);
 
   const playbackRef = useRef<number | null>(null);
+
+  const activeCaptures = captures.filter(c => c.isActive);
+  const maxTotalTicks = activeCaptures.length > 0 
+    ? Math.max(...activeCaptures.map(c => c.tickCount)) 
+    : 0;
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -166,25 +193,41 @@ export default function Home() {
       return response.json();
     },
     onSuccess: (data) => {
-      setRecords(data.records);
-      setComponents(parseComponentTree(data.records));
-      setUploadedFile({
-        name: data.filename,
-        size: data.size,
+      const newCapture: CaptureSession = {
+        id: generateId(),
+        filename: data.filename,
+        fileSize: data.size,
         tickCount: data.tickCount,
-      });
-      setPlaybackState({
-        isPlaying: false,
-        currentTick: 1,
-        speed: 1,
-        totalTicks: data.tickCount,
-      });
+        records: data.records,
+        components: parseComponentTree(data.records),
+        isActive: true,
+      };
+      
+      setCaptures(prev => [...prev, newCapture]);
       setUploadError(null);
+      
+      const newMaxTicks = Math.max(
+        ...captures.filter(c => c.isActive).map(c => c.tickCount),
+        newCapture.tickCount
+      );
+      
+      setPlaybackState(prev => ({
+        ...prev,
+        totalTicks: newMaxTicks,
+        currentTick: prev.currentTick || 1,
+      }));
     },
     onError: (error: Error) => {
       setUploadError(error.message);
     },
   });
+
+  useEffect(() => {
+    setPlaybackState(prev => ({
+      ...prev,
+      totalTicks: maxTotalTicks,
+    }));
+  }, [maxTotalTicks]);
 
   const handleFileUpload = useCallback(
     (file: File) => {
@@ -193,21 +236,41 @@ export default function Home() {
     [uploadMutation]
   );
 
-  const handleClearFile = useCallback(() => {
-    setRecords([]);
-    setComponents([]);
-    setSelectedMetrics([]);
-    setUploadedFile(null);
+  const handleClearError = useCallback(() => {
     setUploadError(null);
-    setPlaybackState({
-      isPlaying: false,
-      currentTick: 1,
-      speed: 1,
-      totalTicks: 0,
+  }, []);
+
+  const handleToggleCapture = useCallback((captureId: string) => {
+    setCaptures(prev => {
+      const updated = prev.map(c => 
+        c.id === captureId ? { ...c, isActive: !c.isActive } : c
+      );
+      const newActiveCaptures = updated.filter(c => c.isActive);
+      const newMaxTicks = newActiveCaptures.length > 0 
+        ? Math.max(...newActiveCaptures.map(c => c.tickCount)) 
+        : 0;
+      
+      setPlaybackState(ps => ({
+        ...ps,
+        totalTicks: newMaxTicks,
+        currentTick: Math.min(ps.currentTick, newMaxTicks || 1),
+      }));
+      
+      return updated;
     });
-    if (playbackRef.current) {
-      cancelAnimationFrame(playbackRef.current);
-    }
+    
+    setSelectedMetrics(prev => {
+      const capture = captures.find(c => c.id === captureId);
+      if (capture && capture.isActive) {
+        return prev.filter(m => m.captureId !== captureId);
+      }
+      return prev;
+    });
+  }, [captures]);
+
+  const handleRemoveCapture = useCallback((captureId: string) => {
+    setCaptures(prev => prev.filter(c => c.id !== captureId));
+    setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
   }, []);
 
   const handlePlay = useCallback(() => {
@@ -303,28 +366,26 @@ export default function Home() {
     }
   }, [playbackState.currentTick, isAutoZoom, windowSize]);
 
-  const chartData = extractDataPoints(
-    records.filter((r) => r.tick <= playbackState.currentTick),
-    selectedMetrics
+  const activeMetrics = selectedMetrics.filter(m => 
+    captures.some(c => c.id === m.captureId && c.isActive)
   );
 
-  const currentData = chartData.find((d) => d.tick === playbackState.currentTick) || null;
+  const chartData = extractDataPoints(captures, activeMetrics);
 
-  const currentRecord = records.find((r) => r.tick === playbackState.currentTick);
-  const currentTime = currentRecord
-    ? ((currentRecord.value as Record<string, unknown>)?.sim_clock as { current_datetime?: string })
-        ?.current_datetime || ""
-    : "";
-  const formattedTime = currentTime
-    ? new Date(currentTime).toLocaleString("en-US", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      })
-    : "—";
+  const currentData = chartData.find((d) => d.tick === playbackState.currentTick) || null;
 
   const sidebarStyle = {
     "--sidebar-width": "20rem",
     "--sidebar-width-icon": "4rem",
+  };
+
+  const getMetricDisplayKey = (metric: SelectedMetric): string => {
+    return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
+  };
+
+  const getCaptureShortName = (capture: CaptureSession): string => {
+    const name = capture.filename.replace('.jsonl', '');
+    return name.length > 12 ? name.substring(0, 12) + '...' : name;
   };
 
   return (
@@ -339,15 +400,68 @@ export default function Home() {
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>
-              <SidebarGroupLabel>Components</SidebarGroupLabel>
+              <SidebarGroupLabel>Captures</SidebarGroupLabel>
               <SidebarGroupContent>
-                <ComponentTree
-                  components={components}
-                  selectedMetrics={selectedMetrics}
-                  onSelectionChange={setSelectedMetrics}
-                />
+                <div className="flex flex-col gap-1 px-2">
+                  {captures.map((capture) => (
+                    <div
+                      key={capture.id}
+                      className="flex items-center gap-2 py-1.5 text-sm"
+                      data-testid={`capture-item-${capture.id}`}
+                    >
+                      <Checkbox
+                        checked={capture.isActive}
+                        onCheckedChange={() => handleToggleCapture(capture.id)}
+                        data-testid={`checkbox-capture-${capture.id}`}
+                      />
+                      <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                      <span className="truncate flex-1 text-xs" title={capture.filename}>
+                        {getCaptureShortName(capture)}
+                      </span>
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {capture.tickCount}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleRemoveCapture(capture.id)}
+                        data-testid={`button-remove-capture-${capture.id}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  {captures.length === 0 && (
+                    <p className="text-xs text-muted-foreground py-2">
+                      No captures loaded
+                    </p>
+                  )}
+                </div>
               </SidebarGroupContent>
             </SidebarGroup>
+            
+            {activeCaptures.map((capture) => (
+              <SidebarGroup key={capture.id}>
+                <SidebarGroupLabel className="text-xs">
+                  {getCaptureShortName(capture)}
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <ComponentTree
+                    captureId={capture.id}
+                    components={capture.components}
+                    selectedMetrics={selectedMetrics.filter(m => m.captureId === capture.id)}
+                    onSelectionChange={(newMetrics) => {
+                      setSelectedMetrics(prev => {
+                        const otherMetrics = prev.filter(m => m.captureId !== capture.id);
+                        return [...otherMetrics, ...newMetrics];
+                      });
+                    }}
+                    colorOffset={captures.findIndex(c => c.id === capture.id)}
+                  />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ))}
           </SidebarContent>
         </Sidebar>
 
@@ -377,26 +491,28 @@ export default function Home() {
             <FileUpload
               onFileUpload={handleFileUpload}
               isUploading={uploadMutation.isPending}
-              uploadedFile={uploadedFile}
+              uploadedFile={null}
               error={uploadError}
-              onClear={handleClearFile}
+              onClear={handleClearError}
             />
 
             <div className="relative flex-1 min-h-0">
               <MetricsChart
                 data={chartData}
-                selectedMetrics={selectedMetrics}
+                selectedMetrics={activeMetrics}
                 currentTick={playbackState.currentTick}
                 windowSize={windowSize}
                 onZoomIn={handleZoomIn}
                 onZoomOut={handleZoomOut}
                 onResetZoom={handleResetZoom}
                 isAutoZoom={isAutoZoom}
+                captures={captures}
               />
               <MetricsHUD
                 currentData={currentData}
-                selectedMetrics={selectedMetrics}
+                selectedMetrics={activeMetrics}
                 currentTick={playbackState.currentTick}
+                captures={captures}
               />
             </div>
 
@@ -410,8 +526,8 @@ export default function Home() {
                 onSpeedChange={handleSpeedChange}
                 onStepForward={handleStepForward}
                 onStepBackward={handleStepBackward}
-                currentTime={formattedTime}
-                disabled={!uploadedFile}
+                currentTime=""
+                disabled={captures.length === 0}
               />
             </div>
           </main>

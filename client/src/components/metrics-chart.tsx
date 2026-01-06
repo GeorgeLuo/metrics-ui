@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { LineChart as LineChartIcon, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { DataPoint, SelectedMetric } from "@shared/schema";
+import type { DataPoint, SelectedMetric, CaptureSession } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 function sanitizeKey(key: string): string {
@@ -28,6 +28,7 @@ interface MetricsChartProps {
   onZoomOut: () => void;
   onResetZoom: () => void;
   isAutoZoom: boolean;
+  captures: CaptureSession[];
 }
 
 export function MetricsChart({
@@ -39,6 +40,7 @@ export function MetricsChart({
   onZoomOut,
   onResetZoom,
   isAutoZoom,
+  captures,
 }: MetricsChartProps) {
   const visibleData = useMemo(() => {
     if (data.length === 0) return [];
@@ -54,6 +56,17 @@ export function MetricsChart({
     return data.filter((d) => d.tick >= startTick && d.tick <= currentTick);
   }, [data, currentTick, windowSize, isAutoZoom]);
 
+  const getDataKey = (metric: SelectedMetric): string => {
+    return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
+  };
+
+  const getCaptureFilename = (captureId: string): string => {
+    const capture = captures.find(c => c.id === captureId);
+    if (!capture) return captureId;
+    const name = capture.filename.replace('.jsonl', '');
+    return name.length > 8 ? name.substring(0, 8) : name;
+  };
+
   const domain = useMemo(() => {
     if (data.length === 0) return { x: [0, 50], y: [0, 100] };
 
@@ -65,8 +78,8 @@ export function MetricsChart({
 
     visibleData.forEach((point) => {
       selectedMetrics.forEach((metric) => {
-        const sanitizedKey = sanitizeKey(metric.fullPath);
-        const val = point[sanitizedKey];
+        const dataKey = getDataKey(metric);
+        const val = point[dataKey];
         if (typeof val === "number" && !isNaN(val)) {
           yMin = Math.min(yMin, val);
           yMax = Math.max(yMax, val);
@@ -154,17 +167,24 @@ export function MetricsChart({
                 fontSize: "12px",
               }}
               labelFormatter={(label) => `Tick ${label}`}
-              formatter={(value: number, name: string) => [
-                typeof value === "number" ? value.toLocaleString() : value,
-                selectedMetrics.find((m) => sanitizeKey(m.fullPath) === name)?.label || name,
-              ]}
+              formatter={(value: number, name: string) => {
+                const metric = selectedMetrics.find((m) => getDataKey(m) === name);
+                const captureName = metric ? getCaptureFilename(metric.captureId) : '';
+                const label = metric ? `${captureName}: ${metric.label}` : name;
+                return [
+                  typeof value === "number" ? value.toLocaleString() : value,
+                  label,
+                ];
+              }}
             />
             <Legend
               verticalAlign="top"
               height={36}
               formatter={(value) => {
-                const metric = selectedMetrics.find((m) => sanitizeKey(m.fullPath) === value);
-                return <span className="text-xs">{metric?.label || value}</span>;
+                const metric = selectedMetrics.find((m) => getDataKey(m) === value);
+                if (!metric) return <span className="text-xs">{value}</span>;
+                const captureName = getCaptureFilename(metric.captureId);
+                return <span className="text-xs">{captureName}: {metric.label}</span>;
               }}
             />
             <ReferenceLine
@@ -173,16 +193,18 @@ export function MetricsChart({
               strokeDasharray="5 5"
               strokeWidth={2}
             />
-            {selectedMetrics.map((metric) => {
-              const sanitizedKey = sanitizeKey(metric.fullPath);
+            {selectedMetrics.map((metric, index) => {
+              const dataKey = getDataKey(metric);
+              const isDashed = index % 2 === 1;
               return (
                 <Line
-                  key={metric.fullPath}
+                  key={`${metric.captureId}-${metric.fullPath}`}
                   type="monotone"
-                  dataKey={sanitizedKey}
-                  name={sanitizedKey}
+                  dataKey={dataKey}
+                  name={dataKey}
                   stroke={metric.color}
                   strokeWidth={2}
+                  strokeDasharray={isDashed ? "5 5" : undefined}
                   dot={false}
                   activeDot={{ r: 4, strokeWidth: 2 }}
                   isAnimationActive={false}

@@ -9,6 +9,16 @@ export const captureRecordSchema = z.object({
 
 export type CaptureRecord = z.infer<typeof captureRecordSchema>;
 
+export interface CaptureSession {
+  id: string;
+  filename: string;
+  fileSize: number;
+  tickCount: number;
+  records: CaptureRecord[];
+  components: ComponentNode[];
+  isActive: boolean;
+}
+
 export interface ParsedCapture {
   records: CaptureRecord[];
   tickCount: number;
@@ -27,6 +37,7 @@ export interface ComponentNode {
 }
 
 export interface SelectedMetric {
+  captureId: string;
   path: string[];
   fullPath: string;
   label: string;
