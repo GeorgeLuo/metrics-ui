@@ -46,12 +46,20 @@ shared/           # Shared TypeScript types and schemas
 - **Component Composition**: Radix UI primitives wrapped with Tailwind styling
 
 ### Data Flow
-1. User uploads JSONL file via drag-and-drop or file picker
+1. User uploads multiple JSONL files via drag-and-drop or file picker (capture library)
 2. Server parses JSONL records containing tick, entityId, componentId, and value
-3. Frontend builds component tree from parsed data structure
-4. User selects metrics from tree for visualization
-5. Playback controls navigate through tick-based timeline
-6. Charts and HUD display real-time metric values at current tick
+3. Frontend builds component tree from parsed data structure for each capture
+4. User toggles captures active/inactive and selects metrics from per-capture trees
+5. Playback controls navigate through synchronized tick-based timeline
+6. Charts overlay data from multiple captures with distinct styling (solid/dashed lines)
+7. HUD displays real-time metric values at current tick with capture prefixes
+
+### Multi-File Comparison
+- **CaptureSession**: Each uploaded file becomes a capture with id, filename, tickCount, records, components, isActive
+- **Capture Library**: Sidebar shows loaded captures with checkboxes to toggle active/inactive and delete buttons
+- **Synchronized Playback**: Timeline uses maximum tick count from active captures
+- **Distinct Styling**: Alternating solid/dashed lines for visual distinction between captures
+- **Data Keys**: Format `{captureId}_{sanitizedPath}` to avoid collisions between captures
 
 ## External Dependencies
 
