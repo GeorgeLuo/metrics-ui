@@ -86,18 +86,15 @@ export function MetricsChart({
 
   if (selectedMetrics.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-card border border-card-border rounded-md">
-        <LineChartIcon className="w-16 h-16 text-muted-foreground/30 mb-4" />
-        <p className="text-lg font-medium text-muted-foreground">No metrics selected</p>
-        <p className="text-sm text-muted-foreground/70 mt-1">
-          Select components from the sidebar to begin plotting
-        </p>
+      <div className="flex flex-col items-center justify-center h-full">
+        <LineChartIcon className="w-12 h-12 text-muted-foreground/20 mb-3" />
+        <p className="text-sm text-muted-foreground">No metrics selected</p>
       </div>
     );
   }
 
   return (
-    <div className="relative flex flex-col h-full bg-card border border-card-border rounded-md">
+    <div className="relative flex flex-col h-full">
       <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
         <Button
           variant="ghost"

@@ -48,7 +48,7 @@ export function PlaybackControls({
   const progress = totalTicks > 0 ? (currentTick / totalTicks) * 100 : 0;
 
   return (
-    <div className={cn("flex flex-col gap-4 p-4", disabled && "opacity-50 pointer-events-none")}>
+    <div className={cn("flex flex-col gap-3 py-3", disabled && "opacity-50 pointer-events-none")}>
       <div className="flex items-center gap-2">
         <Slider
           value={[currentTick]}
@@ -181,12 +181,6 @@ export function PlaybackControls({
         </div>
       </div>
 
-      <div className="h-1 bg-muted rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary transition-all duration-100"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
     </div>
   );
 }

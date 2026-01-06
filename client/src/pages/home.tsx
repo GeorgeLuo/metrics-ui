@@ -331,15 +331,10 @@ export default function Home() {
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full bg-background">
         <Sidebar>
-          <SidebarHeader className="border-b border-sidebar-border p-4">
+          <SidebarHeader className="p-4">
             <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-md">
-                <Activity className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold">Metrics Playback</h1>
-                <p className="text-xs text-muted-foreground">Data Stream Visualization</p>
-              </div>
+              <Activity className="w-4 h-4 text-foreground" />
+              <h1 className="text-sm font-medium tracking-tight">Metrics</h1>
             </div>
           </SidebarHeader>
           <SidebarContent>
@@ -357,13 +352,9 @@ export default function Home() {
         </Sidebar>
 
         <div className="flex flex-col flex-1 min-w-0">
-          <header className="flex items-center justify-between gap-4 px-4 h-14 border-b border-border shrink-0">
+          <header className="flex items-center justify-between gap-4 px-4 h-12 shrink-0">
             <div className="flex items-center gap-2">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <div className="flex items-center gap-2">
-                <LayoutDashboard className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Dashboard</span>
-              </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {selectedMetrics.length > 0 && (
@@ -409,7 +400,7 @@ export default function Home() {
               />
             </div>
 
-            <div className="shrink-0 bg-card border border-card-border rounded-md">
+            <div className="shrink-0">
               <PlaybackControls
                 playbackState={playbackState}
                 onPlay={handlePlay}

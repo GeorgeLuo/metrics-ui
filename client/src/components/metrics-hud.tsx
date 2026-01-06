@@ -17,11 +17,11 @@ export function MetricsHUD({ currentData, selectedMetrics, currentTick }: Metric
 
   return (
     <div
-      className="absolute top-16 right-4 bg-popover/90 backdrop-blur-sm border border-popover-border rounded-md p-3 min-w-48 z-20"
+      className="absolute top-4 right-4 bg-background/80 backdrop-blur-sm p-3 min-w-44 z-20"
       data-testid="metrics-hud"
     >
-      <div className="text-xs text-muted-foreground mb-2 font-mono">
-        Tick {currentTick.toLocaleString()}
+      <div className="text-xs text-muted-foreground mb-2 font-mono tracking-tight">
+        {currentTick.toLocaleString()}
       </div>
       <div className="flex flex-col gap-1.5">
         {selectedMetrics.map((metric) => {
