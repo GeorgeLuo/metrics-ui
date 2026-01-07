@@ -17,7 +17,8 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
-import { Activity, X, FileText, Trash2 } from "lucide-react";
+import { Activity, X, FileText, Trash2, BookOpen } from "lucide-react";
+import { Link } from "wouter";
 import type {
   ComponentNode,
   SelectedMetric,
@@ -523,6 +524,11 @@ export default function Home() {
                   Clear ({selectedMetrics.length})
                 </Button>
               )}
+              <Link href="/docs">
+                <Button variant="ghost" size="icon" data-testid="button-docs">
+                  <BookOpen className="w-4 h-4" />
+                </Button>
+              </Link>
               <ThemeToggle />
             </div>
           </header>

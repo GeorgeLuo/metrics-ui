@@ -100,3 +100,13 @@ The visualization can be controlled remotely by external agents via WebSocket at
 
 **Testing:**
 Run `npx tsx scripts/test-websocket-control.ts` to validate the WebSocket control flow.
+
+## Documentation
+
+Usage documentation is available in multiple formats:
+- **USAGE.md**: Source markdown file at project root
+- **Static file**: `GET /USAGE.md` returns the raw markdown content
+- **API endpoint**: `GET /api/docs` returns `{content: "..."}`
+- **Web UI**: Navigate to `/docs` to view rendered documentation
+
+The web UI fetches from the API endpoint, ensuring documentation stays in sync with the source file.

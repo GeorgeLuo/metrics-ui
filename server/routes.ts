@@ -3,6 +3,9 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import { WebSocketServer, WebSocket } from "ws";
 import type { ControlCommand, ControlResponse } from "@shared/schema";
+import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -124,6 +127,51 @@ export async function registerRoutes(
     ws.on("error", (err) => {
       console.error("[ws] Error:", err);
     });
+  });
+
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  
+  function findUsageMd(): string | null {
+    const possiblePaths = [
+      path.resolve(__dirname, 'USAGE.md'),
+      path.resolve(__dirname, '..', 'USAGE.md'),
+      path.join(process.cwd(), 'USAGE.md'),
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) return p;
+    }
+    return null;
+  }
+
+  app.get('/api/docs', (_req, res) => {
+    try {
+      const usageMdPath = findUsageMd();
+      if (usageMdPath) {
+        const content = fs.readFileSync(usageMdPath, 'utf-8');
+        res.json({ content });
+      } else {
+        res.status(404).json({ error: 'Documentation file not found' });
+      }
+    } catch (error) {
+      console.error('Failed to read USAGE.md:', error);
+      res.status(500).json({ error: 'Documentation not available' });
+    }
+  });
+
+  app.get('/USAGE.md', (_req, res) => {
+    try {
+      const usageMdPath = findUsageMd();
+      if (usageMdPath) {
+        const content = fs.readFileSync(usageMdPath, 'utf-8');
+        res.type('text/markdown').send(content);
+      } else {
+        res.status(404).send('Documentation file not found');
+      }
+    } catch (error) {
+      console.error('Failed to read USAGE.md:', error);
+      res.status(500).send('Documentation not available');
+    }
   });
 
   app.post('/api/upload', upload.single('file'), (req, res) => {
