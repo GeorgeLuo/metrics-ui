@@ -65,3 +65,33 @@ export const uploadResponseSchema = z.object({
 });
 
 export type UploadResponse = z.infer<typeof uploadResponseSchema>;
+
+export type ControlCommand = 
+  | { type: "get_state" }
+  | { type: "list_captures" }
+  | { type: "toggle_capture"; captureId: string }
+  | { type: "select_metric"; captureId: string; path: string[] }
+  | { type: "deselect_metric"; captureId: string; fullPath: string }
+  | { type: "clear_selection" }
+  | { type: "play" }
+  | { type: "pause" }
+  | { type: "stop" }
+  | { type: "seek"; tick: number }
+  | { type: "set_speed"; speed: number };
+
+export interface ControlResponse {
+  type: "state_update" | "captures_list" | "error" | "ack";
+  payload?: unknown;
+  error?: string;
+}
+
+export interface VisualizationState {
+  captures: Array<{
+    id: string;
+    filename: string;
+    tickCount: number;
+    isActive: boolean;
+  }>;
+  selectedMetrics: SelectedMetric[];
+  playback: PlaybackState;
+}

@@ -76,3 +76,27 @@ shared/           # Shared TypeScript types and schemas
 
 ### Fonts
 - DM Sans (primary), Fira Code/Geist Mono (monospace) via Google Fonts CDN
+
+### WebSocket Control API
+The visualization can be controlled remotely by external agents via WebSocket at `/ws/control`.
+
+**Connection Flow:**
+1. Connect to `ws://<host>/ws/control`
+2. Send registration: `{type: "register", role: "frontend" | "agent"}`
+3. Receive acknowledgment: `{type: "ack", payload: "registered as ..."}`
+
+**Agent Commands (sent to frontend):**
+- `{type: "get_state"}` - Request current visualization state
+- `{type: "play"}` / `{type: "pause"}` / `{type: "stop"}` - Playback control
+- `{type: "seek", tick: number}` - Jump to specific tick
+- `{type: "set_speed", speed: number}` - Set playback speed
+- `{type: "toggle_capture", captureId: string}` - Toggle capture active/inactive
+- `{type: "select_metric", captureId: string, path: string[]}` - Select a metric
+- `{type: "deselect_metric", captureId: string, fullPath: string}` - Deselect a metric
+- `{type: "clear_selection"}` - Clear all selected metrics
+
+**State Updates (broadcast from frontend to agents):**
+- `{type: "state_update", payload: VisualizationState}` - Full state snapshot
+
+**Testing:**
+Run `npx tsx scripts/test-websocket-control.ts` to validate the WebSocket control flow.

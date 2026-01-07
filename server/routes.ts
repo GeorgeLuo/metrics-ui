@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
+import { WebSocketServer, WebSocket } from "ws";
+import type { ControlCommand, ControlResponse } from "@shared/schema";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -37,10 +39,92 @@ function parseJSONL(content: string): CaptureRecord[] {
   return records;
 }
 
+const agentClients = new Set<WebSocket>();
+let frontendClient: WebSocket | null = null;
+const pendingClients = new Map<WebSocket, boolean>();
+
+function broadcastToAgents(message: ControlResponse) {
+  const data = JSON.stringify(message);
+  agentClients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(data);
+    }
+  });
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  const wss = new WebSocketServer({ server: httpServer, path: "/ws/control" });
+
+  wss.on("connection", (ws) => {
+    pendingClients.set(ws, true);
+    console.log("[ws] New connection, awaiting registration");
+
+    ws.on("message", (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        
+        if (message.type === "register") {
+          pendingClients.delete(ws);
+          if (message.role === "frontend") {
+            frontendClient = ws;
+            console.log("[ws] Frontend registered");
+            ws.send(JSON.stringify({ type: "ack", payload: "registered as frontend" }));
+          } else {
+            agentClients.add(ws);
+            console.log("[ws] Agent registered, total agents:", agentClients.size);
+            ws.send(JSON.stringify({ type: "ack", payload: "registered as agent" }));
+          }
+          return;
+        }
+
+        if (pendingClients.has(ws)) {
+          ws.send(JSON.stringify({ 
+            type: "error", 
+            error: "Must register first with {type:'register', role:'frontend'|'agent'}" 
+          } as ControlResponse));
+          return;
+        }
+
+        const isFrontend = ws === frontendClient;
+        
+        if (isFrontend && message.type === "state_update") {
+          broadcastToAgents(message as ControlResponse);
+        } else if (!isFrontend) {
+          if (frontendClient && frontendClient.readyState === WebSocket.OPEN) {
+            frontendClient.send(JSON.stringify(message));
+          } else {
+            ws.send(JSON.stringify({ 
+              type: "error", 
+              error: "Frontend not connected" 
+            } as ControlResponse));
+          }
+        }
+      } catch (e) {
+        ws.send(JSON.stringify({ 
+          type: "error", 
+          error: "Invalid message format" 
+        } as ControlResponse));
+      }
+    });
+
+    ws.on("close", () => {
+      pendingClients.delete(ws);
+      if (ws === frontendClient) {
+        frontendClient = null;
+        console.log("[ws] Frontend disconnected");
+      } else {
+        agentClients.delete(ws);
+        console.log("[ws] Agent disconnected, remaining:", agentClients.size);
+      }
+    });
+
+    ws.on("error", (err) => {
+      console.error("[ws] Error:", err);
+    });
+  });
 
   app.post('/api/upload', upload.single('file'), (req, res) => {
     try {

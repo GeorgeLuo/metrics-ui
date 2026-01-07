@@ -27,6 +27,7 @@ import type {
   CaptureSession,
 } from "@shared/schema";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useWebSocketControl } from "@/hooks/use-websocket-control";
 
 const INITIAL_WINDOW_SIZE = 50;
 
@@ -273,6 +274,30 @@ export default function Home() {
     setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
   }, []);
 
+  const handleSelectMetric = useCallback((captureId: string, path: string[]) => {
+    const fullPath = path.join(".");
+    const exists = selectedMetrics.some(m => m.captureId === captureId && m.fullPath === fullPath);
+    if (!exists) {
+      const colorIndex = selectedMetrics.length % GRAYSCALE_COLORS.length;
+      const newMetric: SelectedMetric = {
+        captureId,
+        path,
+        fullPath,
+        label: path[path.length - 1],
+        color: GRAYSCALE_COLORS[colorIndex],
+      };
+      setSelectedMetrics(prev => [...prev, newMetric]);
+    }
+  }, [selectedMetrics]);
+
+  const handleDeselectMetric = useCallback((captureId: string, fullPath: string) => {
+    setSelectedMetrics(prev => prev.filter(m => !(m.captureId === captureId && m.fullPath === fullPath)));
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedMetrics([]);
+  }, []);
+
   const handlePlay = useCallback(() => {
     setPlaybackState((prev) => ({ ...prev, isPlaying: true }));
   }, []);
@@ -365,6 +390,21 @@ export default function Home() {
       setWindowSize(playbackState.currentTick);
     }
   }, [playbackState.currentTick, isAutoZoom, windowSize]);
+
+  useWebSocketControl({
+    captures,
+    selectedMetrics,
+    playbackState,
+    onToggleCapture: handleToggleCapture,
+    onSelectMetric: handleSelectMetric,
+    onDeselectMetric: handleDeselectMetric,
+    onClearSelection: handleClearSelection,
+    onPlay: handlePlay,
+    onPause: handlePause,
+    onStop: handleStop,
+    onSeek: handleSeek,
+    onSpeedChange: handleSpeedChange,
+  });
 
   const activeMetrics = selectedMetrics.filter(m => 
     captures.some(c => c.id === m.captureId && c.isActive)
