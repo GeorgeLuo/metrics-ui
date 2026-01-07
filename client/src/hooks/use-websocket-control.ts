@@ -91,45 +91,54 @@ export function useWebSocketControl({
   }, [sendState, onToggleCapture, onSelectMetric, onDeselectMetric, onClearSelection, onPlay, onPause, onStop, onSeek, onSpeedChange]);
 
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/control`);
+    let isCleanedUp = false;
     
-    ws.onopen = () => {
-      console.log("[ws] Connected to control server, registering as frontend...");
-      ws.send(JSON.stringify({ type: "register", role: "frontend" }));
-    };
+    function connect() {
+      if (isCleanedUp) return;
+      
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/control`);
+      
+      ws.onopen = () => {
+        console.log("[ws] Connected to control server, registering as frontend...");
+        ws.send(JSON.stringify({ type: "register", role: "frontend" }));
+      };
 
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.type === "ack") {
-          console.log("[ws] Registration confirmed:", message.payload);
-          return;
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type === "ack") {
+            console.log("[ws] Registration confirmed:", message.payload);
+            return;
+          }
+          if (message.type === "error") {
+            console.error("[ws] Server error:", message.error);
+            return;
+          }
+          handleCommand(message as ControlCommand);
+        } catch (e) {
+          console.error("[ws] Failed to parse message:", e);
         }
-        if (message.type === "error") {
-          console.error("[ws] Server error:", message.error);
-          return;
+      };
+
+      ws.onclose = () => {
+        if (!isCleanedUp) {
+          console.log("[ws] Disconnected, reconnecting in 3s...");
+          reconnectTimeoutRef.current = window.setTimeout(connect, 3000);
         }
-        handleCommand(message as ControlCommand);
-      } catch (e) {
-        console.error("[ws] Failed to parse message:", e);
-      }
-    };
+      };
 
-    ws.onclose = () => {
-      console.log("[ws] Disconnected, reconnecting in 3s...");
-      reconnectTimeoutRef.current = window.setTimeout(() => {
-        window.location.reload();
-      }, 3000);
-    };
-
-    wsRef.current = ws;
+      wsRef.current = ws;
+    }
+    
+    connect();
 
     return () => {
+      isCleanedUp = true;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
-      ws.close();
+      wsRef.current?.close();
     };
   }, [handleCommand]);
 
