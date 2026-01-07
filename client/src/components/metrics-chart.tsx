@@ -45,16 +45,9 @@ export function MetricsChart({
   const visibleData = useMemo(() => {
     if (data.length === 0) return [];
 
-    if (isAutoZoom) {
-      if (data.length <= windowSize) {
-        return data;
-      }
-      return data;
-    }
-
     const startTick = Math.max(1, currentTick - windowSize + 1);
     return data.filter((d) => d.tick >= startTick && d.tick <= currentTick);
-  }, [data, currentTick, windowSize, isAutoZoom]);
+  }, [data, currentTick, windowSize]);
 
   const getDataKey = (metric: SelectedMetric): string => {
     return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
