@@ -47,7 +47,7 @@ shared/           # Shared TypeScript types and schemas
 
 ### Data Flow
 1. User uploads multiple JSONL files via drag-and-drop or file picker (capture library)
-2. Server parses JSONL records containing tick, entityId, componentId, and value
+2. Server parses JSONL frame records containing tick and entities maps
 3. Frontend builds component tree from parsed data structure for each capture
 4. User toggles captures active/inactive and selects metrics from per-capture trees
 5. Playback controls navigate through synchronized tick-based timeline

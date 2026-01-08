@@ -177,7 +177,11 @@ export function MetricsChart({
                 const metric = selectedMetrics.find((m) => getDataKey(m) === value);
                 if (!metric) return <span className="text-xs">{value}</span>;
                 const captureName = getCaptureFilename(metric.captureId);
-                return <span className="text-xs">{captureName}: {metric.label}</span>;
+                return (
+                  <span className="text-xs" style={{ color: metric.color }}>
+                    {captureName}: {metric.label}
+                  </span>
+                );
               }}
             />
             <ReferenceLine

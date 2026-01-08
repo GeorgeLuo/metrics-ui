@@ -98,6 +98,18 @@ Response:
 
 ---
 
+## Live Stream Capture (WebSocket)
+
+You can push live frames over the control socket instead of uploading a file.
+
+```json
+{"type": "capture_init", "captureId": "live-1", "filename": "evaluation-stream"}
+{"type": "capture_append", "captureId": "live-1", "frame": {"tick": 1, "entities": {"player": {"position": {"x": 0, "y": 0}}}}}
+{"type": "capture_end", "captureId": "live-1"}
+```
+
+---
+
 ## State Updates
 
 When the visualization state changes, your agent receives state updates:
@@ -138,16 +150,13 @@ When the visualization state changes, your agent receives state updates:
 Each line in your capture file should be a JSON object:
 
 ```json
-{"tick": 1, "entityId": "player", "componentId": "position", "value": {"x": 0, "y": 0}}
-{"tick": 1, "entityId": "player", "componentId": "velocity", "value": {"dx": 1, "dy": 0}}
-{"tick": 2, "entityId": "player", "componentId": "position", "value": {"x": 1, "y": 0}}
+{"tick": 1, "entities": {"player": {"position": {"x": 0, "y": 0}, "velocity": {"dx": 1, "dy": 0}}}}
+{"tick": 2, "entities": {"player": {"position": {"x": 1, "y": 0}, "velocity": {"dx": 1, "dy": 0}}}}
 ```
 
 **Required fields:**
 - `tick`: Integer tick number (1-based)
-- `entityId`: String identifier for the entity
-- `componentId`: String identifier for the component
-- `value`: Object with metric values (numeric values will be charted)
+- `entities`: Object map of entity IDs to component maps (`{ [entityId]: { [componentId]: value } }`)
 
 ---
 

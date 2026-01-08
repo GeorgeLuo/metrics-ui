@@ -1,10 +1,26 @@
 import { useEffect, useRef, useCallback } from "react";
-import type { ControlCommand, ControlResponse, VisualizationState, SelectedMetric, PlaybackState, CaptureSession } from "@shared/schema";
+import type {
+  ControlCommand,
+  ControlResponse,
+  VisualizationState,
+  SelectedMetric,
+  PlaybackState,
+  CaptureSession,
+  MemoryStatsResponse,
+} from "@shared/schema";
+import {
+  buildCapabilitiesPayload,
+  buildComponentsList,
+  buildDisplaySnapshot,
+  buildRenderTable,
+  buildSeriesWindow,
+} from "@shared/protocol-utils";
 
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
   selectedMetrics: SelectedMetric[];
   playbackState: PlaybackState;
+  windowSize: number;
   onToggleCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[]) => void;
   onDeselectMetric: (captureId: string, fullPath: string) => void;
@@ -14,12 +30,17 @@ interface UseWebSocketControlProps {
   onStop: () => void;
   onSeek: (tick: number) => void;
   onSpeedChange: (speed: number) => void;
+  onCaptureInit: (captureId: string, filename?: string) => void;
+  onCaptureAppend: (captureId: string, frame: CaptureSession["records"][number]) => void;
+  onCaptureEnd: (captureId: string) => void;
+  getMemoryStats: () => MemoryStatsResponse;
 }
 
 export function useWebSocketControl({
   captures,
   selectedMetrics,
   playbackState,
+  windowSize,
   onToggleCapture,
   onSelectMetric,
   onDeselectMetric,
@@ -29,11 +50,23 @@ export function useWebSocketControl({
   onStop,
   onSeek,
   onSpeedChange,
+  onCaptureInit,
+  onCaptureAppend,
+  onCaptureEnd,
+  getMemoryStats,
 }: UseWebSocketControlProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
-  const sendState = useCallback(() => {
+  const sendMessage = useCallback((message: ControlResponse) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
+      return true;
+    }
+    return false;
+  }, []);
+
+  const sendState = useCallback((requestId?: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const state: VisualizationState = {
         captures: captures.map(c => ({
@@ -48,47 +81,265 @@ export function useWebSocketControl({
       wsRef.current.send(JSON.stringify({
         type: "state_update",
         payload: state,
+        request_id: requestId,
       } as ControlResponse));
     }
   }, [captures, selectedMetrics, playbackState]);
 
+  const sendAck = useCallback((requestId: string | undefined, command: string) => {
+    if (!requestId) {
+      return;
+    }
+    sendMessage({
+      type: "ack",
+      request_id: requestId,
+      payload: { command },
+    });
+  }, [sendMessage]);
+
+  const sendError = useCallback(
+    (requestId: string | undefined, error: string, context?: Record<string, unknown>) => {
+      sendMessage({
+        type: "error",
+        request_id: requestId,
+        error,
+      });
+      sendMessage({
+        type: "ui_error",
+        request_id: requestId,
+        error,
+        payload: context ? { context } : undefined,
+      });
+    },
+    [sendMessage],
+  );
+
+  const resolveCapture = useCallback((captureId?: string) => {
+    if (captureId) {
+      return captures.find((capture) => capture.id === captureId);
+    }
+    if (selectedMetrics.length > 0) {
+      return captures.find((capture) => capture.id === selectedMetrics[0].captureId);
+    }
+    return captures.find((capture) => capture.isActive) ?? captures[0];
+  }, [captures, selectedMetrics]);
+
   const handleCommand = useCallback((command: ControlCommand) => {
+    const requestId = "request_id" in command ? command.request_id : undefined;
+
     switch (command.type) {
+      case "hello": {
+        sendMessage({
+          type: "capabilities",
+          request_id: requestId,
+          payload: buildCapabilitiesPayload(),
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
       case "get_state":
-        sendState();
+        sendState(requestId);
+        sendAck(requestId, command.type);
         break;
       case "list_captures":
-        sendState();
+        sendState(requestId);
+        sendAck(requestId, command.type);
         break;
       case "toggle_capture":
         onToggleCapture(command.captureId);
+        sendAck(requestId, command.type);
         break;
       case "select_metric":
         onSelectMetric(command.captureId, command.path);
+        sendAck(requestId, command.type);
         break;
       case "deselect_metric":
         onDeselectMetric(command.captureId, command.fullPath);
+        sendAck(requestId, command.type);
         break;
       case "clear_selection":
         onClearSelection();
+        sendAck(requestId, command.type);
         break;
       case "play":
         onPlay();
+        sendAck(requestId, command.type);
         break;
       case "pause":
         onPause();
+        sendAck(requestId, command.type);
         break;
       case "stop":
         onStop();
+        sendAck(requestId, command.type);
         break;
       case "seek":
         onSeek(command.tick);
+        sendAck(requestId, command.type);
         break;
       case "set_speed":
         onSpeedChange(command.speed);
+        sendAck(requestId, command.type);
         break;
+      case "capture_init":
+        onCaptureInit(command.captureId, command.filename);
+        sendMessage({
+          type: "ui_notice",
+          payload: {
+            message: "Capture initialized",
+            context: { captureId: command.captureId, filename: command.filename },
+          },
+        });
+        sendAck(requestId, command.type);
+        break;
+      case "capture_append":
+        onCaptureAppend(command.captureId, command.frame);
+        break;
+      case "capture_end":
+        onCaptureEnd(command.captureId);
+        sendMessage({
+          type: "ui_notice",
+          payload: {
+            message: "Capture ended",
+            context: { captureId: command.captureId },
+          },
+        });
+        sendAck(requestId, command.type);
+        break;
+      case "get_display_snapshot": {
+        const snapshot = buildDisplaySnapshot({
+          captures,
+          selectedMetrics,
+          playback: playbackState,
+          windowSize: command.windowSize ?? windowSize,
+          captureId: command.captureId,
+        });
+        sendMessage({
+          type: "display_snapshot",
+          request_id: requestId,
+          payload: snapshot,
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
+      case "get_series_window": {
+        const capture = captures.find((item) => item.id === command.captureId);
+        if (!capture) {
+          sendError(requestId, `Capture not found: ${command.captureId}`, {
+            captureId: command.captureId,
+          });
+          break;
+        }
+        const series = buildSeriesWindow({
+          records: capture.records,
+          path: command.path,
+          currentTick: playbackState.currentTick,
+          windowSize: command.windowSize ?? windowSize,
+          captureId: capture.id,
+        });
+        sendMessage({
+          type: "series_window",
+          request_id: requestId,
+          payload: series,
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
+      case "query_components": {
+        const capture = resolveCapture(command.captureId);
+        if (!capture) {
+          sendError(requestId, "No capture available for component query.", {
+            captureId: command.captureId ?? null,
+          });
+          break;
+        }
+        const list = buildComponentsList({
+          components: capture.components,
+          captureId: capture.id,
+          search: command.search,
+          limit: command.limit,
+        });
+        sendMessage({
+          type: "components_list",
+          request_id: requestId,
+          payload: list,
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
+      case "get_render_table": {
+        const capture = resolveCapture(command.captureId);
+        if (!capture) {
+          sendError(requestId, "No capture available for render table.", {
+            captureId: command.captureId ?? null,
+          });
+          break;
+        }
+        const metrics = selectedMetrics.filter(
+          (metric) => metric.captureId === capture.id,
+        );
+        if (metrics.length === 0) {
+          sendError(requestId, "No selected metrics for render table.", {
+            captureId: capture.id,
+          });
+          break;
+        }
+        const table = buildRenderTable({
+          records: capture.records,
+          metrics,
+          currentTick: playbackState.currentTick,
+          windowSize: command.windowSize ?? windowSize,
+          captureId: capture.id,
+        });
+        sendMessage({
+          type: "render_table",
+          request_id: requestId,
+          payload: table,
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
+      case "get_memory_stats": {
+        const stats = getMemoryStats();
+        sendMessage({
+          type: "memory_stats",
+          request_id: requestId,
+          payload: stats,
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
     }
-  }, [sendState, onToggleCapture, onSelectMetric, onDeselectMetric, onClearSelection, onPlay, onPause, onStop, onSeek, onSpeedChange]);
+  }, [
+    sendState,
+    sendMessage,
+    sendAck,
+    sendError,
+    resolveCapture,
+    onToggleCapture,
+    onSelectMetric,
+    onDeselectMetric,
+    onClearSelection,
+    onPlay,
+    onPause,
+    onStop,
+    onSeek,
+    onSpeedChange,
+    onCaptureInit,
+    onCaptureAppend,
+    onCaptureEnd,
+    getMemoryStats,
+    captures,
+    selectedMetrics,
+    playbackState,
+    windowSize,
+  ]);
+
+  const handleCommandRef = useRef(handleCommand);
+
+  useEffect(() => {
+    handleCommandRef.current = handleCommand;
+  }, [handleCommand]);
 
   useEffect(() => {
     let isCleanedUp = false;
@@ -115,7 +366,7 @@ export function useWebSocketControl({
             console.error("[ws] Server error:", message.error);
             return;
           }
-          handleCommand(message as ControlCommand);
+          handleCommandRef.current(message as ControlCommand);
         } catch (e) {
           console.error("[ws] Failed to parse message:", e);
         }
@@ -140,11 +391,11 @@ export function useWebSocketControl({
       }
       wsRef.current?.close();
     };
-  }, [handleCommand]);
+  }, []);
 
   useEffect(() => {
     sendState();
   }, [captures, selectedMetrics, playbackState, sendState]);
 
-  return { sendState };
+  return { sendState, sendMessage };
 }

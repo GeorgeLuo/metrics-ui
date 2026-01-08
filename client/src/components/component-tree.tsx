@@ -7,15 +7,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ComponentNode, SelectedMetric } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
-const CHART_COLORS = [
-  "hsl(0, 0%, 20%)",
-  "hsl(0, 0%, 40%)",
-  "hsl(0, 0%, 55%)",
-  "hsl(0, 0%, 70%)",
-  "hsl(0, 0%, 35%)",
-  "hsl(0, 0%, 50%)",
-  "hsl(0, 0%, 65%)",
-  "hsl(0, 0%, 25%)",
+const METRIC_COLORS = [
+  "#E4572E",
+  "#17B890",
+  "#4C78A8",
+  "#F2C14E",
+  "#2E86AB",
+  "#F25F5C",
+  "#70C1B3",
+  "#9C755F",
+  "#3D5A80",
+  "#C44536",
+  "#8AC926",
+  "#FFB703",
 ];
 
 interface ComponentTreeProps {
@@ -198,13 +202,13 @@ export function ComponentTree({
 
   const handleToggle = (node: ComponentNode, checked: boolean) => {
     if (checked) {
-      const colorIndex = (selectedMetrics.length + colorOffset) % CHART_COLORS.length;
+      const colorIndex = (selectedMetrics.length + colorOffset) % METRIC_COLORS.length;
       const newMetric: SelectedMetric = {
         captureId,
         path: node.path,
         fullPath: node.id,
         label: node.label,
-        color: CHART_COLORS[colorIndex],
+        color: METRIC_COLORS[colorIndex],
       };
       onSelectionChange([...selectedMetrics, newMetric]);
     } else {
