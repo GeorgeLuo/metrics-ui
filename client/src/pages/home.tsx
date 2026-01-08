@@ -859,6 +859,13 @@ export default function Home() {
               <SidebarGroupLabel>Captures</SidebarGroupLabel>
               <SidebarGroupContent>
                 <div className="flex flex-col gap-1 px-2">
+                  <FileUpload
+                    onFileUpload={handleFileUpload}
+                    isUploading={uploadMutation.isPending}
+                    uploadedFile={null}
+                    error={uploadError}
+                    onClear={handleClearError}
+                  />
                   {captures.map((capture) => (
                     <div
                       key={capture.id}
@@ -949,14 +956,6 @@ export default function Home() {
           </header>
 
           <main className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
-            <FileUpload
-              onFileUpload={handleFileUpload}
-              isUploading={uploadMutation.isPending}
-              uploadedFile={null}
-              error={uploadError}
-              onClear={handleClearError}
-            />
-
             <div className="relative flex-1 min-h-0">
               <MetricsChart
                 data={chartData}

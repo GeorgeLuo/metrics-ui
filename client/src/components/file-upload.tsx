@@ -109,7 +109,7 @@ export function FileUpload({
   return (
     <div
       className={cn(
-        "relative flex flex-col items-center justify-center h-32 border border-dashed transition-colors cursor-pointer",
+        "relative flex items-center justify-center gap-2 py-2 px-3 border border-dashed rounded transition-colors cursor-pointer",
         isDragging
           ? "border-foreground bg-muted/50"
           : "border-muted-foreground/20 hover:border-muted-foreground/40",
@@ -129,12 +129,10 @@ export function FileUpload({
         data-testid="input-file-upload"
         aria-label="Upload JSONL capture file"
       />
-      <div className="flex flex-col items-center gap-2 pointer-events-none">
-        <Upload className={cn("w-5 h-5 text-muted-foreground", isUploading && "animate-pulse")} />
-        <p className="text-xs text-muted-foreground">
-          {isUploading ? "Processing..." : "Drop .jsonl file or click to browse"}
-        </p>
-      </div>
+      <Upload className={cn("w-4 h-4 text-muted-foreground shrink-0", isUploading && "animate-pulse")} />
+      <p className="text-xs text-muted-foreground">
+        {isUploading ? "Processing..." : "Drop .jsonl or click"}
+      </p>
     </div>
   );
 }
