@@ -1,3 +1,5 @@
+import { useState, useCallback, useRef } from "react";
+import { GripVertical } from "lucide-react";
 import type { SelectedMetric, DataPoint, CaptureSession } from "@shared/schema";
 
 function sanitizeKey(key: string): string {
@@ -9,10 +11,40 @@ interface MetricsHUDProps {
   selectedMetrics: SelectedMetric[];
   currentTick: number;
   captures: CaptureSession[];
+  isVisible: boolean;
 }
 
-export function MetricsHUD({ currentData, selectedMetrics, currentTick, captures }: MetricsHUDProps) {
-  if (selectedMetrics.length === 0 || !currentData) {
+export function MetricsHUD({ currentData, selectedMetrics, currentTick, captures, isVisible }: MetricsHUDProps) {
+  const [position, setPosition] = useState({ x: 16, y: 16 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragOffset.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      setPosition({
+        x: moveEvent.clientX - dragOffset.current.x,
+        y: moveEvent.clientY - dragOffset.current.y,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, [position]);
+
+  if (!isVisible || selectedMetrics.length === 0 || !currentData) {
     return null;
   }
 
@@ -29,11 +61,25 @@ export function MetricsHUD({ currentData, selectedMetrics, currentTick, captures
 
   return (
     <div
-      className="absolute top-4 right-4 bg-background/80 backdrop-blur-sm p-3 min-w-44 z-20"
+      className="absolute bg-background/80 backdrop-blur-sm p-3 min-w-44 z-20 select-none"
+      style={{
+        top: position.y,
+        right: "auto",
+        left: position.x,
+        cursor: isDragging ? "grabbing" : "default",
+      }}
       data-testid="metrics-hud"
     >
-      <div className="text-xs text-muted-foreground mb-2 font-mono tracking-tight">
-        {currentTick.toLocaleString()}
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className="cursor-grab active:cursor-grabbing p-0.5 -ml-1 hover:bg-muted/50 rounded"
+          onMouseDown={handleMouseDown}
+        >
+          <GripVertical className="w-3 h-3 text-muted-foreground" />
+        </div>
+        <div className="text-xs text-muted-foreground font-mono tracking-tight">
+          {currentTick.toLocaleString()}
+        </div>
       </div>
       <div className="flex flex-col gap-1.5">
         {selectedMetrics.map((metric) => {

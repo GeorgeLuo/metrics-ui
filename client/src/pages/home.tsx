@@ -17,7 +17,7 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
-import { Activity, X, FileText, Trash2, BookOpen } from "lucide-react";
+import { Activity, X, FileText, Trash2, BookOpen, Eye, EyeOff } from "lucide-react";
 import { Link } from "wouter";
 import type {
   ComponentNode,
@@ -236,6 +236,7 @@ export default function Home() {
 
   const [windowSize, setWindowSize] = useState(INITIAL_WINDOW_SIZE);
   const [isAutoZoom, setIsAutoZoom] = useState(true);
+  const [isHudVisible, setIsHudVisible] = useState(true);
 
   const playbackRef = useRef<number | null>(null);
   const captureProgressRef = useRef(
@@ -946,6 +947,15 @@ export default function Home() {
                   Clear ({selectedMetrics.length})
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsHudVisible(!isHudVisible)}
+                data-testid="button-toggle-hud"
+                title={isHudVisible ? "Hide HUD" : "Show HUD"}
+              >
+                {isHudVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </Button>
               <Link href="/docs">
                 <Button variant="ghost" size="icon" data-testid="button-docs">
                   <BookOpen className="w-4 h-4" />
@@ -973,6 +983,7 @@ export default function Home() {
                 selectedMetrics={activeMetrics}
                 currentTick={playbackState.currentTick}
                 captures={captures}
+                isVisible={isHudVisible}
               />
             </div>
 
