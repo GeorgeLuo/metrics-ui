@@ -7,6 +7,9 @@ import type {
   PlaybackState,
   CaptureSession,
   MemoryStatsResponse,
+  CaptureAppendFrame,
+  CaptureRecord,
+  CaptureRecordLine,
 } from "@shared/schema";
 import {
   buildCapabilitiesPayload,
@@ -21,6 +24,8 @@ interface UseWebSocketControlProps {
   selectedMetrics: SelectedMetric[];
   playbackState: PlaybackState;
   windowSize: number;
+  onSourceModeChange: (mode: "file" | "live") => void;
+  onLiveSourceChange: (source: string) => void;
   onToggleCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[]) => void;
   onDeselectMetric: (captureId: string, fullPath: string) => void;
@@ -30,10 +35,56 @@ interface UseWebSocketControlProps {
   onStop: () => void;
   onSeek: (tick: number) => void;
   onSpeedChange: (speed: number) => void;
+  onLiveStart: (options: {
+    source?: string;
+    pollIntervalMs?: number;
+    captureId?: string;
+    filename?: string;
+  }) => Promise<void>;
+  onLiveStop: () => Promise<void>;
   onCaptureInit: (captureId: string, filename?: string) => void;
   onCaptureAppend: (captureId: string, frame: CaptureSession["records"][number]) => void;
   onCaptureEnd: (captureId: string) => void;
   getMemoryStats: () => MemoryStatsResponse;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function normalizeCaptureAppendFrame(frame: CaptureAppendFrame): CaptureRecord | null {
+  if (!frame || typeof frame !== "object") {
+    return null;
+  }
+
+  const maybe = frame as CaptureRecord & CaptureRecordLine;
+  if (!isFiniteNumber(maybe.tick)) {
+    return null;
+  }
+
+  if (
+    maybe.entities &&
+    typeof maybe.entities === "object" &&
+    !Array.isArray(maybe.entities)
+  ) {
+    return {
+      tick: maybe.tick,
+      entities: maybe.entities as Record<string, Record<string, unknown>>,
+    };
+  }
+
+  if (typeof maybe.entityId === "string" && typeof maybe.componentId === "string") {
+    return {
+      tick: maybe.tick,
+      entities: {
+        [maybe.entityId]: {
+          [maybe.componentId]: maybe.value,
+        },
+      },
+    };
+  }
+
+  return null;
 }
 
 export function useWebSocketControl({
@@ -41,6 +92,8 @@ export function useWebSocketControl({
   selectedMetrics,
   playbackState,
   windowSize,
+  onSourceModeChange,
+  onLiveSourceChange,
   onToggleCapture,
   onSelectMetric,
   onDeselectMetric,
@@ -50,6 +103,8 @@ export function useWebSocketControl({
   onStop,
   onSeek,
   onSpeedChange,
+  onLiveStart,
+  onLiveStop,
   onCaptureInit,
   onCaptureAppend,
   onCaptureEnd,
@@ -181,6 +236,42 @@ export function useWebSocketControl({
         onSpeedChange(command.speed);
         sendAck(requestId, command.type);
         break;
+      case "set_source_mode":
+        onSourceModeChange(command.mode);
+        sendAck(requestId, command.type);
+        break;
+      case "set_live_source":
+        onLiveSourceChange(command.source);
+        sendAck(requestId, command.type);
+        break;
+      case "live_start": {
+        onLiveStart({
+          source: command.source,
+          pollIntervalMs: command.pollIntervalMs,
+          captureId: command.captureId,
+          filename: command.filename,
+        })
+          .then(() => sendAck(requestId, command.type))
+          .catch((error) => {
+            sendError(
+              requestId,
+              error instanceof Error ? error.message : "Failed to start live stream.",
+              { source: command.source, pollIntervalMs: command.pollIntervalMs },
+            );
+          });
+        break;
+      }
+      case "live_stop": {
+        onLiveStop()
+          .then(() => sendAck(requestId, command.type))
+          .catch((error) => {
+            sendError(
+              requestId,
+              error instanceof Error ? error.message : "Failed to stop live stream.",
+            );
+          });
+        break;
+      }
       case "capture_init":
         onCaptureInit(command.captureId, command.filename);
         sendMessage({
@@ -193,7 +284,18 @@ export function useWebSocketControl({
         sendAck(requestId, command.type);
         break;
       case "capture_append":
-        onCaptureAppend(command.captureId, command.frame);
+        {
+          const normalized = normalizeCaptureAppendFrame(command.frame);
+          if (!normalized) {
+            sendError(
+              requestId,
+              "Invalid capture_append frame. Expected {tick, entities} or {tick, entityId, componentId, value}.",
+              { captureId: command.captureId },
+            );
+            break;
+          }
+          onCaptureAppend(command.captureId, normalized);
+        }
         break;
       case "capture_end":
         onCaptureEnd(command.captureId);
@@ -325,6 +427,8 @@ export function useWebSocketControl({
     onStop,
     onSeek,
     onSpeedChange,
+    onLiveStart,
+    onLiveStop,
     onCaptureInit,
     onCaptureAppend,
     onCaptureEnd,

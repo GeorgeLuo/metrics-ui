@@ -7,6 +7,15 @@ export const captureRecordSchema = z.object({
 
 export type CaptureRecord = z.infer<typeof captureRecordSchema>;
 
+export interface CaptureRecordLine {
+  tick: number;
+  entityId: string;
+  componentId: string;
+  value: unknown;
+}
+
+export type CaptureAppendFrame = CaptureRecord | CaptureRecordLine;
+
 export interface CaptureSession {
   id: string;
   filename: string;
@@ -250,8 +259,18 @@ export type ControlCommand =
   | ({ type: "stop" } & ControlRequestBase)
   | ({ type: "seek"; tick: number } & ControlRequestBase)
   | ({ type: "set_speed"; speed: number } & ControlRequestBase)
+  | ({ type: "set_source_mode"; mode: "file" | "live" } & ControlRequestBase)
+  | ({ type: "set_live_source"; source: string } & ControlRequestBase)
+  | ({
+      type: "live_start";
+      source?: string;
+      pollIntervalMs?: number;
+      captureId?: string;
+      filename?: string;
+    } & ControlRequestBase)
+  | ({ type: "live_stop" } & ControlRequestBase)
   | ({ type: "capture_init"; captureId: string; filename?: string } & ControlRequestBase)
-  | ({ type: "capture_append"; captureId: string; frame: CaptureRecord } & ControlRequestBase)
+  | ({ type: "capture_append"; captureId: string; frame: CaptureAppendFrame } & ControlRequestBase)
   | ({ type: "capture_end"; captureId: string } & ControlRequestBase)
   | ({ type: "get_display_snapshot"; captureId?: string; windowSize?: number } & ControlRequestBase)
   | ({ type: "get_series_window"; captureId: string; path: string[]; windowSize?: number } & ControlRequestBase)

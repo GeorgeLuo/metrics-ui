@@ -204,6 +204,23 @@ const agentClients = new Set<WebSocket>();
 let frontendClient: WebSocket | null = null;
 const pendingClients = new Map<WebSocket, boolean>();
 
+interface LiveStreamState {
+  captureId: string;
+  filename: string;
+  source: string;
+  pollIntervalMs: number;
+  controller: AbortController;
+  timer: NodeJS.Timeout | null;
+  startedAt: string;
+  frameCount: number;
+  lastTick: number | null;
+  lineOffset: number;
+  lastError: string | null;
+  isPolling: boolean;
+}
+
+let liveStreamState: LiveStreamState | null = null;
+
 function broadcastToAgents(message: ControlResponse) {
   const data = JSON.stringify(message);
   agentClients.forEach(client => {
@@ -211,6 +228,312 @@ function broadcastToAgents(message: ControlResponse) {
       client.send(data);
     }
   });
+}
+
+function sendToFrontend(command: ControlCommand): boolean {
+  if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
+    return false;
+  }
+  frontendClient.send(JSON.stringify(command));
+  return true;
+}
+
+function normalizeEntities(value: unknown): Record<string, Record<string, unknown>> {
+  const result: Record<string, Record<string, unknown>> = {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return result;
+  }
+  for (const [entityId, components] of Object.entries(value as Record<string, unknown>)) {
+    if (!components || typeof components !== "object" || Array.isArray(components)) {
+      continue;
+    }
+    result[entityId] = { ...(components as Record<string, unknown>) };
+  }
+  return result;
+}
+
+function parseLineToFrame(line: string): CaptureRecord | null {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return null;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+  const tick = (parsed as { tick?: number }).tick;
+  if (!Number.isFinite(tick)) {
+    return null;
+  }
+  const entities = (parsed as { entities?: unknown }).entities;
+  if (entities && typeof entities === "object" && !Array.isArray(entities)) {
+    return { tick, entities: normalizeEntities(entities) };
+  }
+  const entityId = (parsed as { entityId?: unknown }).entityId;
+  const componentId = (parsed as { componentId?: unknown }).componentId;
+  if (typeof entityId === "string" && typeof componentId === "string") {
+    return {
+      tick,
+      entities: {
+        [entityId]: {
+          [componentId]: (parsed as { value?: unknown }).value,
+        },
+      },
+    };
+  }
+  return null;
+}
+
+function splitCaptureLines(content: string) {
+  const lines = content.split("\n");
+  if (lines.length === 0) {
+    return { lines, completeCount: 0 };
+  }
+  let completeCount = lines.length;
+  const last = lines[lines.length - 1];
+  if (!last || last.trim() === "") {
+    completeCount -= 1;
+  } else {
+    try {
+      JSON.parse(last);
+    } catch {
+      completeCount -= 1;
+    }
+  }
+  return { lines, completeCount: Math.max(0, completeCount) };
+}
+
+async function loadCaptureContent(source: string, signal: AbortSignal): Promise<string> {
+  const trimmed = source.trim();
+  if (!trimmed) {
+    throw new Error("Capture file source is required.");
+  }
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    const response = await fetch(trimmed, { signal });
+    if (!response.ok) {
+      throw new Error(`Capture fetch failed (${response.status})`);
+    }
+    return response.text();
+  }
+  const filePath = resolveLocalCapturePath(trimmed);
+  return fs.promises.readFile(filePath, "utf-8");
+}
+
+function resolveLocalCapturePath(source: string) {
+  if (source.startsWith("file://")) {
+    return fileURLToPath(source);
+  }
+  if (path.isAbsolute(source)) {
+    return source;
+  }
+
+  const cwdPath = path.resolve(process.cwd(), source);
+  if (fs.existsSync(cwdPath)) {
+    return cwdPath;
+  }
+
+  const parentPath = path.resolve(process.cwd(), "..", source);
+  if (fs.existsSync(parentPath)) {
+    return parentPath;
+  }
+
+  return cwdPath;
+}
+
+async function probeCaptureSource(source: string, signal: AbortSignal) {
+  const trimmed = source.trim();
+  if (!trimmed) {
+    return { ok: false, error: "Capture file source is required." };
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const response = await fetch(trimmed, { method: "HEAD", signal });
+      if (response.ok) {
+        const size = Number(response.headers.get("content-length"));
+        return {
+          ok: true,
+          status: response.status,
+          size: Number.isFinite(size) ? size : undefined,
+        };
+      }
+
+      if (response.status === 405 || response.status === 501) {
+        const rangeResponse = await fetch(trimmed, {
+          method: "GET",
+          headers: { Range: "bytes=0-0" },
+          signal,
+        });
+        if (rangeResponse.ok || rangeResponse.status === 206) {
+          const size = Number(rangeResponse.headers.get("content-length"));
+          return {
+            ok: true,
+            status: rangeResponse.status,
+            size: Number.isFinite(size) ? size : undefined,
+          };
+        }
+      }
+
+      return {
+        ok: false,
+        status: response.status,
+        error: `Capture source not reachable (${response.status})`,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  const filePath = resolveLocalCapturePath(trimmed);
+  try {
+    const stats = await fs.promises.stat(filePath);
+    if (!stats.isFile()) {
+      return { ok: false, error: "Capture source is not a file." };
+    }
+    return {
+      ok: true,
+      size: stats.size,
+      modifiedAt: stats.mtime.toISOString(),
+      path: filePath,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function pollLiveCapture(state: LiveStreamState) {
+  if (!liveStreamState || liveStreamState.captureId !== state.captureId) {
+    return;
+  }
+  if (state.isPolling) {
+    return;
+  }
+  state.isPolling = true;
+
+  try {
+    const content = await loadCaptureContent(state.source, state.controller.signal);
+    if (!liveStreamState || liveStreamState.captureId !== state.captureId) {
+      return;
+    }
+    const { lines, completeCount } = splitCaptureLines(content);
+    if (completeCount < state.lineOffset) {
+      state.lineOffset = 0;
+      state.frameCount = 0;
+      state.lastTick = null;
+      sendToFrontend({
+        type: "capture_init",
+        captureId: state.captureId,
+        filename: state.filename,
+      });
+    }
+
+    for (let i = state.lineOffset; i < completeCount; i += 1) {
+      const frame = parseLineToFrame(lines[i] ?? "");
+      if (!frame) {
+        continue;
+      }
+      state.frameCount += 1;
+      state.lastTick = frame.tick;
+      sendToFrontend({ type: "capture_append", captureId: state.captureId, frame });
+    }
+    state.lineOffset = completeCount;
+    state.lastError = null;
+  } catch (error) {
+    if (!(state.controller.signal.aborted && (error as Error).name === "AbortError")) {
+      state.lastError = error instanceof Error ? error.message : String(error);
+    }
+  } finally {
+    state.isPolling = false;
+    if (liveStreamState?.captureId === state.captureId) {
+      state.timer = setTimeout(() => {
+        pollLiveCapture(state).catch((pollError) => {
+          console.error("[live] Poll error:", pollError);
+        });
+      }, state.pollIntervalMs);
+    }
+  }
+}
+
+function inferFilename(source: string) {
+  try {
+    if (source.startsWith("http://") || source.startsWith("https://")) {
+      const url = new URL(source);
+      const base = path.basename(url.pathname);
+      return base || "live-capture.jsonl";
+    }
+    if (source.startsWith("file://")) {
+      const base = path.basename(fileURLToPath(source));
+      return base || "live-capture.jsonl";
+    }
+  } catch {
+    // ignore
+  }
+  const base = path.basename(source);
+  return base || "live-capture.jsonl";
+}
+
+function startLiveStream({
+  source,
+  captureId,
+  filename,
+  pollIntervalMs,
+}: {
+  source: string;
+  captureId: string;
+  filename: string;
+  pollIntervalMs: number;
+}) {
+  if (liveStreamState) {
+    throw new Error("Live stream already running.");
+  }
+  const controller = new AbortController();
+  const state: LiveStreamState = {
+    captureId,
+    filename,
+    source,
+    pollIntervalMs,
+    controller,
+    timer: null,
+    startedAt: new Date().toISOString(),
+    frameCount: 0,
+    lastTick: null,
+    lineOffset: 0,
+    lastError: null,
+    isPolling: false,
+  };
+  if (!sendToFrontend({ type: "capture_init", captureId, filename })) {
+    throw new Error("Frontend not connected.");
+  }
+  liveStreamState = state;
+  pollLiveCapture(state).catch((error) => {
+    console.error("[live] Poll error:", error);
+  });
+  return state;
+}
+
+function stopLiveStream() {
+  if (!liveStreamState) {
+    return null;
+  }
+  const state = liveStreamState;
+  state.controller.abort();
+  if (state.timer) {
+    clearTimeout(state.timer);
+  }
+  liveStreamState = null;
+  sendToFrontend({ type: "capture_end", captureId: state.captureId });
+  return state;
 }
 
 export async function registerRoutes(
@@ -287,6 +610,9 @@ export async function registerRoutes(
       pendingClients.delete(ws);
       if (ws === frontendClient) {
         frontendClient = null;
+        if (liveStreamState) {
+          stopLiveStream();
+        }
         console.log("[ws] Frontend disconnected");
       } else {
         agentClients.delete(ws);
@@ -387,6 +713,142 @@ export async function registerRoutes(
       console.error('Upload error:', error);
       res.status(500).json({ error: 'Failed to process file' });
     }
+  });
+
+  app.post("/api/source/check", async (req, res) => {
+    const source = typeof req.body?.source === "string" ? req.body.source.trim() : "";
+    if (!source) {
+      return res.status(400).json({ ok: false, error: "Capture file source is required." });
+    }
+
+    const result = await probeCaptureSource(source, new AbortController().signal);
+    return res.json({ ...result, source });
+  });
+
+  app.post("/api/source/load", async (req, res) => {
+    try {
+      const source = typeof req.body?.source === "string" ? req.body.source.trim() : "";
+      if (!source) {
+        return res.status(400).json({ error: "Capture file source is required." });
+      }
+
+      const content = await loadCaptureContent(source, new AbortController().signal);
+      const { records, components } = parseJSONL(content);
+
+      if (records.length === 0) {
+        return res.status(400).json({ error: "No valid records found in file" });
+      }
+
+      const tickCount = records.length;
+      const entityIdSet = new Set<string>();
+      const componentIdSet = new Set<string>();
+      records.forEach((record) => {
+        Object.entries(record.entities).forEach(([entityId, components]) => {
+          entityIdSet.add(entityId);
+          if (components && typeof components === "object") {
+            Object.keys(components).forEach((componentId) => {
+              componentIdSet.add(componentId);
+            });
+          }
+        });
+      });
+      const entityIds = [...entityIdSet];
+      const componentIds = [...componentIdSet];
+
+      res.json({
+        success: true,
+        filename: inferFilename(source),
+        size: Buffer.byteLength(content, "utf-8"),
+        tickCount,
+        records,
+        components,
+        entityIds,
+        componentIds,
+      });
+    } catch (error) {
+      console.error("Source load error:", error);
+      res.status(500).json({ error: "Failed to load capture source." });
+    }
+  });
+
+  app.get("/api/live/status", (_req, res) => {
+    if (!liveStreamState) {
+      return res.json({ running: false });
+    }
+    return res.json({
+      running: true,
+      captureId: liveStreamState.captureId,
+      source: liveStreamState.source,
+      pollIntervalMs: liveStreamState.pollIntervalMs,
+      frameCount: liveStreamState.frameCount,
+      lastTick: liveStreamState.lastTick,
+      lineOffset: liveStreamState.lineOffset,
+      lastError: liveStreamState.lastError,
+      startedAt: liveStreamState.startedAt,
+    });
+  });
+
+  app.post("/api/live/start", (req, res) => {
+    try {
+      const source = typeof req.body?.source === "string"
+        ? req.body.source
+        : typeof req.body?.file === "string"
+          ? req.body.file
+          : typeof req.body?.endpoint === "string"
+            ? req.body.endpoint
+            : "";
+      const pollIntervalMs = Number(req.body?.pollIntervalMs ?? req.body?.pollInterval ?? 2000);
+      const captureId =
+        typeof req.body?.captureId === "string"
+          ? req.body.captureId
+          : `live-${Date.now()}`;
+      const filename =
+        typeof req.body?.filename === "string"
+          ? req.body.filename
+          : inferFilename(source);
+
+      if (!source.trim()) {
+        return res.status(400).json({ error: "Capture file source is required." });
+      }
+      if (!Number.isFinite(pollIntervalMs) || pollIntervalMs <= 0) {
+        return res.status(400).json({ error: "Invalid pollIntervalMs value." });
+      }
+      if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
+        return res.status(409).json({ error: "Frontend not connected." });
+      }
+      if (liveStreamState) {
+        return res.status(409).json({ error: "Live stream already running." });
+      }
+
+      const state = startLiveStream({
+        source: source.trim(),
+        pollIntervalMs,
+        captureId,
+        filename,
+      });
+
+      return res.json({
+        success: true,
+        captureId: state.captureId,
+        source: state.source,
+        pollIntervalMs: state.pollIntervalMs,
+      });
+    } catch (error) {
+      console.error("Live start error:", error);
+      return res.status(500).json({ error: "Failed to start live stream." });
+    }
+  });
+
+  app.post("/api/live/stop", (_req, res) => {
+    if (!liveStreamState) {
+      return res.json({ success: true, running: false });
+    }
+    const stopped = stopLiveStream();
+    return res.json({
+      success: true,
+      running: false,
+      captureId: stopped?.captureId ?? null,
+    });
   });
 
   return httpServer;
