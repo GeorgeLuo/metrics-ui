@@ -32,13 +32,13 @@ function MarkdownRenderer({ content }: { content: string }) {
       const code = codeLines.join('\n');
       const blockIndex = codeBlockIndex++;
       elements.push(
-        <div key={`code-${blockIndex}`} className="relative group my-4">
+        <div key={`code-${blockIndex}`} className="relative group my-3">
           {lang && (
-            <div className="text-xs text-muted-foreground font-mono px-4 py-1 bg-muted/50 border-b border-border rounded-t-md">
+            <div className="text-xs text-muted-foreground font-mono px-4 py-1 bg-muted border-b border-border rounded-t-md">
               {lang}
             </div>
           )}
-          <pre className={`bg-muted/50 p-4 overflow-x-auto font-mono text-sm ${lang ? 'rounded-b-md' : 'rounded-md'}`}>
+          <pre className={`bg-muted p-4 overflow-x-auto font-mono text-sm text-foreground ${lang ? 'rounded-b-md' : 'rounded-md'}`}>
             <code>{code}</code>
           </pre>
           <Button
@@ -62,24 +62,24 @@ function MarkdownRenderer({ content }: { content: string }) {
 
     if (line.startsWith('# ')) {
       elements.push(
-        <h1 key={i} className="text-3xl font-bold mt-8 mb-4 first:mt-0">
+        <h1 key={i} className="text-3xl font-bold mt-6 mb-3 first:mt-0 text-foreground">
           {line.slice(2)}
         </h1>
       );
     } else if (line.startsWith('## ')) {
       elements.push(
-        <h2 key={i} className="text-2xl font-semibold mt-8 mb-3 border-b border-border pb-2">
+        <h2 key={i} className="text-2xl font-semibold mt-6 mb-2 border-b border-border pb-2 text-foreground">
           {line.slice(3)}
         </h2>
       );
     } else if (line.startsWith('### ')) {
       elements.push(
-        <h3 key={i} className="text-xl font-semibold mt-6 mb-2">
+        <h3 key={i} className="text-xl font-semibold mt-4 mb-2 text-foreground">
           {line.slice(4)}
         </h3>
       );
     } else if (line.startsWith('---')) {
-      elements.push(<hr key={i} className="my-8 border-border" />);
+      elements.push(<hr key={i} className="my-6 border-border" />);
     } else if (line.startsWith('| ')) {
       const tableRows: string[] = [line];
       i++;
@@ -98,12 +98,12 @@ function MarkdownRenderer({ content }: { content: string }) {
       );
 
       elements.push(
-        <div key={`table-${i}`} className="my-4 overflow-x-auto">
-          <table className="w-full border-collapse">
+        <div key={`table-${i}`} className="my-3 overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border">
                 {headers.map((h, j) => (
-                  <th key={j} className="text-left p-2 font-semibold">{h}</th>
+                  <th key={j} className="text-left p-2 font-semibold text-foreground">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -111,9 +111,9 @@ function MarkdownRenderer({ content }: { content: string }) {
               {rows.map((row, j) => (
                 <tr key={j} className="border-b border-border/50">
                   {row.map((cell, k) => (
-                    <td key={k} className="p-2">
+                    <td key={k} className="p-2 text-foreground/80">
                       {cell.startsWith('`') && cell.endsWith('`') ? (
-                        <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground">
                           {cell.slice(1, -1)}
                         </code>
                       ) : (
@@ -136,10 +136,10 @@ function MarkdownRenderer({ content }: { content: string }) {
       }
       i--;
       elements.push(
-        <ul key={`list-${i}`} className="list-disc list-inside my-4 space-y-1">
+        <ul key={`list-${i}`} className="list-disc pl-5 my-3 space-y-0.5">
           {listItems.map((item, j) => (
-            <li key={j} className="text-muted-foreground">
-              <span className="text-foreground">{renderInlineMarkdown(item)}</span>
+            <li key={j} className="text-foreground/80">
+              {renderInlineMarkdown(item)}
             </li>
           ))}
         </ul>
@@ -153,17 +153,17 @@ function MarkdownRenderer({ content }: { content: string }) {
       }
       i--;
       elements.push(
-        <ol key={`olist-${i}`} className="list-decimal list-inside my-4 space-y-1">
+        <ol key={`olist-${i}`} className="list-decimal pl-5 my-3 space-y-0.5">
           {listItems.map((item, j) => (
-            <li key={j} className="text-muted-foreground">
-              <span className="text-foreground">{renderInlineMarkdown(item)}</span>
+            <li key={j} className="text-foreground/80">
+              {renderInlineMarkdown(item)}
             </li>
           ))}
         </ol>
       );
     } else if (line.startsWith('**') && line.endsWith('**')) {
       elements.push(
-        <p key={i} className="font-semibold my-2">
+        <p key={i} className="font-semibold mt-3 mb-1 text-foreground">
           {line.slice(2, -2)}
         </p>
       );
@@ -171,7 +171,7 @@ function MarkdownRenderer({ content }: { content: string }) {
       // Skip empty lines
     } else {
       elements.push(
-        <p key={i} className="my-2 text-muted-foreground leading-relaxed">
+        <p key={i} className="my-1.5 text-foreground/80 leading-relaxed">
           {renderInlineMarkdown(line)}
         </p>
       );
@@ -180,7 +180,7 @@ function MarkdownRenderer({ content }: { content: string }) {
     i++;
   }
 
-  return <div className="prose prose-invert max-w-none">{elements}</div>;
+  return <div className="max-w-none">{elements}</div>;
 }
 
 function renderInlineMarkdown(text: string): (string | JSX.Element)[] {
@@ -215,7 +215,7 @@ function renderInlineMarkdown(text: string): (string | JSX.Element)[] {
       pushBoldSegments(text.slice(lastIndex, match.index));
     }
     parts.push(
-      <code key={`code-${keyIndex++}`} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
+      <code key={`code-${keyIndex++}`} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground">
         {match[1]}
       </code>,
     );
