@@ -139,7 +139,7 @@ function MarkdownRenderer({ content }: { content: string }) {
         <ul key={`list-${i}`} className="list-disc list-inside my-4 space-y-1">
           {listItems.map((item, j) => (
             <li key={j} className="text-muted-foreground">
-              <span className="text-foreground">{renderInlineCode(item)}</span>
+              <span className="text-foreground">{renderInlineMarkdown(item)}</span>
             </li>
           ))}
         </ul>
@@ -156,7 +156,7 @@ function MarkdownRenderer({ content }: { content: string }) {
         <ol key={`olist-${i}`} className="list-decimal list-inside my-4 space-y-1">
           {listItems.map((item, j) => (
             <li key={j} className="text-muted-foreground">
-              <span className="text-foreground">{renderInlineCode(item)}</span>
+              <span className="text-foreground">{renderInlineMarkdown(item)}</span>
             </li>
           ))}
         </ol>
@@ -172,7 +172,7 @@ function MarkdownRenderer({ content }: { content: string }) {
     } else {
       elements.push(
         <p key={i} className="my-2 text-muted-foreground leading-relaxed">
-          {renderInlineCode(line)}
+          {renderInlineMarkdown(line)}
         </p>
       );
     }
@@ -183,26 +183,47 @@ function MarkdownRenderer({ content }: { content: string }) {
   return <div className="prose prose-invert max-w-none">{elements}</div>;
 }
 
-function renderInlineCode(text: string): (string | JSX.Element)[] {
+function renderInlineMarkdown(text: string): (string | JSX.Element)[] {
   const parts: (string | JSX.Element)[] = [];
-  const regex = /`([^`]+)`/g;
+  const codeRegex = /`([^`]+)`/g;
+  const boldRegex = /\*\*([^*]+)\*\*/g;
   let lastIndex = 0;
   let match;
+  let keyIndex = 0;
 
-  while ((match = regex.exec(text)) !== null) {
+  const pushBoldSegments = (segment: string) => {
+    if (!segment) {
+      return;
+    }
+    boldRegex.lastIndex = 0;
+    let boldIndex = 0;
+    let boldMatch;
+    while ((boldMatch = boldRegex.exec(segment)) !== null) {
+      if (boldMatch.index > boldIndex) {
+        parts.push(segment.slice(boldIndex, boldMatch.index));
+      }
+      parts.push(<strong key={`bold-${keyIndex++}`}>{boldMatch[1]}</strong>);
+      boldIndex = boldRegex.lastIndex;
+    }
+    if (boldIndex < segment.length) {
+      parts.push(segment.slice(boldIndex));
+    }
+  };
+
+  while ((match = codeRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      pushBoldSegments(text.slice(lastIndex, match.index));
     }
     parts.push(
-      <code key={match.index} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
+      <code key={`code-${keyIndex++}`} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
         {match[1]}
-      </code>
+      </code>,
     );
-    lastIndex = regex.lastIndex;
+    lastIndex = codeRegex.lastIndex;
   }
 
   if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
+    pushBoldSegments(text.slice(lastIndex));
   }
 
   return parts.length > 0 ? parts : [text];

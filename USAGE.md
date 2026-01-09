@@ -1,271 +1,173 @@
-# Metrics Playback Visualization Tool - Usage Guide
+# Metrics UI - What It Is and How It Works
 
-This tool visualizes time-series metrics data from JSONL capture files, with support for remote control via WebSocket.
-
-## Quick Start
-
-### 1. Deploy the Application
-
-**On Replit:**
-1. Click the "Run" button to start the development server
-2. The application will be available at your Replit URL (e.g., `https://your-project.replit.app`)
-
-**Production Deployment:**
-1. Click "Deploy" in Replit to publish to a live URL
-2. The application will be accessible at your `.replit.app` domain
-
-### 2. Open the Browser
-
-Navigate to the application URL in a web browser. The visualization interface will load automatically.
-
-### 3. Connect Your Agent
-
-Your simulation agent should connect to the WebSocket control endpoint to automate the visualization.
+This site visualizes simulation or evaluation **capture files**. You upload a JSONL capture (or point at a capture file that is still being written), select numeric metrics, and play them back over time with charts and controls. It does **not** run simulations; it only displays captured data.
 
 ---
 
-## WebSocket Control API
+## Browser Usage (Human Workflow)
 
-### Connection
+1. **Open the site** in a browser.
+2. Choose a capture source:
+   - **File**: drag-and-drop a completed JSONL capture.
+   - **Live**: enter a local path or URL to a JSONL file that is still being written.
+3. **Select metrics** from the component tree (only numeric leaf values are chartable).
+4. **Use playback controls** to play, pause, seek, or change speed.
 
-Connect to the WebSocket endpoint at:
+The UI shows multiple captures at once; they share a common tick axis.
+
+---
+
+## Capture File Format (JSONL)
+
+Each line is a JSON object. Two formats are accepted.
+
+### Record Format (preferred)
+
+```json
+{"tick":1,"entityId":"player","componentId":"position","value":{"x":0,"y":0}}
+{"tick":2,"entityId":"player","componentId":"position","value":{"x":1,"y":0}}
+```
+
+Required fields:
+- `tick` (number, 1-based)
+- `entityId` (string)
+- `componentId` (string)
+- `value` (any JSON value)
+
+### Frame Format (accepted)
+
+```json
+{"tick":1,"entities":{"player":{"position":{"x":0,"y":0}}}}
+```
+
+The UI normalizes frame format into record format internally.
+
+---
+
+## Uploading (File Mode)
+
+Upload a completed capture file:
+
+```bash
+curl -X POST -F "file=@capture.jsonl" http://<host>/api/upload
+```
+
+---
+
+## Live Streams (Live Mode)
+
+Live means the UI polls a capture file that is still being written. It does not control the simulation.
+
+UI behavior:
+- When the live source value changes, the UI attempts to connect.
+- If the file is unavailable, the UI retries every 3 seconds while the source is unchanged.
+
+---
+
+## Everything Above via WebSocket (Agent-Driven Control)
+
+Anything the browser can do can be driven over WebSocket. The server relays agent commands to the active UI session.
+
+### Agent Discovery
+
+If an agent only knows the site URL, it can `curl` the root and find control details in headers:
+
+- `X-Metrics-UI-Agent-WS: /ws/control`
+- `X-Metrics-UI-Agent-Docs: /USAGE.md`
+- `X-Metrics-UI-Agent-Register: {"type":"register","role":"agent"}`
+
+The HTML also includes an `AGENT` comment with the same pointers.
+
+### Endpoint
+
 ```
 ws://<host>/ws/control
 ```
 
-For production (HTTPS):
-```
-wss://<host>/ws/control
-```
+Use `wss://` if the site is served over HTTPS.
 
-### Handshake Protocol
-
-After connecting, send a registration message:
-```json
-{"type": "register", "role": "agent"}
-```
-
-Wait for acknowledgment:
-```json
-{"type": "ack", "payload": "registered as agent"}
-```
-
----
-
-## Agent Commands
-
-### Upload a Capture File
-
-Use HTTP POST to upload a JSONL capture file:
-```bash
-curl -X POST -F "file=@capture.jsonl" https://<host>/api/upload
-```
-
-Response includes the parsed records and component tree used by the UI.
-
-### Playback Control
-
-| Command | Description |
-|---------|-------------|
-| `{"type": "play"}` | Start playback |
-| `{"type": "pause"}` | Pause playback |
-| `{"type": "stop"}` | Stop and reset to tick 1 |
-| `{"type": "seek", "tick": 50}` | Jump to specific tick |
-| `{"type": "set_speed", "speed": 2}` | Set playback speed (0.25 - 4) |
-
-### Capture Source Control
-
-Capture files are JSONL. The UI can either upload a completed file once or poll a **running capture
-file** on an interval and append any new frames. Live mode auto-connects when the source value
-changes and retries every 3 seconds until connected. This **does not** start/stop the simulation;
-it only reads whatever the capture file has written so far.
-
-| Command | Description |
-|---------|-------------|
-| `{"type": "live_start", "source": "/path/to/capture.jsonl", "pollIntervalMs": 2000}` | Start polling a capture file |
-| `{"type": "live_stop"}` | Stop the active live stream |
-| `{"type": "set_source_mode", "mode": "file"}` | Switch UI to File mode |
-| `{"type": "set_source_mode", "mode": "live"}` | Switch UI to Live mode |
-| `{"type": "set_live_source", "source": "/path/to/capture.jsonl"}` | Set the live source value (auto-connects in Live mode) |
-
-The UI sidebar includes a **Capture Source** selector: **File** (drag-and-drop upload) or **Live**
-(path/URL input with auto-connect).
-
-### Metric Selection
-
-| Command | Description |
-|---------|-------------|
-| `{"type": "select_metric", "captureId": "abc123", "path": ["entity", "component", "metric"]}` | Select a metric to display on chart |
-| `{"type": "deselect_metric", "captureId": "abc123", "fullPath": "entity.component.metric"}` | Remove a metric from chart |
-| `{"type": "clear_selection"}` | Clear all selected metrics |
-
-### Capture Control
-
-| Command | Description |
-|---------|-------------|
-| `{"type": "toggle_capture", "captureId": "abc123"}` | Toggle capture active/inactive |
-| `{"type": "get_state"}` | Request current visualization state |
-
----
-
-## WebSocket Capture Streaming
-
-You can push capture records over the control socket (mirrors **File** mode). Live polling is
-controlled via `live_start` / `live_stop` (mirrors **Live** mode).
+### Registration
 
 ```json
-{"type": "capture_init", "captureId": "live-1", "filename": "evaluation-stream"}
-{"type": "capture_append", "captureId": "live-1", "frame": {"tick": 1, "entityId": "player", "componentId": "position", "value": {"x": 0, "y": 0}}}
-{"type": "capture_end", "captureId": "live-1"}
+{"type":"register","role":"agent"}
 ```
 
-Live streams and loaded captures can be displayed together. They share a common tick axis.
-
----
-
-## Capture Source API (HTTP)
-
-These endpoints are used by the UI (and can be called directly):
-
-```
-POST /api/source/check
-POST /api/live/start
-POST /api/live/stop
-GET  /api/live/status
-```
-
-Example live start payload:
+### Capabilities and State
 
 ```json
-{
-  "source": "/path/to/capture.jsonl",
-  "pollIntervalMs": 2000,
-  "captureId": "live-1",
-  "filename": "live-evaluation.jsonl"
-}
+{"type":"hello","request_id":"1"}
+{"type":"get_state","request_id":"2"}
 ```
 
----
+### Core Commands
 
-## State Updates
+Playback:
+- `{"type":"play"}`
+- `{"type":"pause"}`
+- `{"type":"stop"}`
+- `{"type":"seek","tick":50}`
+- `{"type":"set_speed","speed":2}`
 
-When the visualization state changes, your agent receives state updates:
+Metric selection:
+- `{"type":"select_metric","captureId":"abc","path":["entity","component","metric"]}`
+- `{"type":"deselect_metric","captureId":"abc","fullPath":"entity.component.metric"}`
+- `{"type":"clear_selection"}`
 
-```json
-{
-  "type": "state_update",
-  "payload": {
-    "captures": [
-      {
-        "id": "abc123",
-        "filename": "capture.jsonl",
-        "isActive": true,
-        "tickCount": 1000
-      }
-    ],
-    "selectedMetrics": [
-      {
-        "captureId": "abc123",
-        "path": ["entity", "component", "metric"],
-        "fullPath": "entity.component.metric"
-      }
-    ],
-    "playback": {
-      "isPlaying": false,
-      "currentTick": 1,
-      "speed": 1,
-      "totalTicks": 1000
-    }
-  }
-}
-```
+Capture control:
+- `{"type":"toggle_capture","captureId":"abc"}`
+- `{"type":"query_components","captureId":"abc","search":"pressure","limit":200}`
 
----
+Capture source (UI mode):
+- `{"type":"set_source_mode","mode":"file"}`
+- `{"type":"set_source_mode","mode":"live"}`
+- `{"type":"set_live_source","source":"/path/to/capture.jsonl"}`
 
-## JSONL Data Format
+Live polling:
+- `{"type":"live_start","source":"/path/to/capture.jsonl","pollIntervalMs":2000}`
+- `{"type":"live_stop"}`
 
-Each line in your capture file should be a JSON object. The CLI stream uses this record format:
+Capture streaming (push records over WS):
+- `{"type":"capture_init","captureId":"live-1","filename":"evaluation-stream"}`
+- `{"type":"capture_append","captureId":"live-1","frame":{...}}`
+- `{"type":"capture_end","captureId":"live-1"}`
 
-```json
-{"tick": 1, "entityId": "player", "componentId": "position", "value": {"x": 0, "y": 0}}
-{"tick": 2, "entityId": "player", "componentId": "position", "value": {"x": 1, "y": 0}}
-```
+### Responses
 
-**Required fields:**
-- `tick`: Integer tick number (1-based)
-- `entityId`: Entity identifier string
-- `componentId`: Component identifier string
-- `value`: Component payload
+Common responses include:
+- `ack`
+- `error`
+- `state_update`
+- `capabilities`
+- `components_list`
+- `display_snapshot`
+- `series_window`
+- `render_table`
+- `capture_progress`
+- `memory_stats`
 
-The UI will also accept the older frame format (`{ tick, entities }`) and normalize it into the
-record shape internally.
-
----
-
-## Complete Agent Workflow Example
+### Minimal Agent Flow Example
 
 ```javascript
-const WebSocket = require('ws');
+const WebSocket = require("ws");
 
-async function main() {
-  let didSelect = false;
-  // 1. Connect to WebSocket
-  const ws = new WebSocket('wss://your-app.replit.app/ws/control');
-  
-  ws.on('open', () => {
-    // 2. Register as agent
-    ws.send(JSON.stringify({ type: 'register', role: 'agent' }));
-  });
+const ws = new WebSocket("ws://localhost:5000/ws/control");
 
-  ws.on('message', (data) => {
-    const msg = JSON.parse(data);
-    
-    if (msg.type === 'ack') {
-      // 3. Request current captures so we can select one
-      ws.send(JSON.stringify({ type: 'get_state' }));
-    }
-    
-    if (msg.type === 'state_update') {
-      if (didSelect) {
-        return;
-      }
-      const firstCapture = msg.payload.captures?.[0];
-      if (!firstCapture) {
-        return;
-      }
-      didSelect = true;
+ws.on("open", () => {
+  ws.send(JSON.stringify({ type: "register", role: "agent" }));
+  ws.send(JSON.stringify({ type: "get_state" }));
+});
 
-      // 4. Select metrics to display
-      ws.send(JSON.stringify({
-        type: 'select_metric',
-        captureId: firstCapture.id,
-        path: ['player', 'position', 'x']
-      }));
-      
-      // 5. Start playback
-      ws.send(JSON.stringify({ type: 'play' }));
-    }
-  });
-}
+ws.on("message", (data) => {
+  const msg = JSON.parse(data);
+  if (msg.type !== "state_update") return;
+  const capture = msg.payload.captures?.[0];
+  if (!capture) return;
 
-main();
-```
-
----
-
-## Testing the WebSocket API
-
-Run the included test script to validate your setup:
-
-```bash
-npx tsx scripts/test-websocket-control.ts
-```
-
-Expected output:
-```
-[PASS] Agent Registration
-[PASS] Frontend Registration
-[PASS] Agent to Frontend Command
-[PASS] State Update Broadcast
-[PASS] Multiple Agents Broadcast
+  ws.send(JSON.stringify({
+    type: "select_metric",
+    captureId: capture.id,
+    path: ["1", "highmix.metrics", "shift_capacity_pressure", "overall"]
+  }));
+  ws.send(JSON.stringify({ type: "play" }));
+});
 ```

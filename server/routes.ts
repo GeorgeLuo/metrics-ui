@@ -540,6 +540,16 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  app.use((_req, res, next) => {
+    res.setHeader("X-Metrics-UI-Agent-WS", "/ws/control");
+    res.setHeader("X-Metrics-UI-Agent-Docs", "/USAGE.md");
+    res.setHeader(
+      "X-Metrics-UI-Agent-Register",
+      "{\"type\":\"register\",\"role\":\"agent\"}",
+    );
+    next();
+  });
+
   const wss = new WebSocketServer({ noServer: true });
 
   httpServer.on("upgrade", (req, socket, head) => {
