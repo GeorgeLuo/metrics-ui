@@ -70,6 +70,16 @@ export interface SeriesSummary {
   nulls: number;
 }
 
+export interface MetricCoverage {
+  captureId: string;
+  path: string[];
+  fullPath: string;
+  label: string;
+  numericCount: number;
+  total: number;
+  lastTick: number | null;
+}
+
 export interface SeriesPoint {
   tick: number;
   value: number | null;
@@ -117,6 +127,7 @@ export interface DisplaySnapshot {
     label: string;
     summary: SeriesSummary;
   }>;
+  metricCoverage: MetricCoverage[];
 }
 
 export interface RenderTableResponse {
@@ -234,13 +245,22 @@ export interface MemoryStatsResponse {
   totals: MemoryStatsTotals;
 }
 
-export const uploadResponseSchema = z.object({
-  success: z.boolean(),
-  tickCount: z.number(),
-  components: z.array(z.unknown()),
-  entityIds: z.array(z.string()),
-  componentIds: z.array(z.string()),
-});
+export const uploadResponseSchema = z.union([
+  z.object({
+    success: z.boolean(),
+    tickCount: z.number(),
+    components: z.array(z.unknown()),
+    entityIds: z.array(z.string()),
+    componentIds: z.array(z.string()),
+  }),
+  z.object({
+    success: z.boolean(),
+    streaming: z.boolean(),
+    captureId: z.string(),
+    filename: z.string().optional(),
+    size: z.number().optional(),
+  }),
+]);
 
 export type UploadResponse = z.infer<typeof uploadResponseSchema>;
 
@@ -251,16 +271,18 @@ export type ControlCommand =
   | ({ type: "get_state" } & ControlRequestBase)
   | ({ type: "list_captures" } & ControlRequestBase)
   | ({ type: "toggle_capture"; captureId: string } & ControlRequestBase)
+  | ({ type: "remove_capture"; captureId: string } & ControlRequestBase)
   | ({ type: "select_metric"; captureId: string; path: string[] } & ControlRequestBase)
   | ({ type: "deselect_metric"; captureId: string; fullPath: string } & ControlRequestBase)
   | ({ type: "clear_selection" } & ControlRequestBase)
+  | ({ type: "clear_captures" } & ControlRequestBase)
   | ({ type: "play" } & ControlRequestBase)
   | ({ type: "pause" } & ControlRequestBase)
   | ({ type: "stop" } & ControlRequestBase)
   | ({ type: "seek"; tick: number } & ControlRequestBase)
   | ({ type: "set_speed"; speed: number } & ControlRequestBase)
   | ({ type: "set_source_mode"; mode: "file" | "live" } & ControlRequestBase)
-  | ({ type: "set_live_source"; source: string } & ControlRequestBase)
+  | ({ type: "set_live_source"; source: string; captureId?: string } & ControlRequestBase)
   | ({
       type: "live_start";
       source?: string;
@@ -268,15 +290,17 @@ export type ControlCommand =
       captureId?: string;
       filename?: string;
     } & ControlRequestBase)
-  | ({ type: "live_stop" } & ControlRequestBase)
-  | ({ type: "capture_init"; captureId: string; filename?: string } & ControlRequestBase)
+  | ({ type: "live_stop"; captureId?: string } & ControlRequestBase)
+  | ({ type: "capture_init"; captureId: string; filename?: string; source?: string } & ControlRequestBase)
+  | ({ type: "capture_components"; captureId: string; components: ComponentNode[] } & ControlRequestBase)
   | ({ type: "capture_append"; captureId: string; frame: CaptureAppendFrame } & ControlRequestBase)
   | ({ type: "capture_end"; captureId: string } & ControlRequestBase)
   | ({ type: "get_display_snapshot"; captureId?: string; windowSize?: number } & ControlRequestBase)
   | ({ type: "get_series_window"; captureId: string; path: string[]; windowSize?: number } & ControlRequestBase)
   | ({ type: "query_components"; captureId?: string; search?: string; limit?: number } & ControlRequestBase)
   | ({ type: "get_render_table"; captureId?: string; windowSize?: number } & ControlRequestBase)
-  | ({ type: "get_memory_stats" } & ControlRequestBase);
+  | ({ type: "get_memory_stats" } & ControlRequestBase)
+  | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase);
 
 export interface ControlResponse {
   type:
@@ -292,7 +316,8 @@ export interface ControlResponse {
     | "ui_notice"
     | "ui_error"
     | "capture_progress"
-    | "memory_stats";
+    | "memory_stats"
+    | "metric_coverage";
   request_id?: string;
   payload?: unknown;
   error?: string;

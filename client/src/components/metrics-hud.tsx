@@ -12,9 +12,17 @@ interface MetricsHUDProps {
   currentTick: number;
   captures: CaptureSession[];
   isVisible: boolean;
+  onDeselectMetric?: (captureId: string, fullPath: string) => void;
 }
 
-export function MetricsHUD({ currentData, selectedMetrics, currentTick, captures, isVisible }: MetricsHUDProps) {
+export function MetricsHUD({
+  currentData,
+  selectedMetrics,
+  currentTick,
+  captures,
+  isVisible,
+  onDeselectMetric,
+}: MetricsHUDProps) {
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [isDragging, setIsDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
@@ -103,6 +111,20 @@ export function MetricsHUD({ currentData, selectedMetrics, currentTick, captures
               <span className="font-mono text-xs font-medium" data-testid={`hud-value-${metric.captureId}-${metric.fullPath}`}>
                 {displayValue}
               </span>
+              {onDeselectMetric && (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeselectMetric(metric.captureId, metric.fullPath);
+                  }}
+                  aria-label={`Remove ${captureName}: ${metric.label}`}
+                  title={`Remove ${captureName}: ${metric.label}`}
+                >
+                  x
+                </button>
+              )}
             </div>
           );
         })}

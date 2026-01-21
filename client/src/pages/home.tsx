@@ -19,7 +19,7 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
-import { Activity, X, FileText, Trash2, BookOpen, Eye, EyeOff } from "lucide-react";
+import { Activity, X, FileText, Trash2, BookOpen, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
 import type {
   ComponentNode,
@@ -45,6 +45,7 @@ import {
 } from "@/lib/memory-stats";
 
 const INITIAL_WINDOW_SIZE = 50;
+const DEFAULT_POLL_SECONDS = 2;
 
 const METRIC_COLORS = [
   "#E4572E",
@@ -61,11 +62,21 @@ const METRIC_COLORS = [
   "#FFB703",
 ];
 
-interface LiveStatus {
-  running: boolean;
-  captureId: string | null;
+type LiveStreamStatus = "idle" | "connecting" | "retrying" | "connected";
+
+interface LiveStreamEntry {
+  id: string;
   source: string;
-  pollIntervalMs: number;
+  pollSeconds: number;
+  status: LiveStreamStatus;
+  error: string | null;
+}
+
+interface LiveStreamMeta {
+  dirty: boolean;
+  lastSource: string | null;
+  retryTimer: number | null;
+  retrySource: string | null;
 }
 
 function generateId(): string {
@@ -126,6 +137,9 @@ function buildComponentTreeFromEntities(entities: Record<string, unknown>): Comp
       return;
     }
     const componentTree = buildTree(components as Record<string, unknown>, [entityId], entityId);
+    if (componentTree.length === 0) {
+      return;
+    }
     nodes.push({
       id: entityId,
       label: entityId,
@@ -191,16 +205,113 @@ function sanitizeKey(key: string): string {
   return key.replace(/\./g, "_");
 }
 
+function buildSeriesKey(captureId: string, fullPath: string): string {
+  return `${captureId}::${fullPath}`;
+}
+
+function getValueAtPath(source: Record<string, unknown>, path: string[]): unknown {
+  let current: unknown = source;
+  for (const part of path) {
+    if (current && typeof current === "object" && part in current) {
+      current = (current as Record<string, unknown>)[part];
+    } else {
+      return undefined;
+    }
+  }
+  return current;
+}
+
+function setValueAtPath(target: Record<string, unknown>, path: string[], value: unknown) {
+  let current: Record<string, unknown> = target;
+  path.forEach((part, index) => {
+    if (index === path.length - 1) {
+      current[part] = value;
+      return;
+    }
+    const existing = current[part];
+    if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+      current[part] = {};
+    }
+    current = current[part] as Record<string, unknown>;
+  });
+}
+
+function buildEntitiesForMetrics(
+  entities: Record<string, unknown>,
+  metrics: SelectedMetric[],
+): Record<string, Record<string, unknown>> {
+  const result: Record<string, unknown> = {};
+  metrics.forEach((metric) => {
+    const value = getValueAtPath(entities, metric.path);
+    if (value === undefined) {
+      return;
+    }
+    setValueAtPath(result, metric.path, value);
+  });
+  return result as Record<string, Record<string, unknown>>;
+}
+
+function deleteValueAtPath(target: Record<string, unknown>, path: string[]) {
+  if (path.length === 0) {
+    return;
+  }
+  const parents: Array<{ node: Record<string, unknown>; key: string }> = [];
+  let current: Record<string, unknown> = target;
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const part = path[index];
+    const next = current[part];
+    if (!next || typeof next !== "object" || Array.isArray(next)) {
+      return;
+    }
+    parents.push({ node: current, key: part });
+    current = next as Record<string, unknown>;
+  }
+  delete current[path[path.length - 1]];
+  for (let i = parents.length - 1; i >= 0; i -= 1) {
+    const { node, key } = parents[i];
+    const value = node[key];
+    if (value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0) {
+      delete node[key];
+    } else {
+      break;
+    }
+  }
+}
+
+interface MetricCoverageEntry {
+  numericCount: number;
+  total: number;
+  lastTick: number | null;
+}
+
+type MetricCoverageByCapture = Record<string, Record<string, MetricCoverageEntry>>;
+
 function extractDataPoints(
   captures: CaptureSession[],
   selectedMetrics: SelectedMetric[]
-): DataPoint[] {
+): { data: DataPoint[]; coverage: MetricCoverageByCapture } {
   const tickMap = new Map<number, DataPoint>();
+  const coverage: MetricCoverageByCapture = {};
 
   const activeCaptures = captures.filter(c => c.isActive);
   
   activeCaptures.forEach(capture => {
     const captureMetrics = selectedMetrics.filter(m => m.captureId === capture.id);
+    if (captureMetrics.length === 0) {
+      return;
+    }
+    if (!coverage[capture.id]) {
+      coverage[capture.id] = {};
+    }
+    const captureCoverage = coverage[capture.id];
+    const totalFrames = capture.records.length;
+    captureMetrics.forEach(metric => {
+      captureCoverage[metric.fullPath] = {
+        numericCount: 0,
+        total: totalFrames,
+        lastTick: null,
+      };
+    });
     
     capture.records.forEach(record => {
       if (!tickMap.has(record.tick)) {
@@ -223,12 +334,24 @@ function extractDataPoints(
         }
 
         const dataKey = `${capture.id}_${sanitizeKey(metric.fullPath)}`;
-        point[dataKey] = typeof value === "number" ? value : null;
+        if (typeof value === "number") {
+          point[dataKey] = value;
+          const metricCoverage = captureCoverage[metric.fullPath];
+          if (metricCoverage) {
+            metricCoverage.numericCount += 1;
+            metricCoverage.lastTick = record.tick;
+          }
+        } else {
+          point[dataKey] = null;
+        }
       });
     });
   });
 
-  return Array.from(tickMap.values()).sort((a, b) => a.tick - b.tick);
+  return {
+    data: Array.from(tickMap.values()).sort((a, b) => a.tick - b.tick),
+    coverage,
+  };
 }
 
 export default function Home() {
@@ -243,29 +366,46 @@ export default function Home() {
       ? "live"
       : "file";
   });
-  const [liveSource, setLiveSource] = useState<string>(() => {
+  const [liveStreams, setLiveStreams] = useState<LiveStreamEntry[]>(() => {
     if (typeof window === "undefined") {
-      return "";
+      return [{
+        id: generateId(),
+        source: "",
+        pollSeconds: DEFAULT_POLL_SECONDS,
+        status: "idle",
+        error: null,
+      }];
     }
-    return window.localStorage.getItem("metrics-ui-source") ?? "";
-  });
-  const [livePollSeconds, setLivePollSeconds] = useState<number>(() => {
-    if (typeof window === "undefined") {
-      return 2;
+
+    const stored = window.localStorage.getItem("metrics-ui-live-streams");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((entry) => ({
+            id: typeof entry?.id === "string" ? entry.id : generateId(),
+            source: typeof entry?.source === "string" ? entry.source : "",
+            pollSeconds:
+              Number.isFinite(Number(entry?.pollSeconds)) && Number(entry?.pollSeconds) > 0
+                ? Number(entry.pollSeconds)
+                : DEFAULT_POLL_SECONDS,
+            status: "idle",
+            error: null,
+          }));
+        }
+      } catch {
+        // ignore invalid stored state
+      }
     }
-    const stored = window.localStorage.getItem("metrics-ui-live-poll-seconds");
-    const parsed = stored ? Number(stored) : NaN;
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 2;
+
+    return [{
+      id: generateId(),
+      source: "",
+      pollSeconds: DEFAULT_POLL_SECONDS,
+      status: "idle",
+      error: null,
+    }];
   });
-  const [liveStatus, setLiveStatus] = useState<LiveStatus>({
-    running: false,
-    captureId: null,
-    source: "",
-    pollIntervalMs: 2000,
-  });
-  const [isLiveRetrying, setIsLiveRetrying] = useState(false);
-  const [liveError, setLiveError] = useState<string | null>(null);
-  const [isLivePending, setIsLivePending] = useState(false);
 
   const [playbackState, setPlaybackState] = useState<PlaybackState>({
     isPlaying: false,
@@ -279,16 +419,18 @@ export default function Home() {
   const [isHudVisible, setIsHudVisible] = useState(true);
 
   const playbackRef = useRef<number | null>(null);
-  const liveRetryRef = useRef<{ timer: number | null; source: string | null }>({
-    timer: null,
-    source: null,
-  });
-  const liveSourceDirtyRef = useRef(false);
-  const lastLiveSourceRef = useRef<string | null>(null);
+  const liveStreamsRef = useRef(liveStreams);
+  const liveMetaRef = useRef(new Map<string, LiveStreamMeta>());
+  const didInitialLiveConnectRef = useRef(false);
+  const attemptConnectRef = useRef<(id: string, options?: { force?: boolean }) => void>(
+    () => {},
+  );
   const captureProgressRef = useRef(
     new Map<string, { received: number; kept: number; dropped: number }>(),
   );
   const captureStatsRef = useRef<Map<string, CaptureStats>>(new Map());
+  const pendingSeriesRef = useRef(new Set<string>());
+  const loadedSeriesRef = useRef(new Set<string>());
   const baselineHeapRef = useRef<number | null>(null);
   const sendMessageRef = useRef<(message: ControlResponse) => boolean>(() => false);
 
@@ -344,6 +486,123 @@ export default function Home() {
     [],
   );
 
+  const mergeSeriesIntoCaptures = useCallback(
+    (captureId: string, path: string[], points: Array<{ tick: number; value: number | null }>) => {
+      if (!points.length) {
+        return;
+      }
+      setCaptures((prev) => {
+        let updatedCapture: CaptureSession | null = null;
+        const next = prev.map((capture) => {
+          if (capture.id !== captureId) {
+            return capture;
+          }
+          const recordMap = new Map<number, CaptureRecord>();
+          capture.records.forEach((record) => {
+            recordMap.set(record.tick, {
+              tick: record.tick,
+              entities: { ...record.entities },
+            });
+          });
+          points.forEach((point) => {
+            const existing = recordMap.get(point.tick);
+            const entities = existing ? { ...existing.entities } : {};
+            setValueAtPath(entities as Record<string, unknown>, path, point.value);
+            recordMap.set(point.tick, { tick: point.tick, entities: entities as Record<string, Record<string, unknown>> });
+          });
+          const nextRecords = Array.from(recordMap.values()).sort((a, b) => a.tick - b.tick);
+          const nextTickCount = Math.max(
+            capture.tickCount,
+            points[points.length - 1]?.tick ?? capture.tickCount,
+          );
+          updatedCapture = {
+            ...capture,
+            records: nextRecords,
+            tickCount: nextTickCount,
+          };
+          return updatedCapture;
+        });
+
+        if (updatedCapture) {
+          const stats = createEmptyCaptureStats();
+          updatedCapture.records.forEach((record) => appendRecordStats(stats, record));
+          stats.componentNodes = countComponentNodes(updatedCapture.components);
+          captureStatsRef.current.set(updatedCapture.id, stats);
+        }
+
+        return next;
+      });
+    },
+    [],
+  );
+
+  const removeMetricFromCaptures = useCallback((captureId: string, path: string[]) => {
+    setCaptures((prev) => {
+      let updatedCapture: CaptureSession | null = null;
+      const next = prev.map((capture) => {
+        if (capture.id !== captureId) {
+          return capture;
+        }
+        const nextRecords = capture.records.map((record) => {
+          const entities = { ...record.entities };
+          deleteValueAtPath(entities as Record<string, unknown>, path);
+          return { ...record, entities: entities as Record<string, Record<string, unknown>> };
+        });
+        updatedCapture = { ...capture, records: nextRecords };
+        return updatedCapture;
+      });
+      if (updatedCapture) {
+        const stats = createEmptyCaptureStats();
+        updatedCapture.records.forEach((record) => appendRecordStats(stats, record));
+        stats.componentNodes = countComponentNodes(updatedCapture.components);
+        captureStatsRef.current.set(updatedCapture.id, stats);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearCaptureRecords = useCallback((captureId: string) => {
+    setCaptures((prev) =>
+      prev.map((capture) =>
+        capture.id === captureId
+          ? { ...capture, records: [], tickCount: 0 }
+          : capture,
+      ),
+    );
+    captureStatsRef.current.delete(captureId);
+  }, []);
+
+  const fetchMetricSeries = useCallback(
+    async (metric: SelectedMetric) => {
+      const key = buildSeriesKey(metric.captureId, metric.fullPath);
+      if (pendingSeriesRef.current.has(key)) {
+        return;
+      }
+      pendingSeriesRef.current.add(key);
+      try {
+        const response = await fetch("/api/series", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ captureId: metric.captureId, path: metric.path }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to load series.");
+        }
+        const points = Array.isArray(data?.points)
+          ? (data.points as Array<{ tick: number; value: number | null }>)
+          : [];
+        mergeSeriesIntoCaptures(metric.captureId, metric.path, points);
+        loadedSeriesRef.current.add(key);
+      } catch (error) {
+        console.error("[series] Fetch error:", error);
+      } finally {
+        pendingSeriesRef.current.delete(key);
+      }
+    },
+    [mergeSeriesIntoCaptures],
+  );
+
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -361,6 +620,10 @@ export default function Home() {
       return response.json();
     },
     onSuccess: (data) => {
+      if (data && data.streaming && typeof data.captureId === "string") {
+        setUploadError(null);
+        return;
+      }
       ingestCapturePayload(data);
       setUploadError(null);
     },
@@ -370,11 +633,20 @@ export default function Home() {
   });
 
   useEffect(() => {
+    liveStreamsRef.current = liveStreams;
+  }, [liveStreams]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
-    window.localStorage.setItem("metrics-ui-source", liveSource);
-  }, [liveSource]);
+    const payload = liveStreams.map((entry) => ({
+      id: entry.id,
+      source: entry.source,
+      pollSeconds: entry.pollSeconds,
+    }));
+    window.localStorage.setItem("metrics-ui-live-streams", JSON.stringify(payload));
+  }, [liveStreams]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -383,30 +655,59 @@ export default function Home() {
     window.localStorage.setItem("metrics-ui-source-mode", sourceMode);
   }, [sourceMode]);
 
-  const clearLiveRetry = useCallback(() => {
-    if (liveRetryRef.current.timer !== null) {
-      window.clearTimeout(liveRetryRef.current.timer);
-      liveRetryRef.current.timer = null;
+  const getLiveMeta = useCallback((id: string) => {
+    const existing = liveMetaRef.current.get(id);
+    if (existing) {
+      return existing;
     }
-    liveRetryRef.current.source = null;
-    setIsLiveRetrying(false);
+    const meta: LiveStreamMeta = {
+      dirty: false,
+      lastSource: null,
+      retryTimer: null,
+      retrySource: null,
+    };
+    liveMetaRef.current.set(id, meta);
+    return meta;
   }, []);
+
+  const updateLiveStream = useCallback(
+    (id: string, updates: Partial<LiveStreamEntry>) => {
+      setLiveStreams((prev) =>
+        prev.map((entry) => (entry.id === id ? { ...entry, ...updates } : entry)),
+      );
+    },
+    [],
+  );
+
+  const clearLiveRetry = useCallback(
+    (id: string) => {
+      const meta = getLiveMeta(id);
+      if (meta.retryTimer !== null) {
+        window.clearTimeout(meta.retryTimer);
+        meta.retryTimer = null;
+      }
+      meta.retrySource = null;
+      setLiveStreams((prev) =>
+        prev.map((entry) =>
+          entry.id === id && entry.status === "retrying"
+            ? { ...entry, status: "idle" }
+            : entry,
+        ),
+      );
+    },
+    [getLiveMeta],
+  );
 
   useEffect(() => {
     return () => {
-      clearLiveRetry();
+      liveMetaRef.current.forEach((meta) => {
+        if (meta.retryTimer !== null) {
+          window.clearTimeout(meta.retryTimer);
+        }
+      });
+      liveMetaRef.current.clear();
     };
-  }, [clearLiveRetry]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(
-      "metrics-ui-live-poll-seconds",
-      String(livePollSeconds),
-    );
-  }, [livePollSeconds]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -421,21 +722,65 @@ export default function Home() {
         if (cancelled || !data) {
           return;
         }
-        if (data.running) {
-          setLiveStatus({
-            running: true,
-            captureId: data.captureId ?? null,
-            source: data.source ?? "",
-            pollIntervalMs: Number(data.pollIntervalMs) || 2000,
-          });
+        const streams = Array.isArray(data.streams)
+          ? data.streams
+          : data.running
+            ? [{
+                captureId: data.captureId,
+                source: data.source,
+                pollIntervalMs: data.pollIntervalMs,
+                lastError: data.lastError,
+              }]
+            : [];
+        if (streams.length > 0) {
           setSourceMode("live");
-          if (data.source) {
-            setLiveSource(data.source);
-          }
-          if (data.pollIntervalMs) {
-            setLivePollSeconds(Math.max(0.5, data.pollIntervalMs / 1000));
-          }
         }
+        setLiveStreams((prev) => {
+          const next = [...prev];
+          const indexById = new Map<string, number>();
+          next.forEach((entry, index) => {
+            indexById.set(entry.id, index);
+          });
+
+          streams.forEach((stream) => {
+            const captureId = typeof stream?.captureId === "string" ? stream.captureId : "";
+            if (!captureId) {
+              return;
+            }
+            const pollSeconds = Number(stream?.pollIntervalMs)
+              ? Math.max(0.5, Number(stream.pollIntervalMs) / 1000)
+              : DEFAULT_POLL_SECONDS;
+            const updated: LiveStreamEntry = {
+              id: captureId,
+              source: typeof stream?.source === "string" ? stream.source : "",
+              pollSeconds,
+              status: "connected",
+              error: typeof stream?.lastError === "string" ? stream.lastError : null,
+            };
+            const existingIndex = indexById.get(captureId);
+            if (existingIndex === undefined) {
+              next.push(updated);
+              return;
+            }
+            next[existingIndex] = {
+              ...next[existingIndex],
+              source: updated.source,
+              pollSeconds: updated.pollSeconds,
+              status: "connected",
+              error: updated.error,
+            };
+          });
+
+          return next.length > 0
+            ? next
+            : [{
+                id: generateId(),
+                source: "",
+                pollSeconds: DEFAULT_POLL_SECONDS,
+                status: "idle",
+                error: null,
+              }];
+        });
       } catch (error) {
         console.warn("Failed to fetch live status:", error);
       }
@@ -445,7 +790,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sourceMode]);
 
   const updateBaselineHeap = useCallback(() => {
     const memory = readPerformanceMemory();
@@ -491,15 +836,72 @@ export default function Home() {
       captureId?: string;
       filename?: string;
     }) => {
-      const source = (options?.source ?? liveSource).trim();
+      const targetId = options?.captureId ?? `live-${generateId()}`;
+      const existing = liveStreamsRef.current.find((entry) => entry.id === targetId);
+      const source = (options?.source ?? existing?.source ?? "").trim();
       if (!source) {
-        setLiveError("Enter a capture file URL or path to start streaming.");
+        setLiveStreams((prev) => {
+          const hasEntry = prev.some((entry) => entry.id === targetId);
+          if (!hasEntry) {
+            return [
+              ...prev,
+              {
+                id: targetId,
+                source: "",
+                pollSeconds: DEFAULT_POLL_SECONDS,
+                status: "idle",
+                error: "Enter a capture file URL or path to start streaming.",
+              },
+            ];
+          }
+          return prev.map((entry) =>
+            entry.id === targetId
+              ? {
+                  ...entry,
+                  status: "idle",
+                  error: "Enter a capture file URL or path to start streaming.",
+                }
+              : entry,
+          );
+        });
         throw new Error("Missing capture file source.");
       }
       const pollIntervalMs =
-        options?.pollIntervalMs ?? Math.max(500, Math.round(livePollSeconds * 1000));
-      setIsLivePending(true);
-      setLiveError(null);
+        options?.pollIntervalMs ??
+        Math.max(
+          500,
+          Math.round((existing?.pollSeconds ?? DEFAULT_POLL_SECONDS) * 1000),
+        );
+      const pollSeconds = Math.max(0.5, pollIntervalMs / 1000);
+
+      clearLiveRetry(targetId);
+      setLiveStreams((prev) => {
+        const hasEntry = prev.some((entry) => entry.id === targetId);
+        if (!hasEntry) {
+          return [
+            ...prev,
+            {
+              id: targetId,
+              source,
+              pollSeconds,
+              status: "connecting",
+              error: null,
+            },
+          ];
+        }
+        return prev.map((entry) =>
+          entry.id === targetId
+            ? {
+                ...entry,
+                source,
+                pollSeconds,
+                status: "connecting",
+                error: null,
+              }
+            : entry,
+        );
+      });
+
       try {
         const response = await fetch("/api/live/start", {
           method: "POST",
@@ -507,7 +909,7 @@ export default function Home() {
           body: JSON.stringify({
             source,
             pollIntervalMs,
-            captureId: options?.captureId,
+            captureId: targetId,
             filename: options?.filename,
           }),
         });
@@ -517,19 +919,23 @@ export default function Home() {
             try {
               const statusResponse = await fetch("/api/live/status");
               const statusData = await statusResponse.json().catch(() => ({}));
-              if (statusResponse.ok && statusData?.running) {
-                setLiveStatus({
-                  running: true,
-                  captureId: statusData.captureId ?? null,
-                  source: statusData.source ?? source,
-                  pollIntervalMs:
-                    Number(statusData.pollIntervalMs) || pollIntervalMs,
+              const streams = Array.isArray(statusData?.streams)
+                ? statusData.streams
+                : statusData?.running
+                  ? [statusData]
+                  : [];
+              const match = streams.find((stream) => stream?.captureId === targetId);
+              if (statusResponse.ok && match) {
+                updateLiveStream(targetId, {
+                  status: "connected",
+                  source: typeof match?.source === "string" ? match.source : source,
+                  pollSeconds:
+                    Number(match?.pollIntervalMs)
+                      ? Math.max(0.5, Number(match.pollIntervalMs) / 1000)
+                      : pollSeconds,
+                  error: typeof match?.lastError === "string" ? match.lastError : null,
                 });
-                if (statusData.source) {
-                  setLiveSource(statusData.source);
-                }
                 setSourceMode("live");
-                setLiveError(null);
                 return;
               }
             } catch {
@@ -538,46 +944,66 @@ export default function Home() {
           }
           throw new Error(data?.error || "Failed to start live stream.");
         }
-        setLiveSource(source);
-        setLiveStatus({
-          running: true,
-          captureId: data.captureId ?? options?.captureId ?? null,
+        updateLiveStream(targetId, {
+          status: "connected",
           source,
-          pollIntervalMs: Number(data.pollIntervalMs) || pollIntervalMs,
+          pollSeconds: Number(data?.pollIntervalMs)
+            ? Math.max(0.5, Number(data.pollIntervalMs) / 1000)
+            : pollSeconds,
+          error: null,
         });
         setSourceMode("live");
       } catch (error) {
-        setLiveError(error instanceof Error ? error.message : "Failed to start live stream.");
+        updateLiveStream(targetId, {
+          status: "idle",
+          error: error instanceof Error ? error.message : "Failed to start live stream.",
+        });
         throw error;
-      } finally {
-        setIsLivePending(false);
       }
     },
-    [liveSource, livePollSeconds],
+    [clearLiveRetry, updateLiveStream],
   );
 
-  const stopLiveStream = useCallback(async () => {
-    setIsLivePending(true);
-    setLiveError(null);
-    try {
-      const response = await fetch("/api/live/stop", { method: "POST" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data?.error || "Failed to stop live stream.");
+  const stopLiveStream = useCallback(
+    async (options?: { captureId?: string }) => {
+      try {
+        const response = await fetch("/api/live/stop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: options?.captureId ? JSON.stringify({ captureId: options.captureId }) : undefined,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to stop live stream.");
+        }
+        const stopped = Array.isArray(data?.stopped)
+          ? data.stopped
+          : options?.captureId
+            ? [options.captureId]
+            : [];
+        const notFound = Array.isArray(data?.notFound) ? data.notFound : [];
+        const affected = Array.from(new Set([...stopped, ...notFound]));
+        if (!options?.captureId) {
+          setLiveStreams((prev) =>
+            prev.map((entry) => ({ ...entry, status: "idle", error: null })),
+          );
+          liveStreamsRef.current.forEach((entry) => clearLiveRetry(entry.id));
+        } else if (affected.length > 0) {
+          setLiveStreams((prev) =>
+            prev.map((entry) =>
+              affected.includes(entry.id)
+                ? { ...entry, status: "idle", error: null }
+                : entry,
+            ),
+          );
+          affected.forEach((id) => clearLiveRetry(id));
+        }
+      } catch (error) {
+        throw error;
       }
-      setLiveStatus((prev) => ({
-        running: false,
-        captureId: null,
-        source: prev.source || liveSource,
-        pollIntervalMs: prev.pollIntervalMs || Math.round(livePollSeconds * 1000),
-      }));
-    } catch (error) {
-      setLiveError(error instanceof Error ? error.message : "Failed to stop live stream.");
-      throw error;
-    } finally {
-      setIsLivePending(false);
-    }
-  }, [liveSource, livePollSeconds]);
+    },
+    [clearLiveRetry],
+  );
 
   const handleClearUploadError = useCallback(() => {
     setUploadError(null);
@@ -585,150 +1011,257 @@ export default function Home() {
 
   const handleSourceModeChange = useCallback((mode: "file" | "live") => {
     setSourceMode(mode);
-    liveSourceDirtyRef.current = false;
     if (mode === "live") {
       setUploadError(null);
-    } else {
-      setLiveError(null);
     }
   }, []);
 
-  const handleLiveSourceChange = useCallback((source: string) => {
-    setLiveSource(source);
-    setLiveError(null);
-    if (sourceMode === "live") {
-      liveSourceDirtyRef.current = true;
+  const handleAddLiveStream = useCallback(() => {
+    setLiveStreams((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        source: "",
+        pollSeconds: DEFAULT_POLL_SECONDS,
+        status: "idle",
+        error: null,
+      },
+    ]);
+  }, []);
+
+  const handleLiveSourceInput = useCallback(
+    (id: string, source: string) => {
+      setLiveStreams((prev) =>
+        prev.map((entry) =>
+          entry.id === id ? { ...entry, source, error: null } : entry,
+        ),
+      );
+      if (sourceMode === "live") {
+        getLiveMeta(id).dirty = true;
+      }
+    },
+    [getLiveMeta, sourceMode],
+  );
+
+  const handleLiveSourceCommand = useCallback(
+    (source: string, captureId?: string) => {
+      const targetId = captureId ?? liveStreamsRef.current[0]?.id ?? generateId();
+      setLiveStreams((prev) => {
+        const existing = prev.find((entry) => entry.id === targetId);
+        if (!existing) {
+          return [
+            ...prev,
+            {
+              id: targetId,
+              source,
+              pollSeconds: DEFAULT_POLL_SECONDS,
+              status: "idle",
+              error: null,
+            },
+          ];
+        }
+        return prev.map((entry) =>
+          entry.id === targetId ? { ...entry, source, error: null } : entry,
+        );
+      });
+      if (sourceMode === "live") {
+        getLiveMeta(targetId).dirty = true;
+      }
+    },
+    [getLiveMeta, sourceMode],
+  );
+
+  const handleLivePollChange = useCallback((id: string, value: number) => {
+    setLiveStreams((prev) =>
+      prev.map((entry) =>
+        entry.id === id ? { ...entry, pollSeconds: value } : entry,
+      ),
+    );
+  }, []);
+
+  const checkSource = useCallback(async (source: string) => {
+    const response = await fetch("/api/source/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.error || "Failed to check live source.");
     }
-  }, [sourceMode]);
+    return Boolean(data?.ok);
+  }, []);
 
-  useEffect(() => {
-    const trimmed = liveSource.trim();
-    const previousSource = lastLiveSourceRef.current;
-    const sourceChanged = previousSource !== null && trimmed !== previousSource;
-    const shouldAttemptConnect = sourceChanged && liveSourceDirtyRef.current;
-
-    const scheduleRetry = (source: string) => {
-      if (liveRetryRef.current.timer !== null) {
+  const scheduleRetry = useCallback(
+    (id: string, source: string, errorMessage?: string) => {
+      const meta = getLiveMeta(id);
+      if (meta.retryTimer !== null) {
         return;
       }
-      liveRetryRef.current.source = source;
-      setIsLiveRetrying(true);
-      liveRetryRef.current.timer = window.setTimeout(() => {
-        liveRetryRef.current.timer = null;
+      meta.retrySource = source;
+      updateLiveStream(id, { status: "retrying", error: errorMessage ?? null });
+      meta.retryTimer = window.setTimeout(() => {
+        meta.retryTimer = null;
         if (sourceMode !== "live") {
           return;
         }
-        if (liveSource.trim() !== source) {
+        const entry = liveStreamsRef.current.find((item) => item.id === id);
+        if (!entry || entry.source.trim() !== source) {
           return;
         }
-        attemptConnect(source);
+        attemptConnectRef.current(id, { force: true });
       }, 3000);
-    };
+    },
+    [getLiveMeta, sourceMode, updateLiveStream],
+  );
 
-    const checkSource = async (source: string) => {
-      const response = await fetch("/api/source/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(data?.error || "Failed to check live source.");
-      }
-      return Boolean(data?.ok);
-    };
-
-    const attemptConnect = async (source: string) => {
-      if (sourceMode !== "live" || !source) {
+  const attemptConnect = useCallback(
+    async (id: string, options?: { force?: boolean }) => {
+      const entry = liveStreamsRef.current.find((item) => item.id === id);
+      if (!entry || sourceMode !== "live") {
         return;
       }
-      if (isLivePending) {
-        scheduleRetry(source);
+      const source = entry.source.trim();
+      if (!source) {
         return;
       }
-      if (liveStatus.running && liveStatus.source === source) {
-        clearLiveRetry();
+      if (entry.status === "connecting") {
         return;
       }
+      if (entry.status === "connected" && !options?.force) {
+        return;
+      }
+      const meta = getLiveMeta(id);
+      if (!options?.force && !meta.dirty) {
+        return;
+      }
+      meta.dirty = false;
+      clearLiveRetry(id);
+      updateLiveStream(id, { status: "connecting", error: null });
       try {
         const isAvailable = await checkSource(source);
         if (!isAvailable) {
-          scheduleRetry(source);
+          scheduleRetry(id, source, "Live capture not available yet.");
           return;
         }
-        await startLiveStream({ source });
-        clearLiveRetry();
-      } catch {
-        scheduleRetry(source);
+        await startLiveStream({
+          source,
+          pollIntervalMs: Math.round(entry.pollSeconds * 1000),
+          captureId: id,
+        });
+      } catch (error) {
+        scheduleRetry(
+          id,
+          source,
+          error instanceof Error ? error.message : "Failed to start live stream.",
+        );
       }
-    };
+    },
+    [checkSource, clearLiveRetry, getLiveMeta, scheduleRetry, sourceMode, startLiveStream, updateLiveStream],
+  );
 
+  useEffect(() => {
+    attemptConnectRef.current = attemptConnect;
+  }, [attemptConnect]);
+
+  const handleLiveRefresh = useCallback(
+    (id: string) => {
+      if (sourceMode !== "live") {
+        return;
+      }
+      attemptConnectRef.current(id, { force: true });
+    },
+    [sourceMode],
+  );
+
+  const handleRemoveLiveStream = useCallback(
+    (id: string) => {
+      clearLiveRetry(id);
+      liveMetaRef.current.delete(id);
+      setLiveStreams((prev) => prev.filter((entry) => entry.id !== id));
+      stopLiveStream({ captureId: id }).catch(() => {});
+    },
+    [clearLiveRetry, stopLiveStream],
+  );
+
+  useEffect(() => {
+    if (didInitialLiveConnectRef.current) {
+      return;
+    }
+    didInitialLiveConnectRef.current = true;
     if (sourceMode !== "live") {
-      clearLiveRetry();
-      liveSourceDirtyRef.current = false;
-      lastLiveSourceRef.current = trimmed;
       return;
     }
-
-    if (!trimmed) {
-      clearLiveRetry();
-      liveSourceDirtyRef.current = false;
-      if (liveStatus.running && !isLivePending) {
-        stopLiveStream().catch(() => {});
+    liveStreamsRef.current.forEach((entry) => {
+      if (entry.source.trim()) {
+        attemptConnectRef.current(entry.id, { force: true });
       }
-      lastLiveSourceRef.current = trimmed;
-      return;
-    }
+    });
+  }, []);
 
-    if (liveRetryRef.current.source && liveRetryRef.current.source !== trimmed) {
-      clearLiveRetry();
-    }
+  useEffect(() => {
+    liveStreams.forEach((entry) => {
+      const meta = getLiveMeta(entry.id);
+      const trimmed = entry.source.trim();
+      const sourceChanged = meta.lastSource !== null && trimmed !== meta.lastSource;
 
-    if (liveStatus.running) {
-      if (
-        shouldAttemptConnect &&
-        liveStatus.source &&
-        liveStatus.source !== trimmed &&
-        !isLivePending
-      ) {
-        stopLiveStream()
-          .then(() => {
-            liveSourceDirtyRef.current = false;
-            attemptConnect(trimmed);
-          })
-          .catch(() => scheduleRetry(trimmed));
-      } else {
-        clearLiveRetry();
+      if (sourceMode !== "live") {
+        meta.dirty = false;
+        meta.lastSource = trimmed;
+        return;
       }
-      lastLiveSourceRef.current = trimmed;
-      return;
-    }
 
-    if (liveRetryRef.current.timer !== null) {
-      lastLiveSourceRef.current = trimmed;
-      return;
-    }
+      if (!trimmed) {
+        clearLiveRetry(entry.id);
+        meta.dirty = false;
+        if (entry.status === "connected") {
+          stopLiveStream({ captureId: entry.id }).catch(() => {});
+          updateLiveStream(entry.id, { status: "idle", error: null });
+        } else if (entry.status === "retrying" || entry.status === "connecting") {
+          updateLiveStream(entry.id, { status: "idle", error: null });
+        }
+        meta.lastSource = trimmed;
+        return;
+      }
 
-    if (shouldAttemptConnect) {
-      liveSourceDirtyRef.current = false;
-      attemptConnect(trimmed);
-    }
-    lastLiveSourceRef.current = trimmed;
+      if (meta.retrySource && meta.retrySource !== trimmed) {
+        clearLiveRetry(entry.id);
+      }
+
+      if (entry.status === "connected" && sourceChanged && meta.dirty) {
+        stopLiveStream({ captureId: entry.id })
+          .then(() => attemptConnect(entry.id, { force: true }))
+          .catch(() => scheduleRetry(entry.id, trimmed));
+        meta.lastSource = trimmed;
+        return;
+      }
+
+      if (sourceChanged && meta.dirty && entry.status !== "connected") {
+        attemptConnect(entry.id, { force: true });
+      }
+
+      meta.lastSource = trimmed;
+    });
   }, [
-    liveSource,
-    sourceMode,
-    liveStatus.running,
-    liveStatus.source,
-    isLiveRetrying,
-    isLivePending,
-    startLiveStream,
-    stopLiveStream,
+    attemptConnect,
     clearLiveRetry,
+    getLiveMeta,
+    liveStreams,
+    scheduleRetry,
+    sourceMode,
+    stopLiveStream,
+    updateLiveStream,
   ]);
 
   const handleCaptureInit = useCallback((captureId: string, filename?: string) => {
     captureProgressRef.current.set(captureId, { received: 0, kept: 0, dropped: 0 });
     captureStatsRef.current.set(captureId, createEmptyCaptureStats());
+    Array.from(loadedSeriesRef.current.keys()).forEach((key) => {
+      if (key.startsWith(`${captureId}::`)) {
+        loadedSeriesRef.current.delete(key);
+        pendingSeriesRef.current.delete(key);
+      }
+    });
     sendMessageRef.current({
       type: "capture_progress",
       payload: { captureId, received: 0, kept: 0, dropped: 0, lastTick: null },
@@ -761,8 +1294,57 @@ export default function Home() {
     setSelectedMetrics((prev) => prev.filter((metric) => metric.captureId !== captureId));
   }, []);
 
+  const handleCaptureComponents = useCallback((captureId: string, components: ComponentNode[]) => {
+    if (!components || components.length === 0) {
+      return;
+    }
+    setCaptures((prev) => {
+      const existing = prev.find((capture) => capture.id === captureId);
+      const fallbackName = `${captureId}.jsonl`;
+      if (!existing) {
+        const stats = createEmptyCaptureStats();
+        stats.componentNodes = countComponentNodes(components);
+        captureStatsRef.current.set(captureId, stats);
+        return [
+          ...prev,
+          {
+            id: captureId,
+            filename: fallbackName,
+            fileSize: 0,
+            tickCount: 0,
+            records: [],
+            components,
+            isActive: true,
+          },
+        ];
+      }
+
+      const mergedComponents =
+        existing.components.length > 0
+          ? mergeComponentTrees(existing.components, components)
+          : components;
+      const stats = captureStatsRef.current.get(captureId) ?? createEmptyCaptureStats();
+      stats.componentNodes = countComponentNodes(mergedComponents);
+      captureStatsRef.current.set(captureId, stats);
+
+      return prev.map((capture) =>
+        capture.id === captureId
+          ? { ...capture, components: mergedComponents }
+          : capture,
+      );
+    });
+  }, []);
+
   const handleCaptureAppend = useCallback((captureId: string, frame: CaptureRecord) => {
-    const compactedFrame = compactRecord(frame);
+    const metricsForCapture = selectedMetrics.filter((metric) => metric.captureId === captureId);
+    const hasSelection = metricsForCapture.length > 0;
+    const filteredEntities = hasSelection
+      ? buildEntitiesForMetrics(
+          (frame.entities || {}) as Record<string, unknown>,
+          metricsForCapture,
+        )
+      : {};
+    const compactedFrame = compactRecord({ tick: frame.tick, entities: filteredEntities });
     const progress = captureProgressRef.current.get(captureId) ?? {
       received: 0,
       kept: 0,
@@ -789,13 +1371,31 @@ export default function Home() {
 
     setCaptures((prev) => {
       const existing = prev.find((capture) => capture.id === captureId);
-      const incomingComponents = buildComponentTreeFromEntities(frame.entities || {});
+      const incomingComponents = hasSelection
+        ? buildComponentTreeFromEntities(filteredEntities)
+        : [];
       const stats = captureStatsRef.current.get(captureId) ?? createEmptyCaptureStats();
-      appendRecordStats(stats, compactedFrame);
 
       if (!existing) {
         const fallbackName = `${captureId}.jsonl`;
-        stats.componentNodes = countComponentNodes(incomingComponents);
+        if (hasSelection) {
+          appendRecordStats(stats, compactedFrame);
+          stats.componentNodes = countComponentNodes(incomingComponents);
+          captureStatsRef.current.set(captureId, stats);
+          return [
+            ...prev,
+            {
+              id: captureId,
+              filename: fallbackName,
+              fileSize: 0,
+              tickCount: compactedFrame.tick,
+              records: [compactedFrame],
+              components: incomingComponents,
+              isActive: true,
+            },
+          ];
+        }
+
         captureStatsRef.current.set(captureId, stats);
         return [
           ...prev,
@@ -804,48 +1404,66 @@ export default function Home() {
             filename: fallbackName,
             fileSize: 0,
             tickCount: compactedFrame.tick,
-            records: [compactedFrame],
+            records: [],
             components: incomingComponents,
             isActive: true,
           },
         ];
       }
 
+      const nextTickCount = Math.max(existing.tickCount, compactedFrame.tick);
+      if (!hasSelection) {
+        return prev.map((capture) => {
+          if (capture.id !== captureId) {
+            return capture;
+          }
+          return {
+            ...capture,
+            tickCount: nextTickCount,
+            isActive: true,
+          };
+        });
+      }
+
+      appendRecordStats(stats, compactedFrame);
       const mergedComponents =
         existing.components.length > 0
           ? mergeComponentTrees(existing.components, incomingComponents)
           : incomingComponents;
-      const nextTickCount = Math.max(existing.tickCount, compactedFrame.tick);
       stats.componentNodes = countComponentNodes(mergedComponents);
       captureStatsRef.current.set(captureId, stats);
 
-      return prev.map((capture) =>
-        capture.id === captureId
-          ? {
-              ...capture,
-              records: [...capture.records, compactedFrame],
-              components: mergedComponents,
-              tickCount: nextTickCount,
-              isActive: true,
-            }
-          : capture,
-      );
+      return prev.map((capture) => {
+        if (capture.id !== captureId) {
+          return capture;
+        }
+        return {
+          ...capture,
+          records: [...capture.records, compactedFrame],
+          components: mergedComponents,
+          tickCount: nextTickCount,
+          isActive: true,
+        };
+      });
     });
-  }, []);
+  }, [selectedMetrics]);
 
-  const handleCaptureEnd = useCallback((captureId: string) => {
-    setCaptures((prev) =>
-      prev.map((capture) =>
-        capture.id === captureId ? { ...capture, isActive: true } : capture,
-      ),
-    );
-    setLiveStatus((prev) => {
-      if (prev.running && prev.captureId === captureId) {
-        return { ...prev, running: false, captureId: null };
-      }
-      return prev;
-    });
-  }, []);
+  const handleCaptureEnd = useCallback(
+    (captureId: string) => {
+      setCaptures((prev) =>
+        prev.map((capture) =>
+          capture.id === captureId ? { ...capture, isActive: true } : capture,
+        ),
+      );
+      clearLiveRetry(captureId);
+      setLiveStreams((prev) =>
+        prev.map((entry) =>
+          entry.id === captureId ? { ...entry, status: "idle", error: null } : entry,
+        ),
+      );
+    },
+    [clearLiveRetry],
+  );
 
   const handleToggleCapture = useCallback((captureId: string) => {
     setCaptures(prev => {
@@ -909,6 +1527,65 @@ export default function Home() {
     setSelectedMetrics([]);
   }, []);
 
+  const prevSelectedRef = useRef<SelectedMetric[]>([]);
+
+  useEffect(() => {
+    const prev = prevSelectedRef.current;
+    const prevKeys = new Set(prev.map((metric) => buildSeriesKey(metric.captureId, metric.fullPath)));
+    const nextKeys = new Set(selectedMetrics.map((metric) => buildSeriesKey(metric.captureId, metric.fullPath)));
+    const added = selectedMetrics.filter(
+      (metric) => !prevKeys.has(buildSeriesKey(metric.captureId, metric.fullPath)),
+    );
+    const removed = prev.filter(
+      (metric) => !nextKeys.has(buildSeriesKey(metric.captureId, metric.fullPath)),
+    );
+
+    added.forEach((metric) => {
+      const key = buildSeriesKey(metric.captureId, metric.fullPath);
+      if (!loadedSeriesRef.current.has(key)) {
+        fetchMetricSeries(metric);
+      }
+    });
+
+    if (removed.length > 0) {
+      const remainingByCapture = new Map<string, SelectedMetric[]>();
+      selectedMetrics.forEach((metric) => {
+        const list = remainingByCapture.get(metric.captureId);
+        if (list) {
+          list.push(metric);
+        } else {
+          remainingByCapture.set(metric.captureId, [metric]);
+        }
+      });
+
+      removed.forEach((metric) => {
+        const key = buildSeriesKey(metric.captureId, metric.fullPath);
+        loadedSeriesRef.current.delete(key);
+        pendingSeriesRef.current.delete(key);
+        const remaining = remainingByCapture.get(metric.captureId);
+        if (!remaining || remaining.length === 0) {
+          clearCaptureRecords(metric.captureId);
+          return;
+        }
+        removeMetricFromCaptures(metric.captureId, metric.path);
+      });
+    }
+
+    prevSelectedRef.current = selectedMetrics;
+  }, [clearCaptureRecords, fetchMetricSeries, removeMetricFromCaptures, selectedMetrics]);
+
+  const handleClearCaptures = useCallback(() => {
+    setCaptures([]);
+    setSelectedMetrics([]);
+    captureStatsRef.current.clear();
+    setPlaybackState((prev) => ({
+      ...prev,
+      isPlaying: false,
+      currentTick: 1,
+      totalTicks: 0,
+    }));
+  }, []);
+
   const handlePlay = useCallback(() => {
     setPlaybackState((prev) => ({ ...prev, isPlaying: true }));
   }, []);
@@ -969,7 +1646,7 @@ export default function Home() {
     (metric) => captures.some((capture) => capture.id === metric.captureId && capture.isActive),
   );
 
-  const chartData = extractDataPoints(captures, activeMetrics);
+  const { data: chartData, coverage: metricCoverage } = extractDataPoints(captures, activeMetrics);
 
   const currentData =
     chartData.find((dataPoint) => dataPoint.tick === playbackState.currentTick) || null;
@@ -1197,11 +1874,13 @@ export default function Home() {
     playbackState,
     windowSize,
     onSourceModeChange: handleSourceModeChange,
-    onLiveSourceChange: handleLiveSourceChange,
+    onLiveSourceChange: handleLiveSourceCommand,
     onToggleCapture: handleToggleCapture,
+    onRemoveCapture: handleRemoveCapture,
     onSelectMetric: handleSelectMetric,
     onDeselectMetric: handleDeselectMetric,
     onClearSelection: handleClearSelection,
+    onClearCaptures: handleClearCaptures,
     onPlay: handlePlay,
     onPause: handlePause,
     onStop: handleStop,
@@ -1210,6 +1889,7 @@ export default function Home() {
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,
+    onCaptureComponents: handleCaptureComponents,
     onCaptureAppend: handleCaptureAppend,
     onCaptureEnd: handleCaptureEnd,
     getMemoryStats: buildMemoryStats,
@@ -1271,48 +1951,95 @@ export default function Home() {
                     </TabsContent>
                     <TabsContent value="live" className="mt-3">
                       <div className="flex flex-col gap-3">
-                        <Input
-                          placeholder="Capture file URL or path"
-                          value={liveSource}
-                          onChange={(event) => {
-                            handleLiveSourceChange(event.target.value);
-                          }}
-                          className="h-8 text-xs"
-                          aria-label="Capture file source"
-                        />
-                        <Input
-                          type="number"
-                          min={0.5}
-                          step={0.5}
-                          placeholder="Poll interval (seconds)"
-                          value={String(livePollSeconds)}
-                          onChange={(event) => {
-                            const parsed = Number(event.target.value);
-                            if (Number.isFinite(parsed) && parsed > 0) {
-                              setLivePollSeconds(parsed);
-                            }
-                          }}
-                          className="h-8 text-xs"
-                          disabled={liveStatus.running}
-                          aria-label="Poll interval seconds"
-                        />
-                        <div className="text-xs text-muted-foreground">
-                          {liveStatus.running
-                            ? `Connected (${liveStatus.captureId ?? "live"})`
-                            : isLivePending
+                        {liveStreams.map((entry, index) => {
+                          const isConnected = entry.status === "connected";
+                          const isConnecting = entry.status === "connecting";
+                          const isRetrying = entry.status === "retrying";
+                          const statusLabel = isConnected
+                            ? `Connected (${entry.id})`
+                            : isConnecting
                               ? "Connecting..."
-                              : isLiveRetrying
+                              : isRetrying
                                 ? "Retrying..."
-                                : "Idle"}
-                        </div>
-                        {livePollSeconds > 0 && (
-                          <div className="text-[11px] text-muted-foreground">
-                            Polling every {livePollSeconds.toLocaleString()}s
-                          </div>
-                        )}
-                        {liveError && (
-                          <div className="text-xs text-destructive">{liveError}</div>
-                        )}
+                                : "Idle";
+
+                          return (
+                            <div
+                              key={entry.id}
+                              className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
+                            >
+                              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                <span>Stream {index + 1}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => handleRemoveLiveStream(entry.id)}
+                                  data-testid={`button-live-remove-${entry.id}`}
+                                  aria-label={`Remove live stream ${index + 1}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
+                              <Input
+                                placeholder="Capture file URL or path"
+                                value={entry.source}
+                                onChange={(event) => {
+                                  handleLiveSourceInput(entry.id, event.target.value);
+                                }}
+                                className="h-8 text-xs"
+                                aria-label={`Capture file source ${index + 1}`}
+                              />
+                              <Input
+                                type="number"
+                                min={0.5}
+                                step={0.5}
+                                placeholder="Poll interval (seconds)"
+                                value={String(entry.pollSeconds)}
+                                onChange={(event) => {
+                                  const parsed = Number(event.target.value);
+                                  if (Number.isFinite(parsed) && parsed > 0) {
+                                    handleLivePollChange(entry.id, parsed);
+                                  }
+                                }}
+                                className="h-8 text-xs"
+                                disabled={isConnected || isConnecting}
+                                aria-label={`Poll interval seconds ${index + 1}`}
+                              />
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>{statusLabel}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => handleLiveRefresh(entry.id)}
+                                  disabled={!entry.source.trim() || isConnected || isConnecting}
+                                  data-testid={`button-live-refresh-${entry.id}`}
+                                  aria-label={`Refresh live source ${index + 1}`}
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                </Button>
+                              </div>
+                              {entry.pollSeconds > 0 && (
+                                <div className="text-[11px] text-muted-foreground">
+                                  Polling every {entry.pollSeconds.toLocaleString()}s
+                                </div>
+                              )}
+                              {entry.error && (
+                                <div className="text-xs text-destructive">{entry.error}</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={handleAddLiveStream}
+                          data-testid="button-live-add"
+                        >
+                          Add live stream
+                        </Button>
                       </div>
                     </TabsContent>
                   </Tabs>
@@ -1371,6 +2098,7 @@ export default function Home() {
                     captureId={capture.id}
                     components={capture.components}
                     selectedMetrics={selectedMetrics.filter(m => m.captureId === capture.id)}
+                    metricCoverage={metricCoverage[capture.id]}
                     onSelectionChange={(newMetrics) => {
                       setSelectedMetrics(prev => {
                         const otherMetrics = prev.filter(m => m.captureId !== capture.id);
@@ -1440,6 +2168,7 @@ export default function Home() {
                 currentTick={playbackState.currentTick}
                 captures={captures}
                 isVisible={isHudVisible}
+                onDeselectMetric={handleDeselectMetric}
               />
             </div>
 

@@ -4,6 +4,7 @@ import type { CaptureRecord, CaptureSession, ComponentNode, SelectedMetric } fro
 import {
   buildComponentsList,
   buildDisplaySnapshot,
+  buildMetricCoverage,
   buildRenderTable,
   buildSeriesWindow,
   getNumericValueAtPath,
@@ -200,6 +201,33 @@ test("buildDisplaySnapshot summarizes selected metrics", () => {
     { path: "1.comp.a", last: 5 },
     { path: "1.comp.b", last: null },
   ]);
+});
+
+test("buildMetricCoverage returns totals and last tick", () => {
+  const coverage = buildMetricCoverage({
+    captures: [capture],
+    metrics,
+    captureId: "cap-1",
+  });
+  const byPath = new Map(coverage.map((entry) => [entry.fullPath, entry]));
+  assert.deepEqual(byPath.get("1.comp.a"), {
+    captureId: "cap-1",
+    path: ["1", "comp", "a"],
+    fullPath: "1.comp.a",
+    label: "a",
+    numericCount: 3,
+    total: 3,
+    lastTick: 3,
+  });
+  assert.deepEqual(byPath.get("1.comp.b"), {
+    captureId: "cap-1",
+    path: ["1", "comp", "b"],
+    fullPath: "1.comp.b",
+    label: "b",
+    numericCount: 2,
+    total: 3,
+    lastTick: 2,
+  });
 });
 
 test("buildRenderTable returns rows for the current window", () => {

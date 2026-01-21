@@ -9,7 +9,7 @@ This site visualizes simulation or evaluation **capture files**. You upload a JS
 1. **Open the site** in a browser.
 2. Choose a capture source:
    - **File**: drag-and-drop a completed JSONL capture.
-   - **Live**: enter a local path or URL to a JSONL file that is still being written.
+   - **Live**: add one or more live streams, each with a local path or URL to a JSONL file that is still being written.
 3. **Select metrics** from the component tree (only numeric leaf values are chartable).
 4. **Use playback controls** to play, pause, seek, or change speed.
 
@@ -61,6 +61,26 @@ Live means the UI polls a capture file that is still being written. It does not 
 UI behavior:
 - When the live source value changes, the UI attempts to connect.
 - If the file is unavailable, the UI retries every 3 seconds while the source is unchanged.
+- Multiple live streams can run at the same time; each stream has its own source, polling interval, and captureId.
+
+API notes:
+- `GET /api/live/status` returns a `streams` array when any live streams are running.
+- `POST /api/live/stop` accepts an optional `captureId` to stop a single stream.
+
+---
+
+## Server Shutdown
+
+Gracefully stop the UI server (closes live streams and WebSocket sessions):
+
+```
+POST /api/shutdown
+```
+
+Response:
+```json
+{"success": true, "shuttingDown": true}
+```
 
 ---
 
@@ -112,6 +132,9 @@ Metric selection:
 - `{"type":"select_metric","captureId":"abc","path":["entity","component","metric"]}`
 - `{"type":"deselect_metric","captureId":"abc","fullPath":"entity.component.metric"}`
 - `{"type":"clear_selection"}`
+- `{"type":"get_metric_coverage","captureId":"abc"}` (numeric coverage for selected metrics)
+
+Selecting a metric emits a `metric_coverage` payload for that metric. If the metric has no numeric values, the UI also emits `ui_error` (and `error`) so agents can detect invalid selections immediately.
 
 Capture control:
 - `{"type":"toggle_capture","captureId":"abc"}`
@@ -120,14 +143,17 @@ Capture control:
 Capture source (UI mode):
 - `{"type":"set_source_mode","mode":"file"}`
 - `{"type":"set_source_mode","mode":"live"}`
-- `{"type":"set_live_source","source":"/path/to/capture.jsonl"}`
+- `{"type":"set_live_source","source":"/path/to/capture.jsonl","captureId":"live-a"}`
 
 Live polling:
-- `{"type":"live_start","source":"/path/to/capture.jsonl","pollIntervalMs":2000}`
-- `{"type":"live_stop"}`
+- `{"type":"live_start","source":"/path/to/capture.jsonl","pollIntervalMs":2000,"captureId":"live-a"}`
+- `{"type":"live_start","source":"/path/to/other.jsonl","pollIntervalMs":2000,"captureId":"live-b"}`
+- `{"type":"live_stop","captureId":"live-a"}`
+- `{"type":"live_stop"}` (stop all)
 
 Capture streaming (push records over WS):
 - `{"type":"capture_init","captureId":"live-1","filename":"evaluation-stream"}`
+- `{"type":"capture_components","captureId":"live-1","components":[...]}` (optional component tree metadata)
 - `{"type":"capture_append","captureId":"live-1","frame":{...}}`
 - `{"type":"capture_end","captureId":"live-1"}`
 
@@ -144,6 +170,9 @@ Common responses include:
 - `render_table`
 - `capture_progress`
 - `memory_stats`
+- `metric_coverage`
+
+`display_snapshot` includes `metricCoverage` for selected metrics (numeric count, total frames, last tick).
 
 ### Minimal Agent Flow Example
 

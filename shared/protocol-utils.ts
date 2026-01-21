@@ -13,6 +13,16 @@ export interface SeriesSummary {
   nulls: number;
 }
 
+export interface MetricCoverage {
+  captureId: string;
+  path: string[];
+  fullPath: string;
+  label: string;
+  numericCount: number;
+  total: number;
+  lastTick: number | null;
+}
+
 export interface SeriesPoint {
   tick: number;
   value: number | null;
@@ -60,6 +70,7 @@ export interface DisplaySnapshot {
     label: string;
     summary: SeriesSummary;
   }>;
+  metricCoverage: MetricCoverage[];
 }
 
 export interface RenderTable {
@@ -121,6 +132,22 @@ function summarizeSeries(points: SeriesPoint[]): SeriesSummary {
   const last = lastPoint ? lastPoint.value : null;
 
   return { last, min, max, nulls };
+}
+
+function summarizeCoverage(records: CaptureRecord[], path: string[]) {
+  const total = records.length;
+  let numericCount = 0;
+  let lastTick: number | null = null;
+
+  records.forEach((record) => {
+    const value = getNumericValueAtPath(record, path);
+    if (isFiniteNumber(value)) {
+      numericCount += 1;
+      lastTick = record.tick;
+    }
+  });
+
+  return { total, numericCount, lastTick };
 }
 
 export function buildSeriesWindow({
@@ -270,6 +297,11 @@ export function buildDisplaySnapshot({
         summary: series.summary,
       };
     });
+  const metricCoverage = buildMetricCoverage({
+    captures,
+    metrics: selectedMetrics,
+    captureId: capture?.id,
+  });
 
   return {
     captureId: capture?.id ?? null,
@@ -284,7 +316,52 @@ export function buildDisplaySnapshot({
     windowSize,
     currentTick,
     seriesSummary: summary,
+    metricCoverage,
   };
+}
+
+export function buildMetricCoverage({
+  captures,
+  metrics,
+  captureId,
+}: {
+  captures: CaptureSession[];
+  metrics: SelectedMetric[];
+  captureId?: string;
+}): MetricCoverage[] {
+  const filteredMetrics = captureId
+    ? metrics.filter((metric) => metric.captureId === captureId)
+    : metrics;
+  const byCapture = new Map<string, SelectedMetric[]>();
+
+  filteredMetrics.forEach((metric) => {
+    const list = byCapture.get(metric.captureId);
+    if (list) {
+      list.push(metric);
+    } else {
+      byCapture.set(metric.captureId, [metric]);
+    }
+  });
+
+  const coverage: MetricCoverage[] = [];
+  byCapture.forEach((captureMetrics, targetCaptureId) => {
+    const targetCapture = captures.find((item) => item.id === targetCaptureId);
+    const records = targetCapture?.records ?? [];
+    captureMetrics.forEach((metric) => {
+      const summary = summarizeCoverage(records, metric.path);
+      coverage.push({
+        captureId: metric.captureId,
+        path: metric.path,
+        fullPath: metric.fullPath,
+        label: metric.label,
+        numericCount: summary.numericCount,
+        total: summary.total,
+        lastTick: summary.lastTick,
+      });
+    });
+  });
+
+  return coverage;
 }
 
 export function buildRenderTable({
@@ -326,9 +403,11 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "get_state",
       "list_captures",
       "toggle_capture",
+      "remove_capture",
       "select_metric",
       "deselect_metric",
       "clear_selection",
+      "clear_captures",
       "play",
       "pause",
       "stop",
@@ -339,6 +418,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "live_start",
       "live_stop",
       "capture_init",
+      "capture_components",
       "capture_append",
       "capture_end",
       "get_display_snapshot",
@@ -346,6 +426,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "query_components",
       "get_render_table",
       "get_memory_stats",
+      "get_metric_coverage",
     ],
     responses: [
       "ack",
@@ -360,6 +441,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "ui_error",
       "capture_progress",
       "memory_stats",
+      "metric_coverage",
     ],
   };
 }

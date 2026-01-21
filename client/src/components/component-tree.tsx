@@ -26,6 +26,10 @@ interface ComponentTreeProps {
   captureId: string;
   components: ComponentNode[];
   selectedMetrics: SelectedMetric[];
+  metricCoverage?: Record<
+    string,
+    { numericCount: number; total: number; lastTick: number | null }
+  >;
   onSelectionChange: (metrics: SelectedMetric[]) => void;
   colorOffset?: number;
 }
@@ -50,6 +54,10 @@ interface TreeNodeProps {
   level: number;
   captureId: string;
   selectedMetrics: SelectedMetric[];
+  metricCoverage?: Record<
+    string,
+    { numericCount: number; total: number; lastTick: number | null }
+  >;
   onToggle: (node: ComponentNode, checked: boolean) => void;
   expandedNodes: Set<string>;
   onExpand: (nodeId: string) => void;
@@ -61,6 +69,7 @@ function TreeNode({
   level,
   captureId,
   selectedMetrics,
+  metricCoverage,
   onToggle,
   expandedNodes,
   onExpand,
@@ -70,6 +79,14 @@ function TreeNode({
   const isSelected = selectedMetrics.some((m) => m.fullPath === node.id && m.captureId === captureId);
   const selectedMetric = selectedMetrics.find((m) => m.fullPath === node.id && m.captureId === captureId);
   const hasChildren = node.children.length > 0;
+  const coverageEntry = metricCoverage?.[node.id];
+  const hasCoverage = Boolean(selectedMetric && coverageEntry && coverageEntry.total > 0);
+  const isMissing = hasCoverage && coverageEntry?.numericCount === 0;
+  const isSparse =
+    hasCoverage &&
+    coverageEntry?.numericCount !== undefined &&
+    coverageEntry.numericCount > 0 &&
+    coverageEntry.numericCount < coverageEntry.total;
 
   const matchesSearch =
     searchQuery === "" ||
@@ -135,6 +152,25 @@ function TreeNode({
           {node.label}
         </span>
 
+        {isMissing && (
+          <Badge
+            variant="destructive"
+            className="h-4 px-1.5 text-[10px] leading-4"
+            data-testid={`badge-no-data-${captureId}-${node.id}`}
+          >
+            0/{coverageEntry?.total ?? 0}
+          </Badge>
+        )}
+        {!isMissing && isSparse && (
+          <Badge
+            variant="secondary"
+            className="h-4 px-1.5 text-[10px] leading-4"
+            data-testid={`badge-sparse-${captureId}-${node.id}`}
+          >
+            {coverageEntry?.numericCount ?? 0}/{coverageEntry?.total ?? 0}
+          </Badge>
+        )}
+
         {selectedMetric && (
           <div
             className="w-2 h-2 rounded-full shrink-0"
@@ -172,6 +208,7 @@ export function ComponentTree({
   captureId,
   components,
   selectedMetrics,
+  metricCoverage,
   onSelectionChange,
   colorOffset = 0,
 }: ComponentTreeProps) {
@@ -248,6 +285,7 @@ export function ComponentTree({
             level={0}
             captureId={captureId}
             selectedMetrics={selectedMetrics}
+            metricCoverage={metricCoverage}
             onToggle={handleToggle}
             expandedNodes={expandedNodes}
             onExpand={handleExpand}

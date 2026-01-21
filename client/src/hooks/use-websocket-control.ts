@@ -6,6 +6,7 @@ import type {
   SelectedMetric,
   PlaybackState,
   CaptureSession,
+  ComponentNode,
   MemoryStatsResponse,
   CaptureAppendFrame,
   CaptureRecord,
@@ -15,6 +16,7 @@ import {
   buildCapabilitiesPayload,
   buildComponentsList,
   buildDisplaySnapshot,
+  buildMetricCoverage,
   buildRenderTable,
   buildSeriesWindow,
 } from "@shared/protocol-utils";
@@ -25,11 +27,13 @@ interface UseWebSocketControlProps {
   playbackState: PlaybackState;
   windowSize: number;
   onSourceModeChange: (mode: "file" | "live") => void;
-  onLiveSourceChange: (source: string) => void;
+  onLiveSourceChange: (source: string, captureId?: string) => void;
   onToggleCapture: (captureId: string) => void;
+  onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[]) => void;
   onDeselectMetric: (captureId: string, fullPath: string) => void;
   onClearSelection: () => void;
+  onClearCaptures: () => void;
   onPlay: () => void;
   onPause: () => void;
   onStop: () => void;
@@ -41,8 +45,9 @@ interface UseWebSocketControlProps {
     captureId?: string;
     filename?: string;
   }) => Promise<void>;
-  onLiveStop: () => Promise<void>;
+  onLiveStop: (options?: { captureId?: string }) => Promise<void>;
   onCaptureInit: (captureId: string, filename?: string) => void;
+  onCaptureComponents: (captureId: string, components: ComponentNode[]) => void;
   onCaptureAppend: (captureId: string, frame: CaptureSession["records"][number]) => void;
   onCaptureEnd: (captureId: string) => void;
   getMemoryStats: () => MemoryStatsResponse;
@@ -95,9 +100,11 @@ export function useWebSocketControl({
   onSourceModeChange,
   onLiveSourceChange,
   onToggleCapture,
+  onRemoveCapture,
   onSelectMetric,
   onDeselectMetric,
   onClearSelection,
+  onClearCaptures,
   onPlay,
   onPause,
   onStop,
@@ -106,6 +113,7 @@ export function useWebSocketControl({
   onLiveStart,
   onLiveStop,
   onCaptureInit,
+  onCaptureComponents,
   onCaptureAppend,
   onCaptureEnd,
   getMemoryStats,
@@ -204,8 +212,53 @@ export function useWebSocketControl({
         onToggleCapture(command.captureId);
         sendAck(requestId, command.type);
         break;
+      case "remove_capture":
+        onRemoveCapture(command.captureId);
+        sendAck(requestId, command.type);
+        break;
       case "select_metric":
         onSelectMetric(command.captureId, command.path);
+        {
+          const fullPath = command.path.join(".");
+          const label = command.path[command.path.length - 1] ?? fullPath;
+          const coverage = buildMetricCoverage({
+            captures,
+            metrics: [
+              {
+                captureId: command.captureId,
+                path: command.path,
+                fullPath,
+                label,
+                color: "auto",
+              },
+            ],
+            captureId: command.captureId,
+          });
+          const summary = coverage[0];
+          if (summary) {
+            sendMessage({
+              type: "metric_coverage",
+              request_id: requestId,
+              payload: {
+                captureId: command.captureId,
+                metrics: [summary],
+              },
+            });
+            if (summary.total > 0 && summary.numericCount === 0) {
+              sendError(requestId, "Selected metric has no numeric values.", {
+                captureId: command.captureId,
+                path: command.path,
+                fullPath,
+              });
+            }
+          } else {
+            sendError(requestId, "Unable to summarize selected metric.", {
+              captureId: command.captureId,
+              path: command.path,
+              fullPath,
+            });
+          }
+        }
         sendAck(requestId, command.type);
         break;
       case "deselect_metric":
@@ -214,6 +267,10 @@ export function useWebSocketControl({
         break;
       case "clear_selection":
         onClearSelection();
+        sendAck(requestId, command.type);
+        break;
+      case "clear_captures":
+        onClearCaptures();
         sendAck(requestId, command.type);
         break;
       case "play":
@@ -241,7 +298,7 @@ export function useWebSocketControl({
         sendAck(requestId, command.type);
         break;
       case "set_live_source":
-        onLiveSourceChange(command.source);
+        onLiveSourceChange(command.source, command.captureId);
         sendAck(requestId, command.type);
         break;
       case "live_start": {
@@ -262,7 +319,7 @@ export function useWebSocketControl({
         break;
       }
       case "live_stop": {
-        onLiveStop()
+        onLiveStop({ captureId: command.captureId })
           .then(() => sendAck(requestId, command.type))
           .catch((error) => {
             sendError(
@@ -281,6 +338,10 @@ export function useWebSocketControl({
             context: { captureId: command.captureId, filename: command.filename },
           },
         });
+        sendAck(requestId, command.type);
+        break;
+      case "capture_components":
+        onCaptureComponents(command.captureId, command.components);
         sendAck(requestId, command.type);
         break;
       case "capture_append":
@@ -411,6 +472,33 @@ export function useWebSocketControl({
         sendAck(requestId, command.type);
         break;
       }
+      case "get_metric_coverage": {
+        const targetCaptureId = command.captureId;
+        const metrics = targetCaptureId
+          ? selectedMetrics.filter((metric) => metric.captureId === targetCaptureId)
+          : selectedMetrics;
+        if (metrics.length === 0) {
+          sendError(requestId, "No selected metrics to summarize.", {
+            captureId: targetCaptureId ?? null,
+          });
+          break;
+        }
+        const coverage = buildMetricCoverage({
+          captures,
+          metrics,
+          captureId: targetCaptureId,
+        });
+        sendMessage({
+          type: "metric_coverage",
+          request_id: requestId,
+          payload: {
+            captureId: targetCaptureId ?? null,
+            metrics: coverage,
+          },
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
     }
   }, [
     sendState,
@@ -433,6 +521,7 @@ export function useWebSocketControl({
     onCaptureAppend,
     onCaptureEnd,
     getMemoryStats,
+    buildMetricCoverage,
     captures,
     selectedMetrics,
     playbackState,

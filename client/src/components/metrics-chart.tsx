@@ -6,7 +6,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
@@ -168,20 +167,6 @@ export function MetricsChart({
                   typeof value === "number" ? value.toLocaleString() : value,
                   label,
                 ];
-              }}
-            />
-            <Legend
-              verticalAlign="top"
-              height={36}
-              formatter={(value) => {
-                const metric = selectedMetrics.find((m) => getDataKey(m) === value);
-                if (!metric) return <span className="text-xs">{value}</span>;
-                const captureName = getCaptureFilename(metric.captureId);
-                return (
-                  <span className="text-xs" style={{ color: metric.color }}>
-                    {captureName}: {metric.label}
-                  </span>
-                );
               }}
             />
             <ReferenceLine

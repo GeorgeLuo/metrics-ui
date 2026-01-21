@@ -1,6 +1,7 @@
 import type { CaptureRecord } from "./schema";
 
 export const DEFAULT_MAX_NUMERIC_DEPTH = Number.POSITIVE_INFINITY;
+const MAX_ARRAY_ENTRIES = 200;
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -15,8 +16,20 @@ export function compactValue(
     return value;
   }
 
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  if (!value || typeof value !== "object") {
     return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    if (depth >= maxDepth) {
+      return undefined;
+    }
+    const limited = value.slice(0, MAX_ARRAY_ENTRIES);
+    const compacted = limited.map((item) => compactValue(item, depth + 1, maxDepth));
+    if (compacted.every((entry) => entry === undefined)) {
+      return undefined;
+    }
+    return compacted;
   }
 
   if (depth >= maxDepth) {
