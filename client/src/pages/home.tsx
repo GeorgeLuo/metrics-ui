@@ -368,13 +368,7 @@ export default function Home() {
   });
   const [liveStreams, setLiveStreams] = useState<LiveStreamEntry[]>(() => {
     if (typeof window === "undefined") {
-      return [{
-        id: generateId(),
-        source: "",
-        pollSeconds: DEFAULT_POLL_SECONDS,
-        status: "idle",
-        error: null,
-      }];
+      return [];
     }
 
     const stored = window.localStorage.getItem("metrics-ui-live-streams");
@@ -382,29 +376,29 @@ export default function Home() {
       try {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((entry) => ({
-            id: typeof entry?.id === "string" ? entry.id : generateId(),
-            source: typeof entry?.source === "string" ? entry.source : "",
-            pollSeconds:
-              Number.isFinite(Number(entry?.pollSeconds)) && Number(entry?.pollSeconds) > 0
-                ? Number(entry.pollSeconds)
-                : DEFAULT_POLL_SECONDS,
-            status: "idle",
-            error: null,
-          }));
+          const hydrated = parsed
+            .map((entry) => ({
+              id: typeof entry?.id === "string" ? entry.id : generateId(),
+              source: typeof entry?.source === "string" ? entry.source : "",
+              pollSeconds:
+                Number.isFinite(Number(entry?.pollSeconds)) && Number(entry?.pollSeconds) > 0
+                  ? Number(entry.pollSeconds)
+                  : DEFAULT_POLL_SECONDS,
+              status: "idle" as LiveStreamStatus,
+              error: null,
+            }))
+            .filter((entry) => entry.source.trim().length > 0);
+
+          if (hydrated.length > 0) {
+            return hydrated;
+          }
         }
       } catch {
         // ignore invalid stored state
       }
     }
 
-    return [{
-      id: generateId(),
-      source: "",
-      pollSeconds: DEFAULT_POLL_SECONDS,
-      status: "idle",
-      error: null,
-    }];
+    return [];
   });
 
   const [playbackState, setPlaybackState] = useState<PlaybackState>({
@@ -640,11 +634,13 @@ export default function Home() {
     if (typeof window === "undefined") {
       return;
     }
-    const payload = liveStreams.map((entry) => ({
-      id: entry.id,
-      source: entry.source,
-      pollSeconds: entry.pollSeconds,
-    }));
+    const payload = liveStreams
+      .filter((entry) => entry.source.trim().length > 0)
+      .map((entry) => ({
+        id: entry.id,
+        source: entry.source,
+        pollSeconds: entry.pollSeconds,
+      }));
     window.localStorage.setItem("metrics-ui-live-streams", JSON.stringify(payload));
   }, [liveStreams]);
 
@@ -771,15 +767,7 @@ export default function Home() {
             };
           });
 
-          return next.length > 0
-            ? next
-            : [{
-                id: generateId(),
-                source: "",
-                pollSeconds: DEFAULT_POLL_SECONDS,
-                status: "idle",
-                error: null,
-              }];
+          return next;
         });
       } catch (error) {
         console.warn("Failed to fetch live status:", error);
@@ -1987,7 +1975,7 @@ export default function Home() {
                                 onChange={(event) => {
                                   handleLiveSourceInput(entry.id, event.target.value);
                                 }}
-                                className="h-8 text-xs"
+                                className="h-8 px-2 py-1 text-xs"
                                 aria-label={`Capture file source ${index + 1}`}
                               />
                               <Input
@@ -2002,7 +1990,7 @@ export default function Home() {
                                     handleLivePollChange(entry.id, parsed);
                                   }
                                 }}
-                                className="h-8 text-xs"
+                                className="h-8 px-2 py-1 text-xs"
                                 disabled={isConnected || isConnecting}
                                 aria-label={`Poll interval seconds ${index + 1}`}
                               />

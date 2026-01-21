@@ -7,7 +7,9 @@
     "dev": "NODE_ENV=development tsx watch server/index.ts",
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
-    "check": "tsc",
+    "check": "tsc && npm run docs:ws:check",
+    "docs:ws": "tsx script/ws-docs.ts",
+    "docs:ws:check": "tsx script/ws-docs.ts --check",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {

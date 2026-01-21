@@ -157,6 +157,38 @@ Capture streaming (push records over WS):
 - `{"type":"capture_append","captureId":"live-1","frame":{...}}`
 - `{"type":"capture_end","captureId":"live-1"}`
 
+### Supported Commands (auto)
+<!-- WS:COMMANDS:START -->
+- `hello`
+- `get_state`
+- `list_captures`
+- `toggle_capture`
+- `remove_capture`
+- `select_metric`
+- `deselect_metric`
+- `clear_selection`
+- `clear_captures`
+- `play`
+- `pause`
+- `stop`
+- `seek`
+- `set_speed`
+- `set_source_mode`
+- `set_live_source`
+- `live_start`
+- `live_stop`
+- `capture_init`
+- `capture_components`
+- `capture_append`
+- `capture_end`
+- `get_display_snapshot`
+- `get_series_window`
+- `query_components`
+- `get_render_table`
+- `get_memory_stats`
+- `get_metric_coverage`
+<!-- WS:COMMANDS:END -->
+
 ### Responses
 
 Common responses include:
@@ -173,6 +205,23 @@ Common responses include:
 - `metric_coverage`
 
 `display_snapshot` includes `metricCoverage` for selected metrics (numeric count, total frames, last tick).
+
+### Supported Responses (auto)
+<!-- WS:RESPONSES:START -->
+- `ack`
+- `error`
+- `state_update`
+- `capabilities`
+- `display_snapshot`
+- `series_window`
+- `components_list`
+- `render_table`
+- `ui_notice`
+- `ui_error`
+- `capture_progress`
+- `memory_stats`
+- `metric_coverage`
+<!-- WS:RESPONSES:END -->
 
 ### Minimal Agent Flow Example
 
