@@ -1601,6 +1601,14 @@ export default function Home() {
     setPlaybackState((prev) => ({ ...prev, speed }));
   }, []);
 
+  const handleWindowSizeChange = useCallback((size: number) => {
+    if (!Number.isFinite(size) || size <= 0) {
+      return;
+    }
+    setWindowSize(Math.max(1, Math.floor(size)));
+    setIsAutoZoom(false);
+  }, []);
+
   const handleStepForward = useCallback(() => {
     setPlaybackState((prev) => ({
       ...prev,
@@ -1874,6 +1882,7 @@ export default function Home() {
     onStop: handleStop,
     onSeek: handleSeek,
     onSpeedChange: handleSpeedChange,
+    onWindowSizeChange: handleWindowSizeChange,
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,

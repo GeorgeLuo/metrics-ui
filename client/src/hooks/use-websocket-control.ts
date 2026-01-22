@@ -26,6 +26,7 @@ interface UseWebSocketControlProps {
   selectedMetrics: SelectedMetric[];
   playbackState: PlaybackState;
   windowSize: number;
+  onWindowSizeChange: (windowSize: number) => void;
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onToggleCapture: (captureId: string) => void;
@@ -110,6 +111,7 @@ export function useWebSocketControl({
   onStop,
   onSeek,
   onSpeedChange,
+  onWindowSizeChange,
   onLiveStart,
   onLiveStop,
   onCaptureInit,
@@ -140,6 +142,7 @@ export function useWebSocketControl({
         })),
         selectedMetrics,
         playback: playbackState,
+        windowSize,
       };
       wsRef.current.send(JSON.stringify({
         type: "state_update",
@@ -291,6 +294,10 @@ export function useWebSocketControl({
         break;
       case "set_speed":
         onSpeedChange(command.speed);
+        sendAck(requestId, command.type);
+        break;
+      case "set_window_size":
+        onWindowSizeChange(command.windowSize);
         sendAck(requestId, command.type);
         break;
       case "set_source_mode":
@@ -515,6 +522,7 @@ export function useWebSocketControl({
     onStop,
     onSeek,
     onSpeedChange,
+    onWindowSizeChange,
     onLiveStart,
     onLiveStop,
     onCaptureInit,

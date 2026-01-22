@@ -173,6 +173,7 @@ Capture streaming (push records over WS):
 - `stop`
 - `seek`
 - `set_speed`
+- `set_window_size`
 - `set_source_mode`
 - `set_live_source`
 - `live_start`

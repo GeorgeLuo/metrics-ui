@@ -281,6 +281,7 @@ export type ControlCommand =
   | ({ type: "stop" } & ControlRequestBase)
   | ({ type: "seek"; tick: number } & ControlRequestBase)
   | ({ type: "set_speed"; speed: number } & ControlRequestBase)
+  | ({ type: "set_window_size"; windowSize: number } & ControlRequestBase)
   | ({ type: "set_source_mode"; mode: "file" | "live" } & ControlRequestBase)
   | ({ type: "set_live_source"; source: string; captureId?: string } & ControlRequestBase)
   | ({
@@ -332,4 +333,5 @@ export interface VisualizationState {
   }>;
   selectedMetrics: SelectedMetric[];
   playback: PlaybackState;
+  windowSize: number;
 }
