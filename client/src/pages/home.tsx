@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { FileUpload } from "@/components/file-upload";
 import { ComponentTree } from "@/components/component-tree";
@@ -19,15 +19,29 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
-import { Activity, X, FileText, Trash2, BookOpen, Eye, EyeOff, RefreshCw } from "lucide-react";
+import {
+  Activity,
+  X,
+  FileText,
+  Trash2,
+  BookOpen,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 import { Link } from "wouter";
 import type {
+  Annotation,
+  SubtitleOverlay,
   ComponentNode,
   SelectedMetric,
   PlaybackState,
   DataPoint,
   CaptureRecord,
   CaptureSession,
+  ControlCommand,
   ControlResponse,
   MemoryStatsResponse,
 } from "@shared/schema";
@@ -46,6 +60,9 @@ import {
 
 const INITIAL_WINDOW_SIZE = 50;
 const DEFAULT_POLL_SECONDS = 2;
+const EMPTY_METRICS: SelectedMetric[] = [];
+const APPEND_FLUSH_MS = 100;
+const FULLSCREEN_RESIZE_DELAY = 150;
 
 const METRIC_COLORS = [
   "#E4572E",
@@ -150,7 +167,23 @@ function buildComponentTreeFromEntities(entities: Record<string, unknown>): Comp
     });
   });
 
-  return nodes;
+  return pruneComponentTree(nodes);
+}
+
+function pruneComponentTree(nodes: ComponentNode[]): ComponentNode[] {
+  const pruned: ComponentNode[] = [];
+  nodes.forEach((node) => {
+    const children = pruneComponentTree(node.children);
+    const isNumericLeaf = node.isLeaf && node.valueType === "number";
+    if (children.length > 0 || isNumericLeaf) {
+      pruned.push({
+        ...node,
+        children,
+        isLeaf: children.length === 0,
+      });
+    }
+  });
+  return pruned;
 }
 
 function mergeValueType(
@@ -356,7 +389,32 @@ function extractDataPoints(
 
 export default function Home() {
   const [captures, setCaptures] = useState<CaptureSession[]>([]);
-  const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>([]);
+  const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+    const stored = window.localStorage.getItem("metrics-ui-selected-metrics");
+    if (!stored) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed.filter(
+        (metric) =>
+          metric &&
+          typeof metric.captureId === "string" &&
+          Array.isArray(metric.path) &&
+          typeof metric.fullPath === "string" &&
+          typeof metric.label === "string" &&
+          typeof metric.color === "string",
+      ) as SelectedMetric[];
+    } catch {
+      return [];
+    }
+  });
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<"file" | "live">(() => {
     if (typeof window === "undefined") {
@@ -409,29 +467,76 @@ export default function Home() {
   });
 
   const [windowSize, setWindowSize] = useState(INITIAL_WINDOW_SIZE);
-  const [isAutoZoom, setIsAutoZoom] = useState(true);
+  const [windowStart, setWindowStart] = useState(1);
+  const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
   const [isHudVisible, setIsHudVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [subtitles, setSubtitles] = useState<SubtitleOverlay[]>([]);
 
   const playbackRef = useRef<number | null>(null);
   const liveStreamsRef = useRef(liveStreams);
+  const selectedMetricsRef = useRef(selectedMetrics);
   const liveMetaRef = useRef(new Map<string, LiveStreamMeta>());
   const didInitialLiveConnectRef = useRef(false);
-  const attemptConnectRef = useRef<(id: string, options?: { force?: boolean }) => void>(
+  const attemptConnectRef = useRef<(
+    id: string,
+    options?: { force?: boolean; showConnecting?: boolean },
+  ) => void>(
     () => {},
   );
-  const captureProgressRef = useRef(
-    new Map<string, { received: number; kept: number; dropped: number }>(),
-  );
+  const pendingAppendsRef = useRef(new Map<string, CaptureRecord[]>());
+  const appendFlushTimerRef = useRef<number | null>(null);
   const captureStatsRef = useRef<Map<string, CaptureStats>>(new Map());
   const pendingSeriesRef = useRef(new Set<string>());
   const loadedSeriesRef = useRef(new Set<string>());
   const baselineHeapRef = useRef<number | null>(null);
-  const sendMessageRef = useRef<(message: ControlResponse) => boolean>(() => false);
+  const sendMessageRef = useRef<(message: ControlResponse | ControlCommand) => boolean>(() => false);
+  const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
+  const activeCaptureIdsRef = useRef(new Set<string>());
 
-  const activeCaptures = captures.filter(c => c.isActive);
+  const activeCaptures = useMemo(() => captures.filter((capture) => capture.isActive), [captures]);
   const maxTotalTicks = activeCaptures.length > 0 
     ? Math.max(...activeCaptures.map(c => c.tickCount)) 
     : 0;
+
+  const selectedMetricsByCapture = useMemo(() => {
+    const grouped = new Map<string, SelectedMetric[]>();
+    selectedMetrics.forEach((metric) => {
+      const existing = grouped.get(metric.captureId);
+      if (existing) {
+        existing.push(metric);
+      } else {
+        grouped.set(metric.captureId, [metric]);
+      }
+    });
+    return grouped;
+  }, [selectedMetrics]);
+
+  const getSelectionHandler = useCallback((captureId: string) => {
+    const existing = selectionHandlersRef.current.get(captureId);
+    if (existing) {
+      return existing;
+    }
+    const handler = (newMetrics: SelectedMetric[]) => {
+      setSelectedMetrics((prev) => {
+        const otherMetrics = prev.filter((metric) => metric.captureId !== captureId);
+        return [...otherMetrics, ...newMetrics];
+      });
+    };
+    selectionHandlersRef.current.set(captureId, handler);
+    return handler;
+  }, []);
+
+  useEffect(() => {
+    const activeIds = new Set(captures.map((capture) => capture.id));
+    selectionHandlersRef.current.forEach((_handler, id) => {
+      if (!activeIds.has(id)) {
+        selectionHandlersRef.current.delete(id);
+      }
+    });
+  }, [captures]);
 
   const ingestCapturePayload = useCallback(
     (data: {
@@ -559,7 +664,7 @@ export default function Home() {
     setCaptures((prev) =>
       prev.map((capture) =>
         capture.id === captureId
-          ? { ...capture, records: [], tickCount: 0 }
+          ? { ...capture, records: [] }
           : capture,
       ),
     );
@@ -631,6 +736,26 @@ export default function Home() {
   }, [liveStreams]);
 
   useEffect(() => {
+    activeCaptureIdsRef.current = new Set(
+      captures.filter((capture) => capture.isActive).map((capture) => capture.id),
+    );
+  }, [captures]);
+
+  useEffect(() => {
+    selectedMetricsRef.current = selectedMetrics;
+  }, [selectedMetrics]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(
+      "metrics-ui-selected-metrics",
+      JSON.stringify(selectedMetrics),
+    );
+  }, [selectedMetrics]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -676,13 +801,16 @@ export default function Home() {
   );
 
   const clearLiveRetry = useCallback(
-    (id: string) => {
+    (id: string, options?: { keepStatus?: boolean }) => {
       const meta = getLiveMeta(id);
       if (meta.retryTimer !== null) {
         window.clearTimeout(meta.retryTimer);
         meta.retryTimer = null;
       }
       meta.retrySource = null;
+      if (options?.keepStatus) {
+        return;
+      }
       setLiveStreams((prev) =>
         prev.map((entry) =>
           entry.id === id && entry.status === "retrying"
@@ -728,9 +856,6 @@ export default function Home() {
                 lastError: data.lastError,
               }]
             : [];
-        if (streams.length > 0) {
-          setSourceMode("live");
-        }
         setLiveStreams((prev) => {
           const next = [...prev];
           const indexById = new Map<string, number>();
@@ -796,6 +921,34 @@ export default function Home() {
   useEffect(() => {
     updateBaselineHeap();
   }, [updateBaselineHeap]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const updateFullscreen = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    updateFullscreen();
+    document.addEventListener("fullscreenchange", updateFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", updateFullscreen);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+    }, FULLSCREEN_RESIZE_DELAY);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isFullscreen]);
 
   useEffect(() => {
     if (captures.length === 0) {
@@ -997,6 +1150,24 @@ export default function Home() {
     setUploadError(null);
   }, []);
 
+  const handleSetFullscreen = useCallback((enabled: boolean) => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    if (enabled) {
+      if (!document.fullscreenElement) {
+        const target = document.documentElement;
+        if (target.requestFullscreen) {
+          target.requestFullscreen().catch(() => {});
+        }
+      }
+      return;
+    }
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
   const handleSourceModeChange = useCallback((mode: "file" | "live") => {
     setSourceMode(mode);
     if (mode === "live") {
@@ -1097,14 +1268,14 @@ export default function Home() {
         if (!entry || entry.source.trim() !== source) {
           return;
         }
-        attemptConnectRef.current(id, { force: true });
+        attemptConnectRef.current(id, { force: true, showConnecting: false });
       }, 3000);
     },
     [getLiveMeta, sourceMode, updateLiveStream],
   );
 
   const attemptConnect = useCallback(
-    async (id: string, options?: { force?: boolean }) => {
+    async (id: string, options?: { force?: boolean; showConnecting?: boolean }) => {
       const entry = liveStreamsRef.current.find((item) => item.id === id);
       if (!entry || sourceMode !== "live") {
         return;
@@ -1124,8 +1295,11 @@ export default function Home() {
         return;
       }
       meta.dirty = false;
-      clearLiveRetry(id);
-      updateLiveStream(id, { status: "connecting", error: null });
+      const showConnecting = options?.showConnecting ?? entry.status !== "retrying";
+      clearLiveRetry(id, { keepStatus: !showConnecting });
+      if (showConnecting) {
+        updateLiveStream(id, { status: "connecting", error: null });
+      }
       try {
         const isAvailable = await checkSource(source);
         if (!isAvailable) {
@@ -1157,7 +1331,7 @@ export default function Home() {
       if (sourceMode !== "live") {
         return;
       }
-      attemptConnectRef.current(id, { force: true });
+      attemptConnectRef.current(id, { force: true, showConnecting: true });
     },
     [sourceMode],
   );
@@ -1241,46 +1415,79 @@ export default function Home() {
     updateLiveStream,
   ]);
 
-  const handleCaptureInit = useCallback((captureId: string, filename?: string) => {
-    captureProgressRef.current.set(captureId, { received: 0, kept: 0, dropped: 0 });
-    captureStatsRef.current.set(captureId, createEmptyCaptureStats());
-    Array.from(loadedSeriesRef.current.keys()).forEach((key) => {
-      if (key.startsWith(`${captureId}::`)) {
-        loadedSeriesRef.current.delete(key);
-        pendingSeriesRef.current.delete(key);
+  const handleCaptureInit = useCallback(
+    (captureId: string, filename?: string, options?: { reset?: boolean }) => {
+      const isReset = Boolean(options?.reset);
+      let shouldFetch = true;
+      let shouldClear = true;
+
+      setCaptures((prev) => {
+        const fallbackName = `${captureId}.jsonl`;
+        const existing = prev.find((capture) => capture.id === captureId);
+        if (!existing) {
+          shouldClear = true;
+          return [
+            ...prev,
+            {
+              id: captureId,
+              filename: filename || fallbackName,
+              fileSize: 0,
+              tickCount: 0,
+              records: [],
+              components: [],
+              isActive: true,
+            },
+          ];
+        }
+
+        shouldFetch = existing.isActive;
+        shouldClear = isReset;
+        if (!isReset) {
+          return prev.map((capture) =>
+            capture.id === captureId
+              ? {
+                  ...capture,
+                  filename: filename || capture.filename || fallbackName,
+                }
+              : capture,
+          );
+        }
+
+        return prev.map((capture) =>
+          capture.id === captureId
+            ? {
+                ...capture,
+                filename: filename || capture.filename || fallbackName,
+                tickCount: 0,
+                records: [],
+                components: [],
+              }
+            : capture,
+        );
+      });
+
+      if (shouldClear) {
+        captureStatsRef.current.set(captureId, createEmptyCaptureStats());
+        Array.from(loadedSeriesRef.current.keys()).forEach((key) => {
+          if (key.startsWith(`${captureId}::`)) {
+            loadedSeriesRef.current.delete(key);
+            pendingSeriesRef.current.delete(key);
+          }
+        });
       }
-    });
-    sendMessageRef.current({
-      type: "capture_progress",
-      payload: { captureId, received: 0, kept: 0, dropped: 0, lastTick: null },
-    });
 
-    setCaptures((prev) => {
-      const fallbackName = `${captureId}.jsonl`;
-      const incoming: CaptureSession = {
-        id: captureId,
-        filename: filename || fallbackName,
-        fileSize: 0,
-        tickCount: 0,
-        records: [],
-        components: [],
-        isActive: true,
-      };
-
-      const existing = prev.find((capture) => capture.id === captureId);
-      if (!existing) {
-        return [...prev, incoming];
+      if (!shouldFetch) {
+        return;
       }
-
-      return prev.map((capture) =>
-        capture.id === captureId
-          ? { ...incoming, filename: filename || existing.filename }
-          : capture,
+      const selectedForCapture = selectedMetricsRef.current.filter(
+        (metric) => metric.captureId === captureId,
       );
-    });
-
-    setSelectedMetrics((prev) => prev.filter((metric) => metric.captureId !== captureId));
-  }, []);
+      selectedForCapture.forEach((metric) => {
+        fetchMetricSeries(metric);
+      });
+    },
+    [fetchMetricSeries],
+  );
 
   const handleCaptureComponents = useCallback((captureId: string, components: ComponentNode[]) => {
     if (!components || components.length === 0) {
@@ -1323,126 +1530,133 @@ export default function Home() {
     });
   }, []);
 
-  const handleCaptureAppend = useCallback((captureId: string, frame: CaptureRecord) => {
-    const metricsForCapture = selectedMetrics.filter((metric) => metric.captureId === captureId);
-    const hasSelection = metricsForCapture.length > 0;
-    const filteredEntities = hasSelection
-      ? buildEntitiesForMetrics(
-          (frame.entities || {}) as Record<string, unknown>,
-          metricsForCapture,
-        )
-      : {};
-    const compactedFrame = compactRecord({ tick: frame.tick, entities: filteredEntities });
-    const progress = captureProgressRef.current.get(captureId) ?? {
-      received: 0,
-      kept: 0,
-      dropped: 0,
-    };
-    progress.received += 1;
-    const hasData = Object.keys(compactedFrame.entities || {}).length > 0;
-    if (hasData) {
-      progress.kept += 1;
-    } else {
-      progress.dropped += 1;
+  const flushPendingAppends = useCallback(() => {
+    appendFlushTimerRef.current = null;
+    if (pendingAppendsRef.current.size === 0) {
+      return;
     }
-    captureProgressRef.current.set(captureId, progress);
-    sendMessageRef.current({
-      type: "capture_progress",
-      payload: {
-        captureId,
-        received: progress.received,
-        kept: progress.kept,
-        dropped: progress.dropped,
-        lastTick: compactedFrame.tick,
-      },
+    const pending = pendingAppendsRef.current;
+    pendingAppendsRef.current = new Map();
+
+    const liveCaptureIds = new Set(liveStreamsRef.current.map((entry) => entry.id));
+    const metricsByCapture = new Map<string, SelectedMetric[]>();
+    selectedMetricsRef.current.forEach((metric) => {
+      const list = metricsByCapture.get(metric.captureId);
+      if (list) {
+        list.push(metric);
+      } else {
+        metricsByCapture.set(metric.captureId, [metric]);
+      }
     });
 
     setCaptures((prev) => {
-      const existing = prev.find((capture) => capture.id === captureId);
-      const incomingComponents = hasSelection
-        ? buildComponentTreeFromEntities(filteredEntities)
-        : [];
-      const stats = captureStatsRef.current.get(captureId) ?? createEmptyCaptureStats();
+      const next = [...prev];
+      const indexById = new Map<string, number>();
+      next.forEach((capture, index) => {
+        indexById.set(capture.id, index);
+      });
 
-      if (!existing) {
-        const fallbackName = `${captureId}.jsonl`;
-        if (hasSelection) {
-          appendRecordStats(stats, compactedFrame);
-          stats.componentNodes = countComponentNodes(incomingComponents);
-          captureStatsRef.current.set(captureId, stats);
-          return [
-            ...prev,
-            {
-              id: captureId,
-              filename: fallbackName,
-              fileSize: 0,
-              tickCount: compactedFrame.tick,
-              records: [compactedFrame],
-              components: incomingComponents,
-              isActive: true,
-            },
-          ];
+      for (const [captureId, frames] of pending.entries()) {
+        if (frames.length === 0) {
+          continue;
         }
+        const metricsForCapture = metricsByCapture.get(captureId) ?? [];
+        const isLive = liveCaptureIds.has(captureId);
+        const shouldAppend = !isLive && metricsForCapture.length > 0;
+        const newRecords: CaptureRecord[] = [];
+        let lastTick: number | null = null;
 
-        captureStatsRef.current.set(captureId, stats);
-        return [
-          ...prev,
-          {
+        frames.forEach((frame) => {
+          lastTick = frame.tick;
+          if (!shouldAppend) {
+            return;
+          }
+          const filteredEntities = buildEntitiesForMetrics(
+            (frame.entities || {}) as Record<string, unknown>,
+            metricsForCapture,
+          );
+          const compactedFrame = compactRecord({ tick: frame.tick, entities: filteredEntities });
+          newRecords.push(compactedFrame);
+        });
+
+        const existingIndex = indexById.get(captureId);
+        const nextTickCount = lastTick ?? 0;
+        if (existingIndex === undefined) {
+          const fallbackName = `${captureId}.jsonl`;
+          const createdRecords = shouldAppend ? newRecords : [];
+          const newCapture: CaptureSession = {
             id: captureId,
             filename: fallbackName,
             fileSize: 0,
-            tickCount: compactedFrame.tick,
-            records: [],
-            components: incomingComponents,
-            isActive: true,
-          },
-        ];
-      }
-
-      const nextTickCount = Math.max(existing.tickCount, compactedFrame.tick);
-      if (!hasSelection) {
-        return prev.map((capture) => {
-          if (capture.id !== captureId) {
-            return capture;
-          }
-          return {
-            ...capture,
             tickCount: nextTickCount,
+            records: createdRecords,
+            components: [],
             isActive: true,
           };
-        });
-      }
-
-      appendRecordStats(stats, compactedFrame);
-      const mergedComponents =
-        existing.components.length > 0
-          ? mergeComponentTrees(existing.components, incomingComponents)
-          : incomingComponents;
-      stats.componentNodes = countComponentNodes(mergedComponents);
-      captureStatsRef.current.set(captureId, stats);
-
-      return prev.map((capture) => {
-        if (capture.id !== captureId) {
-          return capture;
+          next.push(newCapture);
+          indexById.set(captureId, next.length - 1);
+          const stats = createEmptyCaptureStats();
+          createdRecords.forEach((record) => appendRecordStats(stats, record));
+          stats.tickCount = Math.max(stats.tickCount, nextTickCount);
+          stats.componentNodes = countComponentNodes(newCapture.components);
+          captureStatsRef.current.set(captureId, stats);
+          continue;
         }
-        return {
-          ...capture,
-          records: [...capture.records, compactedFrame],
-          components: mergedComponents,
-          tickCount: nextTickCount,
+
+        const existing = next[existingIndex];
+        const updatedTickCount = Math.max(existing.tickCount, nextTickCount);
+        let updatedRecords = existing.records;
+        const stats = captureStatsRef.current.get(captureId) ?? createEmptyCaptureStats();
+        if (shouldAppend && newRecords.length > 0) {
+          updatedRecords = existing.records.concat(newRecords);
+          newRecords.forEach((record) => appendRecordStats(stats, record));
+        } else {
+          stats.tickCount = Math.max(stats.tickCount, updatedTickCount);
+        }
+        stats.componentNodes = countComponentNodes(existing.components);
+        captureStatsRef.current.set(captureId, stats);
+
+        next[existingIndex] = {
+          ...existing,
+          records: updatedRecords,
+          tickCount: updatedTickCount,
           isActive: true,
         };
-      });
+      }
+
+      return next;
     });
-  }, [selectedMetrics]);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (appendFlushTimerRef.current !== null) {
+        window.clearTimeout(appendFlushTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleCaptureAppend = useCallback((captureId: string, frame: CaptureRecord) => {
+    if (!activeCaptureIdsRef.current.has(captureId)) {
+      return;
+    }
+
+    const pending = pendingAppendsRef.current;
+    const list = pending.get(captureId);
+    if (list) {
+      list.push(frame);
+    } else {
+      pending.set(captureId, [frame]);
+    }
+    if (appendFlushTimerRef.current === null) {
+      appendFlushTimerRef.current = window.setTimeout(() => {
+        flushPendingAppends();
+      }, APPEND_FLUSH_MS);
+    }
+  }, [flushPendingAppends]);
 
   const handleCaptureEnd = useCallback(
     (captureId: string) => {
-      setCaptures((prev) =>
-        prev.map((capture) =>
-          capture.id === captureId ? { ...capture, isActive: true } : capture,
-        ),
-      );
       clearLiveRetry(captureId);
       setLiveStreams((prev) =>
         prev.map((entry) =>
@@ -1454,38 +1668,48 @@ export default function Home() {
   );
 
   const handleToggleCapture = useCallback((captureId: string) => {
-    setCaptures(prev => {
-      const updated = prev.map(c => 
-        c.id === captureId ? { ...c, isActive: !c.isActive } : c
+    const wasActive = captures.find((capture) => capture.id === captureId)?.isActive ?? false;
+    setCaptures((prev) => {
+      const updated = prev.map((capture) =>
+        capture.id === captureId ? { ...capture, isActive: !capture.isActive } : capture,
       );
-      const newActiveCaptures = updated.filter(c => c.isActive);
-      const newMaxTicks = newActiveCaptures.length > 0 
-        ? Math.max(...newActiveCaptures.map(c => c.tickCount)) 
-        : 0;
-      
-      setPlaybackState(ps => ({
+      const newActiveCaptures = updated.filter((capture) => capture.isActive);
+      const newMaxTicks =
+        newActiveCaptures.length > 0
+          ? Math.max(...newActiveCaptures.map((capture) => capture.tickCount))
+          : 0;
+
+      setPlaybackState((ps) => ({
         ...ps,
         totalTicks: newMaxTicks,
         currentTick: Math.min(ps.currentTick, newMaxTicks || 1),
       }));
-      
+
       return updated;
     });
-    
-    setSelectedMetrics(prev => {
-      const capture = captures.find(c => c.id === captureId);
-      if (capture && capture.isActive) {
-        return prev.filter(m => m.captureId !== captureId);
-      }
-      return prev;
+
+    if (wasActive) {
+      activeCaptureIdsRef.current.delete(captureId);
+      pendingAppendsRef.current.delete(captureId);
+      return;
+    }
+
+    activeCaptureIdsRef.current.add(captureId);
+    const selectedForCapture = selectedMetricsRef.current.filter(
+      (metric) => metric.captureId === captureId,
+    );
+    selectedForCapture.forEach((metric) => {
+      fetchMetricSeries(metric);
     });
-  }, [captures]);
+  }, [captures, fetchMetricSeries]);
 
   const handleRemoveCapture = useCallback((captureId: string) => {
     setCaptures(prev => prev.filter(c => c.id !== captureId));
     setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
     captureStatsRef.current.delete(captureId);
-  }, []);
+    handleRemoveLiveStream(captureId);
+    sendMessageRef.current({ type: "remove_capture", captureId });
+  }, [handleRemoveLiveStream]);
 
   const handleSelectMetric = useCallback((captureId: string, path: string[]) => {
     const fullPath = path.join(".");
@@ -1529,6 +1753,10 @@ export default function Home() {
     );
 
     added.forEach((metric) => {
+      const capture = captures.find((entry) => entry.id === metric.captureId);
+      if (!capture || !capture.isActive) {
+        return;
+      }
       const key = buildSeriesKey(metric.captureId, metric.fullPath);
       if (!loadedSeriesRef.current.has(key)) {
         fetchMetricSeries(metric);
@@ -1566,12 +1794,20 @@ export default function Home() {
     setCaptures([]);
     setSelectedMetrics([]);
     captureStatsRef.current.clear();
+    setLiveStreams([]);
+    liveMetaRef.current.clear();
+    stopLiveStream().catch(() => {});
+    sendMessageRef.current({ type: "clear_captures" });
     setPlaybackState((prev) => ({
       ...prev,
       isPlaying: false,
       currentTick: 1,
       totalTicks: 0,
     }));
+    setWindowSize(INITIAL_WINDOW_SIZE);
+    setWindowStart(1);
+    setWindowEnd(INITIAL_WINDOW_SIZE);
+    setIsAutoScroll(true);
   }, []);
 
   const handlePlay = useCallback(() => {
@@ -1594,19 +1830,257 @@ export default function Home() {
   }, []);
 
   const handleSeek = useCallback((tick: number) => {
-    setPlaybackState((prev) => ({ ...prev, currentTick: tick }));
-  }, []);
+    const maxTick = Math.max(1, playbackState.totalTicks || 1);
+    const clamped = Math.min(Math.max(1, Math.floor(tick)), maxTick);
+    setPlaybackState((prev) => ({ ...prev, currentTick: clamped }));
+  }, [playbackState.totalTicks]);
 
   const handleSpeedChange = useCallback((speed: number) => {
     setPlaybackState((prev) => ({ ...prev, speed }));
   }, []);
 
-  const handleWindowSizeChange = useCallback((size: number) => {
-    if (!Number.isFinite(size) || size <= 0) {
+  const clampTick = useCallback(
+    (tick: number) => {
+      const maxTick = Math.max(1, playbackState.totalTicks || 1);
+      if (!Number.isFinite(tick)) {
+        return 1;
+      }
+      return Math.min(Math.max(1, Math.floor(tick)), maxTick);
+    },
+    [playbackState.totalTicks],
+  );
+
+  const buildWindowFromEnd = useCallback(
+    (endTick: number, size: number) => {
+      const end = clampTick(endTick);
+      const safeSize = Math.max(1, Math.floor(size));
+      const start = Math.max(1, end - safeSize + 1);
+      return { start, end };
+    },
+    [clampTick],
+  );
+
+  const applyWindowRange = useCallback(
+    (startTick: number, endTick: number) => {
+      const maxTick = Math.max(1, playbackState.totalTicks || 1);
+      let start = Number.isFinite(startTick) ? Math.floor(startTick) : 1;
+      let end = Number.isFinite(endTick) ? Math.floor(endTick) : 1;
+      start = Math.max(1, start);
+      end = Math.max(1, end);
+      if (end > maxTick) {
+        end = maxTick;
+      }
+      if (start > end) {
+        start = end;
+      }
+      setWindowStart(start);
+      setWindowEnd(end);
+      return { start, end };
+    },
+    [playbackState.totalTicks],
+  );
+
+  const handleWindowSizeChange = useCallback(
+    (size: number) => {
+      if (!Number.isFinite(size) || size <= 0) {
+        return;
+      }
+      const safeSize = Math.max(1, Math.floor(size));
+      setWindowSize(safeSize);
+      setIsAutoScroll(false);
+      const window = isAutoScroll
+        ? buildWindowFromEnd(playbackState.currentTick, safeSize)
+        : buildWindowFromEnd(windowEnd, safeSize);
+      setWindowStart(window.start);
+      setWindowEnd(window.end);
+    },
+    [isAutoScroll, buildWindowFromEnd, playbackState.currentTick, windowEnd],
+  );
+
+  const handleWindowStartChange = useCallback(
+    (startTick: number) => {
+      if (!Number.isFinite(startTick)) {
+        return;
+      }
+      setIsAutoScroll(false);
+      const start = Math.max(1, Math.floor(startTick));
+      const end = start + windowSize - 1;
+      applyWindowRange(start, end);
+    },
+    [applyWindowRange, windowSize],
+  );
+
+  const handleWindowEndChange = useCallback(
+    (endTick: number) => {
+      if (!Number.isFinite(endTick)) {
+        return;
+      }
+      setIsAutoScroll(false);
+      const end = Math.max(1, Math.floor(endTick));
+      const start = end - windowSize + 1;
+      applyWindowRange(start, end);
+    },
+    [applyWindowRange, windowSize],
+  );
+
+  const handleWindowRangeChange = useCallback(
+    (startTick: number, endTick: number) => {
+      if (!Number.isFinite(startTick) && !Number.isFinite(endTick)) {
+        return;
+      }
+      setIsAutoScroll(false);
+      const window = applyWindowRange(startTick, endTick);
+      setWindowSize(Math.max(1, window.end - window.start + 1));
+    },
+    [applyWindowRange],
+  );
+
+  const handleAutoScrollChange = useCallback(
+    (enabled: boolean) => {
+      setIsAutoScroll(Boolean(enabled));
+      if (enabled) {
+        const end = Math.max(1, playbackState.currentTick);
+        setWindowStart(1);
+        setWindowEnd(end);
+        setWindowSize(end);
+      }
+    },
+    [playbackState.currentTick],
+  );
+
+  const handleAddAnnotation = useCallback((annotation: Annotation) => {
+    if (!Number.isFinite(annotation.tick)) {
       return;
     }
-    setWindowSize(Math.max(1, Math.floor(size)));
-    setIsAutoZoom(false);
+    const tick = Math.max(1, Math.floor(annotation.tick));
+    const id = annotation.id && annotation.id.trim().length > 0
+      ? annotation.id.trim()
+      : `anno-${generateId()}`;
+    const label = annotation.label && annotation.label.trim().length > 0 ? annotation.label.trim() : undefined;
+    const color = annotation.color && annotation.color.trim().length > 0 ? annotation.color.trim() : undefined;
+    setAnnotations((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === id);
+      const nextEntry: Annotation = { id, tick, label, color };
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = nextEntry;
+        return next;
+      }
+      return [...prev, nextEntry].sort((a, b) => a.tick - b.tick);
+    });
+  }, []);
+
+  const handleRemoveAnnotation = useCallback((options: { id?: string; tick?: number }) => {
+    setAnnotations((prev) => {
+      const targetId = options.id?.trim();
+      const targetTick = Number.isFinite(options.tick)
+        ? Math.max(1, Math.floor(options.tick as number))
+        : null;
+      if (!targetId && targetTick === null) {
+        return prev;
+      }
+      return prev.filter((annotation) => {
+        if (targetId) {
+          return annotation.id !== targetId;
+        }
+        return annotation.tick !== targetTick;
+      });
+    });
+  }, []);
+
+  const handleClearAnnotations = useCallback(() => {
+    setAnnotations([]);
+  }, []);
+
+  const handleJumpAnnotation = useCallback(
+    (direction: "next" | "previous") => {
+      if (annotations.length === 0) {
+        return;
+      }
+      const sorted = [...annotations].sort((a, b) => a.tick - b.tick);
+      if (direction === "next") {
+        const next = sorted.find((item) => item.tick > playbackState.currentTick);
+        if (next) {
+          handleSeek(next.tick);
+        }
+        return;
+      }
+      const reversed = [...sorted].reverse();
+      const prev = reversed.find((item) => item.tick < playbackState.currentTick);
+      if (prev) {
+        handleSeek(prev.tick);
+      }
+    },
+    [annotations, playbackState.currentTick, handleSeek],
+  );
+
+  const handleAddSubtitle = useCallback((subtitle: SubtitleOverlay) => {
+    if (!subtitle || !Number.isFinite(subtitle.startTick) || !Number.isFinite(subtitle.endTick)) {
+      return;
+    }
+    const text = subtitle.text ? subtitle.text.trim() : "";
+    if (!text) {
+      return;
+    }
+    let startTick = Math.max(1, Math.floor(subtitle.startTick));
+    let endTick = Math.max(1, Math.floor(subtitle.endTick));
+    if (startTick > endTick) {
+      [startTick, endTick] = [endTick, startTick];
+    }
+    const id = subtitle.id && subtitle.id.trim().length > 0
+      ? subtitle.id.trim()
+      : `subtitle-${generateId()}`;
+    const color = subtitle.color && subtitle.color.trim().length > 0 ? subtitle.color.trim() : undefined;
+    setSubtitles((prev) => {
+      const nextEntry: SubtitleOverlay = { id, startTick, endTick, text, color };
+      const existingIndex = prev.findIndex((item) => item.id === id);
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = nextEntry;
+        return next.sort((a, b) => a.startTick - b.startTick);
+      }
+      return [...prev, nextEntry].sort((a, b) => a.startTick - b.startTick);
+    });
+  }, []);
+
+  const handleRemoveSubtitle = useCallback((options: {
+    id?: string;
+    startTick?: number;
+    endTick?: number;
+    text?: string;
+  }) => {
+    setSubtitles((prev) => {
+      const targetId = options.id?.trim();
+      if (targetId) {
+        return prev.filter((subtitle) => subtitle.id !== targetId);
+      }
+      const startTick = Number.isFinite(options.startTick)
+        ? Math.max(1, Math.floor(options.startTick as number))
+        : null;
+      const endTick = Number.isFinite(options.endTick)
+        ? Math.max(1, Math.floor(options.endTick as number))
+        : null;
+      const text = options.text ? options.text.trim() : "";
+      if (startTick === null && endTick === null && !text) {
+        return prev;
+      }
+      return prev.filter((subtitle) => {
+        if (text && subtitle.text !== text) {
+          return true;
+        }
+        if (startTick !== null && subtitle.startTick !== startTick) {
+          return true;
+        }
+        if (endTick !== null && subtitle.endTick !== endTick) {
+          return true;
+        }
+        return false;
+      });
+    });
+  }, []);
+
+  const handleClearSubtitles = useCallback(() => {
+    setSubtitles([]);
   }, []);
 
   const handleStepForward = useCallback(() => {
@@ -1624,25 +2098,35 @@ export default function Home() {
   }, []);
 
   const handleZoomIn = useCallback(() => {
-    setWindowSize((prev) => Math.max(10, Math.floor(prev / 2)));
-    setIsAutoZoom(false);
-  }, []);
+    const nextSize = Math.max(10, Math.floor(windowSize / 2));
+    handleWindowSizeChange(nextSize);
+  }, [windowSize, handleWindowSizeChange]);
 
   const handleZoomOut = useCallback(() => {
-    setWindowSize((prev) => Math.min(playbackState.totalTicks, prev * 2));
-    setIsAutoZoom(false);
-  }, [playbackState.totalTicks]);
+    const nextSize = Math.min(playbackState.totalTicks || windowSize * 2, windowSize * 2);
+    handleWindowSizeChange(nextSize);
+  }, [playbackState.totalTicks, windowSize, handleWindowSizeChange]);
 
   const handleResetZoom = useCallback(() => {
-    setWindowSize(INITIAL_WINDOW_SIZE);
-    setIsAutoZoom(true);
-  }, []);
+    setIsAutoScroll(true);
+    const end = Math.max(1, playbackState.currentTick);
+    setWindowStart(1);
+    setWindowEnd(end);
+    setWindowSize(end);
+  }, [playbackState.currentTick]);
 
-  const activeMetrics = selectedMetrics.filter(
-    (metric) => captures.some((capture) => capture.id === metric.captureId && capture.isActive),
+  const activeMetrics = useMemo(
+    () =>
+      selectedMetrics.filter((metric) =>
+        captures.some((capture) => capture.id === metric.captureId && capture.isActive),
+      ),
+    [selectedMetrics, captures],
   );
 
-  const { data: chartData, coverage: metricCoverage } = extractDataPoints(captures, activeMetrics);
+  const { data: chartData, coverage: metricCoverage } = useMemo(
+    () => extractDataPoints(captures, activeMetrics),
+    [captures, activeMetrics],
+  );
 
   const currentData =
     chartData.find((dataPoint) => dataPoint.tick === playbackState.currentTick) || null;
@@ -1859,16 +2343,33 @@ export default function Home() {
   }, [playbackState.isPlaying, playbackState.speed]);
 
   useEffect(() => {
-    if (isAutoZoom && playbackState.currentTick > windowSize) {
-      setWindowSize(playbackState.currentTick);
+    if (!isAutoScroll) {
+      return;
     }
-  }, [playbackState.currentTick, isAutoZoom, windowSize]);
+    const end = Math.max(1, playbackState.currentTick);
+    const size = end;
+    if (windowStart !== 1) {
+      setWindowStart(1);
+    }
+    if (windowEnd !== end) {
+      setWindowEnd(end);
+    }
+    if (windowSize !== size) {
+      setWindowSize(size);
+    }
+  }, [isAutoScroll, playbackState.currentTick, windowEnd, windowSize, windowStart]);
 
   const { sendMessage } = useWebSocketControl({
     captures,
     selectedMetrics,
     playbackState,
     windowSize,
+    windowStart,
+    windowEnd,
+    autoScroll: isAutoScroll,
+    isFullscreen,
+    annotations,
+    subtitles,
     onSourceModeChange: handleSourceModeChange,
     onLiveSourceChange: handleLiveSourceCommand,
     onToggleCapture: handleToggleCapture,
@@ -1883,12 +2384,24 @@ export default function Home() {
     onSeek: handleSeek,
     onSpeedChange: handleSpeedChange,
     onWindowSizeChange: handleWindowSizeChange,
+    onWindowStartChange: handleWindowStartChange,
+    onWindowEndChange: handleWindowEndChange,
+    onWindowRangeChange: handleWindowRangeChange,
+    onAutoScrollChange: handleAutoScrollChange,
+    onSetFullscreen: handleSetFullscreen,
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,
     onCaptureComponents: handleCaptureComponents,
     onCaptureAppend: handleCaptureAppend,
     onCaptureEnd: handleCaptureEnd,
+    onAddAnnotation: handleAddAnnotation,
+    onRemoveAnnotation: handleRemoveAnnotation,
+    onClearAnnotations: handleClearAnnotations,
+    onJumpAnnotation: handleJumpAnnotation,
+    onAddSubtitle: handleAddSubtitle,
+    onRemoveSubtitle: handleRemoveSubtitle,
+    onClearSubtitles: handleClearSubtitles,
     getMemoryStats: buildMemoryStats,
   });
 
@@ -2094,14 +2607,9 @@ export default function Home() {
                   <ComponentTree
                     captureId={capture.id}
                     components={capture.components}
-                    selectedMetrics={selectedMetrics.filter(m => m.captureId === capture.id)}
+                    selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
                     metricCoverage={metricCoverage[capture.id]}
-                    onSelectionChange={(newMetrics) => {
-                      setSelectedMetrics(prev => {
-                        const otherMetrics = prev.filter(m => m.captureId !== capture.id);
-                        return [...otherMetrics, ...newMetrics];
-                      });
-                    }}
+                    onSelectionChange={getSelectionHandler(capture.id)}
                     colorOffset={captures.findIndex(c => c.id === capture.id)}
                   />
                 </SidebarGroupContent>
@@ -2137,6 +2645,15 @@ export default function Home() {
               >
                 {isHudVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleSetFullscreen(!isFullscreen)}
+                data-testid="button-fullscreen"
+                title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              >
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </Button>
               <Link href="/docs">
                 <Button variant="ghost" size="icon" data-testid="button-docs">
                   <BookOpen className="w-4 h-4" />
@@ -2152,11 +2669,14 @@ export default function Home() {
                 data={chartData}
                 selectedMetrics={activeMetrics}
                 currentTick={playbackState.currentTick}
-                windowSize={windowSize}
+                windowStart={windowStart}
+                windowEnd={windowEnd}
                 onZoomIn={handleZoomIn}
                 onZoomOut={handleZoomOut}
                 onResetZoom={handleResetZoom}
-                isAutoZoom={isAutoZoom}
+                isAutoScroll={isAutoScroll}
+                annotations={annotations}
+                subtitles={subtitles}
                 captures={captures}
               />
               <MetricsHUD

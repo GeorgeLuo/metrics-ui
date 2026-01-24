@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, memo } from "react";
 import { ChevronRight, ChevronDown, Search, Hash, Type, Braces, List } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -204,7 +204,7 @@ function TreeNode({
   );
 }
 
-export function ComponentTree({
+function ComponentTreeBase({
   captureId,
   components,
   selectedMetrics,
@@ -296,3 +296,5 @@ export function ComponentTree({
     </div>
   );
 }
+
+export const ComponentTree = memo(ComponentTreeBase);

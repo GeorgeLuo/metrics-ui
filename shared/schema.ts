@@ -85,6 +85,21 @@ export interface SeriesPoint {
   value: number | null;
 }
 
+export interface Annotation {
+  id: string;
+  tick: number;
+  label?: string;
+  color?: string;
+}
+
+export interface SubtitleOverlay {
+  id: string;
+  startTick: number;
+  endTick: number;
+  text: string;
+  color?: string;
+}
+
 export interface SeriesWindowResponse {
   captureId: string;
   path: string[];
@@ -119,6 +134,11 @@ export interface DisplaySnapshot {
   selectedMetrics: SelectedMetric[];
   playback: PlaybackState;
   windowSize: number;
+  windowStart: number;
+  windowEnd: number;
+  autoScroll: boolean;
+  annotations: Annotation[];
+  subtitles: SubtitleOverlay[];
   currentTick: number;
   seriesSummary: Array<{
     captureId: string;
@@ -142,14 +162,6 @@ export interface CapabilitiesResponse {
   protocolVersion: string;
   commands: string[];
   responses: string[];
-}
-
-export interface CaptureProgress {
-  captureId: string;
-  received: number;
-  kept: number;
-  dropped: number;
-  lastTick?: number | null;
 }
 
 export interface ComponentTreeStats {
@@ -282,6 +294,31 @@ export type ControlCommand =
   | ({ type: "seek"; tick: number } & ControlRequestBase)
   | ({ type: "set_speed"; speed: number } & ControlRequestBase)
   | ({ type: "set_window_size"; windowSize: number } & ControlRequestBase)
+  | ({ type: "set_window_start"; windowStart: number } & ControlRequestBase)
+  | ({ type: "set_window_end"; windowEnd: number } & ControlRequestBase)
+  | ({ type: "set_window_range"; windowStart: number; windowEnd: number } & ControlRequestBase)
+  | ({ type: "set_auto_scroll"; enabled: boolean } & ControlRequestBase)
+  | ({ type: "set_fullscreen"; enabled: boolean } & ControlRequestBase)
+  | ({ type: "add_annotation"; tick: number; label?: string; color?: string; id?: string } & ControlRequestBase)
+  | ({ type: "remove_annotation"; id?: string; tick?: number } & ControlRequestBase)
+  | ({ type: "clear_annotations" } & ControlRequestBase)
+  | ({ type: "jump_annotation"; direction: "next" | "previous" } & ControlRequestBase)
+  | ({
+      type: "add_subtitle";
+      startTick: number;
+      endTick: number;
+      text: string;
+      color?: string;
+      id?: string;
+    } & ControlRequestBase)
+  | ({
+      type: "remove_subtitle";
+      id?: string;
+      startTick?: number;
+      endTick?: number;
+      text?: string;
+    } & ControlRequestBase)
+  | ({ type: "clear_subtitles" } & ControlRequestBase)
   | ({ type: "set_source_mode"; mode: "file" | "live" } & ControlRequestBase)
   | ({ type: "set_live_source"; source: string; captureId?: string } & ControlRequestBase)
   | ({
@@ -292,14 +329,39 @@ export type ControlCommand =
       filename?: string;
     } & ControlRequestBase)
   | ({ type: "live_stop"; captureId?: string } & ControlRequestBase)
-  | ({ type: "capture_init"; captureId: string; filename?: string; source?: string } & ControlRequestBase)
+  | ({
+      type: "capture_init";
+      captureId: string;
+      filename?: string;
+      source?: string;
+      reset?: boolean;
+    } & ControlRequestBase)
   | ({ type: "capture_components"; captureId: string; components: ComponentNode[] } & ControlRequestBase)
   | ({ type: "capture_append"; captureId: string; frame: CaptureAppendFrame } & ControlRequestBase)
   | ({ type: "capture_end"; captureId: string } & ControlRequestBase)
-  | ({ type: "get_display_snapshot"; captureId?: string; windowSize?: number } & ControlRequestBase)
-  | ({ type: "get_series_window"; captureId: string; path: string[]; windowSize?: number } & ControlRequestBase)
+  | ({
+      type: "get_display_snapshot";
+      captureId?: string;
+      windowSize?: number;
+      windowStart?: number;
+      windowEnd?: number;
+    } & ControlRequestBase)
+  | ({
+      type: "get_series_window";
+      captureId: string;
+      path: string[];
+      windowSize?: number;
+      windowStart?: number;
+      windowEnd?: number;
+    } & ControlRequestBase)
   | ({ type: "query_components"; captureId?: string; search?: string; limit?: number } & ControlRequestBase)
-  | ({ type: "get_render_table"; captureId?: string; windowSize?: number } & ControlRequestBase)
+  | ({
+      type: "get_render_table";
+      captureId?: string;
+      windowSize?: number;
+      windowStart?: number;
+      windowEnd?: number;
+    } & ControlRequestBase)
   | ({ type: "get_memory_stats" } & ControlRequestBase)
   | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase);
 
@@ -316,7 +378,6 @@ export interface ControlResponse {
     | "render_table"
     | "ui_notice"
     | "ui_error"
-    | "capture_progress"
     | "memory_stats"
     | "metric_coverage";
   request_id?: string;
@@ -334,4 +395,10 @@ export interface VisualizationState {
   selectedMetrics: SelectedMetric[];
   playback: PlaybackState;
   windowSize: number;
+  windowStart: number;
+  windowEnd: number;
+  autoScroll: boolean;
+  isFullscreen: boolean;
+  annotations: Annotation[];
+  subtitles: SubtitleOverlay[];
 }

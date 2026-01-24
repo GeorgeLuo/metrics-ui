@@ -174,6 +174,18 @@ Capture streaming (push records over WS):
 - `seek`
 - `set_speed`
 - `set_window_size`
+- `set_window_start`
+- `set_window_end`
+- `set_window_range`
+- `set_auto_scroll`
+- `set_fullscreen`
+- `add_annotation`
+- `remove_annotation`
+- `clear_annotations`
+- `jump_annotation`
+- `add_subtitle`
+- `remove_subtitle`
+- `clear_subtitles`
 - `set_source_mode`
 - `set_live_source`
 - `live_start`
@@ -201,7 +213,6 @@ Common responses include:
 - `display_snapshot`
 - `series_window`
 - `render_table`
-- `capture_progress`
 - `memory_stats`
 - `metric_coverage`
 
@@ -219,7 +230,6 @@ Common responses include:
 - `render_table`
 - `ui_notice`
 - `ui_error`
-- `capture_progress`
 - `memory_stats`
 - `metric_coverage`
 <!-- WS:RESPONSES:END -->

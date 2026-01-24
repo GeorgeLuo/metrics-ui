@@ -1,4 +1,6 @@
 import type {
+  Annotation,
+  SubtitleOverlay,
   CaptureRecord,
   CaptureSession,
   ComponentNode,
@@ -62,6 +64,11 @@ export interface DisplaySnapshot {
   selectedMetrics: SelectedMetric[];
   playback: PlaybackState;
   windowSize: number;
+  windowStart: number;
+  windowEnd: number;
+  autoScroll: boolean;
+  annotations: Annotation[];
+  subtitles: SubtitleOverlay[];
   currentTick: number;
   seriesSummary: Array<{
     captureId: string;
@@ -107,10 +114,27 @@ export function getNumericValueAtPath(
   return isFiniteNumber(value) ? value : null;
 }
 
-function buildWindowRange(currentTick: number, windowSize: number) {
+function buildWindowRange({
+  currentTick,
+  windowSize,
+  windowStart,
+  windowEnd,
+}: {
+  currentTick: number;
+  windowSize: number;
+  windowStart?: number;
+  windowEnd?: number;
+}) {
   const size = Math.max(1, Math.floor(windowSize));
-  const end = Math.max(1, Math.floor(currentTick));
-  const start = Math.max(1, end - size + 1);
+  const resolvedStart = isFiniteNumber(windowStart) ? Math.max(1, Math.floor(windowStart)) : null;
+  const resolvedEnd = isFiniteNumber(windowEnd) ? Math.max(1, Math.floor(windowEnd)) : null;
+  let end =
+    resolvedEnd ??
+    (resolvedStart !== null ? resolvedStart + size - 1 : Math.max(1, Math.floor(currentTick)));
+  let start = resolvedStart ?? Math.max(1, end - size + 1);
+  if (start > end) {
+    [start, end] = [end, start];
+  }
   return { start, end };
 }
 
@@ -155,15 +179,24 @@ export function buildSeriesWindow({
   path,
   currentTick,
   windowSize,
+  windowStart,
+  windowEnd,
   captureId = "unknown",
 }: {
   records: CaptureRecord[];
   path: string[];
   currentTick: number;
   windowSize: number;
+  windowStart?: number;
+  windowEnd?: number;
   captureId?: string;
 }): SeriesWindow {
-  const { start, end } = buildWindowRange(currentTick, windowSize);
+  const { start, end } = buildWindowRange({
+    currentTick,
+    windowSize,
+    windowStart,
+    windowEnd,
+  });
   const sorted = [...records].sort((a, b) => a.tick - b.tick);
   const windowRecords = sorted.filter(
     (record) => record.tick >= start && record.tick <= end,
@@ -258,12 +291,22 @@ export function buildDisplaySnapshot({
   selectedMetrics,
   playback,
   windowSize,
+  windowStart,
+  windowEnd,
+  autoScroll,
+  annotations,
+  subtitles,
   captureId,
 }: {
   captures: CaptureSession[];
   selectedMetrics: SelectedMetric[];
   playback: PlaybackState;
   windowSize: number;
+  windowStart: number;
+  windowEnd: number;
+  autoScroll: boolean;
+  annotations: Annotation[];
+  subtitles: SubtitleOverlay[];
   captureId?: string;
 }): DisplaySnapshot {
   const capture = resolveCapture({ captures, captureId, selectedMetrics });
@@ -287,6 +330,8 @@ export function buildDisplaySnapshot({
         path: metric.path,
         currentTick,
         windowSize,
+        windowStart,
+        windowEnd,
         captureId: targetCapture.id,
       });
       return {
@@ -314,6 +359,11 @@ export function buildDisplaySnapshot({
     selectedMetrics,
     playback,
     windowSize,
+    windowStart,
+    windowEnd,
+    autoScroll,
+    annotations,
+    subtitles,
     currentTick,
     seriesSummary: summary,
     metricCoverage,
@@ -369,15 +419,24 @@ export function buildRenderTable({
   metrics,
   currentTick,
   windowSize,
+  windowStart,
+  windowEnd,
   captureId = "unknown",
 }: {
   records: CaptureRecord[];
   metrics: SelectedMetric[];
   currentTick: number;
   windowSize: number;
+  windowStart?: number;
+  windowEnd?: number;
   captureId?: string;
 }): RenderTable {
-  const { start, end } = buildWindowRange(currentTick, windowSize);
+  const { start, end } = buildWindowRange({
+    currentTick,
+    windowSize,
+    windowStart,
+    windowEnd,
+  });
   const sorted = [...records].sort((a, b) => a.tick - b.tick);
   const windowRecords = sorted.filter(
     (record) => record.tick >= start && record.tick <= end,
@@ -414,6 +473,18 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "seek",
       "set_speed",
       "set_window_size",
+      "set_window_start",
+      "set_window_end",
+      "set_window_range",
+      "set_auto_scroll",
+      "set_fullscreen",
+      "add_annotation",
+      "remove_annotation",
+      "clear_annotations",
+      "jump_annotation",
+      "add_subtitle",
+      "remove_subtitle",
+      "clear_subtitles",
       "set_source_mode",
       "set_live_source",
       "live_start",
@@ -440,7 +511,6 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "render_table",
       "ui_notice",
       "ui_error",
-      "capture_progress",
       "memory_stats",
       "metric_coverage",
     ],

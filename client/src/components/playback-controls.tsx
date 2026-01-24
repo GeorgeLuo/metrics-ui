@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Square, SkipBack, SkipForward, Rewind, FastForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -31,7 +32,6 @@ const SPEED_OPTIONS = [
   { value: "5", label: "5x" },
   { value: "10", label: "10x" },
 ];
-
 export function PlaybackControls({
   playbackState,
   onPlay,
@@ -45,17 +45,56 @@ export function PlaybackControls({
   disabled,
 }: PlaybackControlsProps) {
   const { isPlaying, currentTick, totalTicks, speed } = playbackState;
-  const progress = totalTicks > 0 ? (currentTick / totalTicks) * 100 : 0;
+  const [scrubTick, setScrubTick] = useState(currentTick);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const scrubTickRef = useRef(currentTick);
+  const scrubRafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isScrubbing) {
+      setScrubTick(currentTick);
+      scrubTickRef.current = currentTick;
+    }
+  }, [currentTick, isScrubbing]);
+
+  useEffect(() => {
+    return () => {
+      if (scrubRafRef.current !== null) {
+        cancelAnimationFrame(scrubRafRef.current);
+      }
+    };
+  }, []);
+
+  const displayTick = isScrubbing ? scrubTick : currentTick;
 
   return (
     <div className={cn("flex flex-col gap-3 py-3", disabled && "opacity-50 pointer-events-none")}>
       <div className="flex items-center gap-2">
         <Slider
-          value={[currentTick]}
+          value={[displayTick]}
           min={1}
           max={totalTicks || 1}
           step={1}
-          onValueChange={([value]) => onSeek(value)}
+          onValueChange={([value]) => {
+            if (disabled || totalTicks === 0) {
+              return;
+            }
+            const next = Math.min(Math.max(1, value), totalTicks || 1);
+            setIsScrubbing(true);
+            setScrubTick(next);
+            scrubTickRef.current = next;
+            if (scrubRafRef.current === null) {
+              scrubRafRef.current = requestAnimationFrame(() => {
+                scrubRafRef.current = null;
+                onSeek(scrubTickRef.current);
+              });
+            }
+          }}
+          onValueCommit={([value]) => {
+            const next = Math.min(Math.max(1, value), totalTicks || 1);
+            setIsScrubbing(false);
+            onSeek(next);
+          }}
           className="flex-1"
           disabled={disabled || totalTicks === 0}
           data-testid="slider-playback"
@@ -172,7 +211,7 @@ export function PlaybackControls({
 
           <div className="flex flex-col items-center sm:items-end gap-0.5">
             <span className="font-mono text-xs sm:text-sm" data-testid="text-tick-position">
-              {currentTick.toLocaleString()} / {totalTicks.toLocaleString()}
+              {displayTick.toLocaleString()} / {totalTicks.toLocaleString()}
             </span>
             <span className="font-mono text-xs text-muted-foreground hidden sm:block" data-testid="text-current-time">
               {currentTime}

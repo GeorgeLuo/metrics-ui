@@ -7,6 +7,8 @@ import type {
   PlaybackState,
   CaptureSession,
   ComponentNode,
+  Annotation,
+  SubtitleOverlay,
   MemoryStatsResponse,
   CaptureAppendFrame,
   CaptureRecord,
@@ -26,7 +28,18 @@ interface UseWebSocketControlProps {
   selectedMetrics: SelectedMetric[];
   playbackState: PlaybackState;
   windowSize: number;
+  windowStart: number;
+  windowEnd: number;
+  autoScroll: boolean;
+  isFullscreen: boolean;
+  annotations: Annotation[];
+  subtitles: SubtitleOverlay[];
   onWindowSizeChange: (windowSize: number) => void;
+  onWindowStartChange: (windowStart: number) => void;
+  onWindowEndChange: (windowEnd: number) => void;
+  onWindowRangeChange: (windowStart: number, windowEnd: number) => void;
+  onAutoScrollChange: (enabled: boolean) => void;
+  onSetFullscreen: (enabled: boolean) => void;
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onToggleCapture: (captureId: string) => void;
@@ -47,10 +60,17 @@ interface UseWebSocketControlProps {
     filename?: string;
   }) => Promise<void>;
   onLiveStop: (options?: { captureId?: string }) => Promise<void>;
-  onCaptureInit: (captureId: string, filename?: string) => void;
+  onCaptureInit: (captureId: string, filename?: string, options?: { reset?: boolean }) => void;
   onCaptureComponents: (captureId: string, components: ComponentNode[]) => void;
   onCaptureAppend: (captureId: string, frame: CaptureSession["records"][number]) => void;
   onCaptureEnd: (captureId: string) => void;
+  onAddAnnotation: (annotation: Annotation) => void;
+  onRemoveAnnotation: (options: { id?: string; tick?: number }) => void;
+  onClearAnnotations: () => void;
+  onJumpAnnotation: (direction: "next" | "previous") => void;
+  onAddSubtitle: (subtitle: SubtitleOverlay) => void;
+  onRemoveSubtitle: (options: { id?: string; startTick?: number; endTick?: number; text?: string }) => void;
+  onClearSubtitles: () => void;
   getMemoryStats: () => MemoryStatsResponse;
 }
 
@@ -98,6 +118,12 @@ export function useWebSocketControl({
   selectedMetrics,
   playbackState,
   windowSize,
+  windowStart,
+  windowEnd,
+  autoScroll,
+  isFullscreen,
+  annotations,
+  subtitles,
   onSourceModeChange,
   onLiveSourceChange,
   onToggleCapture,
@@ -112,18 +138,30 @@ export function useWebSocketControl({
   onSeek,
   onSpeedChange,
   onWindowSizeChange,
+  onWindowStartChange,
+  onWindowEndChange,
+  onWindowRangeChange,
+  onAutoScrollChange,
+  onSetFullscreen,
   onLiveStart,
   onLiveStop,
   onCaptureInit,
   onCaptureComponents,
   onCaptureAppend,
   onCaptureEnd,
+  onAddAnnotation,
+  onRemoveAnnotation,
+  onClearAnnotations,
+  onJumpAnnotation,
+  onAddSubtitle,
+  onRemoveSubtitle,
+  onClearSubtitles,
   getMemoryStats,
 }: UseWebSocketControlProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
-  const sendMessage = useCallback((message: ControlResponse) => {
+  const sendMessage = useCallback((message: ControlResponse | ControlCommand) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message));
       return true;
@@ -143,6 +181,12 @@ export function useWebSocketControl({
         selectedMetrics,
         playback: playbackState,
         windowSize,
+        windowStart,
+        windowEnd,
+        autoScroll,
+        isFullscreen,
+        annotations,
+        subtitles,
       };
       wsRef.current.send(JSON.stringify({
         type: "state_update",
@@ -150,7 +194,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, playbackState]);
+  }, [captures, selectedMetrics, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, annotations, subtitles]);
 
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
     if (!requestId) {
@@ -190,7 +234,7 @@ export function useWebSocketControl({
     return captures.find((capture) => capture.isActive) ?? captures[0];
   }, [captures, selectedMetrics]);
 
-  const handleCommand = useCallback((command: ControlCommand) => {
+  const handleCommand = useCallback((command: ControlCommand | ControlResponse) => {
     const requestId = "request_id" in command ? command.request_id : undefined;
 
     switch (command.type) {
@@ -300,6 +344,70 @@ export function useWebSocketControl({
         onWindowSizeChange(command.windowSize);
         sendAck(requestId, command.type);
         break;
+      case "set_window_start":
+        onWindowStartChange(command.windowStart);
+        sendAck(requestId, command.type);
+        break;
+      case "set_window_end":
+        onWindowEndChange(command.windowEnd);
+        sendAck(requestId, command.type);
+        break;
+      case "set_window_range":
+        onWindowRangeChange(command.windowStart, command.windowEnd);
+        sendAck(requestId, command.type);
+        break;
+      case "set_auto_scroll":
+        onAutoScrollChange(command.enabled);
+        sendAck(requestId, command.type);
+        break;
+      case "set_fullscreen":
+        onSetFullscreen(command.enabled);
+        sendAck(requestId, command.type);
+        break;
+      case "add_annotation":
+        onAddAnnotation({
+          id: command.id ?? "",
+          tick: command.tick,
+          label: command.label,
+          color: command.color,
+        });
+        sendAck(requestId, command.type);
+        break;
+      case "remove_annotation":
+        onRemoveAnnotation({ id: command.id, tick: command.tick });
+        sendAck(requestId, command.type);
+        break;
+      case "clear_annotations":
+        onClearAnnotations();
+        sendAck(requestId, command.type);
+        break;
+      case "jump_annotation":
+        onJumpAnnotation(command.direction);
+        sendAck(requestId, command.type);
+        break;
+      case "add_subtitle":
+        onAddSubtitle({
+          id: command.id ?? "",
+          startTick: command.startTick,
+          endTick: command.endTick,
+          text: command.text,
+          color: command.color,
+        });
+        sendAck(requestId, command.type);
+        break;
+      case "remove_subtitle":
+        onRemoveSubtitle({
+          id: command.id,
+          startTick: command.startTick,
+          endTick: command.endTick,
+          text: command.text,
+        });
+        sendAck(requestId, command.type);
+        break;
+      case "clear_subtitles":
+        onClearSubtitles();
+        sendAck(requestId, command.type);
+        break;
       case "set_source_mode":
         onSourceModeChange(command.mode);
         sendAck(requestId, command.type);
@@ -337,7 +445,7 @@ export function useWebSocketControl({
         break;
       }
       case "capture_init":
-        onCaptureInit(command.captureId, command.filename);
+        onCaptureInit(command.captureId, command.filename, { reset: command.reset });
         sendMessage({
           type: "ui_notice",
           payload: {
@@ -382,6 +490,11 @@ export function useWebSocketControl({
           selectedMetrics,
           playback: playbackState,
           windowSize: command.windowSize ?? windowSize,
+          windowStart: command.windowStart ?? windowStart,
+          windowEnd: command.windowEnd ?? windowEnd,
+          autoScroll,
+          annotations,
+          subtitles,
           captureId: command.captureId,
         });
         sendMessage({
@@ -405,6 +518,8 @@ export function useWebSocketControl({
           path: command.path,
           currentTick: playbackState.currentTick,
           windowSize: command.windowSize ?? windowSize,
+          windowStart: command.windowStart ?? windowStart,
+          windowEnd: command.windowEnd ?? windowEnd,
           captureId: capture.id,
         });
         sendMessage({
@@ -459,6 +574,8 @@ export function useWebSocketControl({
           metrics,
           currentTick: playbackState.currentTick,
           windowSize: command.windowSize ?? windowSize,
+          windowStart: command.windowStart ?? windowStart,
+          windowEnd: command.windowEnd ?? windowEnd,
           captureId: capture.id,
         });
         sendMessage({
@@ -523,17 +640,35 @@ export function useWebSocketControl({
     onSeek,
     onSpeedChange,
     onWindowSizeChange,
+    onWindowStartChange,
+    onWindowEndChange,
+    onWindowRangeChange,
+    onAutoScrollChange,
+    onSetFullscreen,
     onLiveStart,
     onLiveStop,
     onCaptureInit,
+    onCaptureComponents,
     onCaptureAppend,
     onCaptureEnd,
+    onAddAnnotation,
+    onRemoveAnnotation,
+    onClearAnnotations,
+    onJumpAnnotation,
+    onAddSubtitle,
+    onRemoveSubtitle,
+    onClearSubtitles,
     getMemoryStats,
     buildMetricCoverage,
     captures,
     selectedMetrics,
     playbackState,
     windowSize,
+    windowStart,
+    windowEnd,
+    autoScroll,
+    annotations,
+    subtitles,
   ]);
 
   const handleCommandRef = useRef(handleCommand);
@@ -596,7 +731,7 @@ export function useWebSocketControl({
 
   useEffect(() => {
     sendState();
-  }, [captures, selectedMetrics, playbackState, sendState]);
+  }, [captures, selectedMetrics, playbackState, windowSize, windowStart, windowEnd, autoScroll, annotations, subtitles, sendState]);
 
   return { sendState, sendMessage };
 }

@@ -11,8 +11,10 @@ import * as os from "os";
 import { fileURLToPath } from "url";
 import { Readable } from "stream";
 import { ReadableStream } from "stream/web";
+import crypto from "crypto";
 
 const UPLOAD_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui", "uploads");
+const UPLOAD_INDEX_FILE = path.join(UPLOAD_ROOT, "index.json");
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024 * 1024;
 
 const upload = multer({
@@ -36,6 +38,46 @@ const LIVE_INACTIVITY_MULTIPLIER = 5;
 interface CaptureRecord {
   tick: number;
   entities: Record<string, Record<string, unknown>>;
+}
+
+type UploadIndexEntry = {
+  path: string;
+  size: number;
+  filename?: string;
+  createdAt: string;
+};
+
+type UploadIndex = Record<string, UploadIndexEntry>;
+
+function loadUploadIndex(): UploadIndex {
+  try {
+    const raw = fs.readFileSync(UPLOAD_INDEX_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return {};
+    }
+    return parsed as UploadIndex;
+  } catch (error) {
+    if (error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      return {};
+    }
+    throw error;
+  }
+}
+
+function saveUploadIndex(index: UploadIndex) {
+  fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
+  fs.writeFileSync(UPLOAD_INDEX_FILE, `${JSON.stringify(index, null, 2)}\n`, "utf-8");
+}
+
+function hashFile(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs.createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
 }
 
 function buildTree(
@@ -107,7 +149,23 @@ function buildComponentTreeFromEntities(
     });
   });
 
-  return nodes;
+  return pruneComponentTree(nodes);
+}
+
+function pruneComponentTree(nodes: ComponentNode[]): ComponentNode[] {
+  const pruned: ComponentNode[] = [];
+  nodes.forEach((node) => {
+    const children = pruneComponentTree(node.children);
+    const isNumericLeaf = node.isLeaf && node.valueType === "number";
+    if (children.length > 0 || isNumericLeaf) {
+      pruned.push({
+        ...node,
+        children,
+        isLeaf: children.length === 0,
+      });
+    }
+  });
+  return pruned;
 }
 
 function mergeValueType(
@@ -490,12 +548,11 @@ async function extractSeriesFromSource(options: {
   return { points, numericCount, lastTick, tickCount: points.length };
 }
 
-function applyParsedComponents(
+function extractRawComponents(
   parsed: Record<string, unknown>,
-  components: ComponentNode[],
   entityIdSet: Set<string>,
   componentIdSet: Set<string>,
-) {
+): ComponentNode[] {
   if (
     Number.isFinite(parsed.tick) &&
     parsed.entities &&
@@ -504,14 +561,13 @@ function applyParsedComponents(
   ) {
     const entities = parsed.entities as Record<string, unknown>;
     const rawComponents = buildComponentTreeFromEntities(entities);
-    const nextComponents = mergeComponentTrees(components, rawComponents);
     Object.entries(entities).forEach(([entityId, entityComponents]) => {
       entityIdSet.add(entityId);
       if (entityComponents && typeof entityComponents === "object" && !Array.isArray(entityComponents)) {
         Object.keys(entityComponents).forEach((componentId) => componentIdSet.add(componentId));
       }
     });
-    return nextComponents;
+    return rawComponents;
   }
 
   if (
@@ -525,19 +581,66 @@ function applyParsedComponents(
       },
     };
     const rawComponents = buildComponentTreeFromEntities(rawEntities);
-    const nextComponents = mergeComponentTrees(components, rawComponents);
     entityIdSet.add(parsed.entityId);
     componentIdSet.add(parsed.componentId);
-    return nextComponents;
+    return rawComponents;
   }
 
-  return components;
+  return [];
 }
 
-async function scanComponentsFromSource(source: string, signal: AbortSignal) {
+function applyParsedComponents(
+  parsed: Record<string, unknown>,
+  components: ComponentNode[],
+  entityIdSet: Set<string>,
+  componentIdSet: Set<string>,
+) {
+  const rawComponents = extractRawComponents(parsed, entityIdSet, componentIdSet);
+  if (rawComponents.length === 0) {
+    return components;
+  }
+  return mergeComponentTrees(components, rawComponents);
+}
+
+const COMPONENT_SCAN_EMIT_MS = 300;
+
+async function scanComponentsFromSource(
+  source: string,
+  signal: AbortSignal,
+  options: {
+    onComponents?: (components: ComponentNode[]) => void;
+  } = {},
+) {
   let components: ComponentNode[] = [];
   const entityIdSet = new Set<string>();
   const componentIdSet = new Set<string>();
+  let pendingComponents: ComponentNode[] = [];
+  let pendingTimer: NodeJS.Timeout | null = null;
+
+  const flushPending = () => {
+    if (!options.onComponents || pendingComponents.length === 0) {
+      return;
+    }
+    options.onComponents(pendingComponents);
+    pendingComponents = [];
+  };
+
+  const queueEmit = (rawComponents: ComponentNode[]) => {
+    if (!options.onComponents || rawComponents.length === 0) {
+      return;
+    }
+    pendingComponents =
+      pendingComponents.length > 0
+        ? mergeComponentTrees(pendingComponents, rawComponents)
+        : rawComponents;
+    if (!pendingTimer) {
+      pendingTimer = setTimeout(() => {
+        pendingTimer = null;
+        flushPending();
+      }, COMPONENT_SCAN_EMIT_MS);
+    }
+  };
+
   const onLine = (line: string) => {
     if (!line.trim()) {
       return;
@@ -547,12 +650,15 @@ async function scanComponentsFromSource(source: string, signal: AbortSignal) {
       if (!parsed || typeof parsed !== "object") {
         return;
       }
-      components = applyParsedComponents(
+      const rawComponents = extractRawComponents(
         parsed as Record<string, unknown>,
-        components,
         entityIdSet,
         componentIdSet,
       );
+      if (rawComponents.length > 0) {
+        components = mergeComponentTrees(components, rawComponents);
+        queueEmit(rawComponents);
+      }
     } catch (error) {
       console.error("Failed to parse line:", error);
     }
@@ -569,6 +675,12 @@ async function scanComponentsFromSource(source: string, signal: AbortSignal) {
     const filePath = resolveLocalCapturePath(trimmed);
     await streamLinesFromFile({ filePath, startOffset: 0, initialRemainder: "", signal, onLine });
   }
+
+  if (pendingTimer) {
+    clearTimeout(pendingTimer);
+    pendingTimer = null;
+  }
+  flushPending();
 
   return {
     components,
@@ -599,6 +711,17 @@ const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "seek",
   "set_speed",
   "set_window_size",
+  "set_window_start",
+  "set_window_end",
+  "set_window_range",
+  "set_auto_scroll",
+  "add_annotation",
+  "remove_annotation",
+  "clear_annotations",
+  "jump_annotation",
+  "add_subtitle",
+  "remove_subtitle",
+  "clear_subtitles",
   "set_source_mode",
   "set_live_source",
   "live_start",
@@ -646,6 +769,7 @@ interface LiveStreamState {
 
 const liveStreamStates = new Map<string, LiveStreamState>();
 const captureSources = new Map<string, string>();
+const captureMetadata = new Map<string, { filename?: string; source?: string }>();
 const captureComponentState = new Map<
   string,
   {
@@ -707,14 +831,15 @@ function updateCaptureComponents(
   const emit = options.emit ?? true;
   const state = captureComponentState.get(captureId) ?? { components: [], sentCount: 0 };
   const merged = mergeComponentTrees(state.components, rawComponents);
-  const nodeCount = countComponentNodes(merged);
+  const pruned = pruneComponentTree(merged);
+  const nodeCount = countComponentNodes(pruned);
   const shouldSend = nodeCount > state.sentCount;
   captureComponentState.set(captureId, {
-    components: merged,
+    components: pruned,
     sentCount: shouldSend ? nodeCount : state.sentCount,
   });
   if (emit && shouldSend) {
-    sendCaptureComponents(captureId, merged);
+    sendCaptureComponents(captureId, pruned);
   }
 }
 
@@ -727,7 +852,7 @@ function broadcastToAgents(message: ControlResponse) {
   });
 }
 
-function sendToFrontend(command: ControlCommand): boolean {
+function sendToFrontend(command: ControlCommand | ControlResponse): boolean {
   if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
     return false;
   }
@@ -755,6 +880,7 @@ function registerCaptureSource(options: {
     throw new Error("captureId is required.");
   }
   captureSources.set(captureId, source);
+  captureMetadata.set(captureId, { filename, source });
   captureComponentState.set(captureId, { components: [], sentCount: 0 });
   const command: ControlCommand = {
     type: "capture_init",
@@ -769,9 +895,13 @@ function registerCaptureSource(options: {
 
 function scheduleComponentScan(captureId: string, source: string) {
   const controller = new AbortController();
-  scanComponentsFromSource(source, controller.signal)
+  scanComponentsFromSource(source, controller.signal, {
+    onComponents: (components) => {
+      updateCaptureComponents(captureId, components);
+    },
+  })
     .then((result) => {
-      sendCaptureComponents(captureId, result.components);
+      updateCaptureComponents(captureId, result.components);
     })
     .catch((error) => {
       if (controller.signal.aborted && (error as Error).name === "AbortError") {
@@ -781,12 +911,29 @@ function scheduleComponentScan(captureId: string, source: string) {
     });
 }
 
+function clearCaptureState() {
+  pendingCaptureBuffers.clear();
+  captureComponentState.clear();
+  captureSources.clear();
+  captureMetadata.clear();
+  stopAllLiveStreams();
+}
+
+function removeCaptureState(captureId: string) {
+  if (!captureId) {
+    return;
+  }
+  pendingCaptureBuffers.delete(captureId);
+  captureComponentState.delete(captureId);
+  captureSources.delete(captureId);
+  captureMetadata.delete(captureId);
+  stopLiveStream(captureId);
+}
+
 function enqueueCommand(command: ControlCommand) {
   if (command.type === "clear_captures") {
-    pendingCaptureBuffers.clear();
+    clearCaptureState();
     queuedAgentCommands.length = 0;
-    captureComponentState.clear();
-    captureSources.clear();
   }
   queuedAgentCommands.push(command);
   if (queuedAgentCommands.length > MAX_QUEUED_COMMANDS) {
@@ -798,7 +945,9 @@ function flushQueuedCommands() {
   if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
     return;
   }
+  const pendingIds = new Set(pendingCaptureBuffers.keys());
   flushPendingCaptures();
+  sendKnownCaptures({ excludeIds: pendingIds });
   while (queuedAgentCommands.length > 0) {
     const command = queuedAgentCommands.shift();
     if (!command) {
@@ -837,6 +986,52 @@ function flushPendingCaptures() {
     }
   }
   pendingCaptureBuffers.clear();
+}
+
+function sendKnownCaptures(options: { excludeIds?: Set<string> } = {}) {
+  if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
+    return;
+  }
+  const excludeIds = options.excludeIds ?? new Set<string>();
+  const captureIds = new Set<string>();
+  for (const captureId of captureMetadata.keys()) {
+    captureIds.add(captureId);
+  }
+  for (const captureId of captureSources.keys()) {
+    captureIds.add(captureId);
+  }
+  for (const captureId of captureComponentState.keys()) {
+    captureIds.add(captureId);
+  }
+  for (const captureId of liveStreamStates.keys()) {
+    captureIds.add(captureId);
+  }
+
+  for (const captureId of captureIds) {
+    if (excludeIds.has(captureId)) {
+      continue;
+    }
+    const meta = captureMetadata.get(captureId);
+    const source = meta?.source ?? captureSources.get(captureId);
+    const filename =
+      meta?.filename ??
+      (source ? inferFilename(source) : undefined) ??
+      `${captureId}.jsonl`;
+    sendToFrontend({
+      type: "capture_init",
+      captureId,
+      filename,
+      source,
+    });
+    const state = captureComponentState.get(captureId);
+    if (state && state.components.length > 0) {
+      sendToFrontend({
+        type: "capture_components",
+        captureId,
+        components: state.components,
+      });
+    }
+  }
 }
 
 function bufferCaptureFrame(command: ControlCommand) {
@@ -1076,6 +1271,8 @@ async function pollLiveCapture(state: LiveStreamState) {
       state.frameCount += 1;
       appendedFrames += 1;
       state.lastTick = frame.tick;
+      const rawComponents = componentsFromFrame(frame);
+      updateCaptureComponents(state.captureId, rawComponents);
       sendToFrontend({ type: "capture_append", captureId: state.captureId, frame });
     };
 
@@ -1102,6 +1299,7 @@ async function pollLiveCapture(state: LiveStreamState) {
           type: "capture_init",
           captureId: state.captureId,
           filename: state.filename,
+          reset: true,
         });
       }
       const result = await streamLinesFromResponse({
@@ -1139,6 +1337,7 @@ async function pollLiveCapture(state: LiveStreamState) {
           type: "capture_init",
           captureId: state.captureId,
           filename: state.filename,
+          reset: true,
         });
       }
       if (stat.size > startOffset) {
@@ -1249,7 +1448,12 @@ function startLiveStream({
     throw new Error("Frontend not connected.");
   }
   captureSources.set(captureId, source);
+  captureMetadata.set(captureId, { filename, source });
   liveStreamStates.set(captureId, state);
+  const cachedComponents = captureComponentState.get(captureId)?.components;
+  if (cachedComponents && cachedComponents.length > 0) {
+    sendToFrontend({ type: "capture_components", captureId, components: cachedComponents });
+  }
   pollLiveCapture(state).catch((error) => {
     console.error("[live] Poll error:", error);
   });
@@ -1387,21 +1591,36 @@ export async function registerRoutes(
         const isFrontend = ws === frontendClient;
         
         if (isFrontend) {
+          if (message.type === "clear_captures") {
+            clearCaptureState();
+          } else if (message.type === "remove_capture") {
+            const targetId = String(message.captureId ?? "");
+            removeCaptureState(targetId);
+          }
           broadcastToAgents(message as ControlResponse);
           return;
         }
 
         const command = message as ControlCommand;
         const captureId = "captureId" in command ? String(command.captureId ?? "") : "";
+        if (command.type === "clear_captures") {
+          clearCaptureState();
+        }
+        if (command.type === "remove_capture" && captureId) {
+          removeCaptureState(captureId);
+        }
         if (command.type === "capture_init" && captureId) {
           captureComponentState.set(captureId, { components: [], sentCount: 0 });
           if (typeof (command as { source?: unknown }).source === "string") {
             captureSources.set(captureId, (command as { source: string }).source);
           }
-        }
-        if (command.type === "remove_capture" && captureId) {
-          captureComponentState.delete(captureId);
-          captureSources.delete(captureId);
+          captureMetadata.set(captureId, {
+            filename: (command as { filename?: string }).filename,
+            source:
+              typeof (command as { source?: unknown }).source === "string"
+                ? (command as { source: string }).source
+                : undefined,
+          });
         }
         if (command.type === "capture_components" && captureId && command.components) {
           updateCaptureComponents(captureId, command.components, { emit: false });
@@ -1572,7 +1791,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/upload', upload.single('file'), (req, res) => {
+  app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
@@ -1580,20 +1799,48 @@ export async function registerRoutes(
 
       const captureId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const filename = req.file.originalname || path.basename(req.file.path);
+      const filePath = req.file.path;
+      const size = req.file.size;
+
+      let sourcePath = filePath;
+      let deduped = false;
+      try {
+        const hash = await hashFile(filePath);
+        const index = loadUploadIndex();
+        const existing = index[hash];
+        if (existing?.path && fs.existsSync(existing.path)) {
+          if (existing.path !== filePath) {
+            fs.unlinkSync(filePath);
+          }
+          sourcePath = existing.path;
+          deduped = true;
+        } else {
+          index[hash] = {
+            path: filePath,
+            size,
+            filename,
+            createdAt: new Date().toISOString(),
+          };
+          saveUploadIndex(index);
+        }
+      } catch (error) {
+        console.warn("[upload] Failed to hash file for dedupe:", error);
+      }
 
       registerCaptureSource({
-        source: req.file.path,
+        source: sourcePath,
         captureId,
         filename,
       });
-      scheduleComponentScan(captureId, req.file.path);
+      scheduleComponentScan(captureId, sourcePath);
 
       res.json({
         success: true,
         streaming: true,
         captureId,
         filename,
-        size: req.file.size,
+        size,
+        deduped,
       });
     } catch (error) {
       console.error('Upload error:', error);

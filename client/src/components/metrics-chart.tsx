@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   LineChart,
   Line,
@@ -11,7 +11,13 @@ import {
 } from "recharts";
 import { LineChart as LineChartIcon, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { DataPoint, SelectedMetric, CaptureSession } from "@shared/schema";
+import type {
+  Annotation,
+  SubtitleOverlay,
+  DataPoint,
+  SelectedMetric,
+  CaptureSession,
+} from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 function sanitizeKey(key: string): string {
@@ -22,55 +28,220 @@ interface MetricsChartProps {
   data: DataPoint[];
   selectedMetrics: SelectedMetric[];
   currentTick: number;
-  windowSize: number;
+  windowStart: number;
+  windowEnd: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
-  isAutoZoom: boolean;
+  isAutoScroll: boolean;
+  annotations: Annotation[];
+  subtitles: SubtitleOverlay[];
   captures: CaptureSession[];
 }
+
+interface ChartLinesProps {
+  data: DataPoint[];
+  selectedMetrics: SelectedMetric[];
+  domain: { x: [number, number]; y: [number, number] };
+  annotations: Annotation[];
+  windowStart: number;
+  windowEnd: number;
+  captures: CaptureSession[];
+}
+
+interface ChartCursorProps {
+  points?: Array<{ x: number; y: number }>;
+  width?: number;
+  height?: number;
+  stroke?: string;
+  viewBox?: { x?: number; y?: number; width?: number; height?: number };
+}
+
+const CHART_MARGIN = { top: 5, right: 30, left: 20, bottom: 5 };
+const Y_AXIS_WIDTH = 60;
+
+const ChartCursor = memo(function ChartCursor({
+  points,
+  height,
+  stroke,
+  viewBox,
+}: ChartCursorProps) {
+  const x = points?.[0]?.x;
+  if (!Number.isFinite(x)) {
+    return null;
+  }
+  const viewLeft = Number.isFinite(viewBox?.x) ? (viewBox?.x as number) : 0;
+  const viewTop = Number.isFinite(viewBox?.y) ? (viewBox?.y as number) : 0;
+  const viewWidth = Number.isFinite(viewBox?.width)
+    ? (viewBox?.width as number)
+    : undefined;
+  const viewHeight = Number.isFinite(viewBox?.height)
+    ? (viewBox?.height as number)
+    : Number.isFinite(height)
+      ? (height as number)
+      : undefined;
+  if (!Number.isFinite(viewHeight)) {
+    return null;
+  }
+  const viewRight = viewWidth !== undefined ? viewLeft + viewWidth : undefined;
+  let clampedX = x as number;
+  const plotLeft = Math.max(viewLeft, CHART_MARGIN.left + Y_AXIS_WIDTH);
+  clampedX = Math.max(plotLeft, clampedX);
+  if (viewRight !== undefined) {
+    clampedX = Math.min(viewRight, clampedX);
+  }
+  return (
+    <line
+      x1={clampedX}
+      x2={clampedX}
+      y1={viewTop}
+      y2={viewTop + viewHeight}
+      stroke={stroke ?? "hsl(var(--primary))"}
+      strokeDasharray="3 3"
+    />
+  );
+});
+
+const ChartLines = memo(function ChartLines({
+  data,
+  selectedMetrics,
+  domain,
+  annotations,
+  windowStart,
+  windowEnd,
+  captures,
+}: ChartLinesProps) {
+  const getDataKey = (metric: SelectedMetric): string => {
+    return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
+  };
+
+  const captureNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    captures.forEach((capture) => {
+      const name = capture.filename.replace(".jsonl", "");
+      map.set(capture.id, name.length > 8 ? name.substring(0, 8) : name);
+    });
+    return map;
+  }, [captures]);
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={CHART_MARGIN}>
+        <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
+        <XAxis
+          dataKey="tick"
+          domain={domain.x}
+          type="number"
+          tickFormatter={(v) => v.toLocaleString()}
+          className="text-xs fill-muted-foreground"
+        />
+        <YAxis
+          domain={domain.y}
+          width={Y_AXIS_WIDTH}
+          tickFormatter={(v) => {
+            if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+            if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+            return v.toFixed(0);
+          }}
+          className="text-xs fill-muted-foreground"
+        />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: "hsl(var(--popover))",
+            border: "1px solid hsl(var(--popover-border))",
+            borderRadius: "var(--radius)",
+            fontSize: "12px",
+          }}
+          cursor={<ChartCursor />}
+          labelFormatter={(label) => `Tick ${label}`}
+          formatter={(value: number, name: string) => {
+            const metric = selectedMetrics.find((m) => getDataKey(m) === name);
+            const captureName = metric ? captureNameById.get(metric.captureId) ?? "" : "";
+            const label = metric ? `${captureName}: ${metric.label}` : name;
+            return [typeof value === "number" ? value.toLocaleString() : value, label];
+          }}
+        />
+        {annotations
+          .filter((annotation) => annotation.tick >= windowStart && annotation.tick <= windowEnd)
+          .map((annotation) => (
+            <ReferenceLine
+              key={annotation.id}
+              x={annotation.tick}
+              stroke={annotation.color ?? "hsl(var(--primary))"}
+              strokeDasharray="2 4"
+              strokeWidth={annotation.color ? 1.5 : 2}
+              label={
+                annotation.label
+                  ? {
+                      value: annotation.label,
+                      position: "insideTop",
+                      offset: 6,
+                      fill: annotation.color ?? "hsl(var(--primary))",
+                      fontSize: 10,
+                    }
+                  : undefined
+              }
+            />
+          ))}
+        {selectedMetrics.map((metric, index) => {
+          const dataKey = getDataKey(metric);
+          const isDashed = index % 2 === 1;
+          return (
+            <Line
+              key={`${metric.captureId}-${metric.fullPath}`}
+              type="monotone"
+              dataKey={dataKey}
+              name={dataKey}
+              stroke={metric.color}
+              strokeWidth={2}
+              strokeDasharray={isDashed ? "5 5" : undefined}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 2 }}
+              isAnimationActive={false}
+            />
+          );
+        })}
+      </LineChart>
+    </ResponsiveContainer>
+  );
+});
 
 export function MetricsChart({
   data,
   selectedMetrics,
   currentTick,
-  windowSize,
+  windowStart,
+  windowEnd,
   onZoomIn,
   onZoomOut,
   onResetZoom,
-  isAutoZoom,
+  isAutoScroll,
+  annotations,
+  subtitles,
   captures,
 }: MetricsChartProps) {
   const visibleData = useMemo(() => {
     if (data.length === 0) return [];
 
-    const startTick = Math.max(1, currentTick - windowSize + 1);
-    return data.filter((d) => d.tick >= startTick && d.tick <= currentTick);
-  }, [data, currentTick, windowSize]);
-
-  const getDataKey = (metric: SelectedMetric): string => {
-    return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
-  };
-
-  const getCaptureFilename = (captureId: string): string => {
-    const capture = captures.find(c => c.id === captureId);
-    if (!capture) return captureId;
-    const name = capture.filename.replace('.jsonl', '');
-    return name.length > 8 ? name.substring(0, 8) : name;
-  };
+    const startTick = Math.max(1, Math.floor(windowStart));
+    const endTick = Math.max(startTick, Math.floor(windowEnd));
+    return data.filter((d) => d.tick >= startTick && d.tick <= endTick);
+  }, [data, windowStart, windowEnd]);
 
   const domain = useMemo(() => {
     if (data.length === 0) return { x: [0, 50], y: [0, 100] };
 
-    const xMin = visibleData.length > 0 ? Math.min(...visibleData.map((d) => d.tick)) : 0;
-    const xMax = visibleData.length > 0 ? Math.max(...visibleData.map((d) => d.tick)) : 50;
+    const fallbackStart = Math.max(0, Math.floor(windowStart));
+    const fallbackEnd = Math.max(fallbackStart, Math.floor(windowEnd));
+    const xMin = visibleData.length > 0 ? Math.min(...visibleData.map((d) => d.tick)) : fallbackStart;
+    const xMax = visibleData.length > 0 ? Math.max(...visibleData.map((d) => d.tick)) : fallbackEnd;
 
     let yMin = Infinity;
     let yMax = -Infinity;
 
     visibleData.forEach((point) => {
       selectedMetrics.forEach((metric) => {
-        const dataKey = getDataKey(metric);
+        const dataKey = `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
         const val = point[dataKey];
         if (typeof val === "number" && !isNaN(val)) {
           yMin = Math.min(yMin, val);
@@ -87,7 +258,49 @@ export function MetricsChart({
       x: [xMin, xMax],
       y: [Math.max(0, yMin - yPadding), yMax + yPadding],
     };
-  }, [visibleData, selectedMetrics, data.length]);
+  }, [visibleData, selectedMetrics, data.length, windowStart, windowEnd]);
+
+  const activeSubtitles = useMemo(() => {
+    if (!subtitles || subtitles.length === 0) {
+      return [];
+    }
+    return subtitles
+      .filter((subtitle) => subtitle.startTick <= currentTick && subtitle.endTick >= currentTick)
+      .sort((a, b) => a.startTick - b.startTick);
+  }, [subtitles, currentTick]);
+
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!chartContainerRef.current || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setChartSize({
+          width: Math.max(0, Math.floor(width)),
+          height: Math.max(0, Math.floor(height)),
+        });
+      }
+    });
+    observer.observe(chartContainerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const currentTickOffset = useMemo(() => {
+    const [xMin, xMax] = domain.x;
+    if (!chartSize.width || xMax === xMin) {
+      return null;
+    }
+    const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
+    const plotWidth = Math.max(1, chartSize.width - plotLeft - CHART_MARGIN.right);
+    const clampedTick = Math.min(Math.max(currentTick, xMin), xMax);
+    const ratio = (clampedTick - xMin) / (xMax - xMin);
+    const offset = plotLeft + ratio * plotWidth;
+    return Math.min(Math.max(offset, plotLeft), chartSize.width - CHART_MARGIN.right);
+  }, [chartSize.width, domain.x, currentTick]);
 
   if (selectedMetrics.length === 0) {
     return (
@@ -125,76 +338,43 @@ export function MetricsChart({
           onClick={onResetZoom}
           data-testid="button-reset-zoom"
           aria-label="Reset zoom"
-          className={cn(!isAutoZoom && "text-primary")}
+          className={cn(!isAutoScroll && "text-primary")}
         >
           <RotateCcw className="w-4 h-4" />
         </Button>
       </div>
+      {activeSubtitles.length > 0 && (
+        <div className="absolute bottom-3 left-1/2 z-20 max-w-[70%] -translate-x-1/2 space-y-1 pointer-events-none">
+          {activeSubtitles.map((subtitle) => (
+            <div
+              key={subtitle.id}
+              className="rounded-md border border-muted/40 bg-background/90 px-3 py-1.5 text-xs shadow-sm backdrop-blur"
+              style={subtitle.color ? { color: subtitle.color } : undefined}
+            >
+              {subtitle.text}
+            </div>
+          ))}
+        </div>
+      )}
 
-      <div className="flex-1 p-4 pt-12">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={visibleData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
-            <XAxis
-              dataKey="tick"
-              domain={domain.x}
-              type="number"
-              tickFormatter={(v) => v.toLocaleString()}
-              className="text-xs fill-muted-foreground"
-            />
-            <YAxis
-              domain={domain.y}
-              tickFormatter={(v) => {
-                if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
-                if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
-                return v.toFixed(0);
-              }}
-              className="text-xs fill-muted-foreground"
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "hsl(var(--popover))",
-                border: "1px solid hsl(var(--popover-border))",
-                borderRadius: "var(--radius)",
-                fontSize: "12px",
-              }}
-              labelFormatter={(label) => `Tick ${label}`}
-              formatter={(value: number, name: string) => {
-                const metric = selectedMetrics.find((m) => getDataKey(m) === name);
-                const captureName = metric ? getCaptureFilename(metric.captureId) : '';
-                const label = metric ? `${captureName}: ${metric.label}` : name;
-                return [
-                  typeof value === "number" ? value.toLocaleString() : value,
-                  label,
-                ];
-              }}
-            />
-            <ReferenceLine
-              x={currentTick}
-              stroke="hsl(var(--primary))"
-              strokeDasharray="5 5"
-              strokeWidth={2}
-            />
-            {selectedMetrics.map((metric, index) => {
-              const dataKey = getDataKey(metric);
-              const isDashed = index % 2 === 1;
-              return (
-                <Line
-                  key={`${metric.captureId}-${metric.fullPath}`}
-                  type="monotone"
-                  dataKey={dataKey}
-                  name={dataKey}
-                  stroke={metric.color}
-                  strokeWidth={2}
-                  strokeDasharray={isDashed ? "5 5" : undefined}
-                  dot={false}
-                  activeDot={{ r: 4, strokeWidth: 2 }}
-                  isAnimationActive={false}
-                />
-              );
-            })}
-          </LineChart>
-        </ResponsiveContainer>
+      <div ref={chartContainerRef} className="relative flex-1 p-4 pt-12">
+        <ChartLines
+          data={visibleData}
+          selectedMetrics={selectedMetrics}
+          domain={domain}
+          annotations={annotations}
+          windowStart={windowStart}
+          windowEnd={windowEnd}
+          captures={captures}
+        />
+        {currentTickOffset !== null && (
+          <div
+            className="pointer-events-none absolute inset-y-4"
+            style={{ left: `${currentTickOffset}px` }}
+          >
+            <div className="h-full border-l-2 border-dashed border-primary/70" />
+          </div>
+        )}
       </div>
     </div>
   );
