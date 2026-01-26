@@ -62,7 +62,7 @@ const INITIAL_WINDOW_SIZE = 50;
 const DEFAULT_POLL_SECONDS = 2;
 const EMPTY_METRICS: SelectedMetric[] = [];
 const APPEND_FLUSH_MS = 100;
-const FULLSCREEN_RESIZE_DELAY = 150;
+const FULLSCREEN_RESIZE_DELAY = 0;
 
 const METRIC_COLORS = [
   "#E4572E",
@@ -942,11 +942,28 @@ export default function Home() {
     if (typeof window === "undefined") {
       return;
     }
-    const timer = window.setTimeout(() => {
+    let raf1 = 0;
+    let raf2 = 0;
+    let timer: number | null = null;
+    const dispatchResize = () => {
       window.dispatchEvent(new Event("resize"));
-    }, FULLSCREEN_RESIZE_DELAY);
+    };
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        dispatchResize();
+      });
+    });
+    if (FULLSCREEN_RESIZE_DELAY > 0) {
+      timer = window.setTimeout(() => {
+        dispatchResize();
+      }, FULLSCREEN_RESIZE_DELAY);
+    }
     return () => {
-      window.clearTimeout(timer);
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
     };
   }, [isFullscreen]);
 
@@ -2618,7 +2635,7 @@ export default function Home() {
           </SidebarContent>
         </Sidebar>
 
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <header className="flex items-center justify-between gap-4 px-4 h-12 shrink-0">
             <div className="flex items-center gap-2">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
@@ -2663,7 +2680,7 @@ export default function Home() {
             </div>
           </header>
 
-          <main className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
+          <main className="flex-1 flex flex-col p-4 gap-4 overflow-hidden min-h-0">
             <div className="relative flex-1 min-h-0">
               <MetricsChart
                 data={chartData}

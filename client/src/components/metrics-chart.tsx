@@ -1,12 +1,12 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect } from "react";
 import {
+  ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
 import { LineChart as LineChartIcon, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
@@ -47,6 +47,8 @@ interface ChartLinesProps {
   windowStart: number;
   windowEnd: number;
   captures: CaptureSession[];
+  width?: number;
+  height?: number;
 }
 
 interface ChartCursorProps {
@@ -110,7 +112,12 @@ const ChartLines = memo(function ChartLines({
   windowStart,
   windowEnd,
   captures,
+  width,
+  height,
 }: ChartLinesProps) {
+  if (!width || !height) {
+    return null;
+  }
   const getDataKey = (metric: SelectedMetric): string => {
     return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
   };
@@ -125,8 +132,7 @@ const ChartLines = memo(function ChartLines({
   }, [captures]);
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={CHART_MARGIN}>
+    <LineChart width={width} height={height} data={data} margin={CHART_MARGIN}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
         <XAxis
           dataKey="tick"
@@ -201,8 +207,7 @@ const ChartLines = memo(function ChartLines({
             />
           );
         })}
-      </LineChart>
-    </ResponsiveContainer>
+    </LineChart>
   );
 });
 
@@ -271,23 +276,62 @@ export function MetricsChart({
 
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
+  const chartSizeRef = useRef(chartSize);
+  const resizeFrameRef = useRef<number | null>(null);
+  const pendingSizeRef = useRef<{ width: number; height: number } | null>(null);
 
-  useEffect(() => {
+  const commitChartSize = useCallback((nextWidth: number, nextHeight: number) => {
+    const prev = chartSizeRef.current;
+    if (prev.width === nextWidth && prev.height === nextHeight) {
+      return;
+    }
+    const next = { width: nextWidth, height: nextHeight };
+    chartSizeRef.current = next;
+    setChartSize(next);
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) {
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const initialWidth = Math.max(0, Math.floor(rect.width));
+    const initialHeight = Math.max(0, Math.floor(rect.height));
+    commitChartSize(initialWidth, initialHeight);
+  }, [commitChartSize]);
+
+  useLayoutEffect(() => {
     if (!chartContainerRef.current || typeof ResizeObserver === "undefined") {
       return;
     }
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        setChartSize({
-          width: Math.max(0, Math.floor(width)),
-          height: Math.max(0, Math.floor(height)),
+        const nextWidth = Math.max(0, Math.floor(width));
+        const nextHeight = Math.max(0, Math.floor(height));
+        pendingSizeRef.current = { width: nextWidth, height: nextHeight };
+        if (resizeFrameRef.current !== null) {
+          continue;
+        }
+        resizeFrameRef.current = window.requestAnimationFrame(() => {
+          resizeFrameRef.current = null;
+          const pending = pendingSizeRef.current;
+          if (!pending) {
+            return;
+          }
+          commitChartSize(pending.width, pending.height);
         });
       }
     });
     observer.observe(chartContainerRef.current);
-    return () => observer.disconnect();
-  }, []);
+    return () => {
+      observer.disconnect();
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+      }
+    };
+  }, [commitChartSize]);
 
   const currentTickOffset = useMemo(() => {
     const [xMin, xMax] = domain.x;
@@ -312,7 +356,7 @@ export function MetricsChart({
   }
 
   return (
-    <div className="relative flex flex-col h-full">
+    <div className="relative flex flex-col h-full min-h-0">
       <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
         <Button
           variant="ghost"
@@ -357,24 +401,28 @@ export function MetricsChart({
         </div>
       )}
 
-      <div ref={chartContainerRef} className="relative flex-1 p-4 pt-12">
-        <ChartLines
-          data={visibleData}
-          selectedMetrics={selectedMetrics}
-          domain={domain}
-          annotations={annotations}
-          windowStart={windowStart}
-          windowEnd={windowEnd}
-          captures={captures}
-        />
-        {currentTickOffset !== null && (
-          <div
-            className="pointer-events-none absolute inset-y-4"
-            style={{ left: `${currentTickOffset}px` }}
-          >
-            <div className="h-full border-l-2 border-dashed border-primary/70" />
-          </div>
-        )}
+      <div className="flex-1 min-h-0 p-4 pt-12">
+        <div ref={chartContainerRef} className="relative h-full w-full overflow-hidden">
+          <ResponsiveContainer width="100%" height="100%" debounce={0}>
+            <ChartLines
+              data={visibleData}
+              selectedMetrics={selectedMetrics}
+              domain={domain}
+              annotations={annotations}
+              windowStart={windowStart}
+              windowEnd={windowEnd}
+              captures={captures}
+            />
+          </ResponsiveContainer>
+          {currentTickOffset !== null && (
+            <div
+              className="pointer-events-none absolute inset-y-4"
+              style={{ left: `${currentTickOffset}px` }}
+            >
+              <div className="h-full border-l-2 border-dashed border-primary/70" />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
