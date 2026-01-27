@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { FileUpload } from "@/components/file-upload";
 import { ComponentTree } from "@/components/component-tree";
@@ -44,6 +44,7 @@ import type {
   ControlCommand,
   ControlResponse,
   MemoryStatsResponse,
+  VisualizationState,
 } from "@shared/schema";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useWebSocketControl } from "@/hooks/use-websocket-control";
@@ -469,6 +470,13 @@ export default function Home() {
   const [windowSize, setWindowSize] = useState(INITIAL_WINDOW_SIZE);
   const [windowStart, setWindowStart] = useState(1);
   const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
+  const [viewport, setViewport] = useState<VisualizationState["viewport"]>({
+    width: 0,
+    height: 0,
+    chartWidth: 0,
+    chartHeight: 0,
+    devicePixelRatio: 1,
+  });
   const [isAutoScroll, setIsAutoScroll] = useState(true);
   const [isHudVisible, setIsHudVisible] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -917,6 +925,45 @@ export default function Home() {
       baselineHeapRef.current = memory.usedJSHeapSize;
     }
   }, []);
+
+  const updateViewport = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const nextWidth = Math.max(0, Math.floor(window.innerWidth));
+    const nextHeight = Math.max(0, Math.floor(window.innerHeight));
+    const nextDpr = Number.isFinite(window.devicePixelRatio)
+      ? window.devicePixelRatio
+      : 1;
+    setViewport((prev) => {
+      if (
+        prev?.width === nextWidth &&
+        prev?.height === nextHeight &&
+        prev?.devicePixelRatio === nextDpr
+      ) {
+        return prev;
+      }
+      return {
+        ...(prev ?? {}),
+        width: nextWidth,
+        height: nextHeight,
+        devicePixelRatio: nextDpr,
+      };
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    updateViewport();
+  }, [updateViewport]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleResize = () => updateViewport();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [updateViewport]);
 
   useEffect(() => {
     updateBaselineHeap();
@@ -2359,7 +2406,7 @@ export default function Home() {
     };
   }, [playbackState.isPlaying, playbackState.speed]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isAutoScroll) {
       return;
     }
@@ -2385,6 +2432,7 @@ export default function Home() {
     windowEnd,
     autoScroll: isAutoScroll,
     isFullscreen,
+    viewport,
     annotations,
     subtitles,
     onSourceModeChange: handleSourceModeChange,
@@ -2695,6 +2743,21 @@ export default function Home() {
                 annotations={annotations}
                 subtitles={subtitles}
                 captures={captures}
+                onSizeChange={(size) => {
+                  setViewport((prev) => {
+                    if (
+                      prev?.chartWidth === size.width &&
+                      prev?.chartHeight === size.height
+                    ) {
+                      return prev;
+                    }
+                    return {
+                      ...(prev ?? {}),
+                      chartWidth: size.width,
+                      chartHeight: size.height,
+                    };
+                  });
+                }}
               />
               <MetricsHUD
                 currentData={currentData}

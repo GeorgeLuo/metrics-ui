@@ -32,6 +32,7 @@ interface UseWebSocketControlProps {
   windowEnd: number;
   autoScroll: boolean;
   isFullscreen: boolean;
+  viewport?: VisualizationState["viewport"];
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
   onWindowSizeChange: (windowSize: number) => void;
@@ -122,6 +123,7 @@ export function useWebSocketControl({
   windowEnd,
   autoScroll,
   isFullscreen,
+  viewport,
   annotations,
   subtitles,
   onSourceModeChange,
@@ -185,6 +187,7 @@ export function useWebSocketControl({
         windowEnd,
         autoScroll,
         isFullscreen,
+        viewport,
         annotations,
         subtitles,
       };
@@ -194,7 +197,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, annotations, subtitles]);
+  }, [captures, selectedMetrics, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
 
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
     if (!requestId) {

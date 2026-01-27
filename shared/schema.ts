@@ -399,6 +399,13 @@ export interface VisualizationState {
   windowEnd: number;
   autoScroll: boolean;
   isFullscreen: boolean;
+  viewport?: {
+    width: number;
+    height: number;
+    chartWidth?: number;
+    chartHeight?: number;
+    devicePixelRatio?: number;
+  };
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
 }

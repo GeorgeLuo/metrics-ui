@@ -37,6 +37,7 @@ interface MetricsChartProps {
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
   captures: CaptureSession[];
+  onSizeChange?: (size: { width: number; height: number }) => void;
 }
 
 interface ChartLinesProps {
@@ -62,7 +63,7 @@ interface ChartCursorProps {
 const CHART_MARGIN = { top: 5, right: 30, left: 20, bottom: 5 };
 const Y_AXIS_WIDTH = 60;
 
-const ChartCursor = memo(function ChartCursor({
+function ChartCursor({
   points,
   height,
   stroke,
@@ -102,7 +103,7 @@ const ChartCursor = memo(function ChartCursor({
       strokeDasharray="3 3"
     />
   );
-});
+}
 
 const ChartLines = memo(function ChartLines({
   data,
@@ -224,6 +225,7 @@ export function MetricsChart({
   annotations,
   subtitles,
   captures,
+  onSizeChange,
 }: MetricsChartProps) {
   const visibleData = useMemo(() => {
     if (data.length === 0) return [];
@@ -288,7 +290,10 @@ export function MetricsChart({
     const next = { width: nextWidth, height: nextHeight };
     chartSizeRef.current = next;
     setChartSize(next);
-  }, []);
+    if (onSizeChange) {
+      onSizeChange(next);
+    }
+  }, [onSizeChange]);
 
   useLayoutEffect(() => {
     const el = chartContainerRef.current;
