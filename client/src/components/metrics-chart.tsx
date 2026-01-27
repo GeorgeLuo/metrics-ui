@@ -333,19 +333,6 @@ export function MetricsChart({
     };
   }, [commitChartSize]);
 
-  const currentTickOffset = useMemo(() => {
-    const [xMin, xMax] = domain.x;
-    if (!chartSize.width || xMax === xMin) {
-      return null;
-    }
-    const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
-    const plotWidth = Math.max(1, chartSize.width - plotLeft - CHART_MARGIN.right);
-    const clampedTick = Math.min(Math.max(currentTick, xMin), xMax);
-    const ratio = (clampedTick - xMin) / (xMax - xMin);
-    const offset = plotLeft + ratio * plotWidth;
-    return Math.min(Math.max(offset, plotLeft), chartSize.width - CHART_MARGIN.right);
-  }, [chartSize.width, domain.x, currentTick]);
-
   if (selectedMetrics.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
@@ -414,14 +401,6 @@ export function MetricsChart({
               captures={captures}
             />
           </ResponsiveContainer>
-          {currentTickOffset !== null && (
-            <div
-              className="pointer-events-none absolute inset-y-4"
-              style={{ left: `${currentTickOffset}px` }}
-            >
-              <div className="h-full border-l-2 border-dashed border-primary/70" />
-            </div>
-          )}
         </div>
       </div>
     </div>
