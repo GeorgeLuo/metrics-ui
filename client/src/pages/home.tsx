@@ -2758,6 +2758,8 @@ export default function Home() {
                     };
                   });
                 }}
+                onAddAnnotation={handleAddAnnotation}
+                onRemoveAnnotation={handleRemoveAnnotation}
               />
               <MetricsHUD
                 currentData={currentData}

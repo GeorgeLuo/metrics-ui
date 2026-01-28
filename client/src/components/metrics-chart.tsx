@@ -9,8 +9,9 @@ import {
   Tooltip,
   ReferenceLine,
 } from "recharts";
-import { LineChart as LineChartIcon, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { LineChart as LineChartIcon, ZoomIn, ZoomOut, RotateCcw, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type {
   Annotation,
   SubtitleOverlay,
@@ -38,6 +39,8 @@ interface MetricsChartProps {
   subtitles: SubtitleOverlay[];
   captures: CaptureSession[];
   onSizeChange?: (size: { width: number; height: number }) => void;
+  onAddAnnotation?: (annotation: Annotation) => void;
+  onRemoveAnnotation?: (options: { id?: string; tick?: number }) => void;
 }
 
 interface ChartLinesProps {
@@ -48,6 +51,7 @@ interface ChartLinesProps {
   windowStart: number;
   windowEnd: number;
   captures: CaptureSession[];
+  suppressCursor?: boolean;
   width?: number;
   height?: number;
 }
@@ -113,6 +117,7 @@ const ChartLines = memo(function ChartLines({
   windowStart,
   windowEnd,
   captures,
+  suppressCursor,
   width,
   height,
 }: ChartLinesProps) {
@@ -159,7 +164,7 @@ const ChartLines = memo(function ChartLines({
             borderRadius: "var(--radius)",
             fontSize: "12px",
           }}
-          cursor={<ChartCursor />}
+          cursor={suppressCursor ? false : <ChartCursor />}
           labelFormatter={(label) => `Tick ${label}`}
           formatter={(value: number, name: string) => {
             const metric = selectedMetrics.find((m) => getDataKey(m) === name);
@@ -226,6 +231,8 @@ export function MetricsChart({
   subtitles,
   captures,
   onSizeChange,
+  onAddAnnotation,
+  onRemoveAnnotation,
 }: MetricsChartProps) {
   const visibleData = useMemo(() => {
     if (data.length === 0) return [];
@@ -277,10 +284,17 @@ export function MetricsChart({
   }, [subtitles, currentTick]);
 
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
   const chartSizeRef = useRef(chartSize);
   const resizeFrameRef = useRef<number | null>(null);
   const pendingSizeRef = useRef<{ width: number; height: number } | null>(null);
+  const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
+  const [hoverAnnotationId, setHoverAnnotationId] = useState<string | null>(null);
+  const [annotationPanelPosition, setAnnotationPanelPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingPanel, setIsDraggingPanel] = useState(false);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+  const idCounterRef = useRef(0);
 
   const commitChartSize = useCallback((nextWidth: number, nextHeight: number) => {
     const prev = chartSizeRef.current;
@@ -305,6 +319,191 @@ export function MetricsChart({
     const initialHeight = Math.max(0, Math.floor(rect.height));
     commitChartSize(initialWidth, initialHeight);
   }, [commitChartSize]);
+
+  useEffect(() => {
+    if (activeAnnotationId && !annotations.some((annotation) => annotation.id === activeAnnotationId)) {
+      setActiveAnnotationId(null);
+      setAnnotationPanelPosition(null);
+    }
+  }, [annotations, activeAnnotationId]);
+
+  const buildAnnotationId = useCallback(() => {
+    idCounterRef.current += 1;
+    return `anno-${Date.now().toString(36)}-${idCounterRef.current.toString(36)}`;
+  }, []);
+
+  const getAnnotationX = useCallback(
+    (tick: number) => {
+      const [xMin, xMax] = domain.x;
+      if (!chartSize.width || xMax === xMin) {
+        return null;
+      }
+      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
+      const plotWidth = Math.max(1, chartSize.width - plotLeft - CHART_MARGIN.right);
+      const clampedTick = Math.min(Math.max(tick, xMin), xMax);
+      const ratio = (clampedTick - xMin) / (xMax - xMin);
+      return plotLeft + ratio * plotWidth;
+    },
+    [chartSize.width, domain.x],
+  );
+
+  const findAnnotationNearX = useCallback(
+    (x: number) => {
+      const [xMin, xMax] = domain.x;
+      if (!chartSize.width || xMax === xMin) {
+        return null;
+      }
+      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
+      const plotWidth = Math.max(1, chartSize.width - plotLeft - CHART_MARGIN.right);
+      const clamp = (tick: number) => Math.min(Math.max(tick, xMin), xMax);
+      const visible = annotations.filter(
+        (annotation) => annotation.tick >= windowStart && annotation.tick <= windowEnd,
+      );
+      const threshold = 10;
+      for (const annotation of visible) {
+        const ratio = (clamp(annotation.tick) - xMin) / (xMax - xMin);
+        const position = plotLeft + ratio * plotWidth;
+        if (Math.abs(position - x) <= threshold) {
+          return annotation;
+        }
+      }
+      return null;
+    },
+    [annotations, chartSize.width, domain.x, windowEnd, windowStart],
+  );
+
+  const handleChartClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (!onAddAnnotation || !chartContainerRef.current) {
+        return;
+      }
+      const target = event.target as HTMLElement;
+      if (
+        target.closest("button") ||
+        target.closest("input") ||
+        target.closest("[data-annotation-panel]")
+      ) {
+        return;
+      }
+      const rect = chartContainerRef.current.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
+      const plotRight = chartSize.width - CHART_MARGIN.right;
+      if (!chartSize.width || localX < plotLeft || localX > plotRight) {
+        return;
+      }
+      const [xMin, xMax] = domain.x;
+      const plotWidth = Math.max(1, plotRight - plotLeft);
+      const ratio = (localX - plotLeft) / plotWidth;
+      const tick = Math.round(xMin + ratio * (xMax - xMin));
+      const existing = findAnnotationNearX(localX);
+      if (existing) {
+        setActiveAnnotationId(existing.id);
+        setAnnotationPanelPosition(null);
+        return;
+      }
+      const id = buildAnnotationId();
+      onAddAnnotation({ id, tick });
+      setActiveAnnotationId(null);
+    },
+    [buildAnnotationId, chartSize.width, domain.x, findAnnotationNearX, onAddAnnotation],
+  );
+
+  const handleChartMouseMove = useCallback(
+    (event: React.MouseEvent) => {
+      if (!chartContainerRef.current || isDraggingPanel) {
+        return;
+      }
+      const rect = chartContainerRef.current.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const annotation = findAnnotationNearX(localX);
+      setHoverAnnotationId(annotation ? annotation.id : null);
+    },
+    [findAnnotationNearX, isDraggingPanel],
+  );
+
+  const handleChartMouseLeave = useCallback(() => {
+    setHoverAnnotationId(null);
+  }, []);
+
+  const activeAnnotation = useMemo(
+    () => annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null,
+    [annotations, activeAnnotationId],
+  );
+
+  const activeAnnotationPanel = useMemo(() => {
+    if (!activeAnnotation || !chartSize.width) {
+      return null;
+    }
+    if (annotationPanelPosition) {
+      return {
+        left: annotationPanelPosition.x,
+        top: annotationPanelPosition.y,
+        tick: activeAnnotation.tick,
+      };
+    }
+    const position = getAnnotationX(activeAnnotation.tick);
+    if (position === null) {
+      return null;
+    }
+    const panelWidth = 220;
+    const left = Math.min(
+      Math.max(position - panelWidth / 2, 8),
+      Math.max(8, chartSize.width - panelWidth - 8),
+    );
+    return { left, top: 12, tick: activeAnnotation.tick };
+  }, [activeAnnotation, annotationPanelPosition, chartSize.width, getAnnotationX]);
+
+  const handlePanelMouseDown = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDraggingPanel(true);
+      const rect = panelRef.current?.getBoundingClientRect()
+        ?? (event.currentTarget as HTMLElement).getBoundingClientRect();
+      dragOffsetRef.current = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+      const handleMove = (moveEvent: MouseEvent) => {
+        if (!chartContainerRef.current) {
+          return;
+        }
+        const containerRect = chartContainerRef.current.getBoundingClientRect();
+        const panelWidth = rect.width;
+        const panelHeight = rect.height;
+        const nextX = Math.min(
+          Math.max(moveEvent.clientX - containerRect.left - dragOffsetRef.current.x, 8),
+          Math.max(8, containerRect.width - panelWidth - 8),
+        );
+        const nextY = Math.min(
+          Math.max(moveEvent.clientY - containerRect.top - dragOffsetRef.current.y, 8),
+          Math.max(8, containerRect.height - panelHeight - 8),
+        );
+        setAnnotationPanelPosition({ x: nextX, y: nextY });
+      };
+      const handleUp = () => {
+        setIsDraggingPanel(false);
+        document.removeEventListener("mousemove", handleMove);
+        document.removeEventListener("mouseup", handleUp);
+      };
+      document.addEventListener("mousemove", handleMove);
+      document.addEventListener("mouseup", handleUp);
+    },
+    [],
+  );
+
+  const hoverAnnotation = useMemo(
+    () => annotations.find((annotation) => annotation.id === hoverAnnotationId) ?? null,
+    [annotations, hoverAnnotationId],
+  );
+
+  const hoverIndicatorLeft = useMemo(() => {
+    if (!hoverAnnotation) {
+      return null;
+    }
+    return getAnnotationX(hoverAnnotation.tick);
+  }, [hoverAnnotation, getAnnotationX]);
 
   useLayoutEffect(() => {
     if (!chartContainerRef.current || typeof ResizeObserver === "undefined") {
@@ -394,7 +593,16 @@ export function MetricsChart({
       )}
 
       <div className="flex-1 min-h-0 p-4 pt-12">
-        <div ref={chartContainerRef} className="relative h-full w-full overflow-hidden">
+        <div
+          ref={chartContainerRef}
+          className={cn(
+            "relative h-full w-full overflow-hidden",
+            hoverAnnotationId ? "cursor-pointer" : "cursor-crosshair",
+          )}
+          onClick={handleChartClick}
+          onMouseMove={handleChartMouseMove}
+          onMouseLeave={handleChartMouseLeave}
+        >
           <ResponsiveContainer width="100%" height="100%" debounce={0}>
             <ChartLines
               data={visibleData}
@@ -404,8 +612,79 @@ export function MetricsChart({
               windowStart={windowStart}
               windowEnd={windowEnd}
               captures={captures}
+              suppressCursor={Boolean(hoverAnnotationId)}
             />
           </ResponsiveContainer>
+          {hoverIndicatorLeft !== null && (
+            <div
+              className="pointer-events-none absolute inset-y-4"
+              style={{ left: `${hoverIndicatorLeft}px` }}
+            >
+              <div className="h-full border-l-2 border-dashed border-primary/70" />
+              <div className="absolute -top-1 -left-1 h-2 w-2 rounded-full bg-primary" />
+            </div>
+          )}
+          {activeAnnotation && activeAnnotationPanel && (
+            <div
+              data-annotation-panel
+              className="absolute z-20 w-[220px] rounded-md border border-muted/40 bg-background/95 p-2 text-xs shadow-sm backdrop-blur"
+              style={{ left: activeAnnotationPanel.left, top: activeAnnotationPanel.top }}
+              onClick={(event) => event.stopPropagation()}
+              ref={panelRef}
+            >
+              <div
+                className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground cursor-grab select-none"
+                onMouseDown={handlePanelMouseDown}
+              >
+                <div className="flex items-center gap-1">
+                  <GripVertical className="h-3 w-3 text-muted-foreground" />
+                  <span>Annotation @ {activeAnnotationPanel.tick}</span>
+                </div>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setActiveAnnotationId(null)}
+                  aria-label="Close annotation editor"
+                >
+                  ×
+                </button>
+              </div>
+              <Input
+                value={activeAnnotation.label ?? ""}
+                onChange={(event) => {
+                  onAddAnnotation?.({
+                    id: activeAnnotation.id,
+                    tick: activeAnnotation.tick,
+                    label: event.target.value,
+                    color: activeAnnotation.color,
+                  });
+                }}
+                placeholder="Annotation label"
+                className="h-7 text-xs"
+              />
+              <div className="mt-2 flex items-center justify-between">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    onRemoveAnnotation?.({ id: activeAnnotation.id });
+                    setActiveAnnotationId(null);
+                  }}
+                >
+                  Remove
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setActiveAnnotationId(null)}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
