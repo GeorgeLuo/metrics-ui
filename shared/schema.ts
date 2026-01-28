@@ -409,3 +409,11 @@ export interface VisualizationState {
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
 }
+
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+}
+
+export type InsertUser = Omit<User, "id">;

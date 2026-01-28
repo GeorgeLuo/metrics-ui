@@ -82,12 +82,12 @@ function ChartCursor({
   const viewWidth = Number.isFinite(viewBox?.width)
     ? (viewBox?.width as number)
     : undefined;
-  const viewHeight = Number.isFinite(viewBox?.height)
+  const resolvedHeight = Number.isFinite(viewBox?.height)
     ? (viewBox?.height as number)
     : Number.isFinite(height)
       ? (height as number)
-      : undefined;
-  if (!Number.isFinite(viewHeight)) {
+      : null;
+  if (resolvedHeight === null || !Number.isFinite(resolvedHeight)) {
     return null;
   }
   const viewRight = viewWidth !== undefined ? viewLeft + viewWidth : undefined;
@@ -102,7 +102,7 @@ function ChartCursor({
       x1={clampedX}
       x2={clampedX}
       y1={viewTop}
-      y2={viewTop + viewHeight}
+      y2={viewTop + resolvedHeight}
       stroke={stroke ?? "hsl(var(--primary))"}
       strokeDasharray="3 3"
     />
@@ -243,7 +243,7 @@ export function MetricsChart({
   }, [data, windowStart, windowEnd]);
 
   const domain = useMemo(() => {
-    if (data.length === 0) return { x: [0, 50], y: [0, 100] };
+    if (data.length === 0) return { x: [0, 50] as [number, number], y: [0, 100] as [number, number] };
 
     const fallbackStart = Math.max(0, Math.floor(windowStart));
     const fallbackEnd = Math.max(fallbackStart, Math.floor(windowEnd));
@@ -269,8 +269,8 @@ export function MetricsChart({
 
     const yPadding = (yMax - yMin) * 0.1 || 10;
     return {
-      x: [xMin, xMax],
-      y: [Math.max(0, yMin - yPadding), yMax + yPadding],
+      x: [xMin, xMax] as [number, number],
+      y: [Math.max(0, yMin - yPadding), yMax + yPadding] as [number, number],
     };
   }, [visibleData, selectedMetrics, data.length, windowStart, windowEnd]);
 

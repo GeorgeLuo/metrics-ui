@@ -62,21 +62,20 @@ export function accumulateValueStats(value: unknown, stats: ValueStats): void {
     return;
   }
 
-  const valueType = typeof value;
-  if (valueType === "number") {
+  if (typeof value === "number") {
     stats.leafValues += 1;
     stats.numeric += 1;
     return;
   }
 
-  if (valueType === "string") {
+  if (typeof value === "string") {
     stats.leafValues += 1;
     stats.string += 1;
     stats.stringChars += value.length;
     return;
   }
 
-  if (valueType === "boolean") {
+  if (typeof value === "boolean") {
     stats.leafValues += 1;
     stats.boolean += 1;
     return;
@@ -89,7 +88,7 @@ export function accumulateValueStats(value: unknown, stats: ValueStats): void {
     return;
   }
 
-  if (valueType === "object") {
+  if (typeof value === "object") {
     stats.objects += 1;
     Object.entries(value as Record<string, unknown>).forEach(([, entry]) => {
       stats.objectProps += 1;
