@@ -7,7 +7,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ReferenceLine,
 } from "recharts";
 import { LineChart as LineChartIcon, ZoomIn, ZoomOut, RotateCcw, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,16 +61,22 @@ interface ChartCursorProps {
   height?: number;
   stroke?: string;
   viewBox?: { x?: number; y?: number; width?: number; height?: number };
+  plotTop?: number;
+  plotBottom?: number;
 }
+
 
 const CHART_MARGIN = { top: 5, right: 30, left: 20, bottom: 5 };
 const Y_AXIS_WIDTH = 60;
+const X_AXIS_HEIGHT = 30;
 
 function ChartCursor({
   points,
   height,
   stroke,
   viewBox,
+  plotTop,
+  plotBottom,
 }: ChartCursorProps) {
   const x = points?.[0]?.x;
   if (!Number.isFinite(x)) {
@@ -97,12 +102,21 @@ function ChartCursor({
   if (viewRight !== undefined) {
     clampedX = Math.min(viewRight, clampedX);
   }
+  const lineTop = Number.isFinite(plotTop)
+    ? (plotTop as number)
+    : viewTop + CHART_MARGIN.top;
+  const lineBottom = Number.isFinite(plotBottom)
+    ? (plotBottom as number)
+    : viewTop + resolvedHeight - X_AXIS_HEIGHT;
+  if (lineBottom <= lineTop) {
+    return null;
+  }
   return (
     <line
       x1={clampedX}
       x2={clampedX}
-      y1={viewTop}
-      y2={viewTop + resolvedHeight}
+      y1={lineTop}
+      y2={lineBottom}
       stroke={stroke ?? "hsl(var(--primary))"}
       strokeDasharray="3 3"
     />
@@ -144,6 +158,7 @@ const ChartLines = memo(function ChartLines({
           dataKey="tick"
           domain={domain.x}
           type="number"
+          height={X_AXIS_HEIGHT}
           tickFormatter={(v) => v.toLocaleString()}
           className="text-xs fill-muted-foreground"
         />
@@ -164,7 +179,16 @@ const ChartLines = memo(function ChartLines({
             borderRadius: "var(--radius)",
             fontSize: "12px",
           }}
-          cursor={suppressCursor ? false : <ChartCursor />}
+          cursor={
+            suppressCursor
+              ? false
+              : (
+                <ChartCursor
+                  plotTop={CHART_MARGIN.top}
+                  plotBottom={height - (CHART_MARGIN.bottom + X_AXIS_HEIGHT)}
+                />
+              )
+          }
           labelFormatter={(label) => `Tick ${label}`}
           formatter={(value: number, name: string) => {
             const metric = selectedMetrics.find((m) => getDataKey(m) === name);
@@ -173,28 +197,6 @@ const ChartLines = memo(function ChartLines({
             return [typeof value === "number" ? value.toLocaleString() : value, label];
           }}
         />
-        {annotations
-          .filter((annotation) => annotation.tick >= windowStart && annotation.tick <= windowEnd)
-          .map((annotation) => (
-            <ReferenceLine
-              key={annotation.id}
-              x={annotation.tick}
-              stroke={annotation.color ?? "hsl(var(--primary))"}
-              strokeDasharray="2 4"
-              strokeWidth={annotation.color ? 1.5 : 2}
-              label={
-                annotation.label
-                  ? {
-                      value: annotation.label,
-                      position: "insideTop",
-                      offset: 6,
-                      fill: annotation.color ?? "hsl(var(--primary))",
-                      fontSize: 10,
-                    }
-                  : undefined
-              }
-            />
-          ))}
         {selectedMetrics.map((metric, index) => {
           const dataKey = getDataKey(metric);
           const isDashed = index % 2 === 1;
@@ -498,12 +500,25 @@ export function MetricsChart({
     [annotations, hoverAnnotationId],
   );
 
-  const hoverIndicatorLeft = useMemo(() => {
-    if (!hoverAnnotation) {
-      return null;
+  const visibleAnnotations = useMemo(
+    () => annotations.filter((annotation) => annotation.tick >= windowStart && annotation.tick <= windowEnd),
+    [annotations, windowEnd, windowStart],
+  );
+
+  const annotationOverlays = useMemo(() => {
+    if (!chartSize.width) {
+      return [];
     }
-    return getAnnotationX(hoverAnnotation.tick);
-  }, [hoverAnnotation, getAnnotationX]);
+    return visibleAnnotations
+      .map((annotation) => {
+        const left = getAnnotationX(annotation.tick);
+        if (left === null) {
+          return null;
+        }
+        return { ...annotation, left };
+      })
+      .filter((annotation): annotation is Annotation & { left: number } => Boolean(annotation));
+  }, [chartSize.width, getAnnotationX, visibleAnnotations]);
 
   useLayoutEffect(() => {
     if (!chartContainerRef.current || typeof ResizeObserver === "undefined") {
@@ -596,38 +611,63 @@ export function MetricsChart({
         <div
           ref={chartContainerRef}
           className={cn(
-            "relative h-full w-full overflow-hidden",
+            "relative h-full w-full overflow-hidden isolate",
             hoverAnnotationId ? "cursor-pointer" : "cursor-crosshair",
           )}
           onClick={handleChartClick}
           onMouseMove={handleChartMouseMove}
           onMouseLeave={handleChartMouseLeave}
         >
-          <ResponsiveContainer width="100%" height="100%" debounce={0}>
-            <ChartLines
-              data={visibleData}
-              selectedMetrics={selectedMetrics}
-              domain={domain}
-              annotations={annotations}
-              windowStart={windowStart}
-              windowEnd={windowEnd}
-              captures={captures}
-              suppressCursor={Boolean(hoverAnnotationId)}
-            />
-          </ResponsiveContainer>
-          {hoverIndicatorLeft !== null && (
-            <div
-              className="pointer-events-none absolute inset-y-4"
-              style={{ left: `${hoverIndicatorLeft}px` }}
-            >
-              <div className="h-full border-l-2 border-dashed border-primary/70" />
-              <div className="absolute -top-1 -left-1 h-2 w-2 rounded-full bg-primary" />
-            </div>
-          )}
+          <div className="absolute inset-0 z-10">
+            <ResponsiveContainer width="100%" height="100%" debounce={0}>
+              <ChartLines
+                data={visibleData}
+                selectedMetrics={selectedMetrics}
+                domain={domain}
+                annotations={annotations}
+                windowStart={windowStart}
+                windowEnd={windowEnd}
+                captures={captures}
+                suppressCursor={Boolean(hoverAnnotationId)}
+              />
+            </ResponsiveContainer>
+          </div>
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            {annotationOverlays.map((annotation) => {
+              const lineColor = annotation.color ?? "rgba(255, 255, 255, 0.7)";
+              return (
+                <div
+                  key={annotation.id}
+                  className="absolute"
+                  style={{
+                    left: `${annotation.left}px`,
+                    top: `${CHART_MARGIN.top}px`,
+                    bottom: `${CHART_MARGIN.bottom + X_AXIS_HEIGHT}px`,
+                  }}
+                >
+                  <div
+                    className={cn(
+                      "h-full border-l-2 border-dashed",
+                      hoverAnnotationId === annotation.id && "border-l-[3px]",
+                    )}
+                    style={{ borderColor: lineColor }}
+                  />
+                  {annotation.label && (
+                    <div
+                      className="absolute top-0 left-1/2 -translate-x-1/2 rounded-md bg-black/70 px-2 py-1 text-[11px] text-white shadow-sm backdrop-blur"
+                      style={annotation.color ? { borderColor: annotation.color } : undefined}
+                    >
+                      {annotation.label}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
           {activeAnnotation && activeAnnotationPanel && (
             <div
               data-annotation-panel
-              className="absolute z-20 w-[220px] rounded-md border border-muted/40 bg-background/95 p-2 text-xs shadow-sm backdrop-blur"
+              className="absolute z-30 w-[220px] rounded-md border border-muted/40 bg-background p-2 text-xs shadow-md"
               style={{ left: activeAnnotationPanel.left, top: activeAnnotationPanel.top }}
               onClick={(event) => event.stopPropagation()}
               ref={panelRef}

@@ -1913,7 +1913,8 @@ export default function Home() {
     const id = annotation.id && annotation.id.trim().length > 0
       ? annotation.id.trim()
       : `anno-${generateId()}`;
-    const label = annotation.label && annotation.label.trim().length > 0 ? annotation.label.trim() : undefined;
+    const rawLabel = typeof annotation.label === "string" ? annotation.label : undefined;
+    const label = rawLabel && rawLabel.trim().length > 0 ? rawLabel : undefined;
     const color = annotation.color && annotation.color.trim().length > 0 ? annotation.color.trim() : undefined;
     setAnnotations((prev) => {
       const existingIndex = prev.findIndex((item) => item.id === id);
