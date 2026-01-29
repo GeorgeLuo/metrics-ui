@@ -20,6 +20,7 @@ import {
   buildDisplaySnapshot,
   buildMetricCoverage,
   buildRenderTable,
+  buildRenderDebug,
   buildSeriesWindow,
 } from "@shared/protocol-utils";
 
@@ -585,6 +586,25 @@ export function useWebSocketControl({
           type: "render_table",
           request_id: requestId,
           payload: table,
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
+      case "get_render_debug": {
+        const debug = buildRenderDebug({
+          captures,
+          selectedMetrics,
+          playback: playbackState,
+          windowSize: command.windowSize ?? windowSize,
+          windowStart: command.windowStart ?? windowStart,
+          windowEnd: command.windowEnd ?? windowEnd,
+          autoScroll,
+          captureId: command.captureId,
+        });
+        sendMessage({
+          type: "render_debug",
+          request_id: requestId,
+          payload: debug,
         });
         sendAck(requestId, command.type);
         break;

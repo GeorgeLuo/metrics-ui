@@ -190,11 +190,13 @@ async function consumeLineStream(options: {
   initialRemainder?: string;
   signal?: AbortSignal;
   onLine: (line: string) => void;
+  maxLines?: number;
 }): Promise<LineConsumerResult> {
   const { readable, signal, onLine } = options;
   let remainder = options.initialRemainder ?? "";
   let bytesRead = 0;
   let lineCount = 0;
+  const maxLines = Number.isFinite(options.maxLines) ? Math.max(1, options.maxLines as number) : null;
   const abortHandler = () => {
     readable.destroy(createAbortError());
   };
@@ -208,15 +210,27 @@ async function consumeLineStream(options: {
   }
 
   try {
-    for await (const chunk of readable) {
+    outer: for await (const chunk of readable) {
       const chunkText = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf-8");
       bytesRead += Buffer.byteLength(chunkText, "utf-8");
       const combined = remainder + chunkText;
       const parts = combined.split("\n");
-      remainder = parts.pop() ?? "";
-      for (const part of parts) {
+      const trailingRemainder = parts.pop() ?? "";
+      remainder = trailingRemainder;
+      for (let index = 0; index < parts.length; index += 1) {
+        const part = parts[index];
         lineCount += 1;
         onLine(part);
+        if (maxLines && lineCount >= maxLines) {
+          const remaining = parts.slice(index + 1).join("\n");
+          if (remaining) {
+            remainder = `${remaining}\n${trailingRemainder}`;
+          } else {
+            remainder = trailingRemainder;
+          }
+          readable.destroy();
+          break outer;
+        }
       }
     }
   } finally {
@@ -234,6 +248,7 @@ async function streamLinesFromFile(options: {
   initialRemainder?: string;
   signal?: AbortSignal;
   onLine: (line: string) => void;
+  maxLines?: number;
 }): Promise<LineConsumerResult> {
   const stream = fs.createReadStream(options.filePath, {
     start: options.startOffset,
@@ -244,6 +259,7 @@ async function streamLinesFromFile(options: {
     initialRemainder: options.initialRemainder,
     signal: options.signal,
     onLine: options.onLine,
+    maxLines: options.maxLines,
   });
 }
 
@@ -252,6 +268,7 @@ async function streamLinesFromResponse(options: {
   initialRemainder?: string;
   signal?: AbortSignal;
   onLine: (line: string) => void;
+  maxLines?: number;
 }): Promise<LineConsumerResult> {
   if (!options.response.body) {
     const text = await options.response.text();
@@ -261,6 +278,7 @@ async function streamLinesFromResponse(options: {
       initialRemainder: options.initialRemainder,
       signal: options.signal,
       onLine: options.onLine,
+      maxLines: options.maxLines,
     });
   }
 
@@ -270,6 +288,7 @@ async function streamLinesFromResponse(options: {
     initialRemainder: options.initialRemainder,
     signal: options.signal,
     onLine: options.onLine,
+    maxLines: options.maxLines,
   });
 }
 
@@ -436,6 +455,7 @@ const queuedAgentCommands: ControlCommand[] = [];
 const MAX_QUEUED_COMMANDS = 500;
 const MAX_PENDING_CAPTURE_FRAMES = 5000;
 const MAX_PENDING_TOTAL_FRAMES = 50000;
+const LIVE_MAX_LINES_PER_POLL = 2000;
 const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "toggle_capture",
   "remove_capture",
@@ -1078,6 +1098,7 @@ async function pollLiveCapture(state: LiveStreamState) {
         response,
         initialRemainder: usedRange ? state.partialLine : "",
         signal: state.controller.signal,
+        maxLines: LIVE_MAX_LINES_PER_POLL,
         onLine: (line) => {
           state.lineOffset += 1;
           onLine(line);
@@ -1118,6 +1139,7 @@ async function pollLiveCapture(state: LiveStreamState) {
           startOffset,
           initialRemainder: didReset ? "" : state.partialLine,
           signal: state.controller.signal,
+          maxLines: LIVE_MAX_LINES_PER_POLL,
           onLine: (line) => {
             state.lineOffset += 1;
             onLine(line);

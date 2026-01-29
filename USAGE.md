@@ -71,6 +71,7 @@ UI behavior:
 - When the live source value changes, the UI attempts to connect.
 - If the file is unavailable, the UI retries every 3 seconds while the source is unchanged.
 - Multiple live streams can run at the same time; each stream has its own source, polling interval, and captureId.
+- Live polling reads files in **chunks** (a limited number of lines per poll) so charts can update before the file is fully consumed.
 
 API notes:
 - `GET /api/live/status` returns a `streams` array when any live streams are running.
@@ -213,6 +214,7 @@ Capture streaming (push records over WS):
 - `get_series_window`
 - `query_components`
 - `get_render_table`
+- `get_render_debug`
 - `get_memory_stats`
 - `get_metric_coverage`
 <!-- WS:COMMANDS:END -->
@@ -243,6 +245,7 @@ Common responses include:
 - `series_window`
 - `components_list`
 - `render_table`
+- `render_debug`
 - `ui_notice`
 - `ui_error`
 - `memory_stats`

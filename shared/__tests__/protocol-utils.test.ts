@@ -5,6 +5,7 @@ import {
   buildComponentsList,
   buildDisplaySnapshot,
   buildMetricCoverage,
+  buildRenderDebug,
   buildRenderTable,
   buildSeriesWindow,
   getNumericValueAtPath,
@@ -243,4 +244,49 @@ test("buildRenderTable returns rows for the current window", () => {
     [2, 3, 4],
     [3, 5, null],
   ]);
+});
+
+test("buildRenderDebug summarizes window state", () => {
+  const debug = buildRenderDebug({
+    captures: [capture],
+    selectedMetrics: metrics,
+    playback: { isPlaying: false, currentTick: 3, speed: 1, totalTicks: 3 },
+    windowSize: 2,
+    autoScroll: true,
+  });
+
+  assert.equal(debug.windowStart, 2);
+  assert.equal(debug.windowEnd, 3);
+  assert.equal(debug.windowPoints, 2);
+  assert.equal(debug.captures[0].recordCount, 3);
+  assert.equal(debug.captures[0].windowRecordCount, 2);
+  assert.equal(debug.captures[0].componentNodes, 8);
+
+  const metricMap = new Map(debug.metrics.map((item) => [item.fullPath, item]));
+  assert.deepEqual(metricMap.get("1.comp.a"), {
+    captureId: "cap-1",
+    path: ["1", "comp", "a"],
+    fullPath: "1.comp.a",
+    label: "a",
+    active: true,
+    windowNumericCount: 2,
+    windowTotal: 2,
+    startValue: 3,
+    endValue: 5,
+    firstTick: 2,
+    lastTick: 3,
+  });
+  assert.deepEqual(metricMap.get("1.comp.b"), {
+    captureId: "cap-1",
+    path: ["1", "comp", "b"],
+    fullPath: "1.comp.b",
+    label: "b",
+    active: true,
+    windowNumericCount: 1,
+    windowTotal: 2,
+    startValue: 4,
+    endValue: null,
+    firstTick: 2,
+    lastTick: 2,
+  });
 });

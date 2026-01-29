@@ -6,6 +6,7 @@ import type {
   ComponentNode,
   PlaybackState,
   SelectedMetric,
+  RenderDebugResponse,
 } from "./schema";
 
 export interface SeriesSummary {
@@ -136,6 +137,17 @@ function buildWindowRange({
     [start, end] = [end, start];
   }
   return { start, end };
+}
+
+function countComponentNodes(nodes: ComponentNode[]): number {
+  let count = 0;
+  for (const node of nodes) {
+    count += 1;
+    if (node.children.length > 0) {
+      count += countComponentNodes(node.children);
+    }
+  }
+  return count;
 }
 
 function summarizeSeries(points: SeriesPoint[]): SeriesSummary {
@@ -454,6 +466,106 @@ export function buildRenderTable({
   return { captureId, windowStart: start, windowEnd: end, columns, rows };
 }
 
+export function buildRenderDebug({
+  captures,
+  selectedMetrics,
+  playback,
+  windowSize,
+  windowStart,
+  windowEnd,
+  autoScroll,
+  captureId,
+}: {
+  captures: CaptureSession[];
+  selectedMetrics: SelectedMetric[];
+  playback: PlaybackState;
+  windowSize: number;
+  windowStart?: number;
+  windowEnd?: number;
+  autoScroll: boolean;
+  captureId?: string;
+}): RenderDebugResponse {
+  const { start, end } = buildWindowRange({
+    currentTick: playback.currentTick,
+    windowSize,
+    windowStart,
+    windowEnd,
+  });
+
+  const activeCaptures = captures.filter((capture) => capture.isActive);
+  const activeCaptureIds = new Set(activeCaptures.map((capture) => capture.id));
+  const metrics = selectedMetrics.map((metric) => {
+    const capture = captures.find((item) => item.id === metric.captureId);
+    const records = capture?.records ?? [];
+    const windowRecords = records.filter((record) => record.tick >= start && record.tick <= end);
+    let numericCount = 0;
+    let firstTick: number | null = null;
+    let lastTick: number | null = null;
+    windowRecords.forEach((record) => {
+      const value = getNumericValueAtPath(record, metric.path);
+      if (typeof value === "number") {
+        numericCount += 1;
+        if (firstTick === null) firstTick = record.tick;
+        lastTick = record.tick;
+      }
+    });
+    const startRecord = records.find((record) => record.tick === start);
+    const endRecord = records.find((record) => record.tick === end);
+    const startValue = startRecord ? getNumericValueAtPath(startRecord, metric.path) : null;
+    const endValue = endRecord ? getNumericValueAtPath(endRecord, metric.path) : null;
+    return {
+      captureId: metric.captureId,
+      path: metric.path,
+      fullPath: metric.fullPath,
+      label: metric.label,
+      active: activeCaptureIds.has(metric.captureId),
+      windowNumericCount: numericCount,
+      windowTotal: windowRecords.length,
+      startValue,
+      endValue,
+      firstTick,
+      lastTick,
+    };
+  });
+
+  const windowTicks = new Set<number>();
+  activeCaptures.forEach((capture) => {
+    capture.records.forEach((record) => {
+      if (record.tick >= start && record.tick <= end) {
+        windowTicks.add(record.tick);
+      }
+    });
+  });
+
+  const captureSummaries = captures.map((capture) => {
+    const windowRecordCount = capture.records.filter(
+      (record) => record.tick >= start && record.tick <= end,
+    ).length;
+    return {
+      id: capture.id,
+      filename: capture.filename,
+      isActive: capture.isActive,
+      recordCount: capture.records.length,
+      tickCount: capture.tickCount,
+      componentNodes: countComponentNodes(capture.components),
+      windowRecordCount,
+    };
+  });
+
+  return {
+    captureId: captureId ?? null,
+    windowStart: start,
+    windowEnd: end,
+    windowSize: Math.max(1, end - start + 1),
+    autoScroll,
+    currentTick: playback.currentTick,
+    captures: captureSummaries,
+    selectedMetrics,
+    metrics,
+    windowPoints: windowTicks.size,
+  };
+}
+
 export function buildCapabilitiesPayload(): CapabilitiesPayload {
   return {
     protocolVersion: "1.0.0",
@@ -497,6 +609,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "get_series_window",
       "query_components",
       "get_render_table",
+      "get_render_debug",
       "get_memory_stats",
       "get_metric_coverage",
     ],
@@ -509,6 +622,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "series_window",
       "components_list",
       "render_table",
+      "render_debug",
       "ui_notice",
       "ui_error",
       "memory_stats",

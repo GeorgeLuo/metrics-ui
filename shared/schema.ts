@@ -158,6 +158,39 @@ export interface RenderTableResponse {
   rows: Array<Array<number | string | null>>;
 }
 
+export interface RenderDebugResponse {
+  captureId: string | null;
+  windowStart: number;
+  windowEnd: number;
+  windowSize: number;
+  autoScroll: boolean;
+  currentTick: number;
+  captures: Array<{
+    id: string;
+    filename: string;
+    isActive: boolean;
+    recordCount: number;
+    tickCount: number;
+    componentNodes: number;
+    windowRecordCount: number;
+  }>;
+  selectedMetrics: SelectedMetric[];
+  metrics: Array<{
+    captureId: string;
+    path: string[];
+    fullPath: string;
+    label: string;
+    active: boolean;
+    windowNumericCount: number;
+    windowTotal: number;
+    startValue: number | null;
+    endValue: number | null;
+    firstTick: number | null;
+    lastTick: number | null;
+  }>;
+  windowPoints: number;
+}
+
 export interface CapabilitiesResponse {
   protocolVersion: string;
   commands: string[];
@@ -362,6 +395,13 @@ export type ControlCommand =
       windowStart?: number;
       windowEnd?: number;
     } & ControlRequestBase)
+  | ({
+      type: "get_render_debug";
+      captureId?: string;
+      windowSize?: number;
+      windowStart?: number;
+      windowEnd?: number;
+    } & ControlRequestBase)
   | ({ type: "get_memory_stats" } & ControlRequestBase)
   | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase);
 
@@ -376,6 +416,7 @@ export interface ControlResponse {
     | "series_window"
     | "components_list"
     | "render_table"
+    | "render_debug"
     | "ui_notice"
     | "ui_error"
     | "memory_stats"
