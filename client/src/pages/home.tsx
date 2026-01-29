@@ -1495,7 +1495,6 @@ export default function Home() {
     const pending = pendingAppendsRef.current;
     pendingAppendsRef.current = new Map();
 
-    const liveCaptureIds = new Set(liveStreamsRef.current.map((entry) => entry.id));
     const metricsByCapture = new Map<string, SelectedMetric[]>();
     selectedMetricsRef.current.forEach((metric) => {
       const list = metricsByCapture.get(metric.captureId);
@@ -1518,8 +1517,7 @@ export default function Home() {
           continue;
         }
         const metricsForCapture = metricsByCapture.get(captureId) ?? [];
-        const isLive = liveCaptureIds.has(captureId);
-        const shouldAppend = !isLive && metricsForCapture.length > 0;
+        const shouldAppend = metricsForCapture.length > 0;
         const newRecords: CaptureRecord[] = [];
         let lastTick: number | null = null;
 
