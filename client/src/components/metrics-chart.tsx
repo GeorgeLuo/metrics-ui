@@ -8,7 +8,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { LineChart as LineChartIcon, ZoomIn, ZoomOut, RotateCcw, GripVertical } from "lucide-react";
+import { LineChart as LineChartIcon, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type {
@@ -30,9 +30,6 @@ interface MetricsChartProps {
   currentTick: number;
   windowStart: number;
   windowEnd: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onResetZoom: () => void;
   isAutoScroll: boolean;
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
@@ -40,6 +37,7 @@ interface MetricsChartProps {
   onSizeChange?: (size: { width: number; height: number }) => void;
   onAddAnnotation?: (annotation: Annotation) => void;
   onRemoveAnnotation?: (options: { id?: string; tick?: number }) => void;
+  onWindowRangeChange?: (startTick: number, endTick: number) => void;
 }
 
 interface ChartLinesProps {
@@ -47,6 +45,7 @@ interface ChartLinesProps {
   selectedMetrics: SelectedMetric[];
   domain: { x: [number, number]; y: [number, number] };
   annotations: Annotation[];
+  selectionSummary: SelectionSummary | null;
   windowStart: number;
   windowEnd: number;
   captures: CaptureSession[];
@@ -63,6 +62,19 @@ interface ChartCursorProps {
   viewBox?: { x?: number; y?: number; width?: number; height?: number };
   plotTop?: number;
   plotBottom?: number;
+}
+
+interface SelectionSummaryMetric {
+  dataKey: string;
+  metric: SelectedMetric;
+  startValue: number | null;
+  endValue: number | null;
+}
+
+interface SelectionSummary {
+  startTick: number;
+  endTick: number;
+  metrics: SelectionSummaryMetric[];
 }
 
 
@@ -128,6 +140,7 @@ const ChartLines = memo(function ChartLines({
   selectedMetrics,
   domain,
   annotations,
+  selectionSummary,
   windowStart,
   windowEnd,
   captures,
@@ -151,6 +164,82 @@ const ChartLines = memo(function ChartLines({
     return map;
   }, [captures]);
 
+  const formatValue = useCallback((value: unknown) => {
+    if (typeof value === "number") {
+      return value.toLocaleString();
+    }
+    if (value === null || value === undefined || value === "") {
+      return "—";
+    }
+    return String(value);
+  }, []);
+
+  const TooltipContent = useCallback(
+    ({ active, payload, label }: { active?: boolean; payload?: any[]; label?: number }) => {
+      if (!active || !payload || payload.length === 0) {
+        return null;
+      }
+      const entries = payload.map((entry) => {
+        const metric = selectedMetrics.find((m) => getDataKey(m) === entry.dataKey);
+        const captureName = metric ? captureNameById.get(metric.captureId) ?? "" : "";
+        const displayLabel = metric ? `${captureName}: ${metric.label}` : entry.dataKey;
+        return {
+          key: entry.dataKey,
+          label: displayLabel,
+          value: formatValue(entry.value),
+          color: entry.color ?? metric?.color ?? "hsl(var(--primary))",
+        };
+      });
+
+      const selectionDetails = selectionSummary
+        ? selectionSummary.metrics.map((item) => {
+          const captureName = captureNameById.get(item.metric.captureId) ?? "";
+          return {
+            key: item.dataKey,
+            label: `${captureName}: ${item.metric.label}`,
+            start: formatValue(item.startValue),
+            end: formatValue(item.endValue),
+            color: item.metric.color,
+          };
+        })
+        : [];
+
+      return (
+        <div className="rounded-md border border-muted/40 bg-popover px-3 py-2 text-xs shadow-sm">
+          <div className="mb-1 text-[11px] text-muted-foreground">Tick {label}</div>
+          <div className="space-y-1">
+            {entries.map((entry) => (
+              <div key={entry.key} className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                <span className="flex-1 text-muted-foreground">{entry.label}</span>
+                <span className="font-medium text-foreground">{entry.value}</span>
+              </div>
+            ))}
+          </div>
+          {selectionSummary && (
+            <div className="mt-2 border-t border-muted/30 pt-2">
+              <div className="mb-1 text-[11px] text-muted-foreground">
+                Selection {selectionSummary.startTick}–{selectionSummary.endTick}
+              </div>
+              <div className="space-y-1">
+                {selectionDetails.map((entry) => (
+                  <div key={entry.key} className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                    <span className="flex-1 text-muted-foreground">{entry.label}</span>
+                    <span className="font-medium text-foreground">
+                      {entry.start} → {entry.end}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    },
+    [captureNameById, formatValue, selectedMetrics, selectionSummary],
+  );
+
   return (
     <LineChart width={width} height={height} data={data} margin={CHART_MARGIN}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
@@ -173,12 +262,6 @@ const ChartLines = memo(function ChartLines({
           className="text-xs fill-muted-foreground"
         />
         <Tooltip
-          contentStyle={{
-            backgroundColor: "hsl(var(--popover))",
-            border: "1px solid hsl(var(--popover-border))",
-            borderRadius: "var(--radius)",
-            fontSize: "12px",
-          }}
           cursor={
             suppressCursor
               ? false
@@ -189,13 +272,7 @@ const ChartLines = memo(function ChartLines({
                 />
               )
           }
-          labelFormatter={(label) => `Tick ${label}`}
-          formatter={(value: number, name: string) => {
-            const metric = selectedMetrics.find((m) => getDataKey(m) === name);
-            const captureName = metric ? captureNameById.get(metric.captureId) ?? "" : "";
-            const label = metric ? `${captureName}: ${metric.label}` : name;
-            return [typeof value === "number" ? value.toLocaleString() : value, label];
-          }}
+          content={TooltipContent}
         />
         {selectedMetrics.map((metric, index) => {
           const dataKey = getDataKey(metric);
@@ -225,9 +302,6 @@ export function MetricsChart({
   currentTick,
   windowStart,
   windowEnd,
-  onZoomIn,
-  onZoomOut,
-  onResetZoom,
   isAutoScroll,
   annotations,
   subtitles,
@@ -235,6 +309,7 @@ export function MetricsChart({
   onSizeChange,
   onAddAnnotation,
   onRemoveAnnotation,
+  onWindowRangeChange,
 }: MetricsChartProps) {
   const visibleData = useMemo(() => {
     if (data.length === 0) return [];
@@ -297,6 +372,9 @@ export function MetricsChart({
   const [isDraggingPanel, setIsDraggingPanel] = useState(false);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const idCounterRef = useRef(0);
+  const [selectionRange, setSelectionRange] = useState<{ startX: number; endX: number } | null>(null);
+  const selectionStateRef = useRef<{ startX: number; endX: number; dragged: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
 
   const commitChartSize = useCallback((nextWidth: number, nextHeight: number) => {
     const prev = chartSizeRef.current;
@@ -349,6 +427,22 @@ export function MetricsChart({
     [chartSize.width, domain.x],
   );
 
+  const getTickFromX = useCallback(
+    (x: number) => {
+      const [xMin, xMax] = domain.x;
+      if (!chartSize.width || xMax === xMin) {
+        return null;
+      }
+      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
+      const plotRight = chartSize.width - CHART_MARGIN.right;
+      const plotWidth = Math.max(1, plotRight - plotLeft);
+      const clampedX = Math.min(Math.max(x, plotLeft), plotRight);
+      const ratio = (clampedX - plotLeft) / plotWidth;
+      return Math.round(xMin + ratio * (xMax - xMin));
+    },
+    [chartSize.width, domain.x],
+  );
+
   const findAnnotationNearX = useCallback(
     (x: number) => {
       const [xMin, xMax] = domain.x;
@@ -376,6 +470,10 @@ export function MetricsChart({
 
   const handleChartClick = useCallback(
     (event: React.MouseEvent) => {
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
       if (!onAddAnnotation || !chartContainerRef.current) {
         return;
       }
@@ -411,9 +509,52 @@ export function MetricsChart({
     [buildAnnotationId, chartSize.width, domain.x, findAnnotationNearX, onAddAnnotation],
   );
 
+  const handleChartMouseDown = useCallback(
+    (event: React.MouseEvent) => {
+      if (event.button !== 0 || !chartContainerRef.current) {
+        return;
+      }
+      const target = event.target as HTMLElement;
+      if (
+        target.closest("button") ||
+        target.closest("input") ||
+        target.closest("[data-annotation-panel]")
+      ) {
+        return;
+      }
+      const rect = chartContainerRef.current.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
+      const plotRight = chartSize.width - CHART_MARGIN.right;
+      if (!chartSize.width || localX < plotLeft || localX > plotRight) {
+        return;
+      }
+      selectionStateRef.current = { startX: localX, endX: localX, dragged: false };
+      setSelectionRange({ startX: localX, endX: localX });
+      setActiveAnnotationId(null);
+      setHoverAnnotationId(null);
+    },
+    [chartSize.width],
+  );
+
   const handleChartMouseMove = useCallback(
     (event: React.MouseEvent) => {
       if (!chartContainerRef.current || isDraggingPanel) {
+        return;
+      }
+      if (selectionStateRef.current) {
+        const rect = chartContainerRef.current.getBoundingClientRect();
+        const localX = event.clientX - rect.left;
+        const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
+        const plotRight = chartSize.width - CHART_MARGIN.right;
+        const clampedX = Math.min(Math.max(localX, plotLeft), plotRight);
+        const selection = selectionStateRef.current;
+        selection.endX = clampedX;
+        if (!selection.dragged && Math.abs(selection.endX - selection.startX) > 4) {
+          selection.dragged = true;
+          suppressClickRef.current = true;
+        }
+        setSelectionRange({ startX: selection.startX, endX: selection.endX });
         return;
       }
       const rect = chartContainerRef.current.getBoundingClientRect();
@@ -421,12 +562,62 @@ export function MetricsChart({
       const annotation = findAnnotationNearX(localX);
       setHoverAnnotationId(annotation ? annotation.id : null);
     },
-    [findAnnotationNearX, isDraggingPanel],
+    [chartSize.width, findAnnotationNearX, isDraggingPanel],
   );
 
   const handleChartMouseLeave = useCallback(() => {
-    setHoverAnnotationId(null);
+    if (!selectionStateRef.current) {
+      setHoverAnnotationId(null);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!selectionRange) {
+      return;
+    }
+    const handleMouseUp = () => {
+      const selection = selectionStateRef.current;
+      selectionStateRef.current = null;
+      setSelectionRange(null);
+      if (!selection || !selection.dragged) {
+        return;
+      }
+      if (!onWindowRangeChange) {
+        return;
+      }
+      const startTick = getTickFromX(selection.startX);
+      const endTick = getTickFromX(selection.endX);
+      if (startTick === null || endTick === null) {
+        return;
+      }
+      const start = Math.min(startTick, endTick);
+      const end = Math.max(startTick, endTick);
+      onWindowRangeChange(start, end);
+    };
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!chartContainerRef.current || !selectionStateRef.current) {
+        return;
+      }
+      const rect = chartContainerRef.current.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
+      const plotRight = chartSize.width - CHART_MARGIN.right;
+      const clampedX = Math.min(Math.max(localX, plotLeft), plotRight);
+      const selection = selectionStateRef.current;
+      selection.endX = clampedX;
+      if (!selection.dragged && Math.abs(selection.endX - selection.startX) > 4) {
+        selection.dragged = true;
+        suppressClickRef.current = true;
+      }
+      setSelectionRange({ startX: selection.startX, endX: selection.endX });
+    };
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mousemove", handleMouseMove);
+    return () => {
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, [chartSize.width, getTickFromX, onWindowRangeChange, selectionRange]);
 
   const activeAnnotation = useMemo(
     () => annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null,
@@ -520,6 +711,37 @@ export function MetricsChart({
       .filter((annotation): annotation is Annotation & { left: number } => Boolean(annotation));
   }, [chartSize.width, getAnnotationX, visibleAnnotations]);
 
+  const selectionSummary = useMemo<SelectionSummary | null>(() => {
+    if (!selectionRange) {
+      return null;
+    }
+    const startTickRaw = getTickFromX(selectionRange.startX);
+    const endTickRaw = getTickFromX(selectionRange.endX);
+    if (startTickRaw === null || endTickRaw === null) {
+      return null;
+    }
+    const startTick = Math.min(startTickRaw, endTickRaw);
+    const endTick = Math.max(startTickRaw, endTickRaw);
+    const tickMap = new Map<number, DataPoint>();
+    data.forEach((point) => {
+      tickMap.set(point.tick, point);
+    });
+    const startPoint = tickMap.get(startTick);
+    const endPoint = tickMap.get(endTick);
+    const metrics = selectedMetrics.map((metric) => {
+      const dataKey = `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
+      const startValue = startPoint?.[dataKey];
+      const endValue = endPoint?.[dataKey];
+      return {
+        dataKey,
+        metric,
+        startValue: typeof startValue === "number" ? startValue : null,
+        endValue: typeof endValue === "number" ? endValue : null,
+      };
+    });
+    return { startTick, endTick, metrics };
+  }, [data, getTickFromX, selectionRange, selectedMetrics]);
+
   useLayoutEffect(() => {
     if (!chartContainerRef.current || typeof ResizeObserver === "undefined") {
       return;
@@ -563,36 +785,6 @@ export function MetricsChart({
 
   return (
     <div className="relative flex flex-col h-full min-h-0">
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onZoomIn}
-          data-testid="button-zoom-in"
-          aria-label="Zoom in"
-        >
-          <ZoomIn className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onZoomOut}
-          data-testid="button-zoom-out"
-          aria-label="Zoom out"
-        >
-          <ZoomOut className="w-4 h-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onResetZoom}
-          data-testid="button-reset-zoom"
-          aria-label="Reset zoom"
-          className={cn(!isAutoScroll && "text-primary")}
-        >
-          <RotateCcw className="w-4 h-4" />
-        </Button>
-      </div>
       {activeSubtitles.length > 0 && (
         <div className="absolute bottom-3 left-1/2 z-20 max-w-[70%] -translate-x-1/2 space-y-1 pointer-events-none">
           {activeSubtitles.map((subtitle) => (
@@ -614,6 +806,7 @@ export function MetricsChart({
             "relative h-full w-full overflow-hidden isolate",
             hoverAnnotationId ? "cursor-pointer" : "cursor-crosshair",
           )}
+          onMouseDown={handleChartMouseDown}
           onClick={handleChartClick}
           onMouseMove={handleChartMouseMove}
           onMouseLeave={handleChartMouseLeave}
@@ -625,6 +818,7 @@ export function MetricsChart({
                 selectedMetrics={selectedMetrics}
                 domain={domain}
                 annotations={annotations}
+                selectionSummary={selectionSummary}
                 windowStart={windowStart}
                 windowEnd={windowEnd}
                 captures={captures}
@@ -664,6 +858,17 @@ export function MetricsChart({
               );
             })}
           </div>
+          {selectionRange && (
+            <div
+              className="pointer-events-none absolute top-0 bottom-0 z-20"
+              style={{
+                left: `${Math.min(selectionRange.startX, selectionRange.endX)}px`,
+                width: `${Math.abs(selectionRange.endX - selectionRange.startX)}px`,
+              }}
+            >
+              <div className="h-full bg-primary/15 border border-primary/30" />
+            </div>
+          )}
           {activeAnnotation && activeAnnotationPanel && (
             <div
               data-annotation-panel

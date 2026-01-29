@@ -3,7 +3,6 @@
 This file tracks planned UI features for the hybrid (agent + human) workflow.
 
 ## Agent-Driven Controls
-- Window controls: set `windowSize`, `windowStart`, `windowEnd`, and an auto-scroll lock.
 - Annotations: vertical tick markers with optional labels; jump to next/previous marker.
 - Metric focus modes: solo a metric or auto-compare the same metric across captures.
 - Presets: save/load metric selections + window + speed as named presets.

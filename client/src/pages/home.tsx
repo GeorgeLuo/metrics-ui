@@ -1768,8 +1768,15 @@ export default function Home() {
   }, []);
 
   const handlePlay = useCallback(() => {
-    setPlaybackState((prev) => ({ ...prev, isPlaying: true }));
-  }, []);
+    setPlaybackState((prev) => ({
+      ...prev,
+      isPlaying: true,
+      currentTick: isAutoScroll ? prev.currentTick : windowEnd,
+    }));
+    if (!isAutoScroll) {
+      setIsAutoScroll(true);
+    }
+  }, [isAutoScroll, windowEnd]);
 
   const handlePause = useCallback(() => {
     setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
@@ -1796,27 +1803,6 @@ export default function Home() {
     setPlaybackState((prev) => ({ ...prev, speed }));
   }, []);
 
-  const clampTick = useCallback(
-    (tick: number) => {
-      const maxTick = Math.max(1, playbackState.totalTicks || 1);
-      if (!Number.isFinite(tick)) {
-        return 1;
-      }
-      return Math.min(Math.max(1, Math.floor(tick)), maxTick);
-    },
-    [playbackState.totalTicks],
-  );
-
-  const buildWindowFromEnd = useCallback(
-    (endTick: number, size: number) => {
-      const end = clampTick(endTick);
-      const safeSize = Math.max(1, Math.floor(size));
-      const start = Math.max(1, end - safeSize + 1);
-      return { start, end };
-    },
-    [clampTick],
-  );
-
   const applyWindowRange = useCallback(
     (startTick: number, endTick: number) => {
       const maxTick = Math.max(1, playbackState.totalTicks || 1);
@@ -1832,6 +1818,10 @@ export default function Home() {
       }
       setWindowStart(start);
       setWindowEnd(end);
+      setPlaybackState((prev) => ({
+        ...prev,
+        currentTick: end,
+      }));
       return { start, end };
     },
     [playbackState.totalTicks],
@@ -1842,16 +1832,14 @@ export default function Home() {
       if (!Number.isFinite(size) || size <= 0) {
         return;
       }
+      setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       const safeSize = Math.max(1, Math.floor(size));
       setWindowSize(safeSize);
       setIsAutoScroll(false);
-      const window = isAutoScroll
-        ? buildWindowFromEnd(playbackState.currentTick, safeSize)
-        : buildWindowFromEnd(windowEnd, safeSize);
-      setWindowStart(window.start);
-      setWindowEnd(window.end);
+      const end = isAutoScroll ? playbackState.currentTick : windowEnd;
+      applyWindowRange(end - safeSize + 1, end);
     },
-    [isAutoScroll, buildWindowFromEnd, playbackState.currentTick, windowEnd],
+    [applyWindowRange, isAutoScroll, playbackState.currentTick, windowEnd],
   );
 
   const handleWindowStartChange = useCallback(
@@ -1859,6 +1847,7 @@ export default function Home() {
       if (!Number.isFinite(startTick)) {
         return;
       }
+      setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       setIsAutoScroll(false);
       const start = Math.max(1, Math.floor(startTick));
       const end = start + windowSize - 1;
@@ -1872,6 +1861,7 @@ export default function Home() {
       if (!Number.isFinite(endTick)) {
         return;
       }
+      setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       setIsAutoScroll(false);
       const end = Math.max(1, Math.floor(endTick));
       const start = end - windowSize + 1;
@@ -1885,6 +1875,7 @@ export default function Home() {
       if (!Number.isFinite(startTick) && !Number.isFinite(endTick)) {
         return;
       }
+      setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       setIsAutoScroll(false);
       const window = applyWindowRange(startTick, endTick);
       setWindowSize(Math.max(1, window.end - window.start + 1));
@@ -1892,17 +1883,26 @@ export default function Home() {
     [applyWindowRange],
   );
 
+  const handleResetWindow = useCallback(() => {
+    const end = Math.max(1, playbackState.totalTicks || playbackState.currentTick);
+    setIsAutoScroll(true);
+    setPlaybackState((prev) => ({
+      ...prev,
+      currentTick: end,
+    }));
+    setWindowStart(1);
+    setWindowEnd(end);
+    setWindowSize(end);
+  }, [playbackState.currentTick, playbackState.totalTicks]);
+
   const handleAutoScrollChange = useCallback(
     (enabled: boolean) => {
       setIsAutoScroll(Boolean(enabled));
-      if (enabled) {
-        const end = Math.max(1, playbackState.currentTick);
-        setWindowStart(1);
-        setWindowEnd(end);
-        setWindowSize(end);
+      if (!enabled) {
+        setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       }
     },
-    [playbackState.currentTick],
+    [],
   );
 
   const handleAddAnnotation = useCallback((annotation: Annotation) => {
@@ -2054,24 +2054,6 @@ export default function Home() {
       currentTick: Math.max(1, prev.currentTick - 1),
     }));
   }, []);
-
-  const handleZoomIn = useCallback(() => {
-    const nextSize = Math.max(10, Math.floor(windowSize / 2));
-    handleWindowSizeChange(nextSize);
-  }, [windowSize, handleWindowSizeChange]);
-
-  const handleZoomOut = useCallback(() => {
-    const nextSize = Math.min(playbackState.totalTicks || windowSize * 2, windowSize * 2);
-    handleWindowSizeChange(nextSize);
-  }, [playbackState.totalTicks, windowSize, handleWindowSizeChange]);
-
-  const handleResetZoom = useCallback(() => {
-    setIsAutoScroll(true);
-    const end = Math.max(1, playbackState.currentTick);
-    setWindowStart(1);
-    setWindowEnd(end);
-    setWindowSize(end);
-  }, [playbackState.currentTick]);
 
   const activeMetrics = useMemo(
     () =>
@@ -2305,9 +2287,10 @@ export default function Home() {
       return;
     }
     const end = Math.max(1, playbackState.currentTick);
-    const size = end;
-    if (windowStart !== 1) {
-      setWindowStart(1);
+    const start = Math.max(1, Math.min(windowStart, end));
+    const size = Math.max(1, end - start + 1);
+    if (windowStart !== start) {
+      setWindowStart(start);
     }
     if (windowEnd !== end) {
       setWindowEnd(end);
@@ -2613,6 +2596,16 @@ export default function Home() {
               >
                 {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleResetWindow}
+                data-testid="button-reset-window"
+                title="Show all ticks"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </Button>
+              <div className="h-6 w-px bg-border/60 mx-1" />
               <Link href="/docs">
                 <Button variant="ghost" size="icon" data-testid="button-docs">
                   <BookOpen className="w-4 h-4" />
@@ -2630,13 +2623,11 @@ export default function Home() {
                 currentTick={playbackState.currentTick}
                 windowStart={windowStart}
                 windowEnd={windowEnd}
-                onZoomIn={handleZoomIn}
-                onZoomOut={handleZoomOut}
-                onResetZoom={handleResetZoom}
                 isAutoScroll={isAutoScroll}
                 annotations={annotations}
                 subtitles={subtitles}
                 captures={captures}
+                onWindowRangeChange={handleWindowRangeChange}
                 onSizeChange={(size) => {
                   setViewport((prev) => {
                     const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };

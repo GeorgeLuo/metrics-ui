@@ -12,6 +12,10 @@ This site visualizes simulation or evaluation **capture files**. You upload a JS
    - **Live**: add one or more live streams, each with a local path or URL to a JSONL file that is still being written.
 3. **Select metrics** from the component tree (only numeric leaf values are chartable).
 4. **Use playback controls** to play, pause, seek, or change speed.
+5. **Window the timeline** by dragging across the chart to select a range. The selection preview appears in the tooltip.
+   - Dragging a window **pauses playback** and **turns off auto-scroll** so the view stays locked.
+   - Press **Play** to resume; auto-scroll turns back on and the window expands to the right.
+   - Use the **reset window** button (refresh icon in the header) to show the full range again.
 
 The UI shows multiple captures at once; they share a common tick axis.
 
@@ -87,6 +91,12 @@ Response:
 ## Everything Above via WebSocket (Agent-Driven Control)
 
 Anything the browser can do can be driven over WebSocket. The server relays agent commands to the active UI session.
+
+### Windowing + Auto-Scroll Semantics
+
+- `set_window_start`, `set_window_end`, `set_window_size`, and `set_window_range` **pause playback** and **disable auto-scroll**.
+- `set_auto_scroll true` anchors the **left edge** of the window and expands the right edge as ticks advance.
+- `play` re-enables auto-scroll if it was off (using the current `windowEnd` as the starting point).
 
 ### Agent Discovery
 
