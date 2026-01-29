@@ -56,6 +56,11 @@ Upload a completed capture file:
 curl -X POST -F "file=@capture.jsonl" http://<host>/api/upload
 ```
 
+After upload, the server **streams the file line-by-line** to the UI:
+- Component tree updates as soon as components are discovered.
+- Metric lines can appear before the full file finishes reading.
+- A `capture_end` event is sent once the file is fully consumed.
+
 ---
 
 ## Live Streams (Live Mode)

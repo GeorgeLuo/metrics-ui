@@ -427,147 +427,6 @@ async function extractSeriesFromSource(options: {
   return { points, numericCount, lastTick, tickCount: points.length };
 }
 
-function extractRawComponents(
-  parsed: Record<string, unknown>,
-  entityIdSet: Set<string>,
-  componentIdSet: Set<string>,
-): ComponentNode[] {
-  if (
-    Number.isFinite(parsed.tick) &&
-    parsed.entities &&
-    typeof parsed.entities === "object" &&
-    !Array.isArray(parsed.entities)
-  ) {
-    const entities = parsed.entities as Record<string, unknown>;
-    const rawComponents = buildComponentTreeFromEntities(entities);
-    Object.entries(entities).forEach(([entityId, entityComponents]) => {
-      entityIdSet.add(entityId);
-      if (entityComponents && typeof entityComponents === "object" && !Array.isArray(entityComponents)) {
-        Object.keys(entityComponents).forEach((componentId) => componentIdSet.add(componentId));
-      }
-    });
-    return rawComponents;
-  }
-
-  if (
-    Number.isFinite(parsed.tick) &&
-    typeof parsed.entityId === "string" &&
-    typeof parsed.componentId === "string"
-  ) {
-    const rawEntities: Record<string, Record<string, unknown>> = {
-      [parsed.entityId]: {
-        [parsed.componentId]: parsed.value,
-      },
-    };
-    const rawComponents = buildComponentTreeFromEntities(rawEntities);
-    entityIdSet.add(parsed.entityId);
-    componentIdSet.add(parsed.componentId);
-    return rawComponents;
-  }
-
-  return [];
-}
-
-function applyParsedComponents(
-  parsed: Record<string, unknown>,
-  components: ComponentNode[],
-  entityIdSet: Set<string>,
-  componentIdSet: Set<string>,
-) {
-  const rawComponents = extractRawComponents(parsed, entityIdSet, componentIdSet);
-  if (rawComponents.length === 0) {
-    return components;
-  }
-  return mergeComponentTrees(components, rawComponents);
-}
-
-const COMPONENT_SCAN_EMIT_MS = 300;
-
-async function scanComponentsFromSource(
-  source: string,
-  signal: AbortSignal,
-  options: {
-    onComponents?: (components: ComponentNode[]) => void;
-  } = {},
-) {
-  let components: ComponentNode[] = [];
-  const entityIdSet = new Set<string>();
-  const componentIdSet = new Set<string>();
-  let pendingComponents: ComponentNode[] = [];
-  let pendingTimer: NodeJS.Timeout | null = null;
-
-  const flushPending = () => {
-    if (!options.onComponents || pendingComponents.length === 0) {
-      return;
-    }
-    options.onComponents(pendingComponents);
-    pendingComponents = [];
-  };
-
-  const queueEmit = (rawComponents: ComponentNode[]) => {
-    if (!options.onComponents || rawComponents.length === 0) {
-      return;
-    }
-    pendingComponents =
-      pendingComponents.length > 0
-        ? mergeComponentTrees(pendingComponents, rawComponents)
-        : rawComponents;
-    if (!pendingTimer) {
-      pendingTimer = setTimeout(() => {
-        pendingTimer = null;
-        flushPending();
-      }, COMPONENT_SCAN_EMIT_MS);
-    }
-  };
-
-  const onLine = (line: string) => {
-    if (!line.trim()) {
-      return;
-    }
-    try {
-      const parsed = JSON.parse(line);
-      if (!parsed || typeof parsed !== "object") {
-        return;
-      }
-      const rawComponents = extractRawComponents(
-        parsed as Record<string, unknown>,
-        entityIdSet,
-        componentIdSet,
-      );
-      if (rawComponents.length > 0) {
-        components = mergeComponentTrees(components, rawComponents);
-        queueEmit(rawComponents);
-      }
-    } catch (error) {
-      console.error("Failed to parse line:", error);
-    }
-  };
-
-  const trimmed = source.trim();
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    const response = await fetch(trimmed, { signal });
-    if (!response.ok) {
-      throw new Error(`Capture fetch failed (${response.status})`);
-    }
-    await streamLinesFromResponse({ response, signal, onLine });
-  } else {
-    const filePath = resolveLocalCapturePath(trimmed);
-    await streamLinesFromFile({ filePath, startOffset: 0, initialRemainder: "", signal, onLine });
-  }
-
-  if (pendingTimer) {
-    clearTimeout(pendingTimer);
-    pendingTimer = null;
-  }
-  flushPending();
-
-  return {
-    components,
-    entityIds: [...entityIdSet],
-    componentIds: [...componentIdSet],
-  };
-}
-
 const agentClients = new Set<WebSocket>();
 let frontendClient: WebSocket | null = null;
 const pendingClients = new Map<WebSocket, boolean>();
@@ -749,6 +608,20 @@ function sendCaptureComponents(captureId: string, components: ComponentNode[]) {
   }
 }
 
+function sendCaptureAppend(captureId: string, frame: CaptureAppendFrame) {
+  const command: ControlCommand = { type: "capture_append", captureId, frame };
+  if (!sendToFrontend(command)) {
+    bufferCaptureFrame(command);
+  }
+}
+
+function sendCaptureEnd(captureId: string) {
+  const command: ControlCommand = { type: "capture_end", captureId };
+  if (!sendToFrontend(command)) {
+    bufferCaptureFrame(command);
+  }
+}
+
 function registerCaptureSource(options: {
   captureId: string;
   filename?: string;
@@ -772,22 +645,42 @@ function registerCaptureSource(options: {
   }
 }
 
-function scheduleComponentScan(captureId: string, source: string) {
+async function streamCaptureFromSource(captureId: string, source: string) {
   const controller = new AbortController();
-  scanComponentsFromSource(source, controller.signal, {
-    onComponents: (components) => {
-      updateCaptureComponents(captureId, components);
-    },
-  })
-    .then((result) => {
-      updateCaptureComponents(captureId, result.components);
-    })
-    .catch((error) => {
-      if (controller.signal.aborted && (error as Error).name === "AbortError") {
-        return;
+  const onLine = (line: string) => {
+    const frame = parseLineToFrame(line);
+    if (!frame) {
+      return;
+    }
+    updateCaptureComponents(captureId, componentsFromFrame(frame));
+    sendCaptureAppend(captureId, frame);
+  };
+  try {
+    const trimmed = source.trim();
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      const response = await fetch(trimmed, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Capture fetch failed (${response.status})`);
       }
-      console.error("[components] Scan error:", error);
-    });
+      await streamLinesFromResponse({ response, signal: controller.signal, onLine });
+    } else {
+      const filePath = resolveLocalCapturePath(trimmed);
+      await streamLinesFromFile({
+        filePath,
+        startOffset: 0,
+        initialRemainder: "",
+        signal: controller.signal,
+        onLine,
+      });
+    }
+    sendCaptureEnd(captureId);
+  } catch (error) {
+    if (controller.signal.aborted && (error as Error).name === "AbortError") {
+      return;
+    }
+    console.error("[upload] stream error:", error);
+    sendCaptureEnd(captureId);
+  }
 }
 
 function clearCaptureState() {
@@ -1711,7 +1604,9 @@ export async function registerRoutes(
         captureId,
         filename,
       });
-      scheduleComponentScan(captureId, sourcePath);
+      streamCaptureFromSource(captureId, sourcePath).catch((error) => {
+        console.error("[upload] stream error:", error);
+      });
 
       res.json({
         success: true,
@@ -1889,7 +1784,6 @@ export async function registerRoutes(
         captureId,
         filename,
       });
-      scheduleComponentScan(state.captureId, state.source);
 
       return res.json({
         success: true,
