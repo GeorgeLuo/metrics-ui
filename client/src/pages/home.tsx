@@ -352,7 +352,7 @@ export default function Home() {
   });
 
   const [playbackState, setPlaybackState] = useState<PlaybackState>({
-    isPlaying: false,
+    isPlaying: true,
     currentTick: 1,
     speed: 1,
     totalTicks: 0,
@@ -2249,6 +2249,13 @@ export default function Home() {
     };
   }, [captures, ensureCaptureStats, selectedMetrics, activeMetrics, chartData]);
 
+  const hasLiveIntent = useMemo(() => {
+    if (sourceMode === "live") {
+      return true;
+    }
+    return liveStreams.some((entry) => entry.source.trim().length > 0);
+  }, [liveStreams, sourceMode]);
+
   useEffect(() => {
     if (!playbackState.isPlaying) return;
 
@@ -2261,7 +2268,13 @@ export default function Home() {
       if (delta >= interval) {
         lastTime = currentTime;
         setPlaybackState((prev) => {
+          if (prev.totalTicks <= 0) {
+            return prev;
+          }
           if (prev.currentTick >= prev.totalTicks) {
+            if (hasLiveIntent) {
+              return prev;
+            }
             return { ...prev, isPlaying: false };
           }
           return { ...prev, currentTick: prev.currentTick + 1 };
@@ -2278,7 +2291,7 @@ export default function Home() {
         cancelAnimationFrame(playbackRef.current);
       }
     };
-  }, [playbackState.isPlaying, playbackState.speed]);
+  }, [hasLiveIntent, playbackState.isPlaying, playbackState.speed]);
 
   useLayoutEffect(() => {
     if (!isAutoScroll) {
