@@ -35,6 +35,7 @@ const upload = multer({
 });
 const LIVE_INACTIVITY_MIN_MS = 15000;
 const LIVE_INACTIVITY_MULTIPLIER = 5;
+const LIVE_RETRYABLE_FILE_ERRORS = new Set(["ENOENT", "ENOTDIR", "EACCES", "EPERM", "EBUSY"]);
 
 interface CaptureRecord {
   tick: number;
@@ -971,6 +972,14 @@ function resolveLocalCapturePath(source: string) {
   return cwdPath;
 }
 
+function isRecoverableLiveFileError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const code = "code" in error ? (error as { code?: unknown }).code : undefined;
+  return typeof code === "string" && LIVE_RETRYABLE_FILE_ERRORS.has(code);
+}
+
 async function probeCaptureSource(source: string, signal: AbortSignal) {
   const trimmed = source.trim();
   if (!trimmed) {
@@ -1048,6 +1057,7 @@ async function pollLiveCapture(state: LiveStreamState) {
   }
   state.isPolling = true;
   let appendedFrames = 0;
+  let recoverableIdle = false;
 
   try {
     const trimmed = state.source.trim();
@@ -1068,7 +1078,8 @@ async function pollLiveCapture(state: LiveStreamState) {
       sendToFrontend({ type: "capture_append", captureId: state.captureId, frame });
     };
 
-    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    const isRemote = trimmed.startsWith("http://") || trimmed.startsWith("https://");
+    if (isRemote) {
       const wantsRange = state.byteOffset > 0;
       const headers: Record<string, string> = {};
       if (wantsRange) {
@@ -1157,17 +1168,22 @@ async function pollLiveCapture(state: LiveStreamState) {
   } catch (error) {
     if (!(state.controller.signal.aborted && (error as Error).name === "AbortError")) {
       state.lastError = error instanceof Error ? error.message : String(error);
+      if (isRecoverableLiveFileError(error)) {
+        recoverableIdle = true;
+      }
     }
   } finally {
     state.isPolling = false;
     const now = Date.now();
-    if (appendedFrames > 0) {
+    if (recoverableIdle) {
+      state.idleSince = null;
+    } else if (appendedFrames > 0) {
       state.idleSince = null;
     } else if (state.idleSince === null) {
       state.idleSince = now;
     }
 
-    if (state.idleSince !== null) {
+    if (!recoverableIdle && state.idleSince !== null) {
       const inactivityLimitMs = Math.max(
         LIVE_INACTIVITY_MIN_MS,
         state.pollIntervalMs * LIVE_INACTIVITY_MULTIPLIER,
