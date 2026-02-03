@@ -279,7 +279,6 @@ const ChartLines = memo(function ChartLines({
         />
         {selectedMetrics.map((metric, index) => {
           const dataKey = getDataKey(metric);
-          const isDashed = index % 2 === 1;
           const isHighlighted = highlightedMetricKey === dataKey;
           return (
             <Line
@@ -289,7 +288,6 @@ const ChartLines = memo(function ChartLines({
               name={dataKey}
               stroke={metric.color}
               strokeWidth={isHighlighted ? 4 : 2}
-              strokeDasharray={isDashed ? "5 5" : undefined}
               dot={false}
               activeDot={false}
               isAnimationActive={false}
@@ -834,7 +832,14 @@ export function MetricsChart({
           </div>
           <div className="absolute inset-0 z-0 pointer-events-none">
             {annotationOverlays.map((annotation) => {
-              const axisLineColor = "hsl(var(--muted-foreground) / 0.35)";
+              const axisLineColor = "hsl(var(--muted-foreground) / 0.45)";
+              const axisLineGradient =
+                "linear-gradient(to top," +
+                " hsl(var(--muted-foreground) / 0.45) 0%," +
+                " hsl(var(--muted-foreground) / 0.45) 80%," +
+                " hsl(var(--muted-foreground) / 0.2) 90%," +
+                " hsl(var(--muted-foreground) / 0.02) 100% )";
+              const isLabeled = Boolean(annotation.label);
               return (
                 <div
                   key={annotation.id}
@@ -847,10 +852,10 @@ export function MetricsChart({
                 >
                   <div
                     className={cn(
-                      "h-full border-l-2 border-solid",
-                      hoverAnnotationId === annotation.id && "border-l-[3px]",
+                      "h-full w-[2px]",
+                      hoverAnnotationId === annotation.id && "w-[3px]",
                     )}
-                    style={{ borderColor: axisLineColor }}
+                    style={{ background: isLabeled ? axisLineColor : axisLineGradient }}
                   />
                   {annotation.label && (
                     <div
@@ -878,61 +883,60 @@ export function MetricsChart({
           {activeAnnotation && activeAnnotationPanel && (
             <div
               data-annotation-panel
-              className="absolute z-30 w-[220px] rounded-md border border-muted/40 bg-background p-2 text-xs shadow-md"
+              className="absolute z-30 w-[190px] rounded-md border border-muted/40 bg-background p-1 text-xs shadow-md"
               style={{ left: activeAnnotationPanel.left, top: activeAnnotationPanel.top }}
               onClick={(event) => event.stopPropagation()}
               ref={panelRef}
             >
-              <div
-                className="mb-2 flex items-center justify-between text-[11px] text-muted-foreground cursor-grab select-none"
-                onMouseDown={handlePanelMouseDown}
-              >
-                <div className="flex items-center gap-1">
+              <div className="grid grid-rows-2 gap-1 [grid-template-columns:minmax(0,1fr)_1rem]">
+                <div
+                  className="col-start-1 row-start-1 flex items-center gap-1 text-[11px] text-muted-foreground cursor-grab select-none"
+                  onMouseDown={handlePanelMouseDown}
+                >
                   <GripVertical className="h-3 w-3 text-muted-foreground" />
-                  <span>Annotation @ {activeAnnotationPanel.tick}</span>
+                  <span>T {activeAnnotationPanel.tick}</span>
                 </div>
                 <button
                   type="button"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="col-start-2 row-start-1 mt-[1px] flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
                   onClick={() => setActiveAnnotationId(null)}
                   aria-label="Close annotation editor"
                 >
                   ×
                 </button>
-              </div>
-              <Input
-                value={activeAnnotation.label ?? ""}
-                onChange={(event) => {
-                  onAddAnnotation?.({
-                    id: activeAnnotation.id,
-                    tick: activeAnnotation.tick,
-                    label: event.target.value,
-                    color: activeAnnotation.color,
-                  });
-                }}
-                placeholder="Annotation label"
-                className="h-7 text-xs"
-              />
-              <div className="mt-2 flex items-center justify-between">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => {
-                    onRemoveAnnotation?.({ id: activeAnnotation.id });
-                    setActiveAnnotationId(null);
+                <Input
+                  value={activeAnnotation.label ?? ""}
+                  onChange={(event) => {
+                    onAddAnnotation?.({
+                      id: activeAnnotation.id,
+                      tick: activeAnnotation.tick,
+                      label: event.target.value,
+                      color: activeAnnotation.color,
+                    });
                   }}
-                >
-                  Remove
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setActiveAnnotationId(null)}
-                >
-                  Done
-                </Button>
+                  className="col-start-1 row-start-2 h-7 text-xs min-w-0"
+                />
+                <div className="col-start-2 row-start-2 flex h-6 flex-col gap-[4px]">
+                  <button
+                    type="button"
+                    className="group flex w-4 flex-1 items-center justify-center bg-transparent p-0"
+                    onClick={() => {
+                      onRemoveAnnotation?.({ id: activeAnnotation.id });
+                      setActiveAnnotationId(null);
+                    }}
+                    aria-label="Remove annotation"
+                  >
+                    <span className="block h-2.5 w-2.5 bg-red-500/40 transition-colors group-hover:bg-red-500/80" />
+                  </button>
+                  <button
+                    type="button"
+                    className="group flex w-4 flex-1 items-center justify-center bg-transparent p-0"
+                    onClick={() => setActiveAnnotationId(null)}
+                    aria-label="Done editing annotation"
+                  >
+                    <span className="block h-2.5 w-2.5 bg-emerald-500/40 transition-colors group-hover:bg-emerald-500/80" />
+                  </button>
+                </div>
               </div>
             </div>
           )}
