@@ -23,6 +23,7 @@ interface PlaybackControlsProps {
   onStepBackward: () => void;
   currentTime: string;
   disabled: boolean;
+  seekDisabled?: boolean;
 }
 
 const SPEED_OPTIONS = [
@@ -43,6 +44,7 @@ export function PlaybackControls({
   onStepBackward,
   currentTime,
   disabled,
+  seekDisabled = false,
 }: PlaybackControlsProps) {
   const { isPlaying, currentTick, totalTicks, speed } = playbackState;
   const [scrubTick, setScrubTick] = useState(currentTick);
@@ -76,7 +78,7 @@ export function PlaybackControls({
           max={totalTicks || 1}
           step={1}
           onValueChange={([value]) => {
-            if (disabled || totalTicks === 0) {
+            if (disabled || seekDisabled || totalTicks === 0) {
               return;
             }
             const next = Math.min(Math.max(1, value), totalTicks || 1);
@@ -91,12 +93,16 @@ export function PlaybackControls({
             }
           }}
           onValueCommit={([value]) => {
+            if (seekDisabled) {
+              setIsScrubbing(false);
+              return;
+            }
             const next = Math.min(Math.max(1, value), totalTicks || 1);
             setIsScrubbing(false);
             onSeek(next);
           }}
           className="flex-1"
-          disabled={disabled || totalTicks === 0}
+          disabled={disabled || seekDisabled || totalTicks === 0}
           data-testid="slider-playback"
           aria-label="Playback position"
         />
@@ -108,7 +114,7 @@ export function PlaybackControls({
             variant="ghost"
             size="icon"
             onClick={onStepBackward}
-            disabled={disabled || currentTick <= 1}
+            disabled={disabled || seekDisabled || currentTick <= 1}
             data-testid="button-step-backward"
             aria-label="Step backward"
           >
@@ -119,7 +125,7 @@ export function PlaybackControls({
             variant="ghost"
             size="icon"
             onClick={() => onSeek(Math.max(1, currentTick - 10))}
-            disabled={disabled || currentTick <= 1}
+            disabled={disabled || seekDisabled || currentTick <= 1}
             data-testid="button-rewind"
             aria-label="Rewind 10 ticks"
           >
@@ -154,7 +160,7 @@ export function PlaybackControls({
             variant="ghost"
             size="icon"
             onClick={() => onSeek(Math.min(totalTicks, currentTick + 10))}
-            disabled={disabled || currentTick >= totalTicks}
+            disabled={disabled || seekDisabled || currentTick >= totalTicks}
             data-testid="button-fast-forward"
             aria-label="Fast forward 10 ticks"
           >
@@ -165,7 +171,7 @@ export function PlaybackControls({
             variant="ghost"
             size="icon"
             onClick={onStepForward}
-            disabled={disabled || currentTick >= totalTicks}
+            disabled={disabled || seekDisabled || currentTick >= totalTicks}
             data-testid="button-step-forward"
             aria-label="Step forward"
           >

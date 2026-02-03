@@ -32,6 +32,7 @@ interface UseWebSocketControlProps {
   windowStart: number;
   windowEnd: number;
   autoScroll: boolean;
+  isWindowed: boolean;
   isFullscreen: boolean;
   viewport?: VisualizationState["viewport"];
   annotations: Annotation[];
@@ -123,6 +124,7 @@ export function useWebSocketControl({
   windowStart,
   windowEnd,
   autoScroll,
+  isWindowed,
   isFullscreen,
   viewport,
   annotations,
@@ -337,6 +339,13 @@ export function useWebSocketControl({
         sendAck(requestId, command.type);
         break;
       case "seek":
+        if (isWindowed) {
+          sendError(
+            requestId,
+            "Seek disabled while a window range is set. Reset the window to re-enable seeking.",
+          );
+          break;
+        }
         onSeek(command.tick);
         sendAck(requestId, command.type);
         break;

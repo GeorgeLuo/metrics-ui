@@ -361,6 +361,7 @@ export default function Home() {
   const [windowSize, setWindowSize] = useState(INITIAL_WINDOW_SIZE);
   const [windowStart, setWindowStart] = useState(1);
   const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
+  const [isWindowed, setIsWindowed] = useState(false);
   const [viewport, setViewport] = useState<VisualizationState["viewport"]>({
     width: 0,
     height: 0,
@@ -1792,10 +1793,13 @@ export default function Home() {
   }, []);
 
   const handleSeek = useCallback((tick: number) => {
+    if (isWindowed) {
+      return;
+    }
     const maxTick = Math.max(1, playbackState.totalTicks || 1);
     const clamped = Math.min(Math.max(1, Math.floor(tick)), maxTick);
     setPlaybackState((prev) => ({ ...prev, currentTick: clamped }));
-  }, [playbackState.totalTicks]);
+  }, [isWindowed, playbackState.totalTicks]);
 
   const handleSpeedChange = useCallback((speed: number) => {
     setPlaybackState((prev) => ({ ...prev, speed }));
@@ -1834,6 +1838,7 @@ export default function Home() {
       const safeSize = Math.max(1, Math.floor(size));
       setWindowSize(safeSize);
       setIsAutoScroll(false);
+      setIsWindowed(true);
       const end = isAutoScroll ? playbackState.currentTick : windowEnd;
       applyWindowRange(end - safeSize + 1, end);
     },
@@ -1847,6 +1852,7 @@ export default function Home() {
       }
       setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       setIsAutoScroll(false);
+      setIsWindowed(true);
       const start = Math.max(1, Math.floor(startTick));
       const end = start + windowSize - 1;
       applyWindowRange(start, end);
@@ -1861,6 +1867,7 @@ export default function Home() {
       }
       setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       setIsAutoScroll(false);
+      setIsWindowed(true);
       const end = Math.max(1, Math.floor(endTick));
       const start = end - windowSize + 1;
       applyWindowRange(start, end);
@@ -1875,6 +1882,7 @@ export default function Home() {
       }
       setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       setIsAutoScroll(false);
+      setIsWindowed(true);
       const window = applyWindowRange(startTick, endTick);
       setWindowSize(Math.max(1, window.end - window.start + 1));
     },
@@ -1884,6 +1892,7 @@ export default function Home() {
   const handleResetWindow = useCallback(() => {
     const end = Math.max(1, playbackState.totalTicks || playbackState.currentTick);
     setIsAutoScroll(true);
+    setIsWindowed(false);
     setPlaybackState((prev) => ({
       ...prev,
       currentTick: end,
@@ -1895,7 +1904,11 @@ export default function Home() {
 
   const handleAutoScrollChange = useCallback(
     (enabled: boolean) => {
-      setIsAutoScroll(Boolean(enabled));
+      const nextEnabled = Boolean(enabled);
+      setIsAutoScroll(nextEnabled);
+      if (nextEnabled) {
+        setIsWindowed(false);
+      }
       if (!enabled) {
         setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
       }
@@ -2319,6 +2332,7 @@ export default function Home() {
     windowStart,
     windowEnd,
     autoScroll: isAutoScroll,
+    isWindowed,
     isFullscreen,
     viewport,
     annotations,
@@ -2677,6 +2691,7 @@ export default function Home() {
                 onStepBackward={handleStepBackward}
                 currentTime=""
                 disabled={captures.length === 0}
+                seekDisabled={isWindowed}
               />
             </div>
           </main>
