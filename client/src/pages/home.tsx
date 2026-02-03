@@ -374,6 +374,7 @@ export default function Home() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [subtitles, setSubtitles] = useState<SubtitleOverlay[]>([]);
+  const [sidebarMode, setSidebarMode] = useState<"setup" | "analysis">("setup");
 
   const playbackRef = useRef<number | null>(null);
   const liveStreamsRef = useRef(liveStreams);
@@ -2390,6 +2391,21 @@ export default function Home() {
     return name.length > 12 ? name.substring(0, 12) + '...' : name;
   };
 
+  const toggleSidebarMode = useCallback(() => {
+    setSidebarMode((prev) => (prev === "setup" ? "analysis" : "setup"));
+  }, []);
+
+  const selectedMetricsSummary = useMemo(() => {
+    const byCapture = selectedMetrics.reduce((acc, metric) => {
+      acc.set(metric.captureId, (acc.get(metric.captureId) ?? 0) + 1);
+      return acc;
+    }, new Map<string, number>());
+    return Array.from(byCapture.entries()).map(([captureId, count]) => ({
+      captureId,
+      count,
+    }));
+  }, [selectedMetrics]);
+
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full bg-background">
@@ -2397,191 +2413,269 @@ export default function Home() {
           <SidebarHeader className="p-4">
             <div className="flex items-center gap-3">
               <Activity className="w-4 h-4 text-foreground" />
-              <h1 className="text-sm font-medium tracking-tight">Metrics</h1>
+              <button
+                type="button"
+                onClick={toggleSidebarMode}
+                className="text-sm font-medium tracking-tight flex items-center gap-2 hover:text-foreground/80"
+                data-testid="button-toggle-sidebar-mode"
+                aria-pressed={sidebarMode === "analysis"}
+              >
+                Metrics
+                <span className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                  {sidebarMode === "analysis" ? "Analysis" : "Setup"}
+                </span>
+              </button>
             </div>
           </SidebarHeader>
           <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel>Capture Source</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <div className="px-2">
-                  <Tabs
-                    value={sourceMode}
-                    onValueChange={(value) => {
-                      const nextMode = value === "live" ? "live" : "file";
-                      handleSourceModeChange(nextMode);
-                    }}
-                    className="w-full"
-                  >
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="file">File</TabsTrigger>
-                      <TabsTrigger value="live">Live</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="file" className="mt-3">
-                      <FileUpload
-                        onFileUpload={handleFileUpload}
-                        isUploading={uploadMutation.isPending}
-                        uploadedFile={null}
-                        error={uploadError}
-                        onClear={handleClearUploadError}
-                      />
-                    </TabsContent>
-                    <TabsContent value="live" className="mt-3">
-                      <div className="flex flex-col gap-3">
-                        {liveStreams.map((entry, index) => {
-                          const isConnected = entry.status === "connected";
-                          const isConnecting = entry.status === "connecting";
-                          const isRetrying = entry.status === "retrying";
-                          const statusLabel = isConnected
-                            ? `Connected (${entry.id})`
-                            : isConnecting
-                              ? "Connecting..."
-                              : isRetrying
-                                ? "Retrying..."
-                                : "Idle";
-
-                          return (
-                            <div
-                              key={entry.id}
-                              className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
-                            >
-                              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                                <span>Stream {index + 1}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => handleRemoveLiveStream(entry.id)}
-                                  data-testid={`button-live-remove-${entry.id}`}
-                                  aria-label={`Remove live stream ${index + 1}`}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
-                              </div>
-                              <Input
-                                placeholder="Capture file URL or path"
-                                value={entry.source}
-                                onChange={(event) => {
-                                  handleLiveSourceInput(entry.id, event.target.value);
-                                }}
-                                className="h-8 px-2 py-1 text-xs"
-                                aria-label={`Capture file source ${index + 1}`}
-                              />
-                              <Input
-                                type="number"
-                                min={0.5}
-                                step={0.5}
-                                placeholder="Poll interval (seconds)"
-                                value={String(entry.pollSeconds)}
-                                onChange={(event) => {
-                                  const parsed = Number(event.target.value);
-                                  if (Number.isFinite(parsed) && parsed > 0) {
-                                    handleLivePollChange(entry.id, parsed);
-                                  }
-                                }}
-                                className="h-8 px-2 py-1 text-xs"
-                                disabled={isConnected || isConnecting}
-                                aria-label={`Poll interval seconds ${index + 1}`}
-                              />
-                              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                <span>{statusLabel}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => handleLiveRefresh(entry.id)}
-                                  disabled={!entry.source.trim() || isConnected || isConnecting}
-                                  data-testid={`button-live-refresh-${entry.id}`}
-                                  aria-label={`Refresh live source ${index + 1}`}
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                </Button>
-                              </div>
-                              {entry.pollSeconds > 0 && (
-                                <div className="text-[11px] text-muted-foreground">
-                                  Polling every {entry.pollSeconds.toLocaleString()}s
-                                </div>
-                              )}
-                              {entry.error && (
-                                <div className="text-xs text-destructive">{entry.error}</div>
-                              )}
-                            </div>
-                          );
-                        })}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-xs"
-                          onClick={handleAddLiveStream}
-                          data-testid="button-live-add"
-                        >
-                          Add live stream
-                        </Button>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              </SidebarGroupContent>
-            </SidebarGroup>
-            <SidebarGroup>
-              <SidebarGroupLabel>Captures</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <div className="flex flex-col gap-1 px-2">
-                  {captures.map((capture) => (
-                    <div
-                      key={capture.id}
-                      className="flex items-center gap-2 py-1.5 text-sm"
-                      data-testid={`capture-item-${capture.id}`}
-                    >
-                      <Checkbox
-                        checked={capture.isActive}
-                        onCheckedChange={() => handleToggleCapture(capture.id)}
-                        data-testid={`checkbox-capture-${capture.id}`}
-                      />
-                      <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
-                      <span className="truncate flex-1 text-xs" title={capture.filename}>
-                        {getCaptureShortName(capture)}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        {capture.tickCount}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleRemoveCapture(capture.id)}
-                        data-testid={`button-remove-capture-${capture.id}`}
+            <div className={sidebarMode === "setup" ? "block" : "hidden"} aria-hidden={sidebarMode !== "setup"}>
+              <>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Capture Source</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <div className="px-2">
+                      <Tabs
+                        value={sourceMode}
+                        onValueChange={(value) => {
+                          const nextMode = value === "live" ? "live" : "file";
+                          handleSourceModeChange(nextMode);
+                        }}
+                        className="w-full"
                       >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="file">File</TabsTrigger>
+                          <TabsTrigger value="live">Live</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="file" className="mt-3">
+                          <FileUpload
+                            onFileUpload={handleFileUpload}
+                            isUploading={uploadMutation.isPending}
+                            uploadedFile={null}
+                            error={uploadError}
+                            onClear={handleClearUploadError}
+                          />
+                        </TabsContent>
+                        <TabsContent value="live" className="mt-3">
+                          <div className="flex flex-col gap-3">
+                            {liveStreams.map((entry, index) => {
+                              const isConnected = entry.status === "connected";
+                              const isConnecting = entry.status === "connecting";
+                              const isRetrying = entry.status === "retrying";
+                              const statusLabel = isConnected
+                                ? `Connected (${entry.id})`
+                                : isConnecting
+                                  ? "Connecting..."
+                                  : isRetrying
+                                    ? "Retrying..."
+                                    : "Idle";
+
+                              return (
+                                <div
+                                  key={entry.id}
+                                  className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
+                                >
+                                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                    <span>Stream {index + 1}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => handleRemoveLiveStream(entry.id)}
+                                      data-testid={`button-live-remove-${entry.id}`}
+                                      aria-label={`Remove live stream ${index + 1}`}
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                  <Input
+                                    placeholder="Capture file URL or path"
+                                    value={entry.source}
+                                    onChange={(event) => {
+                                      handleLiveSourceInput(entry.id, event.target.value);
+                                    }}
+                                    className="h-8 px-2 py-1 text-xs"
+                                    aria-label={`Capture file source ${index + 1}`}
+                                  />
+                                  <Input
+                                    type="number"
+                                    min={0.5}
+                                    step={0.5}
+                                    placeholder="Poll interval (seconds)"
+                                    value={String(entry.pollSeconds)}
+                                    onChange={(event) => {
+                                      const parsed = Number(event.target.value);
+                                      if (Number.isFinite(parsed) && parsed > 0) {
+                                        handleLivePollChange(entry.id, parsed);
+                                      }
+                                    }}
+                                    className="h-8 px-2 py-1 text-xs"
+                                    disabled={isConnected || isConnecting}
+                                    aria-label={`Poll interval seconds ${index + 1}`}
+                                  />
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{statusLabel}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => handleLiveRefresh(entry.id)}
+                                      disabled={!entry.source.trim() || isConnected || isConnecting}
+                                      data-testid={`button-live-refresh-${entry.id}`}
+                                      aria-label={`Refresh live source ${index + 1}`}
+                                    >
+                                      <RefreshCw className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                  {entry.pollSeconds > 0 && (
+                                    <div className="text-[11px] text-muted-foreground">
+                                      Polling every {entry.pollSeconds.toLocaleString()}s
+                                    </div>
+                                  )}
+                                  {entry.error && (
+                                    <div className="text-xs text-destructive">{entry.error}</div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs"
+                              onClick={handleAddLiveStream}
+                              data-testid="button-live-add"
+                            >
+                              Add live stream
+                            </Button>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
                     </div>
-                  ))}
-                  {captures.length === 0 && (
-                    <p className="text-xs text-muted-foreground py-2">
-                      No captures loaded
-                    </p>
-                  )}
-                </div>
-              </SidebarGroupContent>
-            </SidebarGroup>
-            
-            {activeCaptures.map((capture) => (
-              <SidebarGroup key={capture.id}>
-                <SidebarGroupLabel className="text-xs">
-                  {getCaptureShortName(capture)}
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <ComponentTree
-                    captureId={capture.id}
-                    components={capture.components}
-                    selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
-                    metricCoverage={metricCoverage[capture.id]}
-                    onSelectionChange={getSelectionHandler(capture.id)}
-                    colorOffset={captures.findIndex(c => c.id === capture.id)}
-                  />
-                </SidebarGroupContent>
-              </SidebarGroup>
-            ))}
+                  </SidebarGroupContent>
+                </SidebarGroup>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Captures</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <div className="flex flex-col gap-1 px-2">
+                      {captures.map((capture) => (
+                        <div
+                          key={capture.id}
+                          className="flex items-center gap-2 py-1.5 text-sm"
+                          data-testid={`capture-item-${capture.id}`}
+                        >
+                          <Checkbox
+                            checked={capture.isActive}
+                            onCheckedChange={() => handleToggleCapture(capture.id)}
+                            data-testid={`checkbox-capture-${capture.id}`}
+                          />
+                          <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                          <span className="truncate flex-1 text-xs" title={capture.filename}>
+                            {getCaptureShortName(capture)}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-mono">
+                            {capture.tickCount}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleRemoveCapture(capture.id)}
+                            data-testid={`button-remove-capture-${capture.id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                      {captures.length === 0 && (
+                        <p className="text-xs text-muted-foreground py-2">
+                          No captures loaded
+                        </p>
+                      )}
+                    </div>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+                {activeCaptures.map((capture) => (
+                  <SidebarGroup key={capture.id}>
+                    <SidebarGroupLabel className="text-xs">
+                      {getCaptureShortName(capture)}
+                    </SidebarGroupLabel>
+                    <SidebarGroupContent>
+                      <ComponentTree
+                        captureId={capture.id}
+                        components={capture.components}
+                        selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
+                        metricCoverage={metricCoverage[capture.id]}
+                        onSelectionChange={getSelectionHandler(capture.id)}
+                        colorOffset={captures.findIndex(c => c.id === capture.id)}
+                      />
+                    </SidebarGroupContent>
+                  </SidebarGroup>
+                ))}
+              </>
+            </div>
+            <div className={sidebarMode === "analysis" ? "block" : "hidden"} aria-hidden={sidebarMode !== "analysis"}>
+              <>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Overview</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between">
+                        <span>Captures</span>
+                        <span className="font-mono text-foreground">{captures.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Active</span>
+                        <span className="font-mono text-foreground">{activeCaptures.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Selected metrics</span>
+                        <span className="font-mono text-foreground">{selectedMetrics.length}</span>
+                      </div>
+                    </div>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Playback</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
+                      <div className="flex items-center justify-between">
+                        <span>Tick</span>
+                        <span className="font-mono text-foreground">
+                          {playbackState.currentTick} / {playbackState.totalTicks}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Window</span>
+                        <span className="font-mono text-foreground">
+                          {windowStart}–{windowEnd}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Auto-scroll</span>
+                        <span className="font-mono text-foreground">
+                          {isAutoScroll ? "On" : "Off"}
+                        </span>
+                      </div>
+                    </div>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Selection</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
+                      {selectedMetricsSummary.length === 0 && (
+                        <span>No metrics selected</span>
+                      )}
+                      {selectedMetricsSummary.map((entry) => (
+                        <div key={entry.captureId} className="flex items-center justify-between">
+                          <span className="truncate">{entry.captureId}</span>
+                          <span className="font-mono text-foreground">{entry.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </>
+            </div>
           </SidebarContent>
         </Sidebar>
 
