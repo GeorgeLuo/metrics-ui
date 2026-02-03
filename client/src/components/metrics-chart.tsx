@@ -132,7 +132,7 @@ function ChartCursor({
       y1={lineTop}
       y2={lineBottom}
       stroke={stroke ?? "hsl(var(--primary))"}
-      strokeDasharray="3 3"
+      strokeWidth={1}
     />
   );
 }
@@ -291,7 +291,7 @@ const ChartLines = memo(function ChartLines({
               strokeWidth={isHighlighted ? 4 : 2}
               strokeDasharray={isDashed ? "5 5" : undefined}
               dot={false}
-              activeDot={{ r: 4, strokeWidth: 2 }}
+              activeDot={false}
               isAnimationActive={false}
             />
           );
@@ -834,7 +834,7 @@ export function MetricsChart({
           </div>
           <div className="absolute inset-0 z-0 pointer-events-none">
             {annotationOverlays.map((annotation) => {
-              const lineColor = annotation.color ?? "rgba(255, 255, 255, 0.7)";
+              const axisLineColor = "hsl(var(--muted-foreground) / 0.35)";
               return (
                 <div
                   key={annotation.id}
@@ -847,10 +847,10 @@ export function MetricsChart({
                 >
                   <div
                     className={cn(
-                      "h-full border-l-2 border-dashed",
+                      "h-full border-l-2 border-solid",
                       hoverAnnotationId === annotation.id && "border-l-[3px]",
                     )}
-                    style={{ borderColor: lineColor }}
+                    style={{ borderColor: axisLineColor }}
                   />
                   {annotation.label && (
                     <div
