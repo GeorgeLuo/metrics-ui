@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { GripVertical } from "lucide-react";
 import type { SelectedMetric, DataPoint, CaptureSession } from "@shared/schema";
+import { cn } from "@/lib/utils";
 
 function sanitizeKey(key: string): string {
   return key.replace(/\./g, "_");
@@ -12,7 +13,9 @@ interface MetricsHUDProps {
   currentTick: number;
   captures: CaptureSession[];
   isVisible: boolean;
+  highlightedMetricKey?: string | null;
   onDeselectMetric?: (captureId: string, fullPath: string) => void;
+  onHoverMetric?: (metricKey: string | null) => void;
 }
 
 export function MetricsHUD({
@@ -21,7 +24,9 @@ export function MetricsHUD({
   currentTick,
   captures,
   isVisible,
+  highlightedMetricKey,
   onDeselectMetric,
+  onHoverMetric,
 }: MetricsHUDProps) {
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [isDragging, setIsDragging] = useState(false);
@@ -52,9 +57,11 @@ export function MetricsHUD({
     document.addEventListener("mouseup", handleMouseUp);
   }, [position]);
 
-  if (!isVisible || selectedMetrics.length === 0 || !currentData) {
+  if (!isVisible || selectedMetrics.length === 0) {
     return null;
   }
+
+  const dataPoint = currentData ?? ({} as DataPoint);
 
   const getDataKey = (metric: SelectedMetric): string => {
     return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
@@ -89,18 +96,30 @@ export function MetricsHUD({
           {currentTick.toLocaleString()}
         </div>
       </div>
-      <div className="flex flex-col gap-1.5">
+      <div
+        className="flex flex-col gap-1.5"
+        onMouseLeave={() => onHoverMetric?.(null)}
+      >
         {selectedMetrics.map((metric) => {
           const dataKey = getDataKey(metric);
-          const value = currentData[dataKey];
+          const value = dataPoint[dataKey];
           const displayValue =
             typeof value === "number"
               ? value.toLocaleString(undefined, { maximumFractionDigits: 2 })
               : value ?? "—";
           const captureName = getCaptureFilename(metric.captureId);
 
+          const isHighlighted = highlightedMetricKey === dataKey;
+
           return (
-            <div key={`${metric.captureId}-${metric.fullPath}`} className="flex items-center gap-2">
+            <div
+              key={`${metric.captureId}-${metric.fullPath}`}
+              className={cn(
+                "flex items-center gap-2",
+                isHighlighted ? "text-foreground" : "text-muted-foreground",
+              )}
+              onMouseEnter={() => onHoverMetric?.(dataKey)}
+            >
               <div
                 className="w-2 h-2 rounded-full shrink-0"
                 style={{ backgroundColor: metric.color }}

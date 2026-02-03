@@ -375,6 +375,7 @@ export default function Home() {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [subtitles, setSubtitles] = useState<SubtitleOverlay[]>([]);
   const [sidebarMode, setSidebarMode] = useState<"setup" | "analysis">("setup");
+  const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
 
   const playbackRef = useRef<number | null>(null);
   const liveStreamsRef = useRef(liveStreams);
@@ -657,6 +658,12 @@ export default function Home() {
       JSON.stringify(selectedMetrics),
     );
   }, [selectedMetrics]);
+
+  useEffect(() => {
+    if (sidebarMode !== "analysis") {
+      setHighlightedMetricKey(null);
+    }
+  }, [sidebarMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -2746,6 +2753,7 @@ export default function Home() {
                 annotations={annotations}
                 subtitles={subtitles}
                 captures={captures}
+                highlightedMetricKey={highlightedMetricKey}
                 onWindowRangeChange={handleWindowRangeChange}
                 onSizeChange={(size) => {
                   setViewport((prev) => {
@@ -2770,6 +2778,8 @@ export default function Home() {
                 captures={captures}
                 isVisible={isHudVisible}
                 onDeselectMetric={handleDeselectMetric}
+                onHoverMetric={setHighlightedMetricKey}
+                highlightedMetricKey={highlightedMetricKey}
               />
             </div>
 

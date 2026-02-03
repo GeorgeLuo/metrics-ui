@@ -34,6 +34,7 @@ interface MetricsChartProps {
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
   captures: CaptureSession[];
+  highlightedMetricKey?: string | null;
   onSizeChange?: (size: { width: number; height: number }) => void;
   onAddAnnotation?: (annotation: Annotation) => void;
   onRemoveAnnotation?: (options: { id?: string; tick?: number }) => void;
@@ -49,6 +50,7 @@ interface ChartLinesProps {
   windowStart: number;
   windowEnd: number;
   captures: CaptureSession[];
+  highlightedMetricKey?: string | null;
   suppressCursor?: boolean;
   width?: number;
   height?: number;
@@ -144,6 +146,7 @@ const ChartLines = memo(function ChartLines({
   windowStart,
   windowEnd,
   captures,
+  highlightedMetricKey,
   suppressCursor,
   width,
   height,
@@ -277,6 +280,7 @@ const ChartLines = memo(function ChartLines({
         {selectedMetrics.map((metric, index) => {
           const dataKey = getDataKey(metric);
           const isDashed = index % 2 === 1;
+          const isHighlighted = highlightedMetricKey === dataKey;
           return (
             <Line
               key={`${metric.captureId}-${metric.fullPath}`}
@@ -284,7 +288,7 @@ const ChartLines = memo(function ChartLines({
               dataKey={dataKey}
               name={dataKey}
               stroke={metric.color}
-              strokeWidth={2}
+              strokeWidth={isHighlighted ? 4 : 2}
               strokeDasharray={isDashed ? "5 5" : undefined}
               dot={false}
               activeDot={{ r: 4, strokeWidth: 2 }}
@@ -306,6 +310,7 @@ export function MetricsChart({
   annotations,
   subtitles,
   captures,
+  highlightedMetricKey,
   onSizeChange,
   onAddAnnotation,
   onRemoveAnnotation,
@@ -822,6 +827,7 @@ export function MetricsChart({
                 windowStart={windowStart}
                 windowEnd={windowEnd}
                 captures={captures}
+                highlightedMetricKey={highlightedMetricKey}
                 suppressCursor={Boolean(hoverAnnotationId)}
               />
             </ResponsiveContainer>
