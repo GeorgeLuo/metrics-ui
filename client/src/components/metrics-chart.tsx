@@ -883,59 +883,63 @@ export function MetricsChart({
           {activeAnnotation && activeAnnotationPanel && (
             <div
               data-annotation-panel
-              className="absolute z-30 w-[190px] rounded-md border border-muted/40 bg-background p-1 text-xs shadow-md"
+              className="absolute z-30 w-fit rounded-md border border-muted/40 bg-background p-1.5 text-xs shadow-md"
               style={{ left: activeAnnotationPanel.left, top: activeAnnotationPanel.top }}
               onClick={(event) => event.stopPropagation()}
               ref={panelRef}
             >
-              <div className="grid grid-rows-2 gap-1 [grid-template-columns:minmax(0,1fr)_1rem]">
-                <div
-                  className="col-start-1 row-start-1 flex items-center gap-1 text-[11px] text-muted-foreground cursor-grab select-none"
-                  onMouseDown={handlePanelMouseDown}
-                >
-                  <GripVertical className="h-3 w-3 text-muted-foreground" />
-                  <span>T {activeAnnotationPanel.tick}</span>
-                </div>
-                <button
-                  type="button"
-                  className="col-start-2 row-start-1 mt-[1px] flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
-                  onClick={() => setActiveAnnotationId(null)}
-                  aria-label="Close annotation editor"
-                >
-                  ×
-                </button>
-                <Input
-                  value={activeAnnotation.label ?? ""}
-                  onChange={(event) => {
-                    onAddAnnotation?.({
-                      id: activeAnnotation.id,
-                      tick: activeAnnotation.tick,
-                      label: event.target.value,
-                      color: activeAnnotation.color,
-                    });
-                  }}
-                  className="col-start-1 row-start-2 h-7 text-xs min-w-0"
-                />
-                <div className="col-start-2 row-start-2 flex h-6 flex-col gap-[4px]">
-                  <button
-                    type="button"
-                    className="group flex w-4 flex-1 items-center justify-center bg-transparent p-0"
-                    onClick={() => {
-                      onRemoveAnnotation?.({ id: activeAnnotation.id });
-                      setActiveAnnotationId(null);
-                    }}
-                    aria-label="Remove annotation"
+              <div className="flex flex-col gap-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground cursor-grab select-none"
+                    onMouseDown={handlePanelMouseDown}
                   >
-                    <span className="block h-2.5 w-2.5 bg-red-500/40 transition-colors group-hover:bg-red-500/80" />
-                  </button>
+                    <GripVertical className="h-3 w-3 text-muted-foreground" />
+                    <span>T {activeAnnotationPanel.tick}</span>
+                  </div>
                   <button
                     type="button"
-                    className="group flex w-4 flex-1 items-center justify-center bg-transparent p-0"
+                    className="flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground leading-none"
                     onClick={() => setActiveAnnotationId(null)}
-                    aria-label="Done editing annotation"
+                    aria-label="Close annotation editor"
                   >
-                    <span className="block h-2.5 w-2.5 bg-emerald-500/40 transition-colors group-hover:bg-emerald-500/80" />
+                    ×
                   </button>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={activeAnnotation.label ?? ""}
+                    onChange={(event) => {
+                      onAddAnnotation?.({
+                        id: activeAnnotation.id,
+                        tick: activeAnnotation.tick,
+                        label: event.target.value,
+                        color: activeAnnotation.color,
+                      });
+                    }}
+                    className="h-7 w-[140px] text-xs"
+                  />
+                  <div className="flex h-7 flex-col justify-center gap-0.5">
+                    <button
+                      type="button"
+                      className="group flex items-center justify-center bg-transparent p-0"
+                      onClick={() => {
+                        onRemoveAnnotation?.({ id: activeAnnotation.id });
+                        setActiveAnnotationId(null);
+                      }}
+                      aria-label="Remove annotation"
+                    >
+                      <span className="block h-[11px] w-[11px] bg-red-500/40 transition-colors group-hover:bg-red-500/80" />
+                    </button>
+                    <button
+                      type="button"
+                      className="group flex items-center justify-center bg-transparent p-0"
+                      onClick={() => setActiveAnnotationId(null)}
+                      aria-label="Done editing annotation"
+                    >
+                      <span className="block h-[11px] w-[11px] bg-emerald-500/40 transition-colors group-hover:bg-emerald-500/80" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
