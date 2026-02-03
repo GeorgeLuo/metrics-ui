@@ -1,0 +1,33 @@
+  Component: Stream-Metrics-UI/client/src/components/metrics-chart.tsx
+  Section: “annotation editor panel” (the popover shown when clicking an annotation line)
+
+  Goal: Make the annotation editor feel tight and aligned:
+
+  - The panel should be compact with minimal “empty border” space.
+  - The right edge of the panel should align with the right edge of its controls (close button and stacked squares).
+  - The close button should not extend beyond the visual unit; it should align with the right edge of the squares.
+  - The header text should read T {tick} (tick label), not “Annotation @ …”.
+  - The close button should sit vertically aligned with the tick text (top aligned).
+  - The remove/done controls are two small stacked squares (red for remove, green for done), no icons.
+  - Squares are sharp (no rounding), translucent by default, more opaque on hover.
+  - The stacked squares should be shorter than the input, and the stack should sit vertically centered next to the input (not pushed
+    down).
+  - The two squares should have some spacing between them, but the overall stack height should still visually match the input field
+    height.
+  - The stack should be close to the input field (small margin between input and stack).
+
+  What to inspect:
+
+  - The panel container’s padding, width, and grid layout in metrics-chart.tsx (annotation editor block).
+  - The column width for the control column (close + squares).
+  - The alignment of the header row and the close button.
+  - Input height (h-7) vs. stack height (h-6) and internal gaps.
+
+  Current implementation (commit 6a3a1b2):
+
+  - Panel uses a 2‑column grid: left for title/input, right for close/stack.
+  - Close button uses mt-[1px] for alignment.
+  - Stack uses two plain <button>s with colored squares (red/green) and hover opacity.
+  - Panel width is fixed (w-[190px]), padding p-1, gap gap-1, right column width 1rem.
+
+  Agent can adjust panel sizing or switch to content‑sized (w-fit) + fixed input width if alignment still feels off.
