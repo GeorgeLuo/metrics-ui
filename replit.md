@@ -58,7 +58,7 @@ shared/           # Shared TypeScript types and schemas
 - **CaptureSession**: Each uploaded file becomes a capture with id, filename, tickCount, records, components, isActive
 - **Capture Library**: Sidebar shows loaded captures with checkboxes to toggle active/inactive and delete buttons
 - **Synchronized Playback**: Timeline uses maximum tick count from active captures
-- **Distinct Styling**: Alternating solid/dashed lines for visual distinction between captures
+- **Distinct Styling**: Solid lines with per-capture colors for visual distinction
 - **Data Keys**: Format `{captureId}_{sanitizedPath}` to avoid collisions between captures
 
 ## External Dependencies

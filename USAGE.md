@@ -16,6 +16,7 @@ This site visualizes simulation or evaluation **capture files**. You upload a JS
    - Dragging a window **pauses playback** and **turns off auto-scroll** so the view stays locked.
    - Press **Play** to resume; auto-scroll turns back on and the window expands to the right.
    - Use the **reset window** button (refresh icon in the header) to show the full range again.
+6. **Add annotations** by clicking on the chart (silent add). Click an existing annotation line to edit its label.
 
 The UI shows multiple captures at once; they share a common tick axis.
 
