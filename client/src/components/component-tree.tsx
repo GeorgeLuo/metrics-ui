@@ -213,17 +213,7 @@ function ComponentTreeBase({
   colorOffset = 0,
 }: ComponentTreeProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
-    const expanded = new Set<string>();
-    const expandAll = (nodes: ComponentNode[]) => {
-      nodes.forEach((n) => {
-        expanded.add(n.id);
-        expandAll(n.children);
-      });
-    };
-    expandAll(components);
-    return expanded;
-  });
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
 
   const handleExpand = (nodeId: string) => {
     setExpandedNodes((prev) => {
