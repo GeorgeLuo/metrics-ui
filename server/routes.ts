@@ -1329,17 +1329,16 @@ function startLiveStream({
     isPolling: false,
     idleSince: null,
   };
-  if (!sendToFrontend({ type: "capture_init", captureId, filename })) {
+  if (!sendToFrontend({ type: "capture_init", captureId, filename, reset: true })) {
     throw new Error("Frontend not connected.");
   }
   captureSources.set(captureId, source);
   captureMetadata.set(captureId, { filename, source });
   captureStreamModes.set(captureId, "lite");
   liveStreamStates.set(captureId, state);
-  const cachedComponents = captureComponentState.get(captureId)?.components;
-  if (cachedComponents && cachedComponents.length > 0) {
-    sendToFrontend({ type: "capture_components", captureId, components: cachedComponents });
-  }
+  captureComponentState.set(captureId, { components: [], sentCount: 0 });
+  captureLastTicks.delete(captureId);
+  liteFrameBuffers.delete(captureId);
   pollLiveCapture(state).catch((error) => {
     console.error("[live] Poll error:", error);
   });
