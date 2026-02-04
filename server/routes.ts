@@ -1637,7 +1637,6 @@ export async function registerRoutes(
       pendingClients.delete(ws);
       if (ws === frontendClient) {
         frontendClient = null;
-        stopAllLiveStreams();
         console.log("[ws] Frontend disconnected");
       } else {
         agentClients.delete(ws);
