@@ -796,13 +796,6 @@ function isCaptureEmpty(captureId: string): boolean {
     if (pending.frames.length > 0) {
       return false;
     }
-    if (pending.components && pending.components.length > 0) {
-      return false;
-    }
-  }
-  const componentState = captureComponentState.get(captureId);
-  if (componentState && componentState.components.length > 0) {
-    return false;
   }
   const lastTick = captureLastTicks.get(captureId);
   if (typeof lastTick === "number") {
