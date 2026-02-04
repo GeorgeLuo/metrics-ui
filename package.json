@@ -8,6 +8,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc && npm run docs:ws:check",
+    "ui:regress": "bash scripts/ui-regress.sh",
     "docs:ws": "tsx script/ws-docs.ts",
     "docs:ws:check": "tsx script/ws-docs.ts --check",
     "db:push": "drizzle-kit push"

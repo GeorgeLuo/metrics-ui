@@ -637,7 +637,7 @@ export default function Home() {
       const key = buildSeriesKey(metric.captureId, metric.fullPath);
       if (!options?.force) {
         const liveEntry = liveStreamsRef.current.find((entry) => entry.id === metric.captureId);
-        if (liveEntry && liveEntry.status !== "idle") {
+        if (liveEntry && liveEntry.status !== "idle" && liveEntry.status !== "completed") {
           return;
         }
       }
