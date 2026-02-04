@@ -269,7 +269,7 @@ function ComponentTreeBase({
         </div>
       </div>
 
-      <div className="max-h-48 overflow-y-auto">
+      <div>
         {visibleNodes.map((node) => (
           <TreeNode
             key={node.id}
