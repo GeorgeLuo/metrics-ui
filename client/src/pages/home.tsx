@@ -667,7 +667,10 @@ export default function Home() {
     const nextModes = new Map<string, "lite" | "full">();
     captures.forEach((capture) => {
       const hasSelected = selectedMetrics.some((metric) => metric.captureId === capture.id);
-      nextModes.set(capture.id, hasSelected ? "full" : "lite");
+      const liveEntry = liveStreamsRef.current.find((entry) => entry.id === capture.id);
+      const hasLiveSource = Boolean(liveEntry && liveEntry.source.trim().length > 0);
+      // File-backed live streams stay in lite mode to avoid streaming full frames into the UI.
+      nextModes.set(capture.id, hasSelected && !hasLiveSource ? "full" : "lite");
     });
 
     nextModes.forEach((mode, captureId) => {
@@ -1864,7 +1867,7 @@ export default function Home() {
     const fullPath = path.join(".");
     const label = path[path.length - 1];
     const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
-    if (liveEntry && liveEntry.status !== "idle") {
+    if (liveEntry && liveEntry.status !== "idle" && !liveEntry.source.trim()) {
       streamModeRef.current.set(captureId, "full");
       sendMessageRef.current({ type: "set_stream_mode", captureId, mode: "full" });
     }
