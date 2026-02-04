@@ -200,7 +200,6 @@ Capture streaming (push records over WS):
 - `set_window_range`
 - `set_auto_scroll`
 - `set_fullscreen`
-- `set_stream_mode`
 - `add_annotation`
 - `remove_annotation`
 - `clear_annotations`
@@ -208,6 +207,7 @@ Capture streaming (push records over WS):
 - `add_subtitle`
 - `remove_subtitle`
 - `clear_subtitles`
+- `set_stream_mode`
 - `set_source_mode`
 - `set_live_source`
 - `live_start`

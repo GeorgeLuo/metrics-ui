@@ -531,6 +531,7 @@ const liveStreamStates = new Map<string, LiveStreamState>();
 const captureSources = new Map<string, string>();
 const captureMetadata = new Map<string, { filename?: string; source?: string }>();
 const captureStreamModes = new Map<string, "lite" | "full">();
+const captureLastTicks = new Map<string, number>();
 const captureComponentState = new Map<
   string,
   {
@@ -632,6 +633,7 @@ function sendCaptureComponents(captureId: string, components: ComponentNode[]) {
 }
 
 function sendCaptureAppend(captureId: string, frame: CaptureAppendFrame) {
+  captureLastTicks.set(captureId, frame.tick);
   const command: ControlCommand = { type: "capture_append", captureId, frame };
   if (!sendToFrontend(command)) {
     bufferCaptureFrame(command);
@@ -639,6 +641,7 @@ function sendCaptureAppend(captureId: string, frame: CaptureAppendFrame) {
 }
 
 function sendCaptureTick(captureId: string, tick: number) {
+  captureLastTicks.set(captureId, tick);
   const command: ControlCommand = { type: "capture_tick", captureId, tick };
   sendToFrontend(command);
 }
@@ -734,6 +737,7 @@ function clearCaptureState() {
   captureSources.clear();
   captureMetadata.clear();
   captureStreamModes.clear();
+  captureLastTicks.clear();
   stopAllLiveStreams();
 }
 
@@ -746,6 +750,7 @@ function removeCaptureState(captureId: string) {
   captureSources.delete(captureId);
   captureMetadata.delete(captureId);
   captureStreamModes.delete(captureId);
+  captureLastTicks.delete(captureId);
   stopLiveStream(captureId);
 }
 
@@ -849,6 +854,10 @@ function sendKnownCaptures(options: { excludeIds?: Set<string> } = {}) {
         captureId,
         components: state.components,
       });
+    }
+    const lastTick = captureLastTicks.get(captureId);
+    if (typeof lastTick === "number") {
+      sendToFrontend({ type: "capture_tick", captureId, tick: lastTick });
     }
   }
 }
@@ -1083,6 +1092,7 @@ async function pollLiveCapture(state: LiveStreamState) {
   }
   state.isPolling = true;
   let appendedFrames = 0;
+  let readBytes = 0;
   let recoverableIdle = false;
 
   try {
@@ -1145,6 +1155,7 @@ async function pollLiveCapture(state: LiveStreamState) {
           onLine(line);
         },
       });
+      readBytes = result.bytesRead;
       if (usedRange) {
         state.byteOffset += result.bytesRead;
       } else {
@@ -1186,6 +1197,7 @@ async function pollLiveCapture(state: LiveStreamState) {
             onLine(line);
           },
         });
+        readBytes = result.bytesRead;
         state.byteOffset = startOffset + result.bytesRead;
         if (didReset) {
           state.lineOffset = result.lineCount;
@@ -1205,9 +1217,10 @@ async function pollLiveCapture(state: LiveStreamState) {
   } finally {
     state.isPolling = false;
     const now = Date.now();
+    const hasActivity = appendedFrames > 0 || readBytes > 0;
     if (recoverableIdle) {
       state.idleSince = null;
-    } else if (appendedFrames > 0) {
+    } else if (hasActivity) {
       state.idleSince = null;
     } else if (state.idleSince === null) {
       state.idleSince = now;

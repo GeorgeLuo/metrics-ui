@@ -585,8 +585,14 @@ export default function Home() {
   }, []);
 
   const fetchMetricSeries = useCallback(
-    async (metric: SelectedMetric) => {
+    async (metric: SelectedMetric, options?: { force?: boolean }) => {
       const key = buildSeriesKey(metric.captureId, metric.fullPath);
+      if (!options?.force) {
+        const liveEntry = liveStreamsRef.current.find((entry) => entry.id === metric.captureId);
+        if (liveEntry && liveEntry.status !== "idle") {
+          return;
+        }
+      }
       if (pendingSeriesRef.current.has(key)) {
         return;
       }
@@ -1713,8 +1719,17 @@ export default function Home() {
           entry.id === captureId ? { ...entry, status: "idle", error: null } : entry,
         ),
       );
+      const selectedForCapture = selectedMetricsRef.current.filter(
+        (metric) => metric.captureId === captureId,
+      );
+      selectedForCapture.forEach((metric) => {
+        const key = buildSeriesKey(metric.captureId, metric.fullPath);
+        if (!loadedSeriesRef.current.has(key)) {
+          fetchMetricSeries(metric, { force: true });
+        }
+      });
     },
-    [clearLiveRetry],
+    [clearLiveRetry, fetchMetricSeries],
   );
 
   const handleToggleCapture = useCallback((captureId: string) => {
@@ -1766,6 +1781,11 @@ export default function Home() {
   const handleSelectMetric = useCallback((captureId: string, path: string[]) => {
     const fullPath = path.join(".");
     const label = path[path.length - 1];
+    const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+    if (liveEntry && liveEntry.status !== "idle") {
+      streamModeRef.current.set(captureId, "full");
+      sendMessageRef.current({ type: "set_stream_mode", captureId, mode: "full" });
+    }
     setSelectedMetrics((prev) => {
       const exists = prev.some((metric) => metric.captureId === captureId && metric.fullPath === fullPath);
       if (exists) {
