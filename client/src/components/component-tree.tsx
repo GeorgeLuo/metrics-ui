@@ -210,7 +210,7 @@ function ComponentTreeBase({
   onSelectionChange,
   colorOffset = 0,
 }: ComponentTreeProps) {
-  const MAX_ROOT_NODES = 10;
+  const MAX_ROOT_NODES = 200;
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
 

@@ -3375,7 +3375,7 @@ export default function Home() {
                         />
                       </CollapsibleTrigger>
                     </SidebarGroupLabel>
-                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+                    <CollapsibleContent forceMount className="data-[state=closed]:hidden max-h-64 overflow-y-auto">
                       <div className="flex flex-col gap-2">
                         {activeCaptures.length === 0 && (
                           <div className="px-2 text-xs text-muted-foreground">No active captures</div>
