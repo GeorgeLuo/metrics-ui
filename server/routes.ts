@@ -1556,14 +1556,17 @@ export async function registerRoutes(
     });
   });
 
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
+  const resolvedFilename =
+    typeof __filename !== "undefined"
+      ? __filename
+      : fileURLToPath(import.meta.url);
+  const resolvedDirname = path.dirname(resolvedFilename);
   
   function findUsageMd(): string | null {
     const possiblePaths = [
-      path.resolve(__dirname, 'USAGE.md'),
-      path.resolve(__dirname, '..', 'USAGE.md'),
-      path.join(process.cwd(), 'USAGE.md'),
+      path.resolve(resolvedDirname, "USAGE.md"),
+      path.resolve(resolvedDirname, "..", "USAGE.md"),
+      path.join(process.cwd(), "USAGE.md"),
     ];
     for (const p of possiblePaths) {
       if (fs.existsSync(p)) return p;
