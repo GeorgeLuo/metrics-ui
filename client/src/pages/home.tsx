@@ -86,7 +86,7 @@ const METRIC_COLORS = [
   "#FFB703",
 ];
 
-type LiveStreamStatus = "idle" | "connecting" | "retrying" | "connected";
+type LiveStreamStatus = "idle" | "connecting" | "retrying" | "connected" | "completed";
 
 interface LiveStreamEntry {
   id: string;
@@ -101,6 +101,7 @@ interface LiveStreamMeta {
   lastSource: string | null;
   retryTimer: number | null;
   retrySource: string | null;
+  completed: boolean;
 }
 
 interface LiveStatusStream {
@@ -337,7 +338,7 @@ export default function Home() {
                 Number.isFinite(Number(entry?.pollSeconds)) && Number(entry?.pollSeconds) > 0
                   ? Number(entry.pollSeconds)
                   : DEFAULT_POLL_SECONDS,
-              status: "idle" as LiveStreamStatus,
+              status: entry?.completed ? ("completed" as LiveStreamStatus) : ("idle" as LiveStreamStatus),
               error: null,
             }))
             .filter((entry) => entry.source.trim().length > 0);
@@ -389,7 +390,7 @@ export default function Home() {
   const didInitialLiveConnectRef = useRef(false);
   const attemptConnectRef = useRef<(
     id: string,
-    options?: { force?: boolean; showConnecting?: boolean },
+    options?: { force?: boolean; showConnecting?: boolean; allowCompleted?: boolean },
   ) => void>(
     () => {},
   );
@@ -711,6 +712,7 @@ export default function Home() {
         id: entry.id,
         source: entry.source,
         pollSeconds: entry.pollSeconds,
+        completed: entry.status === "completed",
       }));
     window.localStorage.setItem("metrics-ui-live-streams", JSON.stringify(payload));
   }, [liveStreams]);
@@ -732,10 +734,18 @@ export default function Home() {
       lastSource: null,
       retryTimer: null,
       retrySource: null,
+      completed: false,
     };
     liveMetaRef.current.set(id, meta);
     return meta;
   }, []);
+
+  useEffect(() => {
+    liveStreams.forEach((entry) => {
+      const meta = getLiveMeta(entry.id);
+      meta.completed = entry.status === "completed";
+    });
+  }, [getLiveMeta, liveStreams]);
 
   const updateLiveStream = useCallback(
     (id: string, updates: Partial<LiveStreamEntry>) => {
@@ -1070,6 +1080,7 @@ export default function Home() {
                   : [];
               const match = streams.find((stream: LiveStatusStream) => stream?.captureId === targetId);
               if (statusResponse.ok && match) {
+                getLiveMeta(targetId).completed = false;
                 updateLiveStream(targetId, {
                   status: "connected",
                   source: typeof match?.source === "string" ? match.source : source,
@@ -1088,6 +1099,7 @@ export default function Home() {
           }
           throw new Error(data?.error || "Failed to start live stream.");
         }
+        getLiveMeta(targetId).completed = false;
         updateLiveStream(targetId, {
           status: "connected",
           source,
@@ -1105,7 +1117,7 @@ export default function Home() {
         throw error;
       }
     },
-    [clearLiveRetry, updateLiveStream],
+    [clearLiveRetry, getLiveMeta, updateLiveStream],
   );
 
   const stopLiveStream = useCallback(
@@ -1193,6 +1205,7 @@ export default function Home() {
 
   const handleLiveSourceInput = useCallback(
     (id: string, source: string) => {
+      getLiveMeta(id).completed = false;
       setLiveStreams((prev) =>
         prev.map((entry) =>
           entry.id === id ? { ...entry, source, error: null } : entry,
@@ -1208,6 +1221,7 @@ export default function Home() {
   const handleLiveSourceCommand = useCallback(
     (source: string, captureId?: string) => {
       const targetId = captureId ?? liveStreamsRef.current[0]?.id ?? generateId();
+      getLiveMeta(targetId).completed = false;
       setLiveStreams((prev) => {
         const existing = prev.find((entry) => entry.id === targetId);
         if (!existing) {
@@ -1278,7 +1292,10 @@ export default function Home() {
   );
 
   const attemptConnect = useCallback(
-    async (id: string, options?: { force?: boolean; showConnecting?: boolean }) => {
+    async (
+      id: string,
+      options?: { force?: boolean; showConnecting?: boolean; allowCompleted?: boolean },
+    ) => {
       const entry = liveStreamsRef.current.find((item) => item.id === id);
       if (!entry || sourceMode !== "live") {
         return;
@@ -1294,6 +1311,9 @@ export default function Home() {
         return;
       }
       const meta = getLiveMeta(id);
+      if (meta.completed && !options?.allowCompleted) {
+        return;
+      }
       if (!options?.force && !meta.dirty) {
         return;
       }
@@ -1345,7 +1365,7 @@ export default function Home() {
       if (sourceMode !== "live") {
         return;
       }
-      attemptConnectRef.current(id, { force: true, showConnecting: true });
+      attemptConnectRef.current(id, { force: true, showConnecting: true, allowCompleted: true });
     },
     [sourceMode],
   );
@@ -1766,11 +1786,21 @@ export default function Home() {
   const handleCaptureEnd = useCallback(
     (captureId: string) => {
       clearLiveRetry(captureId);
-      setLiveStreams((prev) =>
-        prev.map((entry) =>
-          entry.id === captureId ? { ...entry, status: "idle", error: null } : entry,
-        ),
-      );
+      const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+      if (liveEntry) {
+        getLiveMeta(captureId).completed = true;
+        setLiveStreams((prev) =>
+          prev.map((entry) =>
+            entry.id === captureId ? { ...entry, status: "completed", error: null } : entry,
+          ),
+        );
+      } else {
+        setLiveStreams((prev) =>
+          prev.map((entry) =>
+            entry.id === captureId ? { ...entry, status: "idle", error: null } : entry,
+          ),
+        );
+      }
       const selectedForCapture = selectedMetricsRef.current.filter(
         (metric) => metric.captureId === captureId,
       );
@@ -1781,7 +1811,7 @@ export default function Home() {
         }
       });
     },
-    [clearLiveRetry, fetchMetricSeries],
+    [clearLiveRetry, fetchMetricSeries, getLiveMeta],
   );
 
   const handleToggleCapture = useCallback((captureId: string) => {
@@ -2679,13 +2709,16 @@ export default function Home() {
                                   const isConnected = entry.status === "connected";
                                   const isConnecting = entry.status === "connecting";
                                   const isRetrying = entry.status === "retrying";
+                                  const isCompleted = entry.status === "completed";
                                   const statusLabel = isConnected
                                     ? `Connected (${entry.id})`
                                     : isConnecting
                                       ? "Connecting..."
                                       : isRetrying
                                         ? "Retrying..."
-                                        : "Idle";
+                                        : isCompleted
+                                          ? "Completed"
+                                          : "Idle";
 
                                   return (
                                     <div
