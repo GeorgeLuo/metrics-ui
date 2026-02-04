@@ -370,7 +370,7 @@ export default function Home() {
                 Number.isFinite(Number(entry?.pollSeconds)) && Number(entry?.pollSeconds) > 0
                   ? Number(entry.pollSeconds)
                   : DEFAULT_POLL_SECONDS,
-              status: entry?.completed ? ("completed" as LiveStreamStatus) : ("idle" as LiveStreamStatus),
+              status: "idle" as LiveStreamStatus,
               error: null,
             }))
             .filter((entry) => entry.source.trim().length > 0);
@@ -398,6 +398,8 @@ export default function Home() {
   const [windowStart, setWindowStart] = useState(1);
   const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
   const [isWindowed, setIsWindowed] = useState(false);
+  const [windowStartInput, setWindowStartInput] = useState(String(windowStart));
+  const [windowEndInput, setWindowEndInput] = useState(String(windowEnd));
   const [viewport, setViewport] = useState<VisualizationState["viewport"]>({
     width: 0,
     height: 0,
@@ -436,9 +438,12 @@ export default function Home() {
   const captureStatsRef = useRef<Map<string, CaptureStats>>(new Map());
   const pendingSeriesRef = useRef(new Set<string>());
   const loadedSeriesRef = useRef(new Set<string>());
+  const partialSeriesRef = useRef(new Set<string>());
   const seriesRefreshTimerRef = useRef<number | null>(null);
   const lastSeriesRefreshRef = useRef(new Map<string, number>());
   const lastSeriesTickRef = useRef(new Map<string, number>());
+  const windowStartEditingRef = useRef(false);
+  const windowEndEditingRef = useRef(false);
   const baselineHeapRef = useRef<number | null>(null);
   const componentUpdateSamplesRef = useRef<number[]>([]);
   const componentUpdateLastMsRef = useRef<number | null>(null);
@@ -640,38 +645,81 @@ export default function Home() {
     captureStatsRef.current.delete(captureId);
   }, []);
 
-  const fetchMetricSeries = useCallback(
-    async (metric: SelectedMetric, options?: { force?: boolean }) => {
-      const key = buildSeriesKey(metric.captureId, metric.fullPath);
-      if (!options?.force) {
-        const liveEntry = liveStreamsRef.current.find((entry) => entry.id === metric.captureId);
-        if (liveEntry && liveEntry.status !== "idle" && liveEntry.status !== "completed") {
+  const fetchMetricSeriesBatch = useCallback(
+    async (captureId: string, metrics: SelectedMetric[], options?: { force?: boolean }) => {
+      if (!metrics.length) {
+        return;
+      }
+      const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+      const hasLiveSource = Boolean(liveEntry && liveEntry.source.trim().length > 0);
+      if (hasLiveSource) {
+        const capture = capturesRef.current.find((entry) => entry.id === captureId);
+        const hasTicks = Boolean(capture && capture.tickCount > 0);
+        if (!hasTicks) {
           return;
         }
       }
-      if (pendingSeriesRef.current.has(key)) {
+      if (!options?.force && liveEntry && liveEntry.status !== "idle" && liveEntry.status !== "completed") {
         return;
       }
-      pendingSeriesRef.current.add(key);
+      const uniqueMetrics = new Map<string, SelectedMetric>();
+      metrics.forEach((metric) => {
+        const key = buildSeriesKey(metric.captureId, metric.fullPath);
+        if (pendingSeriesRef.current.has(key)) {
+          return;
+        }
+        uniqueMetrics.set(key, metric);
+      });
+      if (uniqueMetrics.size === 0) {
+        return;
+      }
+      const metricsToFetch = Array.from(uniqueMetrics.values());
+      metricsToFetch.forEach((metric) => {
+        pendingSeriesRef.current.add(buildSeriesKey(metric.captureId, metric.fullPath));
+      });
       try {
-        const response = await fetch("/api/series", {
+        const response = await fetch("/api/series/batch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ captureId: metric.captureId, path: metric.path }),
+          body: JSON.stringify({
+            captureId,
+            paths: metricsToFetch.map((metric) => metric.path),
+          }),
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(data?.error || "Failed to load series.");
         }
-        const points = Array.isArray(data?.points)
-          ? (data.points as Array<{ tick: number; value: number | null }>)
-          : [];
-        mergeSeriesIntoCaptures(metric.captureId, metric.path, points);
-        loadedSeriesRef.current.add(key);
+        const seriesList = Array.isArray(data?.series) ? data.series : [];
+        const seriesByPath = new Map<string, { points: Array<{ tick: number; value: number | null }>; partial: boolean }>();
+        seriesList.forEach((entry: { path?: string[]; points?: Array<{ tick: number; value: number | null }>; partial?: boolean }) => {
+          if (!Array.isArray(entry?.path)) {
+            return;
+          }
+          const points = Array.isArray(entry?.points) ? entry.points : [];
+          seriesByPath.set(JSON.stringify(entry.path), { points, partial: Boolean(entry?.partial) });
+        });
+        metricsToFetch.forEach((metric) => {
+          const key = JSON.stringify(metric.path);
+          const entry = seriesByPath.get(key);
+          if (!entry) {
+            return;
+          }
+          mergeSeriesIntoCaptures(metric.captureId, metric.path, entry.points);
+          loadedSeriesRef.current.add(buildSeriesKey(metric.captureId, metric.fullPath));
+          const seriesKey = buildSeriesKey(metric.captureId, metric.fullPath);
+          if (entry.partial) {
+            partialSeriesRef.current.add(seriesKey);
+          } else {
+            partialSeriesRef.current.delete(seriesKey);
+          }
+        });
       } catch (error) {
-        console.error("[series] Fetch error:", error);
+        console.error("[series] Batch fetch error:", error);
       } finally {
-        pendingSeriesRef.current.delete(key);
+        metricsToFetch.forEach((metric) => {
+          pendingSeriesRef.current.delete(buildSeriesKey(metric.captureId, metric.fullPath));
+        });
       }
     },
     [mergeSeriesIntoCaptures],
@@ -717,6 +765,18 @@ export default function Home() {
   useEffect(() => {
     selectedMetricsRef.current = selectedMetrics;
   }, [selectedMetrics]);
+
+  useEffect(() => {
+    if (!windowStartEditingRef.current) {
+      setWindowStartInput(String(windowStart));
+    }
+  }, [windowStart]);
+
+  useEffect(() => {
+    if (!windowEndEditingRef.current) {
+      setWindowEndInput(String(windowEnd));
+    }
+  }, [windowEnd]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -770,9 +830,7 @@ export default function Home() {
         }
         lastSeriesRefreshRef.current.set(captureId, now);
         lastSeriesTickRef.current.set(captureId, capture.tickCount);
-        metrics.forEach((metric) => {
-          fetchMetricSeries(metric, { force: true });
-        });
+        fetchMetricSeriesBatch(captureId, metrics, { force: true });
       });
     }, LIVE_SERIES_REFRESH_MS);
 
@@ -782,7 +840,7 @@ export default function Home() {
         seriesRefreshTimerRef.current = null;
       }
     };
-  }, [fetchMetricSeries]);
+  }, [fetchMetricSeriesBatch]);
 
   useEffect(() => {
     if (captures.length === 0) {
@@ -1833,6 +1891,11 @@ export default function Home() {
         captureStatsRef.current.set(captureId, createEmptyCaptureStats());
         lastSeriesRefreshRef.current.delete(captureId);
         lastSeriesTickRef.current.delete(captureId);
+        partialSeriesRef.current.forEach((key) => {
+          if (key.startsWith(`${captureId}::`)) {
+            partialSeriesRef.current.delete(key);
+          }
+        });
         Array.from(loadedSeriesRef.current.keys()).forEach((key) => {
           if (key.startsWith(`${captureId}::`)) {
             loadedSeriesRef.current.delete(key);
@@ -1847,11 +1910,9 @@ export default function Home() {
       const selectedForCapture = selectedMetricsRef.current.filter(
         (metric) => metric.captureId === captureId,
       );
-      selectedForCapture.forEach((metric) => {
-        fetchMetricSeries(metric);
-      });
+      fetchMetricSeriesBatch(captureId, selectedForCapture);
     },
-    [fetchMetricSeries, getLiveMeta, sourceMode],
+    [fetchMetricSeriesBatch, getLiveMeta, sourceMode],
   );
 
   const handleCaptureComponents = useCallback((captureId: string, components: ComponentNode[]) => {
@@ -2146,14 +2207,13 @@ export default function Home() {
       const selectedForCapture = selectedMetricsRef.current.filter(
         (metric) => metric.captureId === captureId,
       );
-      selectedForCapture.forEach((metric) => {
+      const pending = selectedForCapture.filter((metric) => {
         const key = buildSeriesKey(metric.captureId, metric.fullPath);
-        if (!loadedSeriesRef.current.has(key)) {
-          fetchMetricSeries(metric, { force: true });
-        }
+        return !loadedSeriesRef.current.has(key) || partialSeriesRef.current.has(key);
       });
+      fetchMetricSeriesBatch(captureId, pending, { force: true });
     },
-    [clearLiveRetry, fetchMetricSeries, getLiveMeta],
+    [clearLiveRetry, fetchMetricSeriesBatch, getLiveMeta],
   );
 
   const handleToggleCapture = useCallback((captureId: string) => {
@@ -2187,10 +2247,8 @@ export default function Home() {
     const selectedForCapture = selectedMetricsRef.current.filter(
       (metric) => metric.captureId === captureId,
     );
-    selectedForCapture.forEach((metric) => {
-      fetchMetricSeries(metric);
-    });
-  }, [captures, fetchMetricSeries]);
+    fetchMetricSeriesBatch(captureId, selectedForCapture);
+  }, [captures, fetchMetricSeriesBatch]);
 
   const handleRemoveCapture = useCallback((captureId: string) => {
     setCaptures(prev => prev.filter(c => c.id !== captureId));
@@ -2200,6 +2258,11 @@ export default function Home() {
     pendingTicksRef.current.delete(captureId);
     lastSeriesRefreshRef.current.delete(captureId);
     lastSeriesTickRef.current.delete(captureId);
+    partialSeriesRef.current.forEach((key) => {
+      if (key.startsWith(`${captureId}::`)) {
+        partialSeriesRef.current.delete(key);
+      }
+    });
     handleRemoveLiveStream(captureId);
     sendMessageRef.current({ type: "remove_capture", captureId });
   }, [handleRemoveLiveStream]);
@@ -2243,21 +2306,33 @@ export default function Home() {
     if (captures.length === 0 || selectedMetrics.length === 0) {
       return;
     }
+    const metricsByCapture = new Map<string, SelectedMetric[]>();
     selectedMetrics.forEach((metric) => {
       const capture = captures.find((entry) => entry.id === metric.captureId);
       if (!capture || !capture.isActive) {
         return;
       }
-      const key = buildSeriesKey(metric.captureId, metric.fullPath);
-      if (loadedSeriesRef.current.has(key) || pendingSeriesRef.current.has(key)) {
-        return;
-      }
       if (capture.records.length > 1) {
         return;
       }
-      fetchMetricSeries(metric, { force: true });
+      const key = buildSeriesKey(metric.captureId, metric.fullPath);
+      if (
+        (loadedSeriesRef.current.has(key) && !partialSeriesRef.current.has(key))
+        || pendingSeriesRef.current.has(key)
+      ) {
+        return;
+      }
+      const list = metricsByCapture.get(metric.captureId);
+      if (list) {
+        list.push(metric);
+      } else {
+        metricsByCapture.set(metric.captureId, [metric]);
+      }
     });
-  }, [captures, fetchMetricSeries, selectedMetrics]);
+    metricsByCapture.forEach((metrics, captureId) => {
+      fetchMetricSeriesBatch(captureId, metrics, { force: true });
+    });
+  }, [captures, fetchMetricSeriesBatch, selectedMetrics]);
 
   useEffect(() => {
     const prev = prevSelectedRef.current;
@@ -2270,21 +2345,31 @@ export default function Home() {
       (metric) => !nextKeys.has(buildSeriesKey(metric.captureId, metric.fullPath)),
     );
 
+    const addedByCapture = new Map<string, SelectedMetric[]>();
     added.forEach((metric) => {
       const capture = captures.find((entry) => entry.id === metric.captureId);
       if (!capture || !capture.isActive) {
         return;
       }
       const key = buildSeriesKey(metric.captureId, metric.fullPath);
-      if (!loadedSeriesRef.current.has(key)) {
-        const liveEntry = liveStreamsRef.current.find((entry) => entry.id === metric.captureId);
-        const shouldForce =
-          Boolean(liveEntry)
-          && liveEntry.status !== "idle"
-          && liveEntry.status !== "completed"
-          && liveEntry.source.trim().length > 0;
-        fetchMetricSeries(metric, shouldForce ? { force: true } : undefined);
+      if (loadedSeriesRef.current.has(key) && !partialSeriesRef.current.has(key)) {
+        return;
       }
+      const list = addedByCapture.get(metric.captureId);
+      if (list) {
+        list.push(metric);
+      } else {
+        addedByCapture.set(metric.captureId, [metric]);
+      }
+    });
+    addedByCapture.forEach((metrics, captureId) => {
+      const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+      const shouldForce =
+        Boolean(liveEntry)
+        && liveEntry.status !== "idle"
+        && liveEntry.status !== "completed"
+        && liveEntry.source.trim().length > 0;
+      fetchMetricSeriesBatch(captureId, metrics, shouldForce ? { force: true } : undefined);
     });
 
     if (removed.length > 0) {
@@ -2302,6 +2387,7 @@ export default function Home() {
         const key = buildSeriesKey(metric.captureId, metric.fullPath);
         loadedSeriesRef.current.delete(key);
         pendingSeriesRef.current.delete(key);
+        partialSeriesRef.current.delete(key);
         const remaining = remainingByCapture.get(metric.captureId);
         if (!remaining || remaining.length === 0) {
           clearCaptureRecords(metric.captureId);
@@ -2312,7 +2398,7 @@ export default function Home() {
     }
 
     prevSelectedRef.current = selectedMetrics;
-  }, [clearCaptureRecords, fetchMetricSeries, removeMetricFromCaptures, selectedMetrics]);
+  }, [clearCaptureRecords, fetchMetricSeriesBatch, removeMetricFromCaptures, selectedMetrics]);
 
   const handleClearCaptures = useCallback(() => {
     setCaptures([]);
@@ -2322,6 +2408,7 @@ export default function Home() {
     pendingTicksRef.current.clear();
     lastSeriesRefreshRef.current.clear();
     lastSeriesTickRef.current.clear();
+    partialSeriesRef.current.clear();
     if (tickFlushTimerRef.current !== null) {
       window.clearTimeout(tickFlushTimerRef.current);
       tickFlushTimerRef.current = null;
@@ -2463,6 +2550,30 @@ export default function Home() {
       setWindowSize(Math.max(1, window.end - window.start + 1));
     },
     [applyWindowRange],
+  );
+
+  const commitWindowStartInput = useCallback(
+    (rawValue: string) => {
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed)) {
+        setWindowStartInput(String(windowStart));
+        return;
+      }
+      handleWindowStartChange(parsed);
+    },
+    [handleWindowStartChange, windowStart],
+  );
+
+  const commitWindowEndInput = useCallback(
+    (rawValue: string) => {
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed)) {
+        setWindowEndInput(String(windowEnd));
+        return;
+      }
+      handleWindowEndChange(parsed);
+    },
+    [handleWindowEndChange, windowEnd],
   );
 
   const handleResetWindow = useCallback(() => {
@@ -3051,7 +3162,7 @@ export default function Home() {
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-      <div className="flex h-screen w-full bg-background">
+      <div className="flex h-screen w-full bg-background overflow-hidden">
         <Sidebar>
           <SidebarHeader className="p-4">
             <div className="flex items-center gap-3">
@@ -3070,7 +3181,7 @@ export default function Home() {
               </button>
             </div>
           </SidebarHeader>
-          <SidebarContent>
+          <SidebarContent className="min-h-0">
             <div className={sidebarMode === "setup" ? "block" : "hidden"} aria-hidden={sidebarMode !== "setup"}>
               <>
                 <Collapsible open={isCaptureSourceOpen} onOpenChange={setIsCaptureSourceOpen}>
@@ -3324,6 +3435,60 @@ export default function Home() {
                         <span className="font-mono text-foreground">
                           {windowStart}–{windowEnd}
                         </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[10px] uppercase tracking-wide">Start</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={windowStartInput}
+                            onFocus={() => {
+                              windowStartEditingRef.current = true;
+                            }}
+                            onChange={(event) => setWindowStartInput(event.target.value)}
+                            onBlur={(event) => {
+                              windowStartEditingRef.current = false;
+                              commitWindowStartInput(event.target.value);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                windowStartEditingRef.current = false;
+                                commitWindowStartInput((event.target as HTMLInputElement).value);
+                                (event.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="h-7 px-2 py-1 text-xs"
+                            aria-label="Window start tick"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[10px] uppercase tracking-wide">End</span>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={windowEndInput}
+                            onFocus={() => {
+                              windowEndEditingRef.current = true;
+                            }}
+                            onChange={(event) => setWindowEndInput(event.target.value)}
+                            onBlur={(event) => {
+                              windowEndEditingRef.current = false;
+                              commitWindowEndInput(event.target.value);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                windowEndEditingRef.current = false;
+                                commitWindowEndInput((event.target as HTMLInputElement).value);
+                                (event.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="h-7 px-2 py-1 text-xs"
+                            aria-label="Window end tick"
+                          />
+                        </label>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Auto-scroll</span>

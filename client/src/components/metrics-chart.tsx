@@ -365,6 +365,7 @@ export function MetricsChart({
 
   const chartContainerRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const annotationInputRef = useRef<HTMLInputElement | null>(null);
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
   const chartSizeRef = useRef(chartSize);
   const resizeFrameRef = useRef<number | null>(null);
@@ -410,6 +411,22 @@ export function MetricsChart({
       setAnnotationPanelPosition(null);
     }
   }, [annotations, activeAnnotationId]);
+
+  useEffect(() => {
+    if (!activeAnnotationId) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const input = annotationInputRef.current;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [activeAnnotationId]);
 
   const buildAnnotationId = useCallback(() => {
     idCounterRef.current += 1;
@@ -926,6 +943,7 @@ export function MetricsChart({
                 </div>
                 <div className="grid grid-cols-[minmax(0,1fr)_11px] items-center gap-1">
                   <Input
+                    ref={annotationInputRef}
                     value={activeAnnotation.label ?? ""}
                     onChange={(event) => {
                       onAddAnnotation?.({
@@ -934,6 +952,15 @@ export function MetricsChart({
                         label: event.target.value,
                         color: activeAnnotation.color,
                       });
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        setActiveAnnotationId(null);
+                      } else if (event.key === "Escape") {
+                        event.preventDefault();
+                        setActiveAnnotationId(null);
+                      }
                     }}
                     className="h-7 w-[140px] text-xs focus-visible:ring-1 focus-visible:ring-muted/40 focus-visible:ring-offset-0"
                   />

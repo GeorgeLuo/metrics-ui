@@ -143,7 +143,7 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground tracking-tight;
+    @apply font-sans antialiased bg-background text-foreground tracking-tight overflow-hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {

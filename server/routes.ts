@@ -397,6 +397,36 @@ function extractSeriesFromFrames(frames: CaptureRecord[], path: string[]) {
   return { points, numericCount, lastTick, tickCount: points.length };
 }
 
+function extractSeriesFromFramesBatch(frames: CaptureRecord[], paths: string[][]) {
+  const pointsByTickList = paths.map(() => new Map<number, number | null>());
+  frames.forEach((frame) => {
+    if (!frame || typeof frame.tick !== "number") {
+      return;
+    }
+    const entities = frame.entities;
+    if (!entities || typeof entities !== "object" || Array.isArray(entities)) {
+      return;
+    }
+    paths.forEach((path, index) => {
+      const rawValue = getValueAtPath(entities, path);
+      const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
+      pointsByTickList[index].set(frame.tick, value);
+    });
+  });
+
+  return pointsByTickList.map((pointsByTick) => {
+    const points = Array.from(pointsByTick.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([tickValue, value]) => ({ tick: tickValue, value }));
+    const numericCount = points.reduce(
+      (total, point) => total + (typeof point.value === "number" ? 1 : 0),
+      0,
+    );
+    const lastTick = points.length > 0 ? points[points.length - 1].tick : null;
+    return { points, numericCount, lastTick, tickCount: points.length };
+  });
+}
+
 async function extractSeriesFromSource(options: {
   source: string;
   path: string[];
@@ -468,6 +498,99 @@ async function extractSeriesFromSource(options: {
   );
   const lastTick = points.length > 0 ? points[points.length - 1].tick : null;
   return { points, numericCount, lastTick, tickCount: points.length };
+}
+
+async function extractSeriesBatchFromSource(options: {
+  source: string;
+  paths: string[][];
+  signal: AbortSignal;
+}) {
+  const { source, paths, signal } = options;
+  const pointsByTickList = paths.map(() => new Map<number, number | null>());
+  const componentLookup = new Map<string, Array<{ index: number; rest: string[] }>>();
+
+  paths.forEach((path, index) => {
+    if (path.length >= 2) {
+      const key = `${path[0]}::${path[1]}`;
+      const rest = path.slice(2);
+      const list = componentLookup.get(key);
+      if (list) {
+        list.push({ index, rest });
+      } else {
+        componentLookup.set(key, [{ index, rest }]);
+      }
+    }
+  });
+
+  const onLine = (line: string) => {
+    if (!line.trim()) {
+      return;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      return;
+    }
+    if (!parsed || typeof parsed !== "object") {
+      return;
+    }
+
+    const tick = (parsed as { tick?: number }).tick;
+    if (!Number.isFinite(tick)) {
+      return;
+    }
+    const numericTick = tick as number;
+
+    const entities = (parsed as { entities?: unknown }).entities;
+    if (entities && typeof entities === "object" && !Array.isArray(entities)) {
+      paths.forEach((path, index) => {
+        const rawValue = getValueAtPath(entities, path);
+        const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
+        pointsByTickList[index].set(numericTick, value);
+      });
+      return;
+    }
+
+    const entityId = (parsed as { entityId?: unknown }).entityId;
+    const componentId = (parsed as { componentId?: unknown }).componentId;
+    if (typeof entityId === "string" && typeof componentId === "string") {
+      const list = componentLookup.get(`${entityId}::${componentId}`);
+      if (!list) {
+        return;
+      }
+      const valueSource = (parsed as { value?: unknown }).value;
+      list.forEach(({ index, rest }) => {
+        const rawValue = rest.length === 0 ? valueSource : getValueAtPath(valueSource, rest);
+        const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
+        pointsByTickList[index].set(numericTick, value);
+      });
+    }
+  };
+
+  const trimmed = source.trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    const response = await fetch(trimmed, { signal });
+    if (!response.ok) {
+      throw new Error(`Capture fetch failed (${response.status})`);
+    }
+    await streamLinesFromResponse({ response, signal, onLine });
+  } else {
+    const filePath = resolveLocalCapturePath(trimmed);
+    await streamLinesFromFile({ filePath, startOffset: 0, initialRemainder: "", signal, onLine });
+  }
+
+  return pointsByTickList.map((pointsByTick) => {
+    const points = Array.from(pointsByTick.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([tickValue, value]) => ({ tick: tickValue, value }));
+    const numericCount = points.reduce(
+      (total, point) => total + (typeof point.value === "number" ? 1 : 0),
+      0,
+    );
+    const lastTick = points.length > 0 ? points[points.length - 1].tick : null;
+    return { points, numericCount, lastTick, tickCount: points.length };
+  });
 }
 
 const agentClients = new Set<WebSocket>();
@@ -2121,8 +2244,11 @@ export async function registerRoutes(
       }
 
       const cachedFrames = getCachedFramesForSeries(captureId);
+      const cacheStats = captureFrameCacheStats.get(captureId);
+      const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
+      const usedCache = cachedFrames.length > 0 && !isSampled;
       const result =
-        cachedFrames.length > 0
+        usedCache
           ? extractSeriesFromFrames(cachedFrames, path)
           : await extractSeriesFromSource({
               source,
@@ -2139,10 +2265,64 @@ export async function registerRoutes(
         tickCount: result.tickCount,
         numericCount: result.numericCount,
         lastTick: result.lastTick,
+        partial: usedCache,
       });
     } catch (error) {
       console.error("Series load error:", error);
       return res.status(500).json({ error: "Failed to load series." });
+    }
+  });
+
+  app.post("/api/series/batch", async (req, res) => {
+    try {
+      const captureId = typeof req.body?.captureId === "string" ? req.body.captureId : "";
+      if (!captureId.trim()) {
+        return res.status(400).json({ error: "captureId is required." });
+      }
+      const rawPaths = Array.isArray(req.body?.paths) ? req.body.paths : [];
+      const paths = rawPaths
+        .map((path) => normalizePathInput(path))
+        .filter((path): path is string[] => Array.isArray(path));
+      if (paths.length === 0) {
+        return res.status(400).json({ error: "paths must be an array of JSON string arrays." });
+      }
+
+      const source =
+        captureSources.get(captureId) ?? liveStreamStates.get(captureId)?.source ?? "";
+      if (!source) {
+        return res.status(404).json({ error: "Capture source not found for captureId." });
+      }
+
+      const cachedFrames = getCachedFramesForSeries(captureId);
+      const cacheStats = captureFrameCacheStats.get(captureId);
+      const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
+      const usedCache = cachedFrames.length > 0 && !isSampled;
+      const results =
+        usedCache
+          ? extractSeriesFromFramesBatch(cachedFrames, paths)
+          : await extractSeriesBatchFromSource({
+              source,
+              paths,
+              signal: new AbortController().signal,
+            });
+
+      const series = paths.map((path, index) => {
+        const result = results[index] ?? { points: [], numericCount: 0, lastTick: null, tickCount: 0 };
+        return {
+          path,
+          fullPath: path.join("."),
+          points: result.points,
+          tickCount: result.tickCount,
+          numericCount: result.numericCount,
+          lastTick: result.lastTick,
+          partial: usedCache,
+        };
+      });
+
+      return res.json({ success: true, captureId, series });
+    } catch (error) {
+      console.error("Series batch load error:", error);
+      return res.status(500).json({ error: "Failed to load series batch." });
     }
   });
 

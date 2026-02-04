@@ -110,8 +110,8 @@ function TreeNode({
     <div>
       <div
         className={cn(
-          "flex items-center gap-2 py-1 px-2 group transition-colors",
-          "hover-elevate cursor-pointer",
+          "flex items-center gap-2 py-1 px-2 group",
+          "hover:bg-muted/40 cursor-pointer",
           isSelected && "bg-primary/10"
         )}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
@@ -178,9 +178,7 @@ function TreeNode({
           />
         )}
 
-        <span className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-          {getValueTypeIcon(node.valueType)}
-        </span>
+        <span className="sr-only">{getValueTypeIcon(node.valueType)}</span>
       </div>
 
       {hasChildren && isExpanded && (
@@ -212,6 +210,7 @@ function ComponentTreeBase({
   onSelectionChange,
   colorOffset = 0,
 }: ComponentTreeProps) {
+  const MAX_ROOT_NODES = 200;
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
 
@@ -251,6 +250,9 @@ function ComponentTreeBase({
     );
   }
 
+  const shouldTruncate = searchQuery === "" && components.length > MAX_ROOT_NODES;
+  const visibleNodes = shouldTruncate ? components.slice(0, MAX_ROOT_NODES) : components;
+
   return (
     <div className="flex flex-col">
       <div className="px-2 pb-2">
@@ -268,7 +270,7 @@ function ComponentTreeBase({
       </div>
 
       <div className="max-h-48 overflow-y-auto">
-        {components.map((node) => (
+        {visibleNodes.map((node) => (
           <TreeNode
             key={node.id}
             node={node}
@@ -283,6 +285,11 @@ function ComponentTreeBase({
           />
         ))}
       </div>
+      {shouldTruncate && (
+        <div className="px-2 pt-1 text-[10px] text-muted-foreground">
+          Showing first {MAX_ROOT_NODES} of {components.length}. Use search to narrow.
+        </div>
+      )}
     </div>
   );
 }
