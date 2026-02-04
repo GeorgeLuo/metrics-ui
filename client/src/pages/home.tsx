@@ -3181,8 +3181,8 @@ export default function Home() {
               </button>
             </div>
           </SidebarHeader>
-          <SidebarContent className="min-h-0">
-            <div className={sidebarMode === "setup" ? "block" : "hidden"} aria-hidden={sidebarMode !== "setup"}>
+          <SidebarContent className="min-h-0 flex-1">
+            <div className={sidebarMode === "setup" ? "flex flex-col flex-1 min-h-0 overflow-y-auto" : "hidden"} aria-hidden={sidebarMode !== "setup"}>
               <>
                 <Collapsible open={isCaptureSourceOpen} onOpenChange={setIsCaptureSourceOpen}>
                   <SidebarGroup>
@@ -3517,7 +3517,7 @@ export default function Home() {
                 </SidebarGroup>
               </>
             </div>
-            <div className={sidebarMode === "analysis" ? "block" : "hidden"} aria-hidden={sidebarMode !== "analysis"}>
+            <div className={sidebarMode === "analysis" ? "flex flex-col flex-1 min-h-0 overflow-y-auto" : "hidden"} aria-hidden={sidebarMode !== "analysis"}>
               <>
                 <SidebarGroup>
                   <SidebarGroupLabel>Derivations</SidebarGroupLabel>
