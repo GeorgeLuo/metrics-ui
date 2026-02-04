@@ -457,7 +457,7 @@ const MAX_QUEUED_COMMANDS = 500;
 const MAX_PENDING_CAPTURE_FRAMES = 5000;
 const MAX_PENDING_TOTAL_FRAMES = 50000;
 const LIVE_MAX_LINES_PER_POLL = 2000;
-const LITE_BUFFER_MAX_FRAMES = 5000;
+const LITE_BUFFER_MAX_FRAMES = 50;
 const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "toggle_capture",
   "remove_capture",
