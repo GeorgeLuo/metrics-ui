@@ -243,19 +243,15 @@ function ComponentTreeBase({
   };
 
   if (components.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-4 text-center">
-        <p className="text-xs text-muted-foreground">No components available</p>
-      </div>
-    );
+    return null;
   }
 
   const shouldTruncate = searchQuery === "" && components.length > MAX_ROOT_NODES;
   const visibleNodes = shouldTruncate ? components.slice(0, MAX_ROOT_NODES) : components;
 
   return (
-    <div className="flex flex-col">
-      <div className="px-2 pb-2">
+    <div>
+      <div className="px-2 pb-1">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
           <Input
@@ -268,7 +264,6 @@ function ComponentTreeBase({
           />
         </div>
       </div>
-
       <div>
         {visibleNodes.map((node) => (
           <TreeNode
