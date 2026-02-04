@@ -276,6 +276,42 @@ export interface MemoryStatsTotals {
   stringChars: number;
 }
 
+export interface PerfSampleStats {
+  samples: number;
+  avgMs: number | null;
+  maxMs: number | null;
+  p95Ms: number | null;
+}
+
+export interface LongTaskStats {
+  count: number;
+  totalMs: number;
+  maxMs: number;
+  lastStart: number | null;
+  lastDurationMs: number | null;
+}
+
+export interface UiLagStats {
+  eventLoop: PerfSampleStats;
+  frame: PerfSampleStats & { fps: number | null; avgFrameMs: number | null };
+  longTasks: LongTaskStats;
+  sampleWindow: {
+    maxSamples: number;
+    intervalMs: number;
+  };
+}
+
+export interface ComponentUpdateStats {
+  samples: number;
+  avgMs: number | null;
+  maxMs: number | null;
+  p95Ms: number | null;
+  lastMs: number | null;
+  lastAt: number | null;
+  lastNodes: number | null;
+  throttled: number;
+}
+
 export interface MemoryStatsResponse {
   performanceMemoryAvailable: boolean;
   baselineHeap: number | null;
@@ -291,6 +327,8 @@ export interface MemoryStatsResponse {
   estimates: MemoryStatsEstimates;
   captures: MemoryStatsCapture[];
   totals: MemoryStatsTotals;
+  uiLag: UiLagStats;
+  componentUpdates: ComponentUpdateStats;
 }
 
 export const uploadResponseSchema = z.union([

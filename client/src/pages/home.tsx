@@ -70,6 +70,9 @@ const DEFAULT_POLL_SECONDS = 2;
 const EMPTY_METRICS: SelectedMetric[] = [];
 const APPEND_FLUSH_MS = 100;
 const FULLSCREEN_RESIZE_DELAY = 0;
+const PERF_SAMPLE_MAX = 200;
+const EVENT_LOOP_INTERVAL_MS = 100;
+const COMPONENT_UPDATE_THROTTLE_MS = 250;
 
 const METRIC_COLORS = [
   "#E4572E",
@@ -115,6 +118,33 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
 }
 
+function pushSample(list: number[], value: number): void {
+  if (!Number.isFinite(value)) {
+    return;
+  }
+  list.push(value);
+  if (list.length > PERF_SAMPLE_MAX) {
+    list.splice(0, list.length - PERF_SAMPLE_MAX);
+  }
+}
+
+function computeSampleStats(samples: number[]) {
+  if (!samples.length) {
+    return { samples: 0, avgMs: null, maxMs: null, p95Ms: null };
+  }
+  const sorted = [...samples].sort((a, b) => a - b);
+  const total = samples.reduce((sum, value) => sum + value, 0);
+  const avg = total / samples.length;
+  const max = sorted[sorted.length - 1] ?? avg;
+  const p95Index = Math.max(0, Math.floor(0.95 * (sorted.length - 1)));
+  const p95 = sorted[p95Index] ?? avg;
+  return {
+    samples: samples.length,
+    avgMs: Number.isFinite(avg) ? avg : null,
+    maxMs: Number.isFinite(max) ? max : null,
+    p95Ms: Number.isFinite(p95) ? p95 : null,
+  };
+}
 
 function parseComponentTree(records: CaptureRecord[]): ComponentNode[] {
   if (records.length === 0) return [];
@@ -402,6 +432,23 @@ export default function Home() {
   const pendingSeriesRef = useRef(new Set<string>());
   const loadedSeriesRef = useRef(new Set<string>());
   const baselineHeapRef = useRef<number | null>(null);
+  const componentUpdateSamplesRef = useRef<number[]>([]);
+  const componentUpdateLastMsRef = useRef<number | null>(null);
+  const componentUpdateLastAtRef = useRef<number | null>(null);
+  const componentUpdateLastNodesRef = useRef<number | null>(null);
+  const componentUpdateThrottledRef = useRef<number>(0);
+  const componentUpdateLastAppliedRef = useRef<Map<string, number>>(new Map());
+  const pendingComponentUpdatesRef = useRef<Map<string, ComponentNode[]>>(new Map());
+  const componentUpdateTimersRef = useRef<Map<string, number>>(new Map());
+  const eventLoopLagSamplesRef = useRef<number[]>([]);
+  const frameTimeSamplesRef = useRef<number[]>([]);
+  const longTaskStatsRef = useRef({
+    count: 0,
+    totalMs: 0,
+    maxMs: 0,
+    lastStart: null as number | null,
+    lastDurationMs: null as number | null,
+  });
   const sendMessageRef = useRef<(message: ControlResponse | ControlCommand) => boolean>(() => false);
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
   const activeCaptureIdsRef = useRef(new Set<string>());
@@ -915,6 +962,74 @@ export default function Home() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [updateViewport]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof performance === "undefined") {
+      return;
+    }
+    let last = performance.now();
+    const interval = EVENT_LOOP_INTERVAL_MS;
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const lag = Math.max(0, now - last - interval);
+      last = now;
+      pushSample(eventLoopLagSamplesRef.current, lag);
+    }, interval);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof performance === "undefined") {
+      return;
+    }
+    let rafId = 0;
+    let last = performance.now();
+    const loop = (now: number) => {
+      const delta = now - last;
+      last = now;
+      if (delta > 0 && delta < 1000) {
+        pushSample(frameTimeSamplesRef.current, delta);
+      }
+      rafId = window.requestAnimationFrame(loop);
+    };
+    rafId = window.requestAnimationFrame(loop);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof PerformanceObserver === "undefined") {
+      return;
+    }
+    let observer: PerformanceObserver | null = null;
+    try {
+      observer = new PerformanceObserver((list) => {
+        list.getEntries().forEach((entry) => {
+          if (entry.entryType !== "longtask") {
+            return;
+          }
+          const duration = typeof entry.duration === "number" ? entry.duration : 0;
+          const stats = longTaskStatsRef.current;
+          stats.count += 1;
+          stats.totalMs += duration;
+          stats.maxMs = Math.max(stats.maxMs, duration);
+          stats.lastStart = entry.startTime ?? null;
+          stats.lastDurationMs = duration;
+        });
+      });
+      observer.observe({
+        entryTypes: ["longtask"] as string[],
+      });
+    } catch {
+      // ignore observer failures
+    }
+    return () => {
+      observer?.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     updateBaselineHeap();
@@ -1568,14 +1683,48 @@ export default function Home() {
     if (!components || components.length === 0) {
       return;
     }
+    const now =
+      typeof performance !== "undefined" && typeof performance.now === "function"
+        ? performance.now()
+        : Date.now();
+    const lastApplied = componentUpdateLastAppliedRef.current.get(captureId) ?? 0;
+    const elapsed = now - lastApplied;
+    if (elapsed < COMPONENT_UPDATE_THROTTLE_MS) {
+      componentUpdateThrottledRef.current += 1;
+      pendingComponentUpdatesRef.current.set(captureId, components);
+      if (!componentUpdateTimersRef.current.has(captureId)) {
+        const delay = Math.max(0, COMPONENT_UPDATE_THROTTLE_MS - elapsed);
+        const timer = window.setTimeout(() => {
+          componentUpdateTimersRef.current.delete(captureId);
+          const pending = pendingComponentUpdatesRef.current.get(captureId);
+          if (pending) {
+            pendingComponentUpdatesRef.current.delete(captureId);
+            handleCaptureComponents(captureId, pending);
+          }
+        }, delay);
+        componentUpdateTimersRef.current.set(captureId, timer);
+      }
+      return;
+    }
+
+    let durationMs = 0;
+    let nodeCount = 0;
     setCaptures((prev) => {
+      const start =
+        typeof performance !== "undefined" && typeof performance.now === "function"
+          ? performance.now()
+          : Date.now();
       const existing = prev.find((capture) => capture.id === captureId);
       const fallbackName = `${captureId}.jsonl`;
       if (!existing) {
         const stats = createEmptyCaptureStats();
         stats.componentNodes = countComponentNodes(components);
+        nodeCount = stats.componentNodes;
         captureStatsRef.current.set(captureId, stats);
         activeCaptureIdsRef.current.add(captureId);
+        durationMs = (typeof performance !== "undefined" && typeof performance.now === "function"
+          ? performance.now()
+          : Date.now()) - start;
         return [
           ...prev,
           {
@@ -1596,7 +1745,11 @@ export default function Home() {
           : components;
       const stats = captureStatsRef.current.get(captureId) ?? createEmptyCaptureStats();
       stats.componentNodes = countComponentNodes(mergedComponents);
+      nodeCount = stats.componentNodes;
       captureStatsRef.current.set(captureId, stats);
+      durationMs = (typeof performance !== "undefined" && typeof performance.now === "function"
+        ? performance.now()
+        : Date.now()) - start;
 
       return prev.map((capture) =>
         capture.id === captureId
@@ -1604,6 +1757,17 @@ export default function Home() {
           : capture,
       );
     });
+
+    componentUpdateLastAppliedRef.current.set(captureId, now);
+    if (durationMs > 0) {
+      pushSample(componentUpdateSamplesRef.current, durationMs);
+      componentUpdateLastMsRef.current = durationMs;
+      componentUpdateLastAtRef.current =
+        typeof performance !== "undefined" && typeof performance.now === "function"
+          ? performance.now()
+          : Date.now();
+      componentUpdateLastNodesRef.current = nodeCount || componentUpdateLastNodesRef.current;
+    }
   }, []);
 
   const flushPendingAppends = useCallback(() => {
@@ -2448,6 +2612,12 @@ export default function Home() {
         ? chartDataStats.totalObjectProps * bytesPerObjectProp
         : null;
 
+    const eventLoopStats = computeSampleStats(eventLoopLagSamplesRef.current);
+    const frameStats = computeSampleStats(frameTimeSamplesRef.current);
+    const avgFrameMs = frameStats.avgMs;
+    const fps = avgFrameMs && avgFrameMs > 0 ? 1000 / avgFrameMs : null;
+    const longTasks = longTaskStatsRef.current;
+
     return {
       performanceMemoryAvailable: Boolean(memory),
       baselineHeap: baselineHeap ?? null,
@@ -2466,6 +2636,32 @@ export default function Home() {
       },
       captures: captureStats,
       totals,
+      uiLag: {
+        eventLoop: eventLoopStats,
+        frame: {
+          ...frameStats,
+          fps,
+          avgFrameMs,
+        },
+        longTasks: {
+          count: longTasks.count,
+          totalMs: longTasks.totalMs,
+          maxMs: longTasks.maxMs,
+          lastStart: longTasks.lastStart,
+          lastDurationMs: longTasks.lastDurationMs,
+        },
+        sampleWindow: {
+          maxSamples: PERF_SAMPLE_MAX,
+          intervalMs: EVENT_LOOP_INTERVAL_MS,
+        },
+      },
+      componentUpdates: {
+        ...computeSampleStats(componentUpdateSamplesRef.current),
+        lastMs: componentUpdateLastMsRef.current,
+        lastAt: componentUpdateLastAtRef.current,
+        lastNodes: componentUpdateLastNodesRef.current,
+        throttled: componentUpdateThrottledRef.current,
+      },
     };
   }, [captures, ensureCaptureStats, selectedMetrics, activeMetrics, chartData]);
 
