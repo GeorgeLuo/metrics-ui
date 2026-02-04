@@ -784,6 +784,33 @@ function removeCaptureState(captureId: string) {
   stopLiveStream(captureId);
 }
 
+function isCaptureEmpty(captureId: string): boolean {
+  if (!captureId) {
+    return true;
+  }
+  if (liveStreamStates.has(captureId)) {
+    return false;
+  }
+  const pending = pendingCaptureBuffers.get(captureId);
+  if (pending) {
+    if (pending.frames.length > 0) {
+      return false;
+    }
+    if (pending.components && pending.components.length > 0) {
+      return false;
+    }
+  }
+  const componentState = captureComponentState.get(captureId);
+  if (componentState && componentState.components.length > 0) {
+    return false;
+  }
+  const lastTick = captureLastTicks.get(captureId);
+  if (typeof lastTick === "number") {
+    return false;
+  }
+  return true;
+}
+
 function enqueueCommand(command: ControlCommand) {
   if (command.type === "clear_captures") {
     clearCaptureState();
@@ -863,6 +890,10 @@ function sendKnownCaptures(options: { excludeIds?: Set<string> } = {}) {
 
   for (const captureId of captureIds) {
     if (excludeIds.has(captureId)) {
+      continue;
+    }
+    if (isCaptureEmpty(captureId)) {
+      removeCaptureState(captureId);
       continue;
     }
     const meta = captureMetadata.get(captureId);
@@ -1356,6 +1387,9 @@ function stopLiveStream(captureId: string) {
   }
   liveStreamStates.delete(captureId);
   sendCaptureEnd(state.captureId);
+  if (state.frameCount === 0 && isCaptureEmpty(state.captureId)) {
+    removeCaptureState(state.captureId);
+  }
   return state;
 }
 

@@ -8,6 +8,7 @@ REQUIRE_METRICS="${REQUIRE_METRICS:-1}"
 MIN_CHART_POINTS="${MIN_CHART_POINTS:-2}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-30}"
 POLL_SEC="${POLL_SEC:-2}"
+ALLOW_ZERO_TICKS="${ALLOW_ZERO_TICKS:-0}"
 
 echo "[ui-regress] ui=${UI_URL} capture=${CAPTURE_ID:-<any>} expected_tick=${EXPECTED_TICK:-<any>}"
 
@@ -32,6 +33,21 @@ while true; do
     last_error="[ui-regress] FAIL: capture not found in display snapshot"
     capture_tick=""
   }
+
+  if [[ "${ALLOW_ZERO_TICKS}" == "0" ]]; then
+    zero_tick_count="$(
+      node -e '
+        const fs = require("fs");
+        const data = JSON.parse(fs.readFileSync(0, "utf8"));
+        const captures = Array.isArray(data.captures) ? data.captures : [];
+        const zeros = captures.filter((c) => typeof c.tickCount === "number" && c.tickCount === 0).length;
+        process.stdout.write(String(zeros));
+      ' <<<"${snapshot_json}"
+    )"
+    if [[ "${zero_tick_count}" -gt 0 ]]; then
+      last_error="[ui-regress] FAIL: ${zero_tick_count} capture(s) stuck at tickCount 0"
+    fi
+  fi
 
   if [[ -z "${capture_tick}" ]]; then
     last_error="[ui-regress] FAIL: missing tickCount in display snapshot"
