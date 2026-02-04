@@ -2063,6 +2063,26 @@ export default function Home() {
   const prevSelectedRef = useRef<SelectedMetric[]>([]);
 
   useEffect(() => {
+    if (captures.length === 0 || selectedMetrics.length === 0) {
+      return;
+    }
+    selectedMetrics.forEach((metric) => {
+      const capture = captures.find((entry) => entry.id === metric.captureId);
+      if (!capture || !capture.isActive) {
+        return;
+      }
+      const key = buildSeriesKey(metric.captureId, metric.fullPath);
+      if (loadedSeriesRef.current.has(key) || pendingSeriesRef.current.has(key)) {
+        return;
+      }
+      if (capture.records.length > 1) {
+        return;
+      }
+      fetchMetricSeries(metric, { force: true });
+    });
+  }, [captures, fetchMetricSeries, selectedMetrics]);
+
+  useEffect(() => {
     const prev = prevSelectedRef.current;
     const prevKeys = new Set(prev.map((metric) => buildSeriesKey(metric.captureId, metric.fullPath)));
     const nextKeys = new Set(selectedMetrics.map((metric) => buildSeriesKey(metric.captureId, metric.fullPath)));
