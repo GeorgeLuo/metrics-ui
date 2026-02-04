@@ -8,6 +8,7 @@ import { MetricsHUD } from "@/components/metrics-hud";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sidebar,
@@ -25,6 +26,7 @@ import {
   FileText,
   Trash2,
   BookOpen,
+  ChevronDown,
   Eye,
   EyeOff,
   RefreshCw,
@@ -307,6 +309,7 @@ export default function Home() {
       return [];
     }
   });
+  const [analysisMetrics, setAnalysisMetrics] = useState<SelectedMetric[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<"file" | "live">(() => {
     if (typeof window === "undefined") {
@@ -375,6 +378,8 @@ export default function Home() {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [subtitles, setSubtitles] = useState<SubtitleOverlay[]>([]);
   const [sidebarMode, setSidebarMode] = useState<"setup" | "analysis">("setup");
+  const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
+  const [isSelectionOpen, setIsSelectionOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
 
   const playbackRef = useRef<number | null>(null);
@@ -468,6 +473,7 @@ export default function Home() {
       });
       captureStats.componentNodes = countComponentNodes(newCapture.components);
       captureStatsRef.current.set(newCapture.id, captureStats);
+      activeCaptureIdsRef.current.add(newCapture.id);
 
       setCaptures((prev) => {
         const nextCaptures = [...prev, newCapture];
@@ -638,12 +644,6 @@ export default function Home() {
   useEffect(() => {
     liveStreamsRef.current = liveStreams;
   }, [liveStreams]);
-
-  useEffect(() => {
-    activeCaptureIdsRef.current = new Set(
-      captures.filter((capture) => capture.isActive).map((capture) => capture.id),
-    );
-  }, [captures]);
 
   useEffect(() => {
     selectedMetricsRef.current = selectedMetrics;
@@ -1392,6 +1392,7 @@ export default function Home() {
         const existing = prev.find((capture) => capture.id === captureId);
         if (!existing) {
           shouldClear = true;
+          activeCaptureIdsRef.current.add(captureId);
           return [
             ...prev,
             {
@@ -1466,6 +1467,7 @@ export default function Home() {
         const stats = createEmptyCaptureStats();
         stats.componentNodes = countComponentNodes(components);
         captureStatsRef.current.set(captureId, stats);
+        activeCaptureIdsRef.current.add(captureId);
         return [
           ...prev,
           {
@@ -1559,6 +1561,7 @@ export default function Home() {
           };
           next.push(newCapture);
           indexById.set(captureId, next.length - 1);
+          activeCaptureIdsRef.current.add(captureId);
           const stats = createEmptyCaptureStats();
           createdRecords.forEach((record) => appendRecordStats(stats, record));
           stats.tickCount = Math.max(stats.tickCount, nextTickCount);
@@ -1671,6 +1674,7 @@ export default function Home() {
     setCaptures(prev => prev.filter(c => c.id !== captureId));
     setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
     captureStatsRef.current.delete(captureId);
+    activeCaptureIdsRef.current.delete(captureId);
     handleRemoveLiveStream(captureId);
     sendMessageRef.current({ type: "remove_capture", captureId });
   }, [handleRemoveLiveStream]);
@@ -1758,6 +1762,7 @@ export default function Home() {
     setCaptures([]);
     setSelectedMetrics([]);
     captureStatsRef.current.clear();
+    activeCaptureIdsRef.current.clear();
     setLiveStreams([]);
     liveMetaRef.current.clear();
     stopLiveStream().catch(() => {});
@@ -2393,6 +2398,10 @@ export default function Home() {
     return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
   };
 
+  const getAnalysisKey = useCallback((metric: SelectedMetric): string => {
+    return `${metric.captureId}::${metric.fullPath}`;
+  }, []);
+
   const getCaptureShortName = (capture: CaptureSession): string => {
     const name = capture.filename.replace('.jsonl', '');
     return name.length > 12 ? name.substring(0, 12) + '...' : name;
@@ -2413,6 +2422,34 @@ export default function Home() {
     }));
   }, [selectedMetrics]);
 
+  const analysisKeys = useMemo(() => {
+    return new Set(analysisMetrics.map(getAnalysisKey));
+  }, [analysisMetrics, getAnalysisKey]);
+
+  useEffect(() => {
+    if (analysisMetrics.length === 0) {
+      return;
+    }
+    const selectedKeys = new Set(selectedMetrics.map(getAnalysisKey));
+    setAnalysisMetrics((prev) => prev.filter((metric) => selectedKeys.has(getAnalysisKey(metric))));
+  }, [getAnalysisKey, selectedMetrics]);
+
+  const handleToggleAnalysisMetric = useCallback((metric: SelectedMetric) => {
+    const key = getAnalysisKey(metric);
+    setAnalysisMetrics((prev) => {
+      const exists = prev.some((entry) => getAnalysisKey(entry) === key);
+      if (exists) {
+        return prev.filter((entry) => getAnalysisKey(entry) !== key);
+      }
+      return [...prev, metric];
+    });
+  }, [getAnalysisKey]);
+
+  const handleRemoveAnalysisMetric = useCallback((metric: SelectedMetric) => {
+    const key = getAnalysisKey(metric);
+    setAnalysisMetrics((prev) => prev.filter((entry) => getAnalysisKey(entry) !== key));
+  }, [getAnalysisKey]);
+
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full bg-background">
@@ -2429,7 +2466,7 @@ export default function Home() {
               >
                 Metrics
                 <span className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                  {sidebarMode === "analysis" ? "Analysis" : "Setup"}
+                  {sidebarMode === "analysis" ? "Derivations" : "Setup"}
                 </span>
               </button>
             </div>
@@ -2437,128 +2474,141 @@ export default function Home() {
           <SidebarContent>
             <div className={sidebarMode === "setup" ? "block" : "hidden"} aria-hidden={sidebarMode !== "setup"}>
               <>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Capture Source</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <div className="px-2">
-                      <Tabs
-                        value={sourceMode}
-                        onValueChange={(value) => {
-                          const nextMode = value === "live" ? "live" : "file";
-                          handleSourceModeChange(nextMode);
-                        }}
-                        className="w-full"
-                      >
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="file">File</TabsTrigger>
-                          <TabsTrigger value="live">Live</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="file" className="mt-3">
-                          <FileUpload
-                            onFileUpload={handleFileUpload}
-                            isUploading={uploadMutation.isPending}
-                            uploadedFile={null}
-                            error={uploadError}
-                            onClear={handleClearUploadError}
-                          />
-                        </TabsContent>
-                        <TabsContent value="live" className="mt-3">
-                          <div className="flex flex-col gap-3">
-                            {liveStreams.map((entry, index) => {
-                              const isConnected = entry.status === "connected";
-                              const isConnecting = entry.status === "connecting";
-                              const isRetrying = entry.status === "retrying";
-                              const statusLabel = isConnected
-                                ? `Connected (${entry.id})`
-                                : isConnecting
-                                  ? "Connecting..."
-                                  : isRetrying
-                                    ? "Retrying..."
-                                    : "Idle";
+                <Collapsible open={isCaptureSourceOpen} onOpenChange={setIsCaptureSourceOpen}>
+                  <SidebarGroup>
+                    <SidebarGroupLabel asChild>
+                      <CollapsibleTrigger className="flex w-full items-center justify-between">
+                        <span>Capture Source</span>
+                        <ChevronDown
+                          className={`h-3 w-3 text-muted-foreground transition-transform ${
+                            isCaptureSourceOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </CollapsibleTrigger>
+                    </SidebarGroupLabel>
+                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+                      <SidebarGroupContent>
+                        <div className="px-2">
+                          <Tabs
+                            value={sourceMode}
+                            onValueChange={(value) => {
+                              const nextMode = value === "live" ? "live" : "file";
+                              handleSourceModeChange(nextMode);
+                            }}
+                            className="w-full"
+                          >
+                            <TabsList className="grid w-full grid-cols-2">
+                              <TabsTrigger value="file">File</TabsTrigger>
+                              <TabsTrigger value="live">Live</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="file" className="mt-3">
+                              <FileUpload
+                                onFileUpload={handleFileUpload}
+                                isUploading={uploadMutation.isPending}
+                                uploadedFile={null}
+                                error={uploadError}
+                                onClear={handleClearUploadError}
+                              />
+                            </TabsContent>
+                            <TabsContent value="live" className="mt-3">
+                              <div className="flex flex-col gap-3">
+                                {liveStreams.map((entry, index) => {
+                                  const isConnected = entry.status === "connected";
+                                  const isConnecting = entry.status === "connecting";
+                                  const isRetrying = entry.status === "retrying";
+                                  const statusLabel = isConnected
+                                    ? `Connected (${entry.id})`
+                                    : isConnecting
+                                      ? "Connecting..."
+                                      : isRetrying
+                                        ? "Retrying..."
+                                        : "Idle";
 
-                              return (
-                                <div
-                                  key={entry.id}
-                                  className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
-                                >
-                                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                                    <span>Stream {index + 1}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() => handleRemoveLiveStream(entry.id)}
-                                      data-testid={`button-live-remove-${entry.id}`}
-                                      aria-label={`Remove live stream ${index + 1}`}
+                                  return (
+                                    <div
+                                      key={entry.id}
+                                      className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
                                     >
-                                      <Trash2 className="w-3 h-3" />
-                                    </Button>
-                                  </div>
-                                  <Input
-                                    placeholder="Capture file URL or path"
-                                    value={entry.source}
-                                    onChange={(event) => {
-                                      handleLiveSourceInput(entry.id, event.target.value);
-                                    }}
-                                    className="h-8 px-2 py-1 text-xs"
-                                    aria-label={`Capture file source ${index + 1}`}
-                                  />
-                                  <Input
-                                    type="number"
-                                    min={0.5}
-                                    step={0.5}
-                                    placeholder="Poll interval (seconds)"
-                                    value={String(entry.pollSeconds)}
-                                    onChange={(event) => {
-                                      const parsed = Number(event.target.value);
-                                      if (Number.isFinite(parsed) && parsed > 0) {
-                                        handleLivePollChange(entry.id, parsed);
-                                      }
-                                    }}
-                                    className="h-8 px-2 py-1 text-xs"
-                                    disabled={isConnected || isConnecting}
-                                    aria-label={`Poll interval seconds ${index + 1}`}
-                                  />
-                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span>{statusLabel}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() => handleLiveRefresh(entry.id)}
-                                      disabled={!entry.source.trim() || isConnected || isConnecting}
-                                      data-testid={`button-live-refresh-${entry.id}`}
-                                      aria-label={`Refresh live source ${index + 1}`}
-                                    >
-                                      <RefreshCw className="w-3 h-3" />
-                                    </Button>
-                                  </div>
-                                  {entry.pollSeconds > 0 && (
-                                    <div className="text-[11px] text-muted-foreground">
-                                      Polling every {entry.pollSeconds.toLocaleString()}s
+                                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                        <span>Stream {index + 1}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => handleRemoveLiveStream(entry.id)}
+                                          data-testid={`button-live-remove-${entry.id}`}
+                                          aria-label={`Remove live stream ${index + 1}`}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                      <Input
+                                        placeholder="Capture file URL or path"
+                                        value={entry.source}
+                                        onChange={(event) => {
+                                          handleLiveSourceInput(entry.id, event.target.value);
+                                        }}
+                                        className="h-8 px-2 py-1 text-xs"
+                                        aria-label={`Capture file source ${index + 1}`}
+                                      />
+                                      <Input
+                                        type="number"
+                                        min={0.5}
+                                        step={0.5}
+                                        placeholder="Poll interval (seconds)"
+                                        value={String(entry.pollSeconds)}
+                                        onChange={(event) => {
+                                          const parsed = Number(event.target.value);
+                                          if (Number.isFinite(parsed) && parsed > 0) {
+                                            handleLivePollChange(entry.id, parsed);
+                                          }
+                                        }}
+                                        className="h-8 px-2 py-1 text-xs"
+                                        disabled={isConnected || isConnecting}
+                                        aria-label={`Poll interval seconds ${index + 1}`}
+                                      />
+                                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                        <span>{statusLabel}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => handleLiveRefresh(entry.id)}
+                                          disabled={!entry.source.trim() || isConnected || isConnecting}
+                                          data-testid={`button-live-refresh-${entry.id}`}
+                                          aria-label={`Refresh live source ${index + 1}`}
+                                        >
+                                          <RefreshCw className="w-3 h-3" />
+                                        </Button>
+                                      </div>
+                                      {entry.pollSeconds > 0 && (
+                                        <div className="text-[11px] text-muted-foreground">
+                                          Polling every {entry.pollSeconds.toLocaleString()}s
+                                        </div>
+                                      )}
+                                      {entry.error && (
+                                        <div className="text-xs text-destructive">{entry.error}</div>
+                                      )}
                                     </div>
-                                  )}
-                                  {entry.error && (
-                                    <div className="text-xs text-destructive">{entry.error}</div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs"
-                              onClick={handleAddLiveStream}
-                              data-testid="button-live-add"
-                            >
-                              Add live stream
-                            </Button>
-                          </div>
-                        </TabsContent>
-                      </Tabs>
-                    </div>
-                  </SidebarGroupContent>
-                </SidebarGroup>
+                                  );
+                                })}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-xs"
+                                  onClick={handleAddLiveStream}
+                                  data-testid="button-live-add"
+                                >
+                                  Add live stream
+                                </Button>
+                              </div>
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+                      </SidebarGroupContent>
+                    </CollapsibleContent>
+                  </SidebarGroup>
+                </Collapsible>
                 <SidebarGroup>
                   <SidebarGroupLabel>Captures</SidebarGroupLabel>
                   <SidebarGroupContent>
@@ -2600,27 +2650,44 @@ export default function Home() {
                     </div>
                   </SidebarGroupContent>
                 </SidebarGroup>
-                {activeCaptures.map((capture) => (
-                  <SidebarGroup key={capture.id}>
-                    <SidebarGroupLabel className="text-xs">
-                      {getCaptureShortName(capture)}
+                <Collapsible open={isSelectionOpen} onOpenChange={setIsSelectionOpen}>
+                  <SidebarGroup>
+                    <SidebarGroupLabel asChild>
+                      <CollapsibleTrigger className="flex w-full items-center justify-between">
+                        <span>Selection</span>
+                        <ChevronDown
+                          className={`h-3 w-3 text-muted-foreground transition-transform ${
+                            isSelectionOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </CollapsibleTrigger>
                     </SidebarGroupLabel>
-                    <SidebarGroupContent>
-                      <ComponentTree
-                        captureId={capture.id}
-                        components={capture.components}
-                        selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
-                        metricCoverage={metricCoverage[capture.id]}
-                        onSelectionChange={getSelectionHandler(capture.id)}
-                        colorOffset={captures.findIndex(c => c.id === capture.id)}
-                      />
-                    </SidebarGroupContent>
+                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+                      <div className="flex flex-col gap-2">
+                        {activeCaptures.length === 0 && (
+                          <div className="px-2 text-xs text-muted-foreground">No active captures</div>
+                        )}
+                        {activeCaptures.map((capture) => (
+                          <SidebarGroup key={capture.id} className="p-0">
+                            <SidebarGroupLabel className="text-xs">
+                              {getCaptureShortName(capture)}
+                            </SidebarGroupLabel>
+                            <SidebarGroupContent>
+                              <ComponentTree
+                                captureId={capture.id}
+                                components={capture.components}
+                                selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
+                                metricCoverage={metricCoverage[capture.id]}
+                                onSelectionChange={getSelectionHandler(capture.id)}
+                                colorOffset={captures.findIndex(c => c.id === capture.id)}
+                              />
+                            </SidebarGroupContent>
+                          </SidebarGroup>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
                   </SidebarGroup>
-                ))}
-              </>
-            </div>
-            <div className={sidebarMode === "analysis" ? "block" : "hidden"} aria-hidden={sidebarMode !== "analysis"}>
-              <>
+                </Collapsible>
                 <SidebarGroup>
                   <SidebarGroupLabel>Overview</SidebarGroupLabel>
                   <SidebarGroupContent>
@@ -2678,6 +2745,43 @@ export default function Home() {
                           <span className="font-mono text-foreground">{entry.count}</span>
                         </div>
                       ))}
+                    </div>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              </>
+            </div>
+            <div className={sidebarMode === "analysis" ? "block" : "hidden"} aria-hidden={sidebarMode !== "analysis"}>
+              <>
+                <SidebarGroup>
+                  <SidebarGroupLabel>Derivations</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
+                      {analysisMetrics.length === 0 && (
+                        <span>Click a metric in the HUD to add it here.</span>
+                      )}
+                      {analysisMetrics.map((metric) => {
+                        const capture = captures.find((entry) => entry.id === metric.captureId);
+                        const captureName = capture ? getCaptureShortName(capture) : metric.captureId;
+                        return (
+                          <div key={getAnalysisKey(metric)} className="flex items-center gap-2">
+                            <span
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: metric.color }}
+                            />
+                            <span className="truncate flex-1">
+                              {captureName}: {metric.label}
+                            </span>
+                            <button
+                              type="button"
+                              className="text-muted-foreground hover:text-foreground"
+                              onClick={() => handleRemoveAnalysisMetric(metric)}
+                              aria-label={`Remove ${captureName}: ${metric.label} from analysis`}
+                            >
+                              x
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </SidebarGroupContent>
                 </SidebarGroup>
@@ -2777,6 +2881,8 @@ export default function Home() {
                 currentTick={playbackState.currentTick}
                 captures={captures}
                 isVisible={isHudVisible}
+                analysisKeys={analysisKeys}
+                onToggleAnalysisMetric={handleToggleAnalysisMetric}
                 onDeselectMetric={handleDeselectMetric}
                 onHoverMetric={setHighlightedMetricKey}
                 highlightedMetricKey={highlightedMetricKey}

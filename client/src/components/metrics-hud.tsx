@@ -14,6 +14,8 @@ interface MetricsHUDProps {
   captures: CaptureSession[];
   isVisible: boolean;
   highlightedMetricKey?: string | null;
+  analysisKeys?: Set<string>;
+  onToggleAnalysisMetric?: (metric: SelectedMetric) => void;
   onDeselectMetric?: (captureId: string, fullPath: string) => void;
   onHoverMetric?: (metricKey: string | null) => void;
 }
@@ -25,6 +27,8 @@ export function MetricsHUD({
   captures,
   isVisible,
   highlightedMetricKey,
+  analysisKeys,
+  onToggleAnalysisMetric,
   onDeselectMetric,
   onHoverMetric,
 }: MetricsHUDProps) {
@@ -110,15 +114,19 @@ export function MetricsHUD({
           const captureName = getCaptureFilename(metric.captureId);
 
           const isHighlighted = highlightedMetricKey === dataKey;
+          const analysisKey = `${metric.captureId}::${metric.fullPath}`;
+          const isAnalysisSelected = analysisKeys?.has(analysisKey) ?? false;
 
           return (
             <div
               key={`${metric.captureId}-${metric.fullPath}`}
               className={cn(
-                "flex items-center gap-2",
+                "flex items-center gap-2 rounded-sm px-1 -mx-1 cursor-pointer",
+                isAnalysisSelected && "bg-muted/50 text-foreground",
                 isHighlighted ? "text-foreground" : "text-muted-foreground",
               )}
               onMouseEnter={() => onHoverMetric?.(dataKey)}
+              onClick={() => onToggleAnalysisMetric?.(metric)}
             >
               <div
                 className="w-2 h-2 rounded-full shrink-0"

@@ -261,6 +261,8 @@ test("buildRenderDebug summarizes window state", () => {
   assert.equal(debug.captures[0].recordCount, 3);
   assert.equal(debug.captures[0].windowRecordCount, 2);
   assert.equal(debug.captures[0].componentNodes, 8);
+  assert.equal(debug.captures[0].selectedMetricCount, 2);
+  assert.equal(debug.captures[0].storesRecords, true);
 
   const metricMap = new Map(debug.metrics.map((item) => [item.fullPath, item]));
   assert.deepEqual(metricMap.get("1.comp.a"), {

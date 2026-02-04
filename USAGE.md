@@ -17,6 +17,7 @@ This site visualizes simulation or evaluation **capture files**. You upload a JS
    - Press **Play** to resume; auto-scroll turns back on and the window expands to the right.
    - Use the **reset window** button (refresh icon in the header) to show the full range again.
 6. **Add annotations** by clicking on the chart (silent add). Click an existing annotation line to edit its label.
+7. **Mark analysis metrics** by clicking a metric in the HUD. They appear in the Derivations pane.
 
 The UI shows multiple captures at once; they share a common tick axis.
 

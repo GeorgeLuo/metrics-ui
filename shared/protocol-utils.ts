@@ -494,6 +494,10 @@ export function buildRenderDebug({
 
   const activeCaptures = captures.filter((capture) => capture.isActive);
   const activeCaptureIds = new Set(activeCaptures.map((capture) => capture.id));
+  const selectedMetricCounts = selectedMetrics.reduce((acc, metric) => {
+    acc.set(metric.captureId, (acc.get(metric.captureId) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
   const metrics = selectedMetrics.map((metric) => {
     const capture = captures.find((item) => item.id === metric.captureId);
     const records = capture?.records ?? [];
@@ -541,6 +545,7 @@ export function buildRenderDebug({
     const windowRecordCount = capture.records.filter(
       (record) => record.tick >= start && record.tick <= end,
     ).length;
+    const selectedMetricCount = selectedMetricCounts.get(capture.id) ?? 0;
     return {
       id: capture.id,
       filename: capture.filename,
@@ -549,6 +554,8 @@ export function buildRenderDebug({
       tickCount: capture.tickCount,
       componentNodes: countComponentNodes(capture.components),
       windowRecordCount,
+      selectedMetricCount,
+      storesRecords: selectedMetricCount > 0,
     };
   });
 

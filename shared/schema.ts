@@ -173,6 +173,8 @@ export interface RenderDebugResponse {
     tickCount: number;
     componentNodes: number;
     windowRecordCount: number;
+    selectedMetricCount: number;
+    storesRecords: boolean;
   }>;
   selectedMetrics: SelectedMetric[];
   metrics: Array<{
