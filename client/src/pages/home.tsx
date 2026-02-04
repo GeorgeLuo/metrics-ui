@@ -30,6 +30,7 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
+  Maximize,
   Maximize2,
   Minimize2,
 } from "lucide-react";
@@ -69,6 +70,7 @@ const INITIAL_WINDOW_SIZE = 50;
 const DEFAULT_POLL_SECONDS = 2;
 const EMPTY_METRICS: SelectedMetric[] = [];
 const APPEND_FLUSH_MS = 100;
+const LIVE_SERIES_REFRESH_MS = 500;
 const FULLSCREEN_RESIZE_DELAY = 0;
 const PERF_SAMPLE_MAX = 200;
 const EVENT_LOOP_INTERVAL_MS = 100;
@@ -412,12 +414,15 @@ export default function Home() {
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [isSelectionOpen, setIsSelectionOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
+  const [initialSyncReady, setInitialSyncReady] = useState(false);
 
   const playbackRef = useRef<number | null>(null);
+  const capturesRef = useRef(captures);
   const liveStreamsRef = useRef(liveStreams);
   const selectedMetricsRef = useRef(selectedMetrics);
   const liveMetaRef = useRef(new Map<string, LiveStreamMeta>());
-  const didInitialLiveConnectRef = useRef(false);
+  const initialSyncTimerRef = useRef<number | null>(null);
+  const initialSyncReadyRef = useRef(false);
   const attemptConnectRef = useRef<(
     id: string,
     options?: { force?: boolean; showConnecting?: boolean; allowCompleted?: boolean },
@@ -431,6 +436,9 @@ export default function Home() {
   const captureStatsRef = useRef<Map<string, CaptureStats>>(new Map());
   const pendingSeriesRef = useRef(new Set<string>());
   const loadedSeriesRef = useRef(new Set<string>());
+  const seriesRefreshTimerRef = useRef<number | null>(null);
+  const lastSeriesRefreshRef = useRef(new Map<string, number>());
+  const lastSeriesTickRef = useRef(new Map<string, number>());
   const baselineHeapRef = useRef<number | null>(null);
   const componentUpdateSamplesRef = useRef<number[]>([]);
   const componentUpdateLastMsRef = useRef<number | null>(null);
@@ -703,8 +711,78 @@ export default function Home() {
   }, [liveStreams]);
 
   useEffect(() => {
+    capturesRef.current = captures;
+  }, [captures]);
+
+  useEffect(() => {
     selectedMetricsRef.current = selectedMetrics;
   }, [selectedMetrics]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (seriesRefreshTimerRef.current !== null) {
+      window.clearInterval(seriesRefreshTimerRef.current);
+      seriesRefreshTimerRef.current = null;
+    }
+
+    seriesRefreshTimerRef.current = window.setInterval(() => {
+      const now =
+        typeof performance !== "undefined" && typeof performance.now === "function"
+          ? performance.now()
+          : Date.now();
+      const metricsByCapture = new Map<string, SelectedMetric[]>();
+      selectedMetricsRef.current.forEach((metric) => {
+        const list = metricsByCapture.get(metric.captureId);
+        if (list) {
+          list.push(metric);
+        } else {
+          metricsByCapture.set(metric.captureId, [metric]);
+        }
+      });
+
+      if (metricsByCapture.size === 0) {
+        return;
+      }
+
+      metricsByCapture.forEach((metrics, captureId) => {
+        const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+        if (
+          !liveEntry
+          || liveEntry.status === "idle"
+          || liveEntry.status === "completed"
+          || !liveEntry.source.trim()
+        ) {
+          return;
+        }
+        const capture = capturesRef.current.find((entry) => entry.id === captureId);
+        if (!capture || !capture.isActive) {
+          return;
+        }
+        const lastTick = lastSeriesTickRef.current.get(captureId) ?? 0;
+        if (capture.tickCount <= lastTick) {
+          return;
+        }
+        const lastRefresh = lastSeriesRefreshRef.current.get(captureId) ?? 0;
+        if (now - lastRefresh < LIVE_SERIES_REFRESH_MS) {
+          return;
+        }
+        lastSeriesRefreshRef.current.set(captureId, now);
+        lastSeriesTickRef.current.set(captureId, capture.tickCount);
+        metrics.forEach((metric) => {
+          fetchMetricSeries(metric, { force: true });
+        });
+      });
+    }, LIVE_SERIES_REFRESH_MS);
+
+    return () => {
+      if (seriesRefreshTimerRef.current !== null) {
+        window.clearInterval(seriesRefreshTimerRef.current);
+        seriesRefreshTimerRef.current = null;
+      }
+    };
+  }, [fetchMetricSeries]);
 
   useEffect(() => {
     if (captures.length === 0) {
@@ -788,6 +866,41 @@ export default function Home() {
     };
     liveMetaRef.current.set(id, meta);
     return meta;
+  }, []);
+
+  const markInitialSyncReady = useCallback(() => {
+    if (initialSyncTimerRef.current !== null) {
+      window.clearTimeout(initialSyncTimerRef.current);
+      initialSyncTimerRef.current = null;
+    }
+    if (!initialSyncReadyRef.current) {
+      initialSyncReadyRef.current = true;
+      setInitialSyncReady(true);
+    }
+  }, []);
+
+  const resetInitialSync = useCallback(
+    (options?: { delayMs?: number }) => {
+      initialSyncReadyRef.current = false;
+      setInitialSyncReady(false);
+      if (initialSyncTimerRef.current !== null) {
+        window.clearTimeout(initialSyncTimerRef.current);
+      }
+      const delay = Math.max(0, Math.floor(options?.delayMs ?? 2000));
+      initialSyncTimerRef.current = window.setTimeout(() => {
+        markInitialSyncReady();
+      }, delay);
+    },
+    [markInitialSyncReady],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (initialSyncTimerRef.current !== null) {
+        window.clearTimeout(initialSyncTimerRef.current);
+        initialSyncTimerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -1305,8 +1418,9 @@ export default function Home() {
     setSourceMode(mode);
     if (mode === "live") {
       setUploadError(null);
+      resetInitialSync();
     }
-  }, []);
+  }, [resetInitialSync]);
 
   const handleAddLiveStream = useCallback(() => {
     setLiveStreams((prev) => [
@@ -1467,16 +1581,91 @@ export default function Home() {
     attemptConnectRef.current = attemptConnect;
   }, [attemptConnect]);
 
-  const handleWsReconnect = useCallback(() => {
-    if (sourceMode !== "live") {
+  useEffect(() => {
+    if (sourceMode !== "live" || !initialSyncReady) {
       return;
     }
-    liveStreamsRef.current.forEach((entry) => {
-      if (entry.source.trim()) {
-        attemptConnectRef.current(entry.id, { force: true, showConnecting: false });
+    const knownCaptureIds = new Set(captures.map((capture) => capture.id));
+    liveStreams.forEach((entry) => {
+      if (!entry.source.trim()) {
+        return;
       }
+      if (knownCaptureIds.has(entry.id)) {
+        return;
+      }
+      if (entry.status !== "idle" && entry.status !== "retrying") {
+        return;
+      }
+      attemptConnectRef.current(entry.id, { force: true, showConnecting: false });
     });
-  }, [sourceMode]);
+  }, [captures, initialSyncReady, liveStreams, sourceMode]);
+
+  const handleWsReconnect = useCallback(() => {
+    if (sourceMode === "live") {
+      resetInitialSync();
+    }
+  }, [resetInitialSync, sourceMode]);
+
+  const handleStateSync = useCallback(
+    (syncCaptures: { captureId: string; lastTick?: number | null }[]) => {
+      if (!Array.isArray(syncCaptures) || syncCaptures.length === 0) {
+        markInitialSyncReady();
+        return;
+      }
+      setCaptures((prev) => {
+        const next = [...prev];
+        const indexById = new Map<string, number>();
+        next.forEach((capture, index) => {
+          indexById.set(capture.id, index);
+        });
+        syncCaptures.forEach((entry) => {
+          const captureId = entry.captureId;
+          const lastTick = entry.lastTick;
+          if (typeof captureId !== "string" || !captureId) {
+            return;
+          }
+          if (typeof lastTick !== "number") {
+            return;
+          }
+          const existingIndex = indexById.get(captureId);
+          if (existingIndex === undefined) {
+            const fallbackName = `${captureId}.jsonl`;
+            const newCapture: CaptureSession = {
+              id: captureId,
+              filename: fallbackName,
+              fileSize: 0,
+              tickCount: lastTick,
+              records: [],
+              components: [],
+              isActive: true,
+            };
+            next.push(newCapture);
+            indexById.set(captureId, next.length - 1);
+            activeCaptureIdsRef.current.add(captureId);
+            const stats = createEmptyCaptureStats();
+            stats.tickCount = lastTick;
+            captureStatsRef.current.set(captureId, stats);
+            return;
+          }
+          const existing = next[existingIndex];
+          if (existing.tickCount >= lastTick) {
+            return;
+          }
+          next[existingIndex] = {
+            ...existing,
+            tickCount: lastTick,
+          };
+          const stats = captureStatsRef.current.get(captureId);
+          if (stats) {
+            stats.tickCount = Math.max(stats.tickCount, lastTick);
+          }
+        });
+        return next;
+      });
+      markInitialSyncReady();
+    },
+    [markInitialSyncReady],
+  );
 
   const handleLiveRefresh = useCallback(
     (id: string) => {
@@ -1497,21 +1686,6 @@ export default function Home() {
     },
     [clearLiveRetry, stopLiveStream],
   );
-
-  useEffect(() => {
-    if (didInitialLiveConnectRef.current) {
-      return;
-    }
-    didInitialLiveConnectRef.current = true;
-    if (sourceMode !== "live") {
-      return;
-    }
-    liveStreamsRef.current.forEach((entry) => {
-      if (entry.source.trim()) {
-        attemptConnectRef.current(entry.id, { force: true });
-      }
-    });
-  }, []);
 
   useEffect(() => {
     liveStreams.forEach((entry) => {
@@ -1651,13 +1825,14 @@ export default function Home() {
           return next;
         });
         const meta = getLiveMeta(captureId);
-        meta.dirty = true;
+        meta.dirty = false;
         meta.lastSource = source.trim();
-        attemptConnectRef.current(captureId, { force: true, showConnecting: false });
       }
 
       if (shouldClear) {
         captureStatsRef.current.set(captureId, createEmptyCaptureStats());
+        lastSeriesRefreshRef.current.delete(captureId);
+        lastSeriesTickRef.current.delete(captureId);
         Array.from(loadedSeriesRef.current.keys()).forEach((key) => {
           if (key.startsWith(`${captureId}::`)) {
             loadedSeriesRef.current.delete(key);
@@ -2023,6 +2198,8 @@ export default function Home() {
     captureStatsRef.current.delete(captureId);
     activeCaptureIdsRef.current.delete(captureId);
     pendingTicksRef.current.delete(captureId);
+    lastSeriesRefreshRef.current.delete(captureId);
+    lastSeriesTickRef.current.delete(captureId);
     handleRemoveLiveStream(captureId);
     sendMessageRef.current({ type: "remove_capture", captureId });
   }, [handleRemoveLiveStream]);
@@ -2100,7 +2277,13 @@ export default function Home() {
       }
       const key = buildSeriesKey(metric.captureId, metric.fullPath);
       if (!loadedSeriesRef.current.has(key)) {
-        fetchMetricSeries(metric);
+        const liveEntry = liveStreamsRef.current.find((entry) => entry.id === metric.captureId);
+        const shouldForce =
+          Boolean(liveEntry)
+          && liveEntry.status !== "idle"
+          && liveEntry.status !== "completed"
+          && liveEntry.source.trim().length > 0;
+        fetchMetricSeries(metric, shouldForce ? { force: true } : undefined);
       }
     });
 
@@ -2137,6 +2320,8 @@ export default function Home() {
     captureStatsRef.current.clear();
     activeCaptureIdsRef.current.clear();
     pendingTicksRef.current.clear();
+    lastSeriesRefreshRef.current.clear();
+    lastSeriesTickRef.current.clear();
     if (tickFlushTimerRef.current !== null) {
       window.clearTimeout(tickFlushTimerRef.current);
       tickFlushTimerRef.current = null;
@@ -2286,6 +2471,7 @@ export default function Home() {
     setIsWindowed(false);
     setPlaybackState((prev) => ({
       ...prev,
+      isPlaying: true,
       currentTick: end,
     }));
     setWindowStart(1);
@@ -2795,6 +2981,7 @@ export default function Home() {
     onClearSubtitles: handleClearSubtitles,
     getMemoryStats: buildMemoryStats,
     onReconnect: handleWsReconnect,
+    onStateSync: handleStateSync,
   });
 
   useEffect(() => {
@@ -3235,22 +3422,22 @@ export default function Home() {
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={handleResetWindow}
+                data-testid="button-reset-window"
+                title="Full View"
+              >
+                <Maximize className="w-4 h-4" />
+              </Button>
+              <div className="h-6 w-px bg-border/60 mx-1" />
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => handleSetFullscreen(!isFullscreen)}
                 data-testid="button-fullscreen"
                 title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               >
                 {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleResetWindow}
-                data-testid="button-reset-window"
-                title="Show all ticks"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-              <div className="h-6 w-px bg-border/60 mx-1" />
               <Link href="/docs">
                 <Button variant="ghost" size="icon" data-testid="button-docs">
                   <BookOpen className="w-4 h-4" />

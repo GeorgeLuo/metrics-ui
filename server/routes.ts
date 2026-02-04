@@ -374,6 +374,29 @@ function getValueAtPath(source: unknown, path: string[]): unknown {
   return current;
 }
 
+function extractSeriesFromFrames(frames: CaptureRecord[], path: string[]) {
+  const pointsByTick = new Map<number, number | null>();
+  frames.forEach((frame) => {
+    if (!frame || typeof frame.tick !== "number") {
+      return;
+    }
+    const rawValue = getValueAtPath(frame.entities, path);
+    const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
+    pointsByTick.set(frame.tick, value);
+  });
+
+  const points = Array.from(pointsByTick.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([tickValue, value]) => ({ tick: tickValue, value }));
+
+  const numericCount = points.reduce(
+    (total, point) => total + (typeof point.value === "number" ? 1 : 0),
+    0,
+  );
+  const lastTick = points.length > 0 ? points[points.length - 1].tick : null;
+  return { points, numericCount, lastTick, tickCount: points.length };
+}
+
 async function extractSeriesFromSource(options: {
   source: string;
   path: string[];
@@ -457,7 +480,11 @@ const MAX_QUEUED_COMMANDS = 500;
 const MAX_PENDING_CAPTURE_FRAMES = 5000;
 const MAX_PENDING_TOTAL_FRAMES = 50000;
 const LIVE_MAX_LINES_PER_POLL = 2000;
+const LIVE_FAST_POLL_MS = 100;
 const LITE_BUFFER_MAX_FRAMES = 50;
+const ENABLE_FRAME_CACHE = true;
+const MAX_FRAME_CACHE_BYTES = 2 * 1024 * 1024 * 1024;
+const DEFAULT_CACHE_TAIL_FRAMES = 200;
 const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "toggle_capture",
   "remove_capture",
@@ -534,6 +561,21 @@ const captureMetadata = new Map<string, { filename?: string; source?: string }>(
 const captureStreamModes = new Map<string, "lite" | "full">();
 const liteFrameBuffers = new Map<string, CaptureAppendFrame[]>();
 const captureLastTicks = new Map<string, number>();
+type CachedFrame = {
+  frame: CaptureRecord;
+  index: number;
+  bytes: number;
+};
+const captureFrameSamples = new Map<string, CachedFrame[]>();
+const captureFrameTail = new Map<string, CachedFrame[]>();
+const captureFrameSampleBytes = new Map<string, number>();
+const captureFrameTailBytes = new Map<string, number>();
+const captureFrameCacheStats = new Map<
+  string,
+  { totalFrames: number; totalBytes: number; sampleEvery: number; tailCount: number }
+>();
+const captureFrameCacheDisabled = new Set<string>();
+let lastCacheBudgetCount = 0;
 const captureComponentState = new Map<
   string,
   {
@@ -541,6 +583,172 @@ const captureComponentState = new Map<
     sentCount: number;
   }
 >();
+
+function resetFrameCache(captureId: string) {
+  captureFrameSamples.delete(captureId);
+  captureFrameTail.delete(captureId);
+  captureFrameSampleBytes.delete(captureId);
+  captureFrameTailBytes.delete(captureId);
+  captureFrameCacheStats.delete(captureId);
+  captureFrameCacheDisabled.delete(captureId);
+}
+
+function canCacheSource(source: string) {
+  const trimmed = source.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return !trimmed.startsWith("http://") && !trimmed.startsWith("https://");
+}
+
+function cacheCaptureFrame(options: {
+  captureId: string;
+  source: string;
+  frame: CaptureRecord;
+  rawLine: string;
+}) {
+  const { captureId, source, frame, rawLine } = options;
+  if (!ENABLE_FRAME_CACHE) {
+    return;
+  }
+  if (captureFrameCacheDisabled.has(captureId)) {
+    return;
+  }
+  if (!canCacheSource(source)) {
+    return;
+  }
+  const lineBytes = Buffer.byteLength(rawLine, "utf8");
+  if (lineBytes > MAX_FRAME_CACHE_BYTES) {
+    captureFrameCacheDisabled.add(captureId);
+    return;
+  }
+
+  const stats =
+    captureFrameCacheStats.get(captureId) ?? {
+      totalFrames: 0,
+      totalBytes: 0,
+      sampleEvery: 1,
+      tailCount: DEFAULT_CACHE_TAIL_FRAMES,
+    };
+  stats.totalFrames += 1;
+  stats.totalBytes += lineBytes;
+  captureFrameCacheStats.set(captureId, stats);
+
+  const activeCount = Math.max(1, captureFrameCacheStats.size);
+  const perCaptureBudget = Math.floor(MAX_FRAME_CACHE_BYTES / activeCount);
+  const averageBytes = Math.max(1, Math.floor(stats.totalBytes / stats.totalFrames));
+  const maxFramesForBudget = Math.max(1, Math.floor(perCaptureBudget / averageBytes));
+  const nextTailCount = Math.max(1, Math.min(DEFAULT_CACHE_TAIL_FRAMES, maxFramesForBudget));
+  const desiredSampleCount = Math.max(1, maxFramesForBudget - nextTailCount);
+  const nextSampleEvery = Math.max(1, Math.ceil(stats.totalFrames / desiredSampleCount));
+
+  const resample = nextSampleEvery > stats.sampleEvery || nextTailCount < stats.tailCount;
+  stats.sampleEvery = nextSampleEvery;
+  stats.tailCount = nextTailCount;
+
+  if (resample) {
+    const samples = captureFrameSamples.get(captureId) ?? [];
+    const filtered = samples.filter((item) => item.index % stats.sampleEvery === 0);
+    captureFrameSamples.set(captureId, filtered);
+    captureFrameSampleBytes.set(
+      captureId,
+      filtered.reduce((sum, item) => sum + item.bytes, 0),
+    );
+    const tail = captureFrameTail.get(captureId) ?? [];
+    if (tail.length > stats.tailCount) {
+      const trimmed = tail.slice(tail.length - stats.tailCount);
+      captureFrameTail.set(captureId, trimmed);
+      captureFrameTailBytes.set(
+        captureId,
+        trimmed.reduce((sum, item) => sum + item.bytes, 0),
+      );
+    }
+  }
+
+  const frameEntry: CachedFrame = {
+    frame,
+    index: stats.totalFrames,
+    bytes: lineBytes,
+  };
+
+  if (frameEntry.index % stats.sampleEvery === 0) {
+    const samples = captureFrameSamples.get(captureId) ?? [];
+    samples.push(frameEntry);
+    captureFrameSamples.set(captureId, samples);
+    captureFrameSampleBytes.set(
+      captureId,
+      (captureFrameSampleBytes.get(captureId) ?? 0) + frameEntry.bytes,
+    );
+  }
+
+  const tail = captureFrameTail.get(captureId) ?? [];
+  tail.push(frameEntry);
+  if (tail.length > stats.tailCount) {
+    const removed = tail.splice(0, tail.length - stats.tailCount);
+    const removedBytes = removed.reduce((sum, item) => sum + item.bytes, 0);
+    captureFrameTailBytes.set(
+      captureId,
+      Math.max(0, (captureFrameTailBytes.get(captureId) ?? 0) - removedBytes),
+    );
+  }
+  captureFrameTail.set(captureId, tail);
+  captureFrameTailBytes.set(
+    captureId,
+    (captureFrameTailBytes.get(captureId) ?? 0) + frameEntry.bytes,
+  );
+
+  if (captureFrameCacheStats.size !== lastCacheBudgetCount) {
+    lastCacheBudgetCount = captureFrameCacheStats.size;
+    const updatedActiveCount = Math.max(1, lastCacheBudgetCount);
+    const updatedBudget = Math.floor(MAX_FRAME_CACHE_BYTES / updatedActiveCount);
+    captureFrameCacheStats.forEach((existingStats, existingId) => {
+      const avgBytes = Math.max(1, Math.floor(existingStats.totalBytes / existingStats.totalFrames));
+      const maxFrames = Math.max(1, Math.floor(updatedBudget / avgBytes));
+      const tailCount = Math.max(1, Math.min(DEFAULT_CACHE_TAIL_FRAMES, maxFrames));
+      const desiredCount = Math.max(1, maxFrames - tailCount);
+      const sampleEvery = Math.max(1, Math.ceil(existingStats.totalFrames / desiredCount));
+      if (sampleEvery > existingStats.sampleEvery || tailCount < existingStats.tailCount) {
+        existingStats.sampleEvery = sampleEvery;
+        existingStats.tailCount = tailCount;
+        captureFrameCacheStats.set(existingId, existingStats);
+        const samples = captureFrameSamples.get(existingId) ?? [];
+        const filtered = samples.filter((item) => item.index % existingStats.sampleEvery === 0);
+        captureFrameSamples.set(existingId, filtered);
+        captureFrameSampleBytes.set(
+          existingId,
+          filtered.reduce((sum, item) => sum + item.bytes, 0),
+        );
+        const tailFrames = captureFrameTail.get(existingId) ?? [];
+        if (tailFrames.length > existingStats.tailCount) {
+          const trimmed = tailFrames.slice(tailFrames.length - existingStats.tailCount);
+          captureFrameTail.set(existingId, trimmed);
+          captureFrameTailBytes.set(
+            existingId,
+            trimmed.reduce((sum, item) => sum + item.bytes, 0),
+          );
+        }
+      }
+    });
+  }
+}
+
+function getCachedFramesForSeries(captureId: string): CaptureRecord[] {
+  const samples = captureFrameSamples.get(captureId) ?? [];
+  const tail = captureFrameTail.get(captureId) ?? [];
+  if (samples.length === 0 && tail.length === 0) {
+    return [];
+  }
+  const byTick = new Map<number, CaptureRecord>();
+  samples.forEach((entry) => {
+    byTick.set(entry.frame.tick, entry.frame);
+  });
+  tail.forEach((entry) => {
+    byTick.set(entry.frame.tick, entry.frame);
+  });
+  return Array.from(byTick.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, frame]) => frame);
+}
 
 function countComponentNodes(nodes: ComponentNode[]): number {
   let count = 0;
@@ -701,6 +909,7 @@ function registerCaptureSource(options: {
   if (!captureId) {
     throw new Error("captureId is required.");
   }
+  resetFrameCache(captureId);
   captureSources.set(captureId, source);
   captureMetadata.set(captureId, { filename, source });
   captureComponentState.set(captureId, { components: [], sentCount: 0 });
@@ -723,6 +932,7 @@ async function streamCaptureFromSource(captureId: string, source: string) {
     if (!frame) {
       return;
     }
+    cacheCaptureFrame({ captureId, source, frame, rawLine: line });
     updateCaptureComponents(captureId, componentsFromFrame(frame));
     if (shouldStreamFrames(captureId)) {
       sendCaptureAppend(captureId, frame);
@@ -767,6 +977,13 @@ function clearCaptureState() {
   captureStreamModes.clear();
   captureLastTicks.clear();
   liteFrameBuffers.clear();
+  captureFrameSamples.clear();
+  captureFrameTail.clear();
+  captureFrameSampleBytes.clear();
+  captureFrameTailBytes.clear();
+  captureFrameCacheStats.clear();
+  captureFrameCacheDisabled.clear();
+  lastCacheBudgetCount = 0;
   stopAllLiveStreams();
 }
 
@@ -781,6 +998,7 @@ function removeCaptureState(captureId: string) {
   captureStreamModes.delete(captureId);
   captureLastTicks.delete(captureId);
   liteFrameBuffers.delete(captureId);
+  resetFrameCache(captureId);
   stopLiveStream(captureId);
 }
 
@@ -829,6 +1047,31 @@ function flushQueuedCommands() {
     }
     frontendClient.send(JSON.stringify(command));
   }
+
+  const syncIds = new Set<string>();
+  for (const captureId of captureMetadata.keys()) {
+    syncIds.add(captureId);
+  }
+  for (const captureId of captureSources.keys()) {
+    syncIds.add(captureId);
+  }
+  for (const captureId of captureComponentState.keys()) {
+    syncIds.add(captureId);
+  }
+  for (const captureId of captureLastTicks.keys()) {
+    syncIds.add(captureId);
+  }
+  for (const captureId of liveStreamStates.keys()) {
+    syncIds.add(captureId);
+  }
+  const captures = Array.from(syncIds).map((captureId) => ({
+    captureId,
+    lastTick:
+      captureLastTicks.get(captureId) ?? liveStreamStates.get(captureId)?.lastTick ?? null,
+  }));
+  frontendClient.send(
+    JSON.stringify({ type: "state_sync", captures } satisfies ControlCommand),
+  );
 }
 
 function flushPendingCaptures() {
@@ -848,10 +1091,24 @@ function flushPendingCaptures() {
         }),
       );
     }
+    const lastTick = captureLastTicks.get(pending.captureId);
+    const lastBufferedTick =
+      pending.frames.length > 0 ? pending.frames[pending.frames.length - 1]?.tick ?? null : null;
     for (const frame of pending.frames) {
       frontendClient.send(
         JSON.stringify({ type: "capture_append", captureId: pending.captureId, frame }),
       );
+    }
+    if (typeof lastTick === "number") {
+      if (lastBufferedTick === null || lastTick > lastBufferedTick) {
+        frontendClient.send(
+          JSON.stringify({
+            type: "capture_append",
+            captureId: pending.captureId,
+            frame: { tick: lastTick, entities: {} },
+          }),
+        );
+      }
     }
     if (pending.ended) {
       frontendClient.send(
@@ -1155,11 +1412,12 @@ async function pollLiveCapture(state: LiveStreamState) {
       throw new Error("Capture file source is required.");
     }
 
-    const onLine = (line: string) => {
+      const onLine = (line: string) => {
       const frame = parseLineToFrame(line);
       if (!frame) {
         return;
       }
+      cacheCaptureFrame({ captureId: state.captureId, source: state.source, frame, rawLine: line });
       state.frameCount += 1;
       appendedFrames += 1;
       state.lastTick = frame.tick;
@@ -1193,6 +1451,7 @@ async function pollLiveCapture(state: LiveStreamState) {
         state.lastTick = null;
         state.byteOffset = 0;
         state.partialLine = "";
+        resetFrameCache(state.captureId);
         didReset = true;
         sendToFrontend({
           type: "capture_init",
@@ -1232,6 +1491,7 @@ async function pollLiveCapture(state: LiveStreamState) {
         state.lastTick = null;
         state.byteOffset = 0;
         state.partialLine = "";
+        resetFrameCache(state.captureId);
         didReset = true;
         startOffset = 0;
         sendToFrontend({
@@ -1294,11 +1554,15 @@ async function pollLiveCapture(state: LiveStreamState) {
     }
 
     if (liveStreamStates.get(state.captureId) === state) {
+      const nextDelayMs =
+        hasActivity && !recoverableIdle
+          ? Math.min(state.pollIntervalMs, LIVE_FAST_POLL_MS)
+          : state.pollIntervalMs;
       state.timer = setTimeout(() => {
         pollLiveCapture(state).catch((pollError) => {
           console.error("[live] Poll error:", pollError);
         });
-      }, state.pollIntervalMs);
+      }, nextDelayMs);
     }
   }
 }
@@ -1856,11 +2120,15 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Capture source not found for captureId." });
       }
 
-      const result = await extractSeriesFromSource({
-        source,
-        path,
-        signal: new AbortController().signal,
-      });
+      const cachedFrames = getCachedFramesForSeries(captureId);
+      const result =
+        cachedFrames.length > 0
+          ? extractSeriesFromFrames(cachedFrames, path)
+          : await extractSeriesFromSource({
+              source,
+              path,
+              signal: new AbortController().signal,
+            });
 
       return res.json({
         success: true,
@@ -1901,6 +2169,43 @@ export async function registerRoutes(
       Object.assign(response, streams[0]);
     }
     return res.json(response);
+  });
+
+  app.get("/api/debug/captures", (_req, res) => {
+    const ids = new Set<string>();
+    for (const captureId of captureMetadata.keys()) {
+      ids.add(captureId);
+    }
+    for (const captureId of captureSources.keys()) {
+      ids.add(captureId);
+    }
+    for (const captureId of captureComponentState.keys()) {
+      ids.add(captureId);
+    }
+    for (const captureId of captureLastTicks.keys()) {
+      ids.add(captureId);
+    }
+    for (const captureId of liveStreamStates.keys()) {
+      ids.add(captureId);
+    }
+    const pendingIds = Array.from(pendingCaptureBuffers.keys());
+    const captures = Array.from(ids).map((captureId) => ({
+      captureId,
+      lastTick: captureLastTicks.get(captureId) ?? null,
+      hasMetadata: captureMetadata.has(captureId),
+      hasSource: captureSources.has(captureId),
+      hasComponents: captureComponentState.has(captureId),
+      hasLive: liveStreamStates.has(captureId),
+      streamMode: captureStreamModes.get(captureId) ?? "lite",
+      cachedFrames:
+        (captureFrameSamples.get(captureId)?.length ?? 0) +
+        (captureFrameTail.get(captureId)?.length ?? 0),
+      cacheBytes:
+        (captureFrameSampleBytes.get(captureId) ?? 0) +
+        (captureFrameTailBytes.get(captureId) ?? 0),
+      cacheDisabled: captureFrameCacheDisabled.has(captureId),
+    }));
+    res.json({ captures, pendingIds });
   });
 
   app.post("/api/live/start", (req, res) => {

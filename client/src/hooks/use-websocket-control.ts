@@ -81,6 +81,7 @@ interface UseWebSocketControlProps {
   onClearSubtitles: () => void;
   getMemoryStats: () => MemoryStatsResponse;
   onReconnect?: () => void;
+  onStateSync?: (captures: { captureId: string; lastTick?: number | null }[]) => void;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -169,6 +170,7 @@ export function useWebSocketControl({
   onRemoveSubtitle,
   onClearSubtitles,
   getMemoryStats,
+  onStateSync,
   onReconnect,
 }: UseWebSocketControlProps) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -437,6 +439,12 @@ export function useWebSocketControl({
         onLiveSourceChange(command.source, command.captureId);
         sendAck(requestId, command.type);
         break;
+      case "state_sync": {
+        const captures = Array.isArray(command.captures) ? command.captures : [];
+        onStateSync?.(captures);
+        sendAck(requestId, command.type);
+        break;
+      }
       case "live_start": {
         onLiveStart({
           source: command.source,

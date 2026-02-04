@@ -397,6 +397,10 @@ export type ControlCommand =
   | ({ type: "set_source_mode"; mode: "file" | "live" } & ControlRequestBase)
   | ({ type: "set_live_source"; source: string; captureId?: string } & ControlRequestBase)
   | ({
+      type: "state_sync";
+      captures?: { captureId: string; lastTick?: number | null }[];
+    } & ControlRequestBase)
+  | ({
       type: "live_start";
       source?: string;
       pollIntervalMs?: number;
