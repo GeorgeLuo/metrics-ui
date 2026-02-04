@@ -1329,6 +1329,17 @@ export default function Home() {
     attemptConnectRef.current = attemptConnect;
   }, [attemptConnect]);
 
+  const handleWsReconnect = useCallback(() => {
+    if (sourceMode !== "live") {
+      return;
+    }
+    liveStreamsRef.current.forEach((entry) => {
+      if (entry.source.trim()) {
+        attemptConnectRef.current(entry.id, { force: true, showConnecting: false });
+      }
+    });
+  }, [sourceMode]);
+
   const handleLiveRefresh = useCallback(
     (id: string) => {
       if (sourceMode !== "live") {
@@ -2497,6 +2508,7 @@ export default function Home() {
     onRemoveSubtitle: handleRemoveSubtitle,
     onClearSubtitles: handleClearSubtitles,
     getMemoryStats: buildMemoryStats,
+    onReconnect: handleWsReconnect,
   });
 
   useEffect(() => {

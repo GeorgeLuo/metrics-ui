@@ -76,6 +76,7 @@ interface UseWebSocketControlProps {
   onRemoveSubtitle: (options: { id?: string; startTick?: number; endTick?: number; text?: string }) => void;
   onClearSubtitles: () => void;
   getMemoryStats: () => MemoryStatsResponse;
+  onReconnect?: () => void;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -164,6 +165,7 @@ export function useWebSocketControl({
   onRemoveSubtitle,
   onClearSubtitles,
   getMemoryStats,
+  onReconnect,
 }: UseWebSocketControlProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -726,6 +728,7 @@ export function useWebSocketControl({
       ws.onopen = () => {
         console.log("[ws] Connected to control server, registering as frontend...");
         ws.send(JSON.stringify({ type: "register", role: "frontend" }));
+        onReconnect?.();
       };
 
       ws.onmessage = (event) => {

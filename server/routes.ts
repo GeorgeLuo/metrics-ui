@@ -457,6 +457,7 @@ const MAX_QUEUED_COMMANDS = 500;
 const MAX_PENDING_CAPTURE_FRAMES = 5000;
 const MAX_PENDING_TOTAL_FRAMES = 50000;
 const LIVE_MAX_LINES_PER_POLL = 2000;
+const LITE_BUFFER_MAX_FRAMES = 5000;
 const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "toggle_capture",
   "remove_capture",
@@ -531,6 +532,7 @@ const liveStreamStates = new Map<string, LiveStreamState>();
 const captureSources = new Map<string, string>();
 const captureMetadata = new Map<string, { filename?: string; source?: string }>();
 const captureStreamModes = new Map<string, "lite" | "full">();
+const liteFrameBuffers = new Map<string, CaptureAppendFrame[]>();
 const captureLastTicks = new Map<string, number>();
 const captureComponentState = new Map<
   string,
@@ -640,6 +642,24 @@ function sendCaptureAppend(captureId: string, frame: CaptureAppendFrame) {
   }
 }
 
+function bufferLiteFrame(captureId: string, frame: CaptureAppendFrame) {
+  const buffer = liteFrameBuffers.get(captureId) ?? [];
+  buffer.push(frame);
+  if (buffer.length > LITE_BUFFER_MAX_FRAMES) {
+    buffer.splice(0, buffer.length - LITE_BUFFER_MAX_FRAMES);
+  }
+  liteFrameBuffers.set(captureId, buffer);
+}
+
+function flushLiteFrameBuffer(captureId: string) {
+  const buffer = liteFrameBuffers.get(captureId);
+  if (!buffer || buffer.length === 0) {
+    return;
+  }
+  buffer.forEach((frame) => sendCaptureAppend(captureId, frame));
+  liteFrameBuffers.delete(captureId);
+}
+
 function sendLiteAppendTick(captureId: string, tick: number) {
   captureLastTicks.set(captureId, tick);
   const frame: CaptureAppendFrame = { tick, entities: {} };
@@ -707,6 +727,7 @@ async function streamCaptureFromSource(captureId: string, source: string) {
     if (shouldStreamFrames(captureId)) {
       sendCaptureAppend(captureId, frame);
     } else {
+      bufferLiteFrame(captureId, frame);
       sendLiteAppendTick(captureId, frame.tick);
     }
   };
@@ -745,6 +766,7 @@ function clearCaptureState() {
   captureMetadata.clear();
   captureStreamModes.clear();
   captureLastTicks.clear();
+  liteFrameBuffers.clear();
   stopAllLiveStreams();
 }
 
@@ -758,6 +780,7 @@ function removeCaptureState(captureId: string) {
   captureMetadata.delete(captureId);
   captureStreamModes.delete(captureId);
   captureLastTicks.delete(captureId);
+  liteFrameBuffers.delete(captureId);
   stopLiveStream(captureId);
 }
 
@@ -1122,6 +1145,7 @@ async function pollLiveCapture(state: LiveStreamState) {
         captureLastTicks.set(state.captureId, frame.tick);
         sendToFrontend({ type: "capture_append", captureId: state.captureId, frame });
       } else {
+        bufferLiteFrame(state.captureId, frame);
         sendLiteAppendTick(state.captureId, frame.tick);
       }
     };
@@ -1458,6 +1482,9 @@ export async function registerRoutes(
             const mode = message.mode === "full" ? "full" : "lite";
             if (captureId) {
               captureStreamModes.set(captureId, mode);
+              if (mode === "full") {
+                flushLiteFrameBuffer(captureId);
+              }
             }
           }
           if (message.type === "clear_captures") {
@@ -1503,6 +1530,9 @@ export async function registerRoutes(
         if (command.type === "set_stream_mode" && captureId) {
           const mode = command.mode === "full" ? "full" : "lite";
           captureStreamModes.set(captureId, mode);
+          if (mode === "full") {
+            flushLiteFrameBuffer(captureId);
+          }
         }
         const requiresResponse = RESPONSE_REQUIRED_COMMANDS.has(command.type);
         const canQueue = QUEUEABLE_COMMANDS.has(command.type);
