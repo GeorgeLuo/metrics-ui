@@ -15,6 +15,7 @@ export interface CaptureRecordLine {
 }
 
 export type CaptureAppendFrame = CaptureRecord | CaptureRecordLine;
+export type CaptureTick = { tick: number };
 
 export interface CaptureSession {
   id: string;
@@ -334,6 +335,7 @@ export type ControlCommand =
   | ({ type: "set_window_range"; windowStart: number; windowEnd: number } & ControlRequestBase)
   | ({ type: "set_auto_scroll"; enabled: boolean } & ControlRequestBase)
   | ({ type: "set_fullscreen"; enabled: boolean } & ControlRequestBase)
+  | ({ type: "set_stream_mode"; captureId: string; mode: "lite" | "full" } & ControlRequestBase)
   | ({ type: "add_annotation"; tick: number; label?: string; color?: string; id?: string } & ControlRequestBase)
   | ({ type: "remove_annotation"; id?: string; tick?: number } & ControlRequestBase)
   | ({ type: "clear_annotations" } & ControlRequestBase)
@@ -373,6 +375,7 @@ export type ControlCommand =
     } & ControlRequestBase)
   | ({ type: "capture_components"; captureId: string; components: ComponentNode[] } & ControlRequestBase)
   | ({ type: "capture_append"; captureId: string; frame: CaptureAppendFrame } & ControlRequestBase)
+  | ({ type: "capture_tick"; captureId: string; tick: number } & ControlRequestBase)
   | ({ type: "capture_end"; captureId: string } & ControlRequestBase)
   | ({
       type: "get_display_snapshot";

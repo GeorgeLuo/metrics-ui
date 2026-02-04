@@ -66,6 +66,7 @@ interface UseWebSocketControlProps {
   onCaptureInit: (captureId: string, filename?: string, options?: { reset?: boolean }) => void;
   onCaptureComponents: (captureId: string, components: ComponentNode[]) => void;
   onCaptureAppend: (captureId: string, frame: CaptureSession["records"][number]) => void;
+  onCaptureTick: (captureId: string, tick: number) => void;
   onCaptureEnd: (captureId: string) => void;
   onAddAnnotation: (annotation: Annotation) => void;
   onRemoveAnnotation: (options: { id?: string; tick?: number }) => void;
@@ -153,6 +154,7 @@ export function useWebSocketControl({
   onCaptureInit,
   onCaptureComponents,
   onCaptureAppend,
+  onCaptureTick,
   onCaptureEnd,
   onAddAnnotation,
   onRemoveAnnotation,
@@ -485,6 +487,9 @@ export function useWebSocketControl({
           }
           onCaptureAppend(command.captureId, normalized);
         }
+        break;
+      case "capture_tick":
+        onCaptureTick(command.captureId, command.tick);
         break;
       case "capture_end":
         onCaptureEnd(command.captureId);

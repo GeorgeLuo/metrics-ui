@@ -395,6 +395,8 @@ export default function Home() {
   );
   const pendingAppendsRef = useRef(new Map<string, CaptureRecord[]>());
   const appendFlushTimerRef = useRef<number | null>(null);
+  const pendingTicksRef = useRef(new Map<string, number>());
+  const tickFlushTimerRef = useRef<number | null>(null);
   const captureStatsRef = useRef<Map<string, CaptureStats>>(new Map());
   const pendingSeriesRef = useRef(new Set<string>());
   const loadedSeriesRef = useRef(new Set<string>());
@@ -402,6 +404,7 @@ export default function Home() {
   const sendMessageRef = useRef<(message: ControlResponse | ControlCommand) => boolean>(() => false);
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
   const activeCaptureIdsRef = useRef(new Set<string>());
+  const streamModeRef = useRef(new Map<string, "lite" | "full">());
 
   const activeCaptures = useMemo(() => captures.filter((capture) => capture.isActive), [captures]);
   const maxTotalTicks = activeCaptures.length > 0 
@@ -648,6 +651,33 @@ export default function Home() {
   useEffect(() => {
     selectedMetricsRef.current = selectedMetrics;
   }, [selectedMetrics]);
+
+  useEffect(() => {
+    if (captures.length === 0) {
+      streamModeRef.current.clear();
+      return;
+    }
+    const nextModes = new Map<string, "lite" | "full">();
+    captures.forEach((capture) => {
+      const hasSelected = selectedMetrics.some((metric) => metric.captureId === capture.id);
+      nextModes.set(capture.id, hasSelected ? "full" : "lite");
+    });
+
+    nextModes.forEach((mode, captureId) => {
+      const prev = streamModeRef.current.get(captureId);
+      if (prev === mode) {
+        return;
+      }
+      streamModeRef.current.set(captureId, mode);
+      sendMessageRef.current({ type: "set_stream_mode", captureId, mode });
+    });
+
+    streamModeRef.current.forEach((_mode, captureId) => {
+      if (!nextModes.has(captureId)) {
+        streamModeRef.current.delete(captureId);
+      }
+    });
+  }, [captures, selectedMetrics]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1603,6 +1633,44 @@ export default function Home() {
     };
   }, []);
 
+  const flushPendingTicks = useCallback(() => {
+    tickFlushTimerRef.current = null;
+    if (pendingTicksRef.current.size === 0) {
+      return;
+    }
+    const pending = pendingTicksRef.current;
+    pendingTicksRef.current = new Map();
+
+    setCaptures((prev) => {
+      if (prev.length === 0) {
+        return prev;
+      }
+      return prev.map((capture) => {
+        const pendingTick = pending.get(capture.id);
+        if (pendingTick === undefined) {
+          return capture;
+        }
+        const nextTick = Math.max(capture.tickCount, pendingTick);
+        if (nextTick === capture.tickCount) {
+          return capture;
+        }
+        const stats = captureStatsRef.current.get(capture.id);
+        if (stats) {
+          stats.tickCount = Math.max(stats.tickCount, nextTick);
+        }
+        return { ...capture, tickCount: nextTick, isActive: true };
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (tickFlushTimerRef.current !== null) {
+        window.clearTimeout(tickFlushTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleCaptureAppend = useCallback((captureId: string, frame: CaptureRecord) => {
     if (!activeCaptureIdsRef.current.has(captureId)) {
       return;
@@ -1621,6 +1689,21 @@ export default function Home() {
       }, APPEND_FLUSH_MS);
     }
   }, [flushPendingAppends]);
+
+  const handleCaptureTick = useCallback((captureId: string, tick: number) => {
+    if (!activeCaptureIdsRef.current.has(captureId)) {
+      return;
+    }
+    const existing = pendingTicksRef.current.get(captureId) ?? 0;
+    if (tick > existing) {
+      pendingTicksRef.current.set(captureId, tick);
+    }
+    if (tickFlushTimerRef.current === null) {
+      tickFlushTimerRef.current = window.setTimeout(() => {
+        flushPendingTicks();
+      }, APPEND_FLUSH_MS);
+    }
+  }, [flushPendingTicks]);
 
   const handleCaptureEnd = useCallback(
     (captureId: string) => {
@@ -1675,6 +1758,7 @@ export default function Home() {
     setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
     captureStatsRef.current.delete(captureId);
     activeCaptureIdsRef.current.delete(captureId);
+    pendingTicksRef.current.delete(captureId);
     handleRemoveLiveStream(captureId);
     sendMessageRef.current({ type: "remove_capture", captureId });
   }, [handleRemoveLiveStream]);
@@ -1763,6 +1847,11 @@ export default function Home() {
     setSelectedMetrics([]);
     captureStatsRef.current.clear();
     activeCaptureIdsRef.current.clear();
+    pendingTicksRef.current.clear();
+    if (tickFlushTimerRef.current !== null) {
+      window.clearTimeout(tickFlushTimerRef.current);
+      tickFlushTimerRef.current = null;
+    }
     setLiveStreams([]);
     liveMetaRef.current.clear();
     stopLiveStream().catch(() => {});
@@ -2374,6 +2463,7 @@ export default function Home() {
     onCaptureInit: handleCaptureInit,
     onCaptureComponents: handleCaptureComponents,
     onCaptureAppend: handleCaptureAppend,
+    onCaptureTick: handleCaptureTick,
     onCaptureEnd: handleCaptureEnd,
     onAddAnnotation: handleAddAnnotation,
     onRemoveAnnotation: handleRemoveAnnotation,

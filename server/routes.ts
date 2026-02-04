@@ -481,6 +481,7 @@ const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "add_subtitle",
   "remove_subtitle",
   "clear_subtitles",
+  "set_stream_mode",
   "set_source_mode",
   "set_live_source",
   "live_start",
@@ -529,6 +530,7 @@ interface LiveStreamState {
 const liveStreamStates = new Map<string, LiveStreamState>();
 const captureSources = new Map<string, string>();
 const captureMetadata = new Map<string, { filename?: string; source?: string }>();
+const captureStreamModes = new Map<string, "lite" | "full">();
 const captureComponentState = new Map<
   string,
   {
@@ -636,6 +638,23 @@ function sendCaptureAppend(captureId: string, frame: CaptureAppendFrame) {
   }
 }
 
+function sendCaptureTick(captureId: string, tick: number) {
+  const command: ControlCommand = { type: "capture_tick", captureId, tick };
+  sendToFrontend(command);
+}
+
+function getStreamMode(captureId: string) {
+  return captureStreamModes.get(captureId) ?? "lite";
+}
+
+function shouldStreamFrames(captureId: string) {
+  if (getStreamMode(captureId) === "full") {
+    return true;
+  }
+  const source = captureSources.get(captureId) ?? captureMetadata.get(captureId)?.source;
+  return !source;
+}
+
 function sendCaptureEnd(captureId: string) {
   const command: ControlCommand = { type: "capture_end", captureId };
   if (!sendToFrontend(command)) {
@@ -655,6 +674,7 @@ function registerCaptureSource(options: {
   captureSources.set(captureId, source);
   captureMetadata.set(captureId, { filename, source });
   captureComponentState.set(captureId, { components: [], sentCount: 0 });
+  captureStreamModes.set(captureId, "lite");
   const command: ControlCommand = {
     type: "capture_init",
     captureId,
@@ -674,7 +694,11 @@ async function streamCaptureFromSource(captureId: string, source: string) {
       return;
     }
     updateCaptureComponents(captureId, componentsFromFrame(frame));
-    sendCaptureAppend(captureId, frame);
+    if (shouldStreamFrames(captureId)) {
+      sendCaptureAppend(captureId, frame);
+    } else {
+      sendCaptureTick(captureId, frame.tick);
+    }
   };
   try {
     const trimmed = source.trim();
@@ -709,6 +733,7 @@ function clearCaptureState() {
   captureComponentState.clear();
   captureSources.clear();
   captureMetadata.clear();
+  captureStreamModes.clear();
   stopAllLiveStreams();
 }
 
@@ -720,6 +745,7 @@ function removeCaptureState(captureId: string) {
   captureComponentState.delete(captureId);
   captureSources.delete(captureId);
   captureMetadata.delete(captureId);
+  captureStreamModes.delete(captureId);
   stopLiveStream(captureId);
 }
 
@@ -1075,7 +1101,11 @@ async function pollLiveCapture(state: LiveStreamState) {
       state.lastTick = frame.tick;
       const rawComponents = componentsFromFrame(frame);
       updateCaptureComponents(state.captureId, rawComponents);
-      sendToFrontend({ type: "capture_append", captureId: state.captureId, frame });
+      if (shouldStreamFrames(state.captureId)) {
+        sendToFrontend({ type: "capture_append", captureId: state.captureId, frame });
+      } else {
+        sendCaptureTick(state.captureId, frame.tick);
+      }
     };
 
     const isRemote = trimmed.startsWith("http://") || trimmed.startsWith("https://");
@@ -1259,6 +1289,7 @@ function startLiveStream({
   }
   captureSources.set(captureId, source);
   captureMetadata.set(captureId, { filename, source });
+  captureStreamModes.set(captureId, "lite");
   liveStreamStates.set(captureId, state);
   const cachedComponents = captureComponentState.get(captureId)?.components;
   if (cachedComponents && cachedComponents.length > 0) {
@@ -1401,6 +1432,13 @@ export async function registerRoutes(
         const isFrontend = ws === frontendClient;
         
         if (isFrontend) {
+          if (message.type === "set_stream_mode") {
+            const captureId = String(message.captureId ?? "");
+            const mode = message.mode === "full" ? "full" : "lite";
+            if (captureId) {
+              captureStreamModes.set(captureId, mode);
+            }
+          }
           if (message.type === "clear_captures") {
             clearCaptureState();
           } else if (message.type === "remove_capture") {
@@ -1421,6 +1459,7 @@ export async function registerRoutes(
         }
         if (command.type === "capture_init" && captureId) {
           captureComponentState.set(captureId, { components: [], sentCount: 0 });
+          captureStreamModes.set(captureId, "lite");
           if (typeof (command as { source?: unknown }).source === "string") {
             captureSources.set(captureId, (command as { source: string }).source);
           }
@@ -1438,6 +1477,10 @@ export async function registerRoutes(
         if (command.type === "capture_append" && captureId) {
           const rawComponents = componentsFromFrame(command.frame);
           updateCaptureComponents(captureId, rawComponents);
+        }
+        if (command.type === "set_stream_mode" && captureId) {
+          const mode = command.mode === "full" ? "full" : "lite";
+          captureStreamModes.set(captureId, mode);
         }
         const requiresResponse = RESPONSE_REQUIRED_COMMANDS.has(command.type);
         const canQueue = QUEUEABLE_COMMANDS.has(command.type);

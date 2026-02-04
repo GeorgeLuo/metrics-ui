@@ -74,6 +74,7 @@ UI behavior:
 - If the file is unavailable, the UI retries every 3 seconds while the source is unchanged.
 - Multiple live streams can run at the same time; each stream has its own source, polling interval, and captureId.
 - Live polling reads files in **chunks** (a limited number of lines per poll) so charts can update before the file is fully consumed.
+- Live streams default to **stream-lite**: only tick counts are sent until metrics are selected. Once a metric is selected, full frames stream for that capture.
 
 API notes:
 - `GET /api/live/status` returns a `streams` array when any live streams are running.
@@ -173,7 +174,9 @@ Capture streaming (push records over WS):
 - `{"type":"capture_init","captureId":"live-1","filename":"evaluation-stream"}`
 - `{"type":"capture_components","captureId":"live-1","components":[...]}` (optional component tree metadata)
 - `{"type":"capture_append","captureId":"live-1","frame":{...}}`
+- `{"type":"capture_tick","captureId":"live-1","tick":123}` (stream-lite tick updates)
 - `{"type":"capture_end","captureId":"live-1"}`
+ - `{"type":"set_stream_mode","captureId":"live-1","mode":"lite"|"full"}` (server-side stream-lite toggle)
 
 ### Supported Commands (auto)
 <!-- WS:COMMANDS:START -->
@@ -197,6 +200,7 @@ Capture streaming (push records over WS):
 - `set_window_range`
 - `set_auto_scroll`
 - `set_fullscreen`
+- `set_stream_mode`
 - `add_annotation`
 - `remove_annotation`
 - `clear_annotations`
@@ -211,6 +215,7 @@ Capture streaming (push records over WS):
 - `capture_init`
 - `capture_components`
 - `capture_append`
+- `capture_tick`
 - `capture_end`
 - `get_display_snapshot`
 - `get_series_window`
