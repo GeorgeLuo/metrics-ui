@@ -1355,7 +1355,7 @@ function stopLiveStream(captureId: string) {
     clearTimeout(state.timer);
   }
   liveStreamStates.delete(captureId);
-  sendToFrontend({ type: "capture_end", captureId: state.captureId });
+  sendCaptureEnd(state.captureId);
   return state;
 }
 
