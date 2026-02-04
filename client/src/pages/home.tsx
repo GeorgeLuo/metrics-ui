@@ -1430,8 +1430,13 @@ export default function Home() {
   ]);
 
   const handleCaptureInit = useCallback(
-    (captureId: string, filename?: string, options?: { reset?: boolean }) => {
+    (
+      captureId: string,
+      filename?: string,
+      options?: { reset?: boolean; source?: string },
+    ) => {
       const isReset = Boolean(options?.reset);
+      const source = typeof options?.source === "string" ? options.source : "";
       let shouldFetch = true;
       let shouldClear = true;
 
@@ -1481,6 +1486,38 @@ export default function Home() {
         );
       });
 
+      if (sourceMode === "live" && source.trim()) {
+        setLiveStreams((prev) => {
+          const existing = prev.find((entry) => entry.id === captureId);
+          if (existing) {
+            if (existing.source.trim() === source.trim()) {
+              return prev;
+            }
+            const updated = prev.map((entry) =>
+              entry.id === captureId ? { ...entry, source } : entry,
+            );
+            liveStreamsRef.current = updated;
+            return updated;
+          }
+          const next = [
+            ...prev,
+            {
+              id: captureId,
+              source,
+              pollSeconds: DEFAULT_POLL_SECONDS,
+              status: "idle" as LiveStreamStatus,
+              error: null,
+            },
+          ];
+          liveStreamsRef.current = next;
+          return next;
+        });
+        const meta = getLiveMeta(captureId);
+        meta.dirty = true;
+        meta.lastSource = source.trim();
+        attemptConnectRef.current(captureId, { force: true, showConnecting: false });
+      }
+
       if (shouldClear) {
         captureStatsRef.current.set(captureId, createEmptyCaptureStats());
         Array.from(loadedSeriesRef.current.keys()).forEach((key) => {
@@ -1501,7 +1538,7 @@ export default function Home() {
         fetchMetricSeries(metric);
       });
     },
-    [fetchMetricSeries],
+    [fetchMetricSeries, getLiveMeta, sourceMode],
   );
 
   const handleCaptureComponents = useCallback((captureId: string, components: ComponentNode[]) => {

@@ -63,7 +63,11 @@ interface UseWebSocketControlProps {
     filename?: string;
   }) => Promise<void>;
   onLiveStop: (options?: { captureId?: string }) => Promise<void>;
-  onCaptureInit: (captureId: string, filename?: string, options?: { reset?: boolean }) => void;
+  onCaptureInit: (
+    captureId: string,
+    filename?: string,
+    options?: { reset?: boolean; source?: string },
+  ) => void;
   onCaptureComponents: (captureId: string, components: ComponentNode[]) => void;
   onCaptureAppend: (captureId: string, frame: CaptureSession["records"][number]) => void;
   onCaptureTick: (captureId: string, tick: number) => void;
@@ -462,7 +466,7 @@ export function useWebSocketControl({
         break;
       }
       case "capture_init":
-        onCaptureInit(command.captureId, command.filename, { reset: command.reset });
+        onCaptureInit(command.captureId, command.filename, { reset: command.reset, source: command.source });
         sendMessage({
           type: "ui_notice",
           payload: {
