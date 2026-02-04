@@ -958,6 +958,7 @@ export default function Home() {
     }
   }, [captures.length, updateBaselineHeap]);
 
+
   useEffect(() => {
     setPlaybackState(prev => ({
       ...prev,
@@ -1635,6 +1636,7 @@ export default function Home() {
     return () => {
       if (appendFlushTimerRef.current !== null) {
         window.clearTimeout(appendFlushTimerRef.current);
+        appendFlushTimerRef.current = null;
       }
     };
   }, []);
@@ -1673,6 +1675,7 @@ export default function Home() {
     return () => {
       if (tickFlushTimerRef.current !== null) {
         window.clearTimeout(tickFlushTimerRef.current);
+        tickFlushTimerRef.current = null;
       }
     };
   }, []);
@@ -1698,18 +1701,19 @@ export default function Home() {
 
   const handleCaptureTick = useCallback((captureId: string, tick: number) => {
     if (!activeCaptureIdsRef.current.has(captureId)) {
-      return;
+      const capture = captures.find((entry) => entry.id === captureId);
+      if (capture?.isActive) {
+        activeCaptureIdsRef.current.add(captureId);
+      } else {
+        return;
+      }
     }
     const existing = pendingTicksRef.current.get(captureId) ?? 0;
     if (tick > existing) {
       pendingTicksRef.current.set(captureId, tick);
     }
-    if (tickFlushTimerRef.current === null) {
-      tickFlushTimerRef.current = window.setTimeout(() => {
-        flushPendingTicks();
-      }, APPEND_FLUSH_MS);
-    }
-  }, [flushPendingTicks]);
+    flushPendingTicks();
+  }, [captures, flushPendingTicks]);
 
   const handleCaptureEnd = useCallback(
     (captureId: string) => {

@@ -640,6 +640,13 @@ function sendCaptureAppend(captureId: string, frame: CaptureAppendFrame) {
   }
 }
 
+function sendLiteAppendTick(captureId: string, tick: number) {
+  captureLastTicks.set(captureId, tick);
+  const frame: CaptureAppendFrame = { tick, entities: {} };
+  const command: ControlCommand = { type: "capture_append", captureId, frame };
+  sendToFrontend(command);
+}
+
 function sendCaptureTick(captureId: string, tick: number) {
   captureLastTicks.set(captureId, tick);
   const command: ControlCommand = { type: "capture_tick", captureId, tick };
@@ -700,7 +707,7 @@ async function streamCaptureFromSource(captureId: string, source: string) {
     if (shouldStreamFrames(captureId)) {
       sendCaptureAppend(captureId, frame);
     } else {
-      sendCaptureTick(captureId, frame.tick);
+      sendLiteAppendTick(captureId, frame.tick);
     }
   };
   try {
@@ -857,7 +864,7 @@ function sendKnownCaptures(options: { excludeIds?: Set<string> } = {}) {
     }
     const lastTick = captureLastTicks.get(captureId);
     if (typeof lastTick === "number") {
-      sendToFrontend({ type: "capture_tick", captureId, tick: lastTick });
+      sendLiteAppendTick(captureId, lastTick);
     }
   }
 }
@@ -1112,9 +1119,10 @@ async function pollLiveCapture(state: LiveStreamState) {
       const rawComponents = componentsFromFrame(frame);
       updateCaptureComponents(state.captureId, rawComponents);
       if (shouldStreamFrames(state.captureId)) {
+        captureLastTicks.set(state.captureId, frame.tick);
         sendToFrontend({ type: "capture_append", captureId: state.captureId, frame });
       } else {
-        sendCaptureTick(state.captureId, frame.tick);
+        sendLiteAppendTick(state.captureId, frame.tick);
       }
     };
 
@@ -1488,6 +1496,7 @@ export async function registerRoutes(
           updateCaptureComponents(captureId, command.components, { emit: false });
         }
         if (command.type === "capture_append" && captureId) {
+          captureLastTicks.set(captureId, command.frame.tick);
           const rawComponents = componentsFromFrame(command.frame);
           updateCaptureComponents(captureId, rawComponents);
         }
