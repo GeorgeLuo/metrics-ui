@@ -238,6 +238,15 @@ export interface SelectedMetricsStats {
 export interface MemoryStatsEstimates {
   recordStoreBytes: number | null;
   chartDataBytes: number | null;
+  effectiveBytesPerObjectProp: number;
+  effectiveBytesPerSeriesPoint: number;
+  estimateSource: "performance" | "default";
+}
+
+export interface SeriesMetricStats {
+  fullPath: string;
+  numericCount: number;
+  estBytes: number;
 }
 
 export interface MemoryStatsCapture {
@@ -257,6 +266,10 @@ export interface MemoryStatsCapture {
   arrayValues: number;
   objects: number;
   stringChars: number;
+  estimatedRecordBytes: number | null;
+  seriesPoints: number;
+  seriesBytes: number | null;
+  seriesMetrics: SeriesMetricStats[];
 }
 
 export interface MemoryStatsTotals {
@@ -274,6 +287,9 @@ export interface MemoryStatsTotals {
   arrayValues: number;
   objects: number;
   stringChars: number;
+  estimatedRecordBytes: number | null;
+  seriesPoints: number;
+  seriesBytes: number | null;
 }
 
 export interface PerfSampleStats {

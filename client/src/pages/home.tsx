@@ -246,6 +246,24 @@ interface MetricCoverageEntry {
 
 type MetricCoverageByCapture = Record<string, Record<string, MetricCoverageEntry>>;
 
+const DEFAULT_BYTES_PER_PROP = 24;
+const DEFAULT_BYTES_PER_POINT = 16;
+
+const formatBytes = (bytes: number | null | undefined): string => {
+  if (!Number.isFinite(bytes ?? NaN)) {
+    return "—";
+  }
+  let value = bytes as number;
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
+};
+
 function extractDataPoints(
   captures: CaptureSession[],
   selectedMetrics: SelectedMetric[]
@@ -343,6 +361,9 @@ export default function Home() {
     }
   });
   const [analysisMetrics, setAnalysisMetrics] = useState<SelectedMetric[]>([]);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [memoryStatsSnapshot, setMemoryStatsSnapshot] = useState<MemoryStatsResponse | null>(null);
+  const [memoryStatsAt, setMemoryStatsAt] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<"file" | "live">(() => {
     if (typeof window === "undefined") {
@@ -2805,7 +2826,7 @@ export default function Home() {
   );
 
   const buildMemoryStats = useCallback((): MemoryStatsResponse => {
-    const captureStats = captures.map((capture) => {
+    const captureStatsBase = captures.map((capture) => {
       const stats = ensureCaptureStats(capture);
       const componentTree = analyzeComponentTree(capture.components);
       return {
@@ -2828,7 +2849,7 @@ export default function Home() {
       };
     });
 
-    const totals = captureStats.reduce(
+    const totalsBase = captureStatsBase.reduce(
       (acc, item) => {
         acc.captures += 1;
         acc.records += item.records;
@@ -2861,10 +2882,13 @@ export default function Home() {
         arrayValues: 0,
         objects: 0,
         stringChars: 0,
+        estimatedRecordBytes: null,
+        seriesPoints: 0,
+        seriesBytes: null,
       },
     );
 
-    const componentTreeTotals = captureStats.reduce(
+    const componentTreeTotals = captureStatsBase.reduce(
       (acc, item) => {
         const tree = item.componentTree;
         acc.nodes += tree.nodes;
@@ -2924,19 +2948,90 @@ export default function Home() {
       memory && baselineHeap !== null ? memory.usedJSHeapSize - baselineHeap : null;
     const heapDelta = rawHeapDelta !== null ? Math.max(0, rawHeapDelta) : null;
     const bytesPerObjectProp =
-      heapDelta !== null && heapDelta > 0 && totals.objectProps > 0
-        ? heapDelta / totals.objectProps
+      heapDelta !== null && heapDelta > 0 && totalsBase.objectProps > 0
+        ? heapDelta / totalsBase.objectProps
         : null;
     const bytesPerLeafValue =
-      heapDelta !== null && heapDelta > 0 && totals.leafValues > 0
-        ? heapDelta / totals.leafValues
+      heapDelta !== null && heapDelta > 0 && totalsBase.leafValues > 0
+        ? heapDelta / totalsBase.leafValues
         : null;
-    const recordStoreBytes =
-      bytesPerObjectProp !== null ? totals.objectProps * bytesPerObjectProp : null;
+    const effectiveBytesPerObjectProp =
+      bytesPerObjectProp !== null && bytesPerObjectProp > 0
+        ? bytesPerObjectProp
+        : DEFAULT_BYTES_PER_PROP;
+    const effectiveBytesPerSeriesPoint = DEFAULT_BYTES_PER_POINT;
+    const estimateSource: "performance" | "default" =
+      bytesPerObjectProp !== null && bytesPerObjectProp > 0 ? "performance" : "default";
+
+    const captureStats = captureStatsBase.map((item) => {
+      const coverageForCapture = metricCoverage[item.captureId] ?? {};
+      const seriesMetrics = Object.entries(coverageForCapture).map(([fullPath, entry]) => ({
+        fullPath,
+        numericCount: entry.numericCount,
+        estBytes: entry.numericCount * effectiveBytesPerSeriesPoint,
+      }));
+      const seriesPoints = seriesMetrics.reduce((sum, entry) => sum + entry.numericCount, 0);
+      const seriesBytes = seriesPoints * effectiveBytesPerSeriesPoint;
+      return {
+        ...item,
+        estimatedRecordBytes: item.objectProps * effectiveBytesPerObjectProp,
+        seriesPoints,
+        seriesBytes,
+        seriesMetrics,
+      };
+    });
+
+    const totals = captureStats.reduce(
+      (acc, item) => {
+        acc.captures += 1;
+        acc.records += item.records;
+        acc.tickCountMax = Math.max(acc.tickCountMax, item.tickCount);
+        acc.componentNodes += item.componentNodes;
+        acc.objectProps += item.objectProps;
+        acc.leafValues += item.leafValues;
+        acc.numeric += item.numeric;
+        acc.string += item.string;
+        acc.boolean += item.boolean;
+        acc.nulls += item.nulls;
+        acc.arrays += item.arrays;
+        acc.arrayValues += item.arrayValues;
+        acc.objects += item.objects;
+        acc.stringChars += item.stringChars;
+        acc.estimatedRecordBytes =
+          acc.estimatedRecordBytes === null
+            ? item.estimatedRecordBytes
+            : (item.estimatedRecordBytes ?? 0) + acc.estimatedRecordBytes;
+        acc.seriesPoints += item.seriesPoints;
+        acc.seriesBytes =
+          acc.seriesBytes === null
+            ? item.seriesBytes
+            : (item.seriesBytes ?? 0) + acc.seriesBytes;
+        return acc;
+      },
+      {
+        captures: 0,
+        records: 0,
+        tickCountMax: 0,
+        componentNodes: 0,
+        objectProps: 0,
+        leafValues: 0,
+        numeric: 0,
+        string: 0,
+        boolean: 0,
+        nulls: 0,
+        arrays: 0,
+        arrayValues: 0,
+        objects: 0,
+        stringChars: 0,
+        estimatedRecordBytes: 0,
+        seriesPoints: 0,
+        seriesBytes: 0,
+      },
+    );
+
+    const recordStoreBytes = totals.objectProps * effectiveBytesPerObjectProp;
     const chartDataBytes =
-      bytesPerObjectProp !== null
-        ? chartDataStats.totalObjectProps * bytesPerObjectProp
-        : null;
+      chartDataStats.totalObjectProps * effectiveBytesPerObjectProp;
 
     const eventLoopStats = computeSampleStats(eventLoopLagSamplesRef.current);
     const frameStats = computeSampleStats(frameTimeSamplesRef.current);
@@ -2959,6 +3054,9 @@ export default function Home() {
       estimates: {
         recordStoreBytes,
         chartDataBytes,
+        effectiveBytesPerObjectProp,
+        effectiveBytesPerSeriesPoint,
+        estimateSource,
       },
       captures: captureStats,
       totals,
@@ -2989,7 +3087,18 @@ export default function Home() {
         throttled: componentUpdateThrottledRef.current,
       },
     };
-  }, [captures, ensureCaptureStats, selectedMetrics, activeMetrics, chartData]);
+  }, [captures, ensureCaptureStats, selectedMetrics, activeMetrics, chartData, metricCoverage]);
+
+  const handleRefreshMemoryStats = useCallback(() => {
+    setMemoryStatsSnapshot(buildMemoryStats());
+    setMemoryStatsAt(Date.now());
+  }, [buildMemoryStats]);
+
+  useEffect(() => {
+    if (isDiagnosticsOpen) {
+      handleRefreshMemoryStats();
+    }
+  }, [isDiagnosticsOpen, handleRefreshMemoryStats]);
 
   const hasLiveIntent = useMemo(() => {
     if (sourceMode === "live") {
@@ -3516,6 +3625,140 @@ export default function Home() {
                     </div>
                   </SidebarGroupContent>
                 </SidebarGroup>
+                <Collapsible open={isDiagnosticsOpen} onOpenChange={setIsDiagnosticsOpen}>
+                  <SidebarGroup>
+                    <SidebarGroupLabel asChild>
+                      <CollapsibleTrigger className="flex w-full items-center justify-between">
+                        <span>Diagnostics</span>
+                        <ChevronDown
+                          className={`h-3 w-3 text-muted-foreground transition-transform ${
+                            isDiagnosticsOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </CollapsibleTrigger>
+                    </SidebarGroupLabel>
+                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+                      <SidebarGroupContent>
+                        <div className="flex items-center justify-between px-2 text-[11px] text-muted-foreground">
+                          <span>
+                            {memoryStatsAt
+                              ? `Updated ${new Date(memoryStatsAt).toLocaleTimeString()}`
+                              : "Not sampled"}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-[11px]"
+                            onClick={handleRefreshMemoryStats}
+                            data-testid="button-refresh-diagnostics"
+                          >
+                            Refresh
+                          </Button>
+                        </div>
+                        {!memoryStatsSnapshot && (
+                          <div className="px-2 py-2 text-xs text-muted-foreground">
+                            Click refresh to capture telemetry.
+                          </div>
+                        )}
+                        {memoryStatsSnapshot && (
+                          <div className="flex flex-col gap-3 px-2 py-2 text-xs text-muted-foreground">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center justify-between">
+                                <span>Heap used</span>
+                                <span className="font-mono text-foreground">
+                                  {formatBytes(memoryStatsSnapshot.usedHeap)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>Record store</span>
+                                <span className="font-mono text-foreground">
+                                  {formatBytes(memoryStatsSnapshot.estimates.recordStoreBytes)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>Series bytes</span>
+                                <span className="font-mono text-foreground">
+                                  {formatBytes(memoryStatsSnapshot.totals.seriesBytes)}
+                                </span>
+                              </div>
+                              <div className="text-[10px] uppercase tracking-wide">
+                                Estimates ({memoryStatsSnapshot.estimates.estimateSource})
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>Bytes / prop</span>
+                                <span className="font-mono text-foreground">
+                                  {memoryStatsSnapshot.estimates.effectiveBytesPerObjectProp.toFixed(1)}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span>Bytes / point</span>
+                                <span className="font-mono text-foreground">
+                                  {memoryStatsSnapshot.estimates.effectiveBytesPerSeriesPoint.toFixed(1)}
+                                </span>
+                              </div>
+                            </div>
+                            {memoryStatsSnapshot.captures.map((capture) => {
+                              const topSeries = [...capture.seriesMetrics]
+                                .sort((a, b) => b.estBytes - a.estBytes)
+                                .slice(0, 5);
+                              return (
+                                <div
+                                  key={capture.captureId}
+                                  className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
+                                >
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="truncate font-medium text-foreground">
+                                      {capture.filename}
+                                    </span>
+                                    <span className="font-mono text-muted-foreground">
+                                      {capture.tickCount}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
+                                    <span>Records</span>
+                                    <span className="font-mono text-foreground">
+                                      {capture.records}
+                                    </span>
+                                    <span>Record bytes</span>
+                                    <span className="font-mono text-foreground">
+                                      {formatBytes(capture.estimatedRecordBytes)}
+                                    </span>
+                                    <span>Series points</span>
+                                    <span className="font-mono text-foreground">
+                                      {capture.seriesPoints}
+                                    </span>
+                                    <span>Series bytes</span>
+                                    <span className="font-mono text-foreground">
+                                      {formatBytes(capture.seriesBytes)}
+                                    </span>
+                                  </div>
+                                  {topSeries.length > 0 && (
+                                    <div className="flex flex-col gap-1">
+                                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                        Top series
+                                      </span>
+                                      {topSeries.map((entry) => (
+                                        <div
+                                          key={`${capture.captureId}-${entry.fullPath}`}
+                                          className="flex items-center justify-between text-[11px]"
+                                        >
+                                          <span className="truncate">{entry.fullPath}</span>
+                                          <span className="font-mono text-foreground">
+                                            {formatBytes(entry.estBytes)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </SidebarGroupContent>
+                    </CollapsibleContent>
+                  </SidebarGroup>
+                </Collapsible>
               </>
             </div>
             <div
