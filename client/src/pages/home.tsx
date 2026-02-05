@@ -364,6 +364,7 @@ export default function Home() {
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [memoryStatsSnapshot, setMemoryStatsSnapshot] = useState<MemoryStatsResponse | null>(null);
   const [memoryStatsAt, setMemoryStatsAt] = useState<number | null>(null);
+  const [isSelectionOpen, setIsSelectionOpen] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<"file" | "live">(() => {
     if (typeof window === "undefined") {
@@ -3502,31 +3503,46 @@ export default function Home() {
                     </div>
                   </SidebarGroupContent>
                 </SidebarGroup>
-                {activeCaptures.length === 0 && (
+                <Collapsible open={isSelectionOpen} onOpenChange={setIsSelectionOpen}>
                   <SidebarGroup>
-                    <SidebarGroupLabel>Sources</SidebarGroupLabel>
-                    <SidebarGroupContent>
-                      <div className="px-2 text-xs text-muted-foreground">No active captures</div>
-                    </SidebarGroupContent>
-                  </SidebarGroup>
-                )}
-                {activeCaptures.map((capture) => (
-                  <SidebarGroup key={capture.id}>
-                    <SidebarGroupLabel className="text-xs">
-                      {getCaptureShortName(capture)}
+                    <SidebarGroupLabel asChild>
+                      <CollapsibleTrigger className="flex w-full items-center justify-between">
+                        <span>Selection</span>
+                        <ChevronDown
+                          className={`h-3 w-3 text-muted-foreground transition-transform ${
+                            isSelectionOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </CollapsibleTrigger>
                     </SidebarGroupLabel>
-                    <SidebarGroupContent>
-                      <ComponentTree
-                        captureId={capture.id}
-                        components={capture.components}
-                        selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
-                        metricCoverage={metricCoverage[capture.id]}
-                        onSelectionChange={getSelectionHandler(capture.id)}
-                        colorOffset={captures.findIndex(c => c.id === capture.id)}
-                      />
-                    </SidebarGroupContent>
+                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+                      <SidebarGroupContent>
+                        <div className="flex flex-col gap-3">
+                          {activeCaptures.length === 0 && (
+                            <div className="px-2 text-xs text-muted-foreground">
+                              No active captures
+                            </div>
+                          )}
+                          {activeCaptures.map((capture) => (
+                            <div key={capture.id} className="flex flex-col gap-1">
+                              <div className="px-2 text-[11px] text-muted-foreground uppercase tracking-wide">
+                                {getCaptureShortName(capture)}
+                              </div>
+                              <ComponentTree
+                                captureId={capture.id}
+                                components={capture.components}
+                                selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
+                                metricCoverage={metricCoverage[capture.id]}
+                                onSelectionChange={getSelectionHandler(capture.id)}
+                                colorOffset={captures.findIndex(c => c.id === capture.id)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </SidebarGroupContent>
+                    </CollapsibleContent>
                   </SidebarGroup>
-                ))}
+                </Collapsible>
                 <SidebarGroup>
                   <SidebarGroupLabel>Overview</SidebarGroupLabel>
                   <SidebarGroupContent>
