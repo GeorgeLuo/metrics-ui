@@ -3558,13 +3558,7 @@ export default function Home() {
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Window</span>
-                        <span className="font-mono text-foreground">
-                          {windowStart}–{windowEnd}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[10px] uppercase tracking-wide">Start</span>
+                        <div className="flex items-center gap-1">
                           <Input
                             type="number"
                             min={1}
@@ -3585,12 +3579,10 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-7 px-2 py-1 text-xs"
+                            className="h-7 w-16 px-2 py-1 text-xs font-mono"
                             aria-label="Window start tick"
                           />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[10px] uppercase tracking-wide">End</span>
+                          <span className="text-muted-foreground">–</span>
                           <Input
                             type="number"
                             min={1}
@@ -3611,10 +3603,10 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-7 px-2 py-1 text-xs"
+                            className="h-7 w-16 px-2 py-1 text-xs font-mono"
                             aria-label="Window end tick"
                           />
-                        </label>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Auto-scroll</span>
