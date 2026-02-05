@@ -125,6 +125,7 @@ export function FileUpload({
         accept=".jsonl"
         onChange={handleFileInput}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        style={{ margin: 0, padding: 0 }}
         disabled={isUploading}
         data-testid="input-file-upload"
         aria-label="Upload JSONL capture file"

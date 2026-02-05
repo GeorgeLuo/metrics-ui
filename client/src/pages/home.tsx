@@ -443,6 +443,7 @@ export default function Home() {
   const lastSeriesTickRef = useRef(new Map<string, number>());
   const windowStartEditingRef = useRef(false);
   const windowEndEditingRef = useRef(false);
+  const sidebarHeaderRef = useRef<HTMLDivElement | null>(null);
   const baselineHeapRef = useRef<number | null>(null);
   const componentUpdateSamplesRef = useRef<number[]>([]);
   const componentUpdateLastMsRef = useRef<number | null>(null);
@@ -3120,6 +3121,28 @@ export default function Home() {
     setSidebarMode((prev) => (prev === "setup" ? "analysis" : "setup"));
   }, []);
 
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const header = sidebarHeaderRef.current;
+    if (!header) {
+      return;
+    }
+    const update = () => {
+      const height = header.getBoundingClientRect().height;
+      document.documentElement.style.setProperty("--metrics-ui-sidebar-header", `${height}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
   const analysisKeys = useMemo(() => {
     return new Set(analysisMetrics.map(getAnalysisKey));
   }, [analysisMetrics, getAnalysisKey]);
@@ -3152,7 +3175,7 @@ export default function Home() {
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <Sidebar>
-          <SidebarHeader className="p-4">
+          <SidebarHeader ref={sidebarHeaderRef} className="p-4">
             <div className="flex items-center gap-3">
               <Activity className="w-4 h-4 text-foreground" />
               <button
@@ -3169,8 +3192,18 @@ export default function Home() {
               </button>
             </div>
           </SidebarHeader>
-          <SidebarContent className="min-h-0">
-            <div className={sidebarMode === "setup" ? "block" : "hidden"} aria-hidden={sidebarMode !== "setup"}>
+          <SidebarContent
+            className="min-h-0"
+            style={{ height: "calc(100% - var(--metrics-ui-sidebar-header, 0px))" }}
+          >
+            <div
+              className={
+                sidebarMode === "setup"
+                  ? "flex flex-col flex-1 min-h-0 overflow-y-auto gap-2 overscroll-contain"
+                  : "hidden"
+              }
+              aria-hidden={sidebarMode !== "setup"}
+            >
               <>
                 <Collapsible open={isCaptureSourceOpen} onOpenChange={setIsCaptureSourceOpen}>
                   <SidebarGroup>
@@ -3476,7 +3509,14 @@ export default function Home() {
                 </SidebarGroup>
               </>
             </div>
-            <div className={sidebarMode === "analysis" ? "block" : "hidden"} aria-hidden={sidebarMode !== "analysis"}>
+            <div
+              className={
+                sidebarMode === "analysis"
+                  ? "flex flex-col flex-1 min-h-0 overflow-y-auto gap-2 overscroll-contain"
+                  : "hidden"
+              }
+              aria-hidden={sidebarMode !== "analysis"}
+            >
               <>
                 <SidebarGroup>
                   <SidebarGroupLabel>Derivations</SidebarGroupLabel>

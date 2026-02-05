@@ -244,7 +244,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+          className="bg-sidebar group-data-[variant=floating]:border-sidebar-border grid h-full w-full min-h-0 grid-rows-[auto_minmax(0,1fr)] group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
         >
           {children}
         </div>
@@ -333,16 +333,18 @@ function SidebarInput({
   )
 }
 
-function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
+const SidebarHeader = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
+  ({ className, ...props }, ref) => (
     <div
+      ref={ref}
       data-slot="sidebar-header"
       data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2", className)}
+      className={cn("flex flex-col gap-2 p-2 shrink-0", className)}
       {...props}
     />
   )
-}
+)
+SidebarHeader.displayName = "SidebarHeader"
 
 function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -369,19 +371,21 @@ function SidebarSeparator({
   )
 }
 
-function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
+const SidebarContent = React.forwardRef<HTMLDivElement, React.ComponentProps<"div">>(
+  ({ className, ...props }, ref) => (
     <div
+      ref={ref}
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "flex min-h-0 flex-1 flex-col gap-2 overflow-auto overscroll-none group-data-[collapsible=icon]:overflow-hidden",
+        "flex min-h-0 flex-1 flex-col overflow-hidden group-data-[collapsible=icon]:overflow-hidden",
         className
       )}
       {...props}
     />
   )
-}
+)
+SidebarContent.displayName = "SidebarContent"
 
 function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (

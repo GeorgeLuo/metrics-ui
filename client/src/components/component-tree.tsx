@@ -264,7 +264,11 @@ function ComponentTreeBase({
           />
         </div>
       </div>
-      <div className="max-h-56 overflow-y-auto">
+      <div
+        className="max-h-56 overflow-y-auto overscroll-contain"
+        data-tree-scroll="true"
+        style={{ contain: "layout" }}
+      >
         {visibleNodes.map((node) => (
           <TreeNode
             key={node.id}
