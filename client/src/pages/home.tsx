@@ -3579,7 +3579,7 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-7 w-16 px-2 py-1 text-xs font-mono"
+                            className="h-6 w-14 px-1 py-0 text-xs font-mono text-right bg-transparent border border-transparent shadow-none focus:border-border focus:bg-muted/30 hover:border-border/40"
                             aria-label="Window start tick"
                           />
                           <span className="text-muted-foreground">–</span>
@@ -3603,7 +3603,7 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-7 w-16 px-2 py-1 text-xs font-mono"
+                            className="h-6 w-14 px-1 py-0 text-xs font-mono text-right bg-transparent border border-transparent shadow-none focus:border-border focus:bg-muted/30 hover:border-border/40"
                             aria-label="Window end tick"
                           />
                         </div>
