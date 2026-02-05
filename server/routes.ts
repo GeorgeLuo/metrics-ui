@@ -2296,7 +2296,8 @@ export async function registerRoutes(
       const cachedFrames = getCachedFramesForSeries(captureId);
       const cacheStats = captureFrameCacheStats.get(captureId);
       const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
-      const usedCache = cachedFrames.length > 0 && !isSampled;
+      const preferCache = req.body?.preferCache !== false;
+      const usedCache = cachedFrames.length > 0 && preferCache;
       const results =
         usedCache
           ? extractSeriesFromFramesBatch(cachedFrames, paths)
@@ -2315,7 +2316,7 @@ export async function registerRoutes(
           tickCount: result.tickCount,
           numericCount: result.numericCount,
           lastTick: result.lastTick,
-          partial: usedCache,
+          partial: usedCache && isSampled,
         };
       });
 

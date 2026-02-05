@@ -646,7 +646,11 @@ export default function Home() {
   }, []);
 
   const fetchMetricSeriesBatch = useCallback(
-    async (captureId: string, metrics: SelectedMetric[], options?: { force?: boolean }) => {
+    async (
+      captureId: string,
+      metrics: SelectedMetric[],
+      options?: { force?: boolean; preferCache?: boolean },
+    ) => {
       if (!metrics.length) {
         return;
       }
@@ -684,6 +688,7 @@ export default function Home() {
           body: JSON.stringify({
             captureId,
             paths: metricsToFetch.map((metric) => metric.path),
+            preferCache: options?.preferCache !== false,
           }),
         });
         const data = await response.json().catch(() => ({}));
@@ -830,7 +835,7 @@ export default function Home() {
         }
         lastSeriesRefreshRef.current.set(captureId, now);
         lastSeriesTickRef.current.set(captureId, capture.tickCount);
-        fetchMetricSeriesBatch(captureId, metrics, { force: true });
+        fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: true });
       });
     }, LIVE_SERIES_REFRESH_MS);
 
@@ -1910,7 +1915,7 @@ export default function Home() {
       const selectedForCapture = selectedMetricsRef.current.filter(
         (metric) => metric.captureId === captureId,
       );
-      fetchMetricSeriesBatch(captureId, selectedForCapture);
+      fetchMetricSeriesBatch(captureId, selectedForCapture, { preferCache: true });
     },
     [fetchMetricSeriesBatch, getLiveMeta, sourceMode],
   );
@@ -2211,7 +2216,7 @@ export default function Home() {
         const key = buildSeriesKey(metric.captureId, metric.fullPath);
         return !loadedSeriesRef.current.has(key) || partialSeriesRef.current.has(key);
       });
-      fetchMetricSeriesBatch(captureId, pending, { force: true });
+      fetchMetricSeriesBatch(captureId, pending, { force: true, preferCache: false });
     },
     [clearLiveRetry, fetchMetricSeriesBatch, getLiveMeta],
   );
@@ -2247,7 +2252,7 @@ export default function Home() {
     const selectedForCapture = selectedMetricsRef.current.filter(
       (metric) => metric.captureId === captureId,
     );
-    fetchMetricSeriesBatch(captureId, selectedForCapture);
+    fetchMetricSeriesBatch(captureId, selectedForCapture, { preferCache: true });
   }, [captures, fetchMetricSeriesBatch]);
 
   const handleRemoveCapture = useCallback((captureId: string) => {
@@ -2330,7 +2335,7 @@ export default function Home() {
       }
     });
     metricsByCapture.forEach((metrics, captureId) => {
-      fetchMetricSeriesBatch(captureId, metrics, { force: true });
+      fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: true });
     });
   }, [captures, fetchMetricSeriesBatch, selectedMetrics]);
 
@@ -2369,7 +2374,11 @@ export default function Home() {
         && liveEntry.status !== "idle"
         && liveEntry.status !== "completed"
         && liveEntry.source.trim().length > 0;
-      fetchMetricSeriesBatch(captureId, metrics, shouldForce ? { force: true } : undefined);
+      fetchMetricSeriesBatch(
+        captureId,
+        metrics,
+        shouldForce ? { force: true, preferCache: true } : { preferCache: true },
+      );
     });
 
     if (removed.length > 0) {
