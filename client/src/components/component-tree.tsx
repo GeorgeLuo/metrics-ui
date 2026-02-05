@@ -250,7 +250,7 @@ function ComponentTreeBase({
   const visibleNodes = shouldTruncate ? components.slice(0, MAX_ROOT_NODES) : components;
 
   return (
-    <div>
+    <div className="flex flex-col gap-1">
       <div className="px-2 pb-1">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
@@ -264,7 +264,7 @@ function ComponentTreeBase({
           />
         </div>
       </div>
-      <div>
+      <div className="max-h-56 overflow-y-auto">
         {visibleNodes.map((node) => (
           <TreeNode
             key={node.id}

@@ -414,7 +414,6 @@ export default function Home() {
   const [subtitles, setSubtitles] = useState<SubtitleOverlay[]>([]);
   const [sidebarMode, setSidebarMode] = useState<"setup" | "analysis">("setup");
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
-  const [isSelectionOpen, setIsSelectionOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
   const [initialSyncReady, setInitialSyncReady] = useState(false);
 
@@ -3121,17 +3120,6 @@ export default function Home() {
     setSidebarMode((prev) => (prev === "setup" ? "analysis" : "setup"));
   }, []);
 
-  const selectedMetricsSummary = useMemo(() => {
-    const byCapture = selectedMetrics.reduce((acc, metric) => {
-      acc.set(metric.captureId, (acc.get(metric.captureId) ?? 0) + 1);
-      return acc;
-    }, new Map<string, number>());
-    return Array.from(byCapture.entries()).map(([captureId, count]) => ({
-      captureId,
-      count,
-    }));
-  }, [selectedMetrics]);
-
   const analysisKeys = useMemo(() => {
     return new Set(analysisMetrics.map(getAnalysisKey));
   }, [analysisMetrics, getAnalysisKey]);
@@ -3363,44 +3351,31 @@ export default function Home() {
                     </div>
                   </SidebarGroupContent>
                 </SidebarGroup>
-                <Collapsible open={isSelectionOpen} onOpenChange={setIsSelectionOpen}>
+                {activeCaptures.length === 0 && (
                   <SidebarGroup>
-                    <SidebarGroupLabel asChild>
-                      <CollapsibleTrigger className="flex w-full items-center justify-between">
-                        <span>Selection</span>
-                        <ChevronDown
-                          className={`h-3 w-3 text-muted-foreground transition-transform ${
-                            isSelectionOpen ? "rotate-180" : ""
-                          }`}
-                        />
-                      </CollapsibleTrigger>
-                    </SidebarGroupLabel>
-                    <CollapsibleContent forceMount className="data-[state=closed]:hidden max-h-64 overflow-y-auto">
-                      <div className="flex flex-col gap-2">
-                        {activeCaptures.length === 0 && (
-                          <div className="px-2 text-xs text-muted-foreground">No active captures</div>
-                        )}
-                        {activeCaptures.map((capture) => (
-                          <SidebarGroup key={capture.id} className="p-0">
-                            <SidebarGroupLabel className="text-xs">
-                              {getCaptureShortName(capture)}
-                            </SidebarGroupLabel>
-                            <SidebarGroupContent>
-                              <ComponentTree
-                                captureId={capture.id}
-                                components={capture.components}
-                                selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
-                                metricCoverage={metricCoverage[capture.id]}
-                                onSelectionChange={getSelectionHandler(capture.id)}
-                                colorOffset={captures.findIndex(c => c.id === capture.id)}
-                              />
-                            </SidebarGroupContent>
-                          </SidebarGroup>
-                        ))}
-                      </div>
-                    </CollapsibleContent>
+                    <SidebarGroupLabel>Sources</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                      <div className="px-2 text-xs text-muted-foreground">No active captures</div>
+                    </SidebarGroupContent>
                   </SidebarGroup>
-                </Collapsible>
+                )}
+                {activeCaptures.map((capture) => (
+                  <SidebarGroup key={capture.id}>
+                    <SidebarGroupLabel className="text-xs">
+                      {getCaptureShortName(capture)}
+                    </SidebarGroupLabel>
+                    <SidebarGroupContent>
+                      <ComponentTree
+                        captureId={capture.id}
+                        components={capture.components}
+                        selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
+                        metricCoverage={metricCoverage[capture.id]}
+                        onSelectionChange={getSelectionHandler(capture.id)}
+                        colorOffset={captures.findIndex(c => c.id === capture.id)}
+                      />
+                    </SidebarGroupContent>
+                  </SidebarGroup>
+                ))}
                 <SidebarGroup>
                   <SidebarGroupLabel>Overview</SidebarGroupLabel>
                   <SidebarGroupContent>
@@ -3496,22 +3471,6 @@ export default function Home() {
                           {isAutoScroll ? "On" : "Off"}
                         </span>
                       </div>
-                    </div>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Selection</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
-                      {selectedMetricsSummary.length === 0 && (
-                        <span>No metrics selected</span>
-                      )}
-                      {selectedMetricsSummary.map((entry) => (
-                        <div key={entry.captureId} className="flex items-center justify-between">
-                          <span className="truncate">{entry.captureId}</span>
-                          <span className="font-mono text-foreground">{entry.count}</span>
-                        </div>
-                      ))}
                     </div>
                   </SidebarGroupContent>
                 </SidebarGroup>
