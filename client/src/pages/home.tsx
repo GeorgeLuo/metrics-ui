@@ -3579,7 +3579,7 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-auto p-0 text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             style={{ width: `${Math.max(windowStartInput.length, 1)}ch` }}
                             aria-label="Window start tick"
                           />
@@ -3604,7 +3604,7 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-auto p-0 text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             style={{ width: `${Math.max(windowEndInput.length, 1)}ch` }}
                             aria-label="Window end tick"
                           />
