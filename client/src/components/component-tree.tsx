@@ -210,7 +210,6 @@ function ComponentTreeBase({
   onSelectionChange,
   colorOffset = 0,
 }: ComponentTreeProps) {
-  const MAX_ROOT_NODES = 200;
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
 
@@ -246,11 +245,8 @@ function ComponentTreeBase({
     return null;
   }
 
-  const shouldTruncate = searchQuery === "" && components.length > MAX_ROOT_NODES;
-  const visibleNodes = shouldTruncate ? components.slice(0, MAX_ROOT_NODES) : components;
-
   return (
-    <div>
+    <div className="flex flex-col max-h-72">
       <div className="px-2 pb-1">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
@@ -264,8 +260,8 @@ function ComponentTreeBase({
           />
         </div>
       </div>
-      <div>
-        {visibleNodes.map((node) => (
+      <div className="flex-1 overflow-y-auto">
+        {components.map((node) => (
           <TreeNode
             key={node.id}
             node={node}
@@ -280,11 +276,6 @@ function ComponentTreeBase({
           />
         ))}
       </div>
-      {shouldTruncate && (
-        <div className="px-2 pt-1 text-[10px] text-muted-foreground">
-          Showing first {MAX_ROOT_NODES} of {components.length}. Use search to narrow.
-        </div>
-      )}
     </div>
   );
 }
