@@ -2076,7 +2076,13 @@ export default function Home() {
             (frame.entities || {}) as Record<string, unknown>,
             metricsForCapture,
           );
+          if (Object.keys(filteredEntities).length === 0) {
+            return;
+          }
           const compactedFrame = compactRecord({ tick: frame.tick, entities: filteredEntities });
+          if (Object.keys(compactedFrame.entities).length === 0) {
+            return;
+          }
           newRecords.push(compactedFrame);
         });
 
