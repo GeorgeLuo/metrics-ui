@@ -2246,7 +2246,11 @@ export async function registerRoutes(
       const cachedFrames = getCachedFramesForSeries(captureId);
       const cacheStats = captureFrameCacheStats.get(captureId);
       const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
-      const usedCache = cachedFrames.length > 0 && !isSampled;
+      const preferCache = req.body?.preferCache !== false;
+      const isLive = liveStreamStates.has(captureId);
+      const allowSampledCache = isLive;
+      const usedCache =
+        cachedFrames.length > 0 && preferCache && (allowSampledCache || !isSampled);
       const result =
         usedCache
           ? extractSeriesFromFrames(cachedFrames, path)
@@ -2265,7 +2269,7 @@ export async function registerRoutes(
         tickCount: result.tickCount,
         numericCount: result.numericCount,
         lastTick: result.lastTick,
-        partial: usedCache,
+        partial: usedCache && (isSampled || isLive),
       });
     } catch (error) {
       console.error("Series load error:", error);
@@ -2297,7 +2301,10 @@ export async function registerRoutes(
       const cacheStats = captureFrameCacheStats.get(captureId);
       const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
       const preferCache = req.body?.preferCache !== false;
-      const usedCache = cachedFrames.length > 0 && preferCache && !isSampled;
+      const isLive = liveStreamStates.has(captureId);
+      const allowSampledCache = isLive;
+      const usedCache =
+        cachedFrames.length > 0 && preferCache && (allowSampledCache || !isSampled);
       const results =
         usedCache
           ? extractSeriesFromFramesBatch(cachedFrames, paths)
@@ -2316,7 +2323,7 @@ export async function registerRoutes(
           tickCount: result.tickCount,
           numericCount: result.numericCount,
           lastTick: result.lastTick,
-          partial: usedCache && isSampled,
+          partial: usedCache && (isSampled || isLive),
         };
       });
 
