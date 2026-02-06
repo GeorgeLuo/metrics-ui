@@ -672,9 +672,9 @@ export default function Home() {
       captureId: string,
       metrics: SelectedMetric[],
       options?: { force?: boolean; preferCache?: boolean },
-    ) => {
+    ): Promise<number | null> => {
       if (!metrics.length) {
-        return;
+        return null;
       }
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
       const hasLiveSource = Boolean(liveEntry && liveEntry.source.trim().length > 0);
@@ -682,11 +682,11 @@ export default function Home() {
         const capture = capturesRef.current.find((entry) => entry.id === captureId);
         const hasTicks = Boolean(capture && capture.tickCount > 0);
         if (!hasTicks) {
-          return;
+          return null;
         }
       }
       if (!options?.force && liveEntry && liveEntry.status !== "idle" && liveEntry.status !== "completed") {
-        return;
+        return null;
       }
       const uniqueMetrics = new Map<string, SelectedMetric>();
       metrics.forEach((metric) => {
@@ -697,7 +697,7 @@ export default function Home() {
         uniqueMetrics.set(key, metric);
       });
       if (uniqueMetrics.size === 0) {
-        return;
+        return null;
       }
       const metricsToFetch = Array.from(uniqueMetrics.values());
       metricsToFetch.forEach((metric) => {
@@ -719,12 +719,19 @@ export default function Home() {
         }
         const seriesList = Array.isArray(data?.series) ? data.series : [];
         const seriesByPath = new Map<string, { points: Array<{ tick: number; value: number | null }>; partial: boolean }>();
+        let maxLastTick: number | null = null;
         seriesList.forEach((entry: { path?: string[]; points?: Array<{ tick: number; value: number | null }>; partial?: boolean }) => {
           if (!Array.isArray(entry?.path)) {
             return;
           }
           const points = Array.isArray(entry?.points) ? entry.points : [];
           seriesByPath.set(JSON.stringify(entry.path), { points, partial: Boolean(entry?.partial) });
+          if (points.length > 0) {
+            const lastTick = points[points.length - 1]?.tick;
+            if (typeof lastTick === "number" && Number.isFinite(lastTick)) {
+              maxLastTick = maxLastTick === null ? lastTick : Math.max(maxLastTick, lastTick);
+            }
+          }
         });
         metricsToFetch.forEach((metric) => {
           const key = JSON.stringify(metric.path);
@@ -741,8 +748,10 @@ export default function Home() {
             partialSeriesRef.current.delete(seriesKey);
           }
         });
+        return maxLastTick;
       } catch (error) {
         console.error("[series] Batch fetch error:", error);
+        return null;
       } finally {
         metricsToFetch.forEach((metric) => {
           pendingSeriesRef.current.delete(buildSeriesKey(metric.captureId, metric.fullPath));
@@ -856,8 +865,19 @@ export default function Home() {
           return;
         }
         lastSeriesRefreshRef.current.set(captureId, now);
-        lastSeriesTickRef.current.set(captureId, capture.tickCount);
-        fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: true });
+        const source = liveEntry.source.trim();
+        const isRemote = source.startsWith("http://") || source.startsWith("https://");
+        const preferCache = !source || isRemote;
+        void fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache }).then(
+          (maxTick) => {
+            const fallbackTick = capture.tickCount;
+            if (typeof maxTick === "number" && Number.isFinite(maxTick)) {
+              lastSeriesTickRef.current.set(captureId, Math.max(fallbackTick, maxTick));
+            } else {
+              lastSeriesTickRef.current.set(captureId, fallbackTick);
+            }
+          },
+        );
       });
     }, LIVE_SERIES_REFRESH_MS);
 
@@ -2354,7 +2374,18 @@ export default function Home() {
       }
     });
     metricsByCapture.forEach((metrics, captureId) => {
-      fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: true });
+      const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+      const source = liveEntry?.source?.trim() ?? "";
+      const isRemote = source.startsWith("http://") || source.startsWith("https://");
+      const preferCache = !source || isRemote;
+      void fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache }).then(
+        (maxTick) => {
+          if (typeof maxTick === "number" && Number.isFinite(maxTick)) {
+            const current = lastSeriesTickRef.current.get(captureId) ?? 0;
+            lastSeriesTickRef.current.set(captureId, Math.max(current, maxTick));
+          }
+        },
+      );
     });
   }, [captures, fetchMetricSeriesBatch, selectedMetrics]);
 
