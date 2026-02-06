@@ -2297,7 +2297,7 @@ export async function registerRoutes(
       const cacheStats = captureFrameCacheStats.get(captureId);
       const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
       const preferCache = req.body?.preferCache !== false;
-      const usedCache = cachedFrames.length > 0 && preferCache;
+      const usedCache = cachedFrames.length > 0 && preferCache && !isSampled;
       const results =
         usedCache
           ? extractSeriesFromFramesBatch(cachedFrames, paths)
