@@ -2339,9 +2339,6 @@ export default function Home() {
       if (!capture || !capture.isActive) {
         return;
       }
-      if (capture.records.length > 1) {
-        return;
-      }
       const key = buildSeriesKey(metric.captureId, metric.fullPath);
       if (
         (loadedSeriesRef.current.has(key) && !partialSeriesRef.current.has(key))
