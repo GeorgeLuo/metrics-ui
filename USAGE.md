@@ -191,6 +191,10 @@ Capture streaming (push records over WS):
 - `select_analysis_metric`
 - `deselect_analysis_metric`
 - `clear_analysis_metrics`
+- `create_derivation_group`
+- `delete_derivation_group`
+- `set_active_derivation_group`
+- `update_derivation_group`
 - `clear_captures`
 - `play`
 - `pause`

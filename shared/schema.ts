@@ -52,6 +52,12 @@ export interface SelectedMetric {
   color: string;
 }
 
+export interface DerivationGroup {
+  id: string;
+  name: string;
+  metrics: SelectedMetric[];
+}
+
 export interface DataPoint {
   tick: number;
   [key: string]: number | string | null;
@@ -387,6 +393,10 @@ export type ControlCommand =
   | ({ type: "select_analysis_metric"; captureId: string; path: string[] } & ControlRequestBase)
   | ({ type: "deselect_analysis_metric"; captureId: string; fullPath: string } & ControlRequestBase)
   | ({ type: "clear_analysis_metrics" } & ControlRequestBase)
+  | ({ type: "create_derivation_group"; groupId?: string; name?: string } & ControlRequestBase)
+  | ({ type: "delete_derivation_group"; groupId: string } & ControlRequestBase)
+  | ({ type: "set_active_derivation_group"; groupId: string } & ControlRequestBase)
+  | ({ type: "update_derivation_group"; groupId: string; newGroupId?: string; name?: string } & ControlRequestBase)
   | ({ type: "clear_captures" } & ControlRequestBase)
   | ({ type: "play" } & ControlRequestBase)
   | ({ type: "pause" } & ControlRequestBase)
@@ -510,6 +520,8 @@ export interface VisualizationState {
   }>;
   selectedMetrics: SelectedMetric[];
   analysisMetrics: SelectedMetric[];
+  derivationGroups: DerivationGroup[];
+  activeDerivationGroupId: string;
   playback: PlaybackState;
   windowSize: number;
   windowStart: number;

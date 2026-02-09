@@ -40,6 +40,7 @@ import type {
   SubtitleOverlay,
   ComponentNode,
   SelectedMetric,
+  DerivationGroup,
   PlaybackState,
   DataPoint,
   CaptureRecord,
@@ -360,7 +361,48 @@ export default function Home() {
       return [];
     }
   });
-  const [analysisMetrics, setAnalysisMetrics] = useState<SelectedMetric[]>([]);
+  const [derivationGroups, setDerivationGroups] = useState<DerivationGroup[]>(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
+    const stored = window.localStorage.getItem("metrics-ui-derivation-groups");
+    if (!stored) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      const groups: DerivationGroup[] = [];
+      parsed.forEach((group) => {
+        if (!group || typeof group.id !== "string") {
+          return;
+        }
+        const name = typeof group.name === "string" ? group.name : group.id;
+        const metricsRaw = Array.isArray(group.metrics) ? group.metrics : [];
+        const metrics = metricsRaw.filter(
+          (metric: any) =>
+            metric &&
+            typeof metric.captureId === "string" &&
+            Array.isArray(metric.path) &&
+            typeof metric.fullPath === "string" &&
+            typeof metric.label === "string" &&
+            typeof metric.color === "string",
+        ) as SelectedMetric[];
+        groups.push({ id: group.id, name, metrics });
+      });
+      return groups;
+    } catch {
+      return [];
+    }
+  });
+  const [activeDerivationGroupId, setActiveDerivationGroupId] = useState<string>(() => {
+    if (typeof window === "undefined") {
+      return "";
+    }
+    return window.localStorage.getItem("metrics-ui-active-derivation-group") ?? "";
+  });
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [memoryStatsSnapshot, setMemoryStatsSnapshot] = useState<MemoryStatsResponse | null>(null);
   const [memoryStatsAt, setMemoryStatsAt] = useState<number | null>(null);
@@ -443,6 +485,8 @@ export default function Home() {
   const capturesRef = useRef(captures);
   const liveStreamsRef = useRef(liveStreams);
   const selectedMetricsRef = useRef(selectedMetrics);
+  const derivationGroupsRef = useRef(derivationGroups);
+  const activeDerivationGroupIdRef = useRef(activeDerivationGroupId);
   const liveMetaRef = useRef(new Map<string, LiveStreamMeta>());
   const initialSyncTimerRef = useRef<number | null>(null);
   const initialSyncReadyRef = useRef(false);
@@ -522,6 +566,35 @@ export default function Home() {
     return handler;
   }, []);
 
+  const resolvedActiveDerivationGroupId = useMemo(() => {
+    if (derivationGroups.length === 0) {
+      return "";
+    }
+    if (
+      activeDerivationGroupId &&
+      derivationGroups.some((group) => group.id === activeDerivationGroupId)
+    ) {
+      return activeDerivationGroupId;
+    }
+    return derivationGroups[0]?.id ?? "";
+  }, [activeDerivationGroupId, derivationGroups]);
+
+  useEffect(() => {
+    if (resolvedActiveDerivationGroupId !== activeDerivationGroupId) {
+      setActiveDerivationGroupId(resolvedActiveDerivationGroupId);
+    }
+  }, [activeDerivationGroupId, resolvedActiveDerivationGroupId]);
+
+  const analysisMetrics = useMemo(() => {
+    if (!resolvedActiveDerivationGroupId) {
+      return [];
+    }
+    return (
+      derivationGroups.find((group) => group.id === resolvedActiveDerivationGroupId)?.metrics ??
+      []
+    );
+  }, [derivationGroups, resolvedActiveDerivationGroupId]);
+
   const getUiDebug = useCallback(() => {
     const serializeMap = <T,>(
       map: Map<string, T>,
@@ -545,6 +618,10 @@ export default function Home() {
       };
       return {
         selectedMetrics: safeParse(window.localStorage.getItem("metrics-ui-selected-metrics")),
+        derivationGroups: safeParse(window.localStorage.getItem("metrics-ui-derivation-groups")),
+        activeDerivationGroupId: safeParse(
+          window.localStorage.getItem("metrics-ui-active-derivation-group"),
+        ),
         liveStreams: safeParse(window.localStorage.getItem("metrics-ui-live-streams")),
         sourceMode: safeParse(window.localStorage.getItem("metrics-ui-source-mode")),
         theme: window.localStorage.getItem("theme"),
@@ -608,6 +685,8 @@ export default function Home() {
         captures: captureSummaries,
         selectedMetrics,
         analysisMetrics,
+        derivationGroups,
+        activeDerivationGroupId: resolvedActiveDerivationGroupId,
         playback: playbackState,
         windowStart,
         windowEnd,
@@ -676,6 +755,8 @@ export default function Home() {
     };
   }, [
     analysisMetrics,
+    derivationGroups,
+    resolvedActiveDerivationGroupId,
     annotations,
     captures,
     initialSyncReady,
@@ -976,6 +1057,14 @@ export default function Home() {
   }, [selectedMetrics]);
 
   useEffect(() => {
+    derivationGroupsRef.current = derivationGroups;
+  }, [derivationGroups]);
+
+  useEffect(() => {
+    activeDerivationGroupIdRef.current = activeDerivationGroupId;
+  }, [activeDerivationGroupId]);
+
+  useEffect(() => {
     if (!windowStartEditingRef.current) {
       setWindowStartInput(String(windowStart));
     }
@@ -1090,6 +1179,26 @@ export default function Home() {
       JSON.stringify(selectedMetrics),
     );
   }, [selectedMetrics]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(
+      "metrics-ui-derivation-groups",
+      JSON.stringify(derivationGroups),
+    );
+  }, [derivationGroups]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(
+      "metrics-ui-active-derivation-group",
+      activeDerivationGroupId,
+    );
+  }, [activeDerivationGroupId]);
 
   useEffect(() => {
     if (sidebarMode !== "analysis") {
@@ -2468,7 +2577,12 @@ export default function Home() {
   const handleRemoveCapture = useCallback((captureId: string) => {
     setCaptures(prev => prev.filter(c => c.id !== captureId));
     setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
-    setAnalysisMetrics(prev => prev.filter(m => m.captureId !== captureId));
+    setDerivationGroups((prev) =>
+      prev.map((group) => ({
+        ...group,
+        metrics: group.metrics.filter((metric) => metric.captureId !== captureId),
+      })),
+    );
     captureStatsRef.current.delete(captureId);
     activeCaptureIdsRef.current.delete(captureId);
     pendingTicksRef.current.delete(captureId);
@@ -2516,6 +2630,32 @@ export default function Home() {
     setSelectedMetrics([]);
   }, []);
 
+  const resolveActiveDerivationGroupId = useCallback((): string | null => {
+    const groups = derivationGroupsRef.current;
+    if (groups.length === 0) {
+      return null;
+    }
+    const activeId = activeDerivationGroupIdRef.current;
+    const resolved =
+      activeId && groups.some((group) => group.id === activeId) ? activeId : groups[0]!.id;
+    if (resolved !== activeId) {
+      setActiveDerivationGroupId(resolved);
+    }
+    return resolved;
+  }, []);
+
+  const ensureActiveDerivationGroupId = useCallback((): string => {
+    const resolved = resolveActiveDerivationGroupId();
+    if (resolved) {
+      return resolved;
+    }
+    const id = "default";
+    const group: DerivationGroup = { id, name: "Default", metrics: [] };
+    setDerivationGroups([group]);
+    setActiveDerivationGroupId(id);
+    return id;
+  }, [resolveActiveDerivationGroupId]);
+
   const handleSelectAnalysisMetric = useCallback((captureId: string, path: string[]) => {
     const fullPath = path.join(".");
     const metric = selectedMetricsRef.current.find(
@@ -2524,25 +2664,114 @@ export default function Home() {
     if (!metric) {
       return false;
     }
+    const groupId = ensureActiveDerivationGroupId();
     const key = `${captureId}::${fullPath}`;
-    setAnalysisMetrics((prev) => {
-      if (prev.some((entry) => `${entry.captureId}::${entry.fullPath}` === key)) {
-        return prev;
-      }
-      return [...prev, metric];
-    });
+    setDerivationGroups((prev) =>
+      prev.map((group) => {
+        if (group.id !== groupId) {
+          return group;
+        }
+        if (group.metrics.some((entry) => `${entry.captureId}::${entry.fullPath}` === key)) {
+          return group;
+        }
+        return { ...group, metrics: [...group.metrics, metric] };
+      }),
+    );
     return true;
-  }, []);
+  }, [ensureActiveDerivationGroupId]);
 
   const handleDeselectAnalysisMetric = useCallback((captureId: string, fullPath: string) => {
-    setAnalysisMetrics((prev) =>
-      prev.filter((entry) => !(entry.captureId === captureId && entry.fullPath === fullPath)),
+    const groupId = resolveActiveDerivationGroupId();
+    if (!groupId) {
+      return;
+    }
+    setDerivationGroups((prev) =>
+      prev.map((group) => {
+        if (group.id !== groupId) {
+          return group;
+        }
+        return {
+          ...group,
+          metrics: group.metrics.filter(
+            (entry) => !(entry.captureId === captureId && entry.fullPath === fullPath),
+          ),
+        };
+      }),
     );
   }, []);
 
   const handleClearAnalysisMetrics = useCallback(() => {
-    setAnalysisMetrics([]);
+    setDerivationGroups((prev) => prev.map((group) => ({ ...group, metrics: [] })));
   }, []);
+
+  const toUniqueGroupId = useCallback((desired: string, ignoreId?: string): string => {
+    const base = desired.trim() || "group";
+    const existing = new Set(derivationGroupsRef.current.map((group) => group.id));
+    if (ignoreId) {
+      existing.delete(ignoreId);
+    }
+    if (!existing.has(base)) {
+      return base;
+    }
+    let counter = 2;
+    while (existing.has(`${base}-${counter}`)) {
+      counter += 1;
+    }
+    return `${base}-${counter}`;
+  }, []);
+
+  const handleCreateDerivationGroup = useCallback(
+    (options?: { groupId?: string; name?: string }) => {
+      const desiredId = options?.groupId?.trim() || `group-${generateId()}`;
+      const id = toUniqueGroupId(desiredId);
+      const name = options?.name?.trim() || id;
+      const group: DerivationGroup = { id, name, metrics: [] };
+      setDerivationGroups((prev) => [...prev, group]);
+      setActiveDerivationGroupId(id);
+    },
+    [toUniqueGroupId],
+  );
+
+  const handleDeleteDerivationGroup = useCallback((groupId: string) => {
+    const nextGroups = derivationGroupsRef.current.filter((group) => group.id !== groupId);
+    if (activeDerivationGroupIdRef.current === groupId) {
+      setActiveDerivationGroupId(nextGroups[0]?.id ?? "");
+    }
+    setDerivationGroups((prev) => prev.filter((group) => group.id !== groupId));
+  }, []);
+
+  const handleSetActiveDerivationGroup = useCallback((groupId: string) => {
+    if (!derivationGroupsRef.current.some((group) => group.id === groupId)) {
+      return;
+    }
+    setActiveDerivationGroupId(groupId);
+  }, []);
+
+  const handleUpdateDerivationGroup = useCallback(
+    (groupId: string, updates: { newGroupId?: string; name?: string }) => {
+      const desiredNewId = updates.newGroupId?.trim();
+      const nextId = desiredNewId ? toUniqueGroupId(desiredNewId, groupId) : null;
+      const nextName = updates.name?.trim();
+
+      if (nextId && nextId !== groupId && activeDerivationGroupIdRef.current === groupId) {
+        setActiveDerivationGroupId(nextId);
+      }
+
+      setDerivationGroups((prev) =>
+        prev.map((group) => {
+          if (group.id !== groupId) {
+            return group;
+          }
+          return {
+            ...group,
+            id: nextId ?? group.id,
+            name: nextName ?? group.name,
+          };
+        }),
+      );
+    },
+    [toUniqueGroupId],
+  );
 
   const prevSelectedRef = useRef<SelectedMetric[]>([]);
 
@@ -3380,6 +3609,8 @@ export default function Home() {
     captures,
     selectedMetrics,
     analysisMetrics,
+    derivationGroups,
+    activeDerivationGroupId: resolvedActiveDerivationGroupId,
     playbackState,
     windowSize,
     windowStart,
@@ -3400,6 +3631,10 @@ export default function Home() {
     onSelectAnalysisMetric: handleSelectAnalysisMetric,
     onDeselectAnalysisMetric: handleDeselectAnalysisMetric,
     onClearAnalysisMetrics: handleClearAnalysisMetrics,
+    onCreateDerivationGroup: handleCreateDerivationGroup,
+    onDeleteDerivationGroup: handleDeleteDerivationGroup,
+    onSetActiveDerivationGroup: handleSetActiveDerivationGroup,
+    onUpdateDerivationGroup: handleUpdateDerivationGroup,
     onClearCaptures: handleClearCaptures,
     onPlay: handlePlay,
     onPause: handlePause,
@@ -3485,28 +3720,49 @@ export default function Home() {
   }, [analysisMetrics, getAnalysisKey]);
 
   useEffect(() => {
-    if (analysisMetrics.length === 0) {
-      return;
-    }
     const selectedKeys = new Set(selectedMetrics.map(getAnalysisKey));
-    setAnalysisMetrics((prev) => prev.filter((metric) => selectedKeys.has(getAnalysisKey(metric))));
+    setDerivationGroups((prev) =>
+      prev.map((group) => ({
+        ...group,
+        metrics: group.metrics.filter((metric) => selectedKeys.has(getAnalysisKey(metric))),
+      })),
+    );
   }, [getAnalysisKey, selectedMetrics]);
 
   const handleToggleAnalysisMetric = useCallback((metric: SelectedMetric) => {
     const key = getAnalysisKey(metric);
-    setAnalysisMetrics((prev) => {
-      const exists = prev.some((entry) => getAnalysisKey(entry) === key);
-      if (exists) {
-        return prev.filter((entry) => getAnalysisKey(entry) !== key);
-      }
-      return [...prev, metric];
-    });
-  }, [getAnalysisKey]);
+    const groupId = ensureActiveDerivationGroupId();
+    setDerivationGroups((prev) =>
+      prev.map((group) => {
+        if (group.id !== groupId) {
+          return group;
+        }
+        const exists = group.metrics.some((entry) => getAnalysisKey(entry) === key);
+        const nextMetrics = exists
+          ? group.metrics.filter((entry) => getAnalysisKey(entry) !== key)
+          : [...group.metrics, metric];
+        return { ...group, metrics: nextMetrics };
+      }),
+    );
+  }, [ensureActiveDerivationGroupId, getAnalysisKey]);
 
-  const handleRemoveAnalysisMetric = useCallback((metric: SelectedMetric) => {
-    const key = getAnalysisKey(metric);
-    setAnalysisMetrics((prev) => prev.filter((entry) => getAnalysisKey(entry) !== key));
-  }, [getAnalysisKey]);
+  const handleRemoveDerivationMetric = useCallback(
+    (groupId: string, metric: SelectedMetric) => {
+      const key = getAnalysisKey(metric);
+      setDerivationGroups((prev) =>
+        prev.map((group) => {
+          if (group.id !== groupId) {
+            return group;
+          }
+          return {
+            ...group,
+            metrics: group.metrics.filter((entry) => getAnalysisKey(entry) !== key),
+          };
+        }),
+      );
+    },
+    [getAnalysisKey],
+  );
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
@@ -4001,30 +4257,115 @@ export default function Home() {
                 <SidebarGroup>
                   <SidebarGroupLabel>Derivations</SidebarGroupLabel>
                   <SidebarGroupContent>
-                    <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
-                      {analysisMetrics.length === 0 && (
-                        <span>Click a metric in the HUD to add it here.</span>
-                      )}
-                      {analysisMetrics.map((metric) => {
-                        const capture = captures.find((entry) => entry.id === metric.captureId);
-                        const captureName = capture ? getCaptureShortName(capture) : metric.captureId;
+                    <div className="flex items-center justify-between px-2 pb-2">
+                      <span className="text-xs text-muted-foreground">
+                        {derivationGroups.length} groups
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => handleCreateDerivationGroup()}
+                        data-testid="button-derivation-group-create"
+                      >
+                        New group
+                      </Button>
+                    </div>
+                    {derivationGroups.length === 0 && (
+                      <div className="px-2 text-xs text-muted-foreground">
+                        Click a metric in the HUD to create a default group.
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-3 px-2 text-xs text-muted-foreground">
+                      {derivationGroups.map((group) => {
+                        const isActive = group.id === resolvedActiveDerivationGroupId;
                         return (
-                          <div key={getAnalysisKey(metric)} className="flex items-center gap-2">
-                            <span
-                              className="h-2 w-2 rounded-full shrink-0"
-                              style={{ backgroundColor: metric.color }}
+                          <div
+                            key={group.id}
+                            className={`rounded-md border p-2 flex flex-col gap-2 ${
+                              isActive ? "border-foreground/40" : "border-border/50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant={isActive ? "secondary" : "ghost"}
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => handleSetActiveDerivationGroup(group.id)}
+                                data-testid={`button-derivation-group-active-${group.id}`}
+                              >
+                                {isActive ? "Active" : "Use"}
+                              </Button>
+                              <Input
+                                defaultValue={group.id}
+                                onBlur={(event) => {
+                                  const nextId = event.target.value.trim();
+                                  if (nextId && nextId !== group.id) {
+                                    handleUpdateDerivationGroup(group.id, { newGroupId: nextId });
+                                  }
+                                }}
+                                className="h-7 px-2 py-1 text-xs font-mono"
+                                aria-label={`Derivation group id ${group.id}`}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleDeleteDerivationGroup(group.id)}
+                                data-testid={`button-derivation-group-delete-${group.id}`}
+                                aria-label={`Delete derivation group ${group.id}`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                            <Input
+                              defaultValue={group.name}
+                              onBlur={(event) => {
+                                const nextName = event.target.value.trim();
+                                if (nextName && nextName !== group.name) {
+                                  handleUpdateDerivationGroup(group.id, { name: nextName });
+                                }
+                              }}
+                              className="h-7 px-2 py-1 text-xs"
+                              aria-label={`Derivation group name ${group.id}`}
                             />
-                            <span className="truncate flex-1">
-                              {captureName}: {metric.label}
-                            </span>
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-foreground"
-                              onClick={() => handleRemoveAnalysisMetric(metric)}
-                              aria-label={`Remove ${captureName}: ${metric.label} from analysis`}
-                            >
-                              x
-                            </button>
+                            <div className="flex flex-col gap-1">
+                              {group.metrics.length === 0 && (
+                                <div className="text-xs text-muted-foreground">
+                                  No metrics yet.
+                                </div>
+                              )}
+                              {group.metrics.map((metric) => {
+                                const capture = captures.find(
+                                  (entry) => entry.id === metric.captureId,
+                                );
+                                const captureName = capture
+                                  ? getCaptureShortName(capture)
+                                  : metric.captureId;
+                                return (
+                                  <div
+                                    key={`${group.id}-${getAnalysisKey(metric)}`}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <span
+                                      className="h-2 w-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: metric.color }}
+                                    />
+                                    <span className="truncate flex-1">
+                                      {captureName}: {metric.label}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="text-muted-foreground hover:text-foreground"
+                                      onClick={() => handleRemoveDerivationMetric(group.id, metric)}
+                                      aria-label={`Remove ${captureName}: ${metric.label} from ${group.name}`}
+                                    >
+                                      x
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         );
                       })}

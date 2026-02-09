@@ -4,6 +4,7 @@ import type {
   ControlResponse,
   VisualizationState,
   SelectedMetric,
+  DerivationGroup,
   PlaybackState,
   CaptureSession,
   ComponentNode,
@@ -29,6 +30,8 @@ interface UseWebSocketControlProps {
   captures: CaptureSession[];
   selectedMetrics: SelectedMetric[];
   analysisMetrics: SelectedMetric[];
+  derivationGroups: DerivationGroup[];
+  activeDerivationGroupId: string;
   playbackState: PlaybackState;
   windowSize: number;
   windowStart: number;
@@ -55,6 +58,13 @@ interface UseWebSocketControlProps {
   onSelectAnalysisMetric: (captureId: string, path: string[]) => boolean;
   onDeselectAnalysisMetric: (captureId: string, fullPath: string) => void;
   onClearAnalysisMetrics: () => void;
+  onCreateDerivationGroup: (options?: { groupId?: string; name?: string }) => void;
+  onDeleteDerivationGroup: (groupId: string) => void;
+  onSetActiveDerivationGroup: (groupId: string) => void;
+  onUpdateDerivationGroup: (
+    groupId: string,
+    updates: { newGroupId?: string; name?: string },
+  ) => void;
   onClearCaptures: () => void;
   onPlay: () => void;
   onPause: () => void;
@@ -133,6 +143,8 @@ export function useWebSocketControl({
   captures,
   selectedMetrics,
   analysisMetrics,
+  derivationGroups,
+  activeDerivationGroupId,
   playbackState,
   windowSize,
   windowStart,
@@ -153,6 +165,10 @@ export function useWebSocketControl({
   onSelectAnalysisMetric,
   onDeselectAnalysisMetric,
   onClearAnalysisMetrics,
+  onCreateDerivationGroup,
+  onDeleteDerivationGroup,
+  onSetActiveDerivationGroup,
+  onUpdateDerivationGroup,
   onClearCaptures,
   onPlay,
   onPause,
@@ -206,6 +222,8 @@ export function useWebSocketControl({
         })),
         selectedMetrics,
         analysisMetrics,
+        derivationGroups,
+        activeDerivationGroupId,
         playback: playbackState,
         windowSize,
         windowStart,
@@ -222,7 +240,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, analysisMetrics, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
+  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
 
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
     if (!requestId) {
@@ -362,6 +380,25 @@ export function useWebSocketControl({
         break;
       case "clear_analysis_metrics":
         onClearAnalysisMetrics();
+        sendAck(requestId, command.type);
+        break;
+      case "create_derivation_group":
+        onCreateDerivationGroup({ groupId: command.groupId, name: command.name });
+        sendAck(requestId, command.type);
+        break;
+      case "delete_derivation_group":
+        onDeleteDerivationGroup(command.groupId);
+        sendAck(requestId, command.type);
+        break;
+      case "set_active_derivation_group":
+        onSetActiveDerivationGroup(command.groupId);
+        sendAck(requestId, command.type);
+        break;
+      case "update_derivation_group":
+        onUpdateDerivationGroup(command.groupId, {
+          newGroupId: command.newGroupId,
+          name: command.name,
+        });
         sendAck(requestId, command.type);
         break;
       case "clear_captures":
@@ -829,7 +866,7 @@ export function useWebSocketControl({
 
   useEffect(() => {
     sendState();
-  }, [captures, selectedMetrics, playbackState, windowSize, windowStart, windowEnd, autoScroll, annotations, subtitles, sendState]);
+  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, annotations, subtitles, sendState]);
 
   return { sendState, sendMessage };
 }
