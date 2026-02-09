@@ -522,6 +522,188 @@ export default function Home() {
     return handler;
   }, []);
 
+  const getUiDebug = useCallback(() => {
+    const serializeMap = <T,>(
+      map: Map<string, T>,
+      mapValue: (value: T) => unknown = (value) => value,
+    ) => Array.from(map.entries()).map(([key, value]) => ({
+      captureId: key,
+      value: mapValue(value),
+    }));
+
+    const localStorageSnapshot = (() => {
+      if (typeof window === "undefined") {
+        return undefined;
+      }
+      const safeParse = (value: string | null) => {
+        if (!value) return null;
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
+      };
+      return {
+        selectedMetrics: safeParse(window.localStorage.getItem("metrics-ui-selected-metrics")),
+        liveStreams: safeParse(window.localStorage.getItem("metrics-ui-live-streams")),
+        sourceMode: safeParse(window.localStorage.getItem("metrics-ui-source-mode")),
+        theme: window.localStorage.getItem("theme"),
+      };
+    })();
+
+    const captureSummaries = captures.map((capture) => {
+      const stats = captureStatsRef.current.get(capture.id);
+      return {
+        id: capture.id,
+        filename: capture.filename,
+        fileSize: capture.fileSize,
+        tickCount: capture.tickCount,
+        recordCount: capture.records.length,
+        componentNodes: stats?.componentNodes ?? capture.components.length,
+        isActive: capture.isActive,
+      };
+    });
+
+    const pendingAppends = Array.from(pendingAppendsRef.current.entries()).map(
+      ([captureId, frames]) => ({
+        captureId,
+        count: frames.length,
+        lastTick: frames.length > 0 ? frames[frames.length - 1].tick : null,
+      }),
+    );
+
+    const pendingTicks = Array.from(pendingTicksRef.current.entries()).map(
+      ([captureId, tick]) => ({ captureId, tick }),
+    );
+
+    const liveMeta = Array.from(liveMetaRef.current.entries()).map(
+      ([captureId, meta]) => ({
+        captureId,
+        dirty: meta.dirty,
+        lastSource: meta.lastSource,
+        retrySource: meta.retrySource,
+        completed: meta.completed,
+        hasRetryTimer: meta.retryTimer !== null,
+      }),
+    );
+
+    const captureStats = serializeMap(captureStatsRef.current, (value) => value);
+    const componentUpdateLastApplied = serializeMap(componentUpdateLastAppliedRef.current, (value) => value);
+    const lastSeriesTick = serializeMap(lastSeriesTickRef.current, (value) => value);
+    const lastSeriesRefresh = serializeMap(lastSeriesRefreshRef.current, (value) => value);
+    const streamModes = serializeMap(streamModeRef.current, (value) => value);
+    const pendingComponentUpdates = Array.from(pendingComponentUpdatesRef.current.entries()).map(
+      ([captureId, nodes]) => ({
+        captureId,
+        count: nodes.length,
+      }),
+    );
+    const componentUpdateTimers = Array.from(componentUpdateTimersRef.current.entries()).map(
+      ([captureId, timerId]) => ({ captureId, hasTimer: timerId !== null }),
+    );
+
+    return {
+      generatedAt: new Date().toISOString(),
+      state: {
+        captures: captureSummaries,
+        selectedMetrics,
+        analysisMetrics,
+        playback: playbackState,
+        windowStart,
+        windowEnd,
+        windowSize,
+        windowStartInput,
+        windowEndInput,
+        isWindowed,
+        autoScroll: isAutoScroll,
+        isFullscreen,
+        isHudVisible,
+        sourceMode,
+        liveStreams,
+        annotations,
+        subtitles,
+        sidebarMode,
+        isCaptureSourceOpen,
+        isSelectionOpen,
+        isDiagnosticsOpen,
+        memoryStatsSnapshot,
+        memoryStatsAt,
+        uploadError,
+        highlightedMetricKey,
+        initialSyncReady,
+        viewport,
+      },
+      refs: {
+        playbackTimerActive: playbackRef.current !== null,
+        capturesRefCount: capturesRef.current.length,
+        liveStreamsRefCount: liveStreamsRef.current.length,
+        selectedMetricsRefCount: selectedMetricsRef.current.length,
+        pendingAppends,
+        pendingTicks,
+        pendingSeries: Array.from(pendingSeriesRef.current),
+        loadedSeries: Array.from(loadedSeriesRef.current),
+        partialSeries: Array.from(partialSeriesRef.current),
+        lastSeriesTick,
+        lastSeriesRefresh,
+        activeCaptureIds: Array.from(activeCaptureIdsRef.current),
+        streamModes,
+        liveMeta,
+        captureStats,
+        componentUpdateSamples: [...componentUpdateSamplesRef.current],
+        componentUpdateLastMs: componentUpdateLastMsRef.current,
+        componentUpdateLastAt: componentUpdateLastAtRef.current,
+        componentUpdateLastNodes: componentUpdateLastNodesRef.current,
+        componentUpdateThrottled: componentUpdateThrottledRef.current,
+        pendingComponentUpdates,
+        componentUpdateTimers,
+        componentUpdateLastApplied,
+        eventLoopLagSamples: [...eventLoopLagSamplesRef.current],
+        frameTimeSamples: [...frameTimeSamplesRef.current],
+        longTaskStats: { ...longTaskStatsRef.current },
+        initialSyncReadyRef: initialSyncReadyRef.current,
+        initialSyncTimerActive: initialSyncTimerRef.current !== null,
+        seriesRefreshTimerActive: seriesRefreshTimerRef.current !== null,
+        appendFlushTimerActive: appendFlushTimerRef.current !== null,
+        tickFlushTimerActive: tickFlushTimerRef.current !== null,
+        windowStartEditing: windowStartEditingRef.current,
+        windowEndEditing: windowEndEditingRef.current,
+        sidebarHeaderHeight: sidebarHeaderRef.current?.getBoundingClientRect?.().height ?? null,
+        baselineHeap: baselineHeapRef.current,
+        selectionHandlers: selectionHandlersRef.current.size,
+        prevSelectedCount: prevSelectedRef.current.length,
+      },
+      localStorage: localStorageSnapshot,
+    };
+  }, [
+    analysisMetrics,
+    annotations,
+    captures,
+    initialSyncReady,
+    isCaptureSourceOpen,
+    isDiagnosticsOpen,
+    isFullscreen,
+    isHudVisible,
+    isSelectionOpen,
+    isWindowed,
+    liveStreams,
+    memoryStatsAt,
+    memoryStatsSnapshot,
+    playbackState,
+    selectedMetrics,
+    sourceMode,
+    sidebarMode,
+    subtitles,
+    uploadError,
+    viewport,
+    windowEndInput,
+    windowEnd,
+    windowStartInput,
+    windowSize,
+    windowStart,
+    highlightedMetricKey,
+    isAutoScroll,
+  ]);
+
   useEffect(() => {
     const activeIds = new Set(captures.map((capture) => capture.id));
     selectionHandlersRef.current.forEach((_handler, id) => {
@@ -2286,6 +2468,7 @@ export default function Home() {
   const handleRemoveCapture = useCallback((captureId: string) => {
     setCaptures(prev => prev.filter(c => c.id !== captureId));
     setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
+    setAnalysisMetrics(prev => prev.filter(m => m.captureId !== captureId));
     captureStatsRef.current.delete(captureId);
     activeCaptureIdsRef.current.delete(captureId);
     pendingTicksRef.current.delete(captureId);
@@ -2331,6 +2514,34 @@ export default function Home() {
 
   const handleClearSelection = useCallback(() => {
     setSelectedMetrics([]);
+  }, []);
+
+  const handleSelectAnalysisMetric = useCallback((captureId: string, path: string[]) => {
+    const fullPath = path.join(".");
+    const metric = selectedMetricsRef.current.find(
+      (entry) => entry.captureId === captureId && entry.fullPath === fullPath,
+    );
+    if (!metric) {
+      return false;
+    }
+    const key = `${captureId}::${fullPath}`;
+    setAnalysisMetrics((prev) => {
+      if (prev.some((entry) => `${entry.captureId}::${entry.fullPath}` === key)) {
+        return prev;
+      }
+      return [...prev, metric];
+    });
+    return true;
+  }, []);
+
+  const handleDeselectAnalysisMetric = useCallback((captureId: string, fullPath: string) => {
+    setAnalysisMetrics((prev) =>
+      prev.filter((entry) => !(entry.captureId === captureId && entry.fullPath === fullPath)),
+    );
+  }, []);
+
+  const handleClearAnalysisMetrics = useCallback(() => {
+    setAnalysisMetrics([]);
   }, []);
 
   const prevSelectedRef = useRef<SelectedMetric[]>([]);
@@ -2395,10 +2606,9 @@ export default function Home() {
     addedByCapture.forEach((metrics, captureId) => {
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
       const shouldForce =
-        Boolean(liveEntry)
-        && liveEntry.status !== "idle"
-        && liveEntry.status !== "completed"
-        && liveEntry.source.trim().length > 0;
+        liveEntry?.status !== "idle"
+        && liveEntry?.status !== "completed"
+        && Boolean(liveEntry?.source?.trim());
       fetchMetricSeriesBatch(
         captureId,
         metrics,
@@ -3169,6 +3379,7 @@ export default function Home() {
   const { sendMessage } = useWebSocketControl({
     captures,
     selectedMetrics,
+    analysisMetrics,
     playbackState,
     windowSize,
     windowStart,
@@ -3186,6 +3397,9 @@ export default function Home() {
     onSelectMetric: handleSelectMetric,
     onDeselectMetric: handleDeselectMetric,
     onClearSelection: handleClearSelection,
+    onSelectAnalysisMetric: handleSelectAnalysisMetric,
+    onDeselectAnalysisMetric: handleDeselectAnalysisMetric,
+    onClearAnalysisMetrics: handleClearAnalysisMetrics,
     onClearCaptures: handleClearCaptures,
     onPlay: handlePlay,
     onPause: handlePause,
@@ -3213,6 +3427,7 @@ export default function Home() {
     onRemoveSubtitle: handleRemoveSubtitle,
     onClearSubtitles: handleClearSubtitles,
     getMemoryStats: buildMemoryStats,
+    getUiDebug,
     onReconnect: handleWsReconnect,
     onStateSync: handleStateSync,
   });

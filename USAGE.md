@@ -188,6 +188,9 @@ Capture streaming (push records over WS):
 - `select_metric`
 - `deselect_metric`
 - `clear_selection`
+- `select_analysis_metric`
+- `deselect_analysis_metric`
+- `clear_analysis_metrics`
 - `clear_captures`
 - `play`
 - `pause`
@@ -222,6 +225,7 @@ Capture streaming (push records over WS):
 - `query_components`
 - `get_render_table`
 - `get_render_debug`
+- `get_ui_debug`
 - `get_memory_stats`
 - `get_metric_coverage`
 <!-- WS:COMMANDS:END -->
@@ -253,6 +257,7 @@ Common responses include:
 - `components_list`
 - `render_table`
 - `render_debug`
+- `ui_debug`
 - `ui_notice`
 - `ui_error`
 - `memory_stats`
@@ -264,7 +269,7 @@ Common responses include:
 ```javascript
 const WebSocket = require("ws");
 
-const ws = new WebSocket("ws://localhost:5000/ws/control");
+const ws = new WebSocket("ws://localhost:5050/ws/control");
 
 ws.on("open", () => {
   ws.send(JSON.stringify({ type: "register", role: "agent" }));

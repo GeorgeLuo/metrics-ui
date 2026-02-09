@@ -10,6 +10,7 @@ import type {
   Annotation,
   SubtitleOverlay,
   MemoryStatsResponse,
+  UiDebugResponse,
   CaptureAppendFrame,
   CaptureRecord,
   CaptureRecordLine,
@@ -27,6 +28,7 @@ import {
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
   selectedMetrics: SelectedMetric[];
+  analysisMetrics: SelectedMetric[];
   playbackState: PlaybackState;
   windowSize: number;
   windowStart: number;
@@ -50,6 +52,9 @@ interface UseWebSocketControlProps {
   onSelectMetric: (captureId: string, path: string[]) => void;
   onDeselectMetric: (captureId: string, fullPath: string) => void;
   onClearSelection: () => void;
+  onSelectAnalysisMetric: (captureId: string, path: string[]) => boolean;
+  onDeselectAnalysisMetric: (captureId: string, fullPath: string) => void;
+  onClearAnalysisMetrics: () => void;
   onClearCaptures: () => void;
   onPlay: () => void;
   onPause: () => void;
@@ -80,6 +85,7 @@ interface UseWebSocketControlProps {
   onRemoveSubtitle: (options: { id?: string; startTick?: number; endTick?: number; text?: string }) => void;
   onClearSubtitles: () => void;
   getMemoryStats: () => MemoryStatsResponse;
+  getUiDebug?: () => UiDebugResponse;
   onReconnect?: () => void;
   onStateSync?: (captures: { captureId: string; lastTick?: number | null }[]) => void;
 }
@@ -126,6 +132,7 @@ function normalizeCaptureAppendFrame(frame: CaptureAppendFrame): CaptureRecord |
 export function useWebSocketControl({
   captures,
   selectedMetrics,
+  analysisMetrics,
   playbackState,
   windowSize,
   windowStart,
@@ -143,6 +150,9 @@ export function useWebSocketControl({
   onSelectMetric,
   onDeselectMetric,
   onClearSelection,
+  onSelectAnalysisMetric,
+  onDeselectAnalysisMetric,
+  onClearAnalysisMetrics,
   onClearCaptures,
   onPlay,
   onPause,
@@ -170,6 +180,7 @@ export function useWebSocketControl({
   onRemoveSubtitle,
   onClearSubtitles,
   getMemoryStats,
+  getUiDebug,
   onStateSync,
   onReconnect,
 }: UseWebSocketControlProps) {
@@ -194,6 +205,7 @@ export function useWebSocketControl({
           isActive: c.isActive,
         })),
         selectedMetrics,
+        analysisMetrics,
         playback: playbackState,
         windowSize,
         windowStart,
@@ -210,7 +222,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
+  }, [captures, selectedMetrics, analysisMetrics, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
 
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
     if (!requestId) {
@@ -330,6 +342,26 @@ export function useWebSocketControl({
         break;
       case "clear_selection":
         onClearSelection();
+        sendAck(requestId, command.type);
+        break;
+      case "select_analysis_metric": {
+        const ok = onSelectAnalysisMetric(command.captureId, command.path);
+        if (!ok) {
+          sendError(requestId, "Analysis metric must already be selected in the HUD.", {
+            captureId: command.captureId,
+            path: command.path,
+          });
+          break;
+        }
+        sendAck(requestId, command.type);
+        break;
+      }
+      case "deselect_analysis_metric":
+        onDeselectAnalysisMetric(command.captureId, command.fullPath);
+        sendAck(requestId, command.type);
+        break;
+      case "clear_analysis_metrics":
+        onClearAnalysisMetrics();
         sendAck(requestId, command.type);
         break;
       case "clear_captures":
@@ -631,6 +663,20 @@ export function useWebSocketControl({
         });
         sendMessage({
           type: "render_debug",
+          request_id: requestId,
+          payload: debug,
+        });
+        sendAck(requestId, command.type);
+        break;
+      }
+      case "get_ui_debug": {
+        if (!getUiDebug) {
+          sendError(requestId, "UI debug not available.");
+          break;
+        }
+        const debug = getUiDebug();
+        sendMessage({
+          type: "ui_debug",
           request_id: requestId,
           payload: debug,
         });

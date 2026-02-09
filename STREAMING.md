@@ -176,4 +176,22 @@ When a metric is removed:
 - `simeval ui render-table` → exact values in window range.
 - `simeval ui memory-stats` → heap + record/memory estimates.
 - `simeval ui check` → discrepancies: null ticks, missing ticks, duplicates.
+- `simeval ui debug` → full UI state/refs snapshot for agent inspection.
 - `GET /api/debug/captures` → server-side cache + live state per capture.
+
+## Architectural Optimization Ideas (Single-Client, Ephemeral)
+
+With a single user per UI instance, we can simplify data flow and reduce duplication:
+
+- **Make the server the source of truth**: keep selected metrics + windowing state server-side and push
+  only the data needed for rendering. This removes duplicate selection state and reduces drift.
+- **Stream “selected series” instead of raw frames**: for live file sources, send ticks + selected metric
+  values as append payloads. The client only stores windowed series, not raw frames.
+- **Incremental series extraction**: maintain byte offsets or line indexes per capture so range requests
+  can be served without rescanning the JSONL file.
+- **Eliminate multi-client buffering**: drop `queuedAgentCommands` + `pendingCaptureBuffers` if only one
+  frontend is expected. Reconnect can rebuild state via `state_update` + series refresh.
+- **Server-driven windowing**: let server return window-sliced data (already supported via render-table)
+  and remove duplicate window slicing on the client.
+- **Fixed memory budget**: enforce a per-capture cap and evict old tail buffers when not selected; with
+  one user, it’s safe to pause/stop inactive captures aggressively.

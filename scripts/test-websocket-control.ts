@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 
-const WS_URL = process.env.WS_URL || "ws://localhost:5000/ws/control";
+const WS_URL = process.env.WS_URL || "ws://localhost:5050/ws/control";
 
 interface ControlCommand {
   type: string;

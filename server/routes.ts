@@ -37,10 +37,10 @@ const LIVE_INACTIVITY_MIN_MS = 15000;
 const LIVE_INACTIVITY_MULTIPLIER = 5;
 const LIVE_RETRYABLE_FILE_ERRORS = new Set(["ENOENT", "ENOTDIR", "EACCES", "EPERM", "EBUSY"]);
 
-interface CaptureRecord {
+type CaptureRecord = {
   tick: number;
   entities: Record<string, Record<string, unknown>>;
-}
+};
 
 type UploadIndexEntry = {
   path: string;
@@ -614,6 +614,9 @@ const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "select_metric",
   "deselect_metric",
   "clear_selection",
+  "select_analysis_metric",
+  "deselect_analysis_metric",
+  "clear_analysis_metrics",
   "clear_captures",
   "play",
   "pause",
@@ -646,6 +649,7 @@ const RESPONSE_REQUIRED_COMMANDS = new Set<ControlCommand["type"]>([
   "get_series_window",
   "query_components",
   "get_render_table",
+  "get_ui_debug",
   "get_memory_stats",
   "get_metric_coverage",
 ]);
@@ -2285,8 +2289,8 @@ export async function registerRoutes(
       }
       const rawPaths = Array.isArray(req.body?.paths) ? req.body.paths : [];
       const paths = rawPaths
-        .map((path) => normalizePathInput(path))
-        .filter((path): path is string[] => Array.isArray(path));
+        .map((path: unknown) => normalizePathInput(path))
+        .filter((path: string[] | null): path is string[] => Array.isArray(path));
       if (paths.length === 0) {
         return res.status(400).json({ error: "paths must be an array of JSON string arrays." });
       }
@@ -2314,7 +2318,7 @@ export async function registerRoutes(
               signal: new AbortController().signal,
             });
 
-      const series = paths.map((path, index) => {
+      const series = paths.map((path: string[], index: number) => {
         const result = results[index] ?? { points: [], numericCount: 0, lastTick: null, tickCount: 0 };
         return {
           path,

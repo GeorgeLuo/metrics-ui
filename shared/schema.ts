@@ -194,6 +194,13 @@ export interface RenderDebugResponse {
   windowPoints: number;
 }
 
+export interface UiDebugResponse {
+  generatedAt: string;
+  state: Record<string, unknown>;
+  refs: Record<string, unknown>;
+  localStorage?: Record<string, unknown>;
+}
+
 export interface CapabilitiesResponse {
   protocolVersion: string;
   commands: string[];
@@ -377,6 +384,9 @@ export type ControlCommand =
   | ({ type: "select_metric"; captureId: string; path: string[] } & ControlRequestBase)
   | ({ type: "deselect_metric"; captureId: string; fullPath: string } & ControlRequestBase)
   | ({ type: "clear_selection" } & ControlRequestBase)
+  | ({ type: "select_analysis_metric"; captureId: string; path: string[] } & ControlRequestBase)
+  | ({ type: "deselect_analysis_metric"; captureId: string; fullPath: string } & ControlRequestBase)
+  | ({ type: "clear_analysis_metrics" } & ControlRequestBase)
   | ({ type: "clear_captures" } & ControlRequestBase)
   | ({ type: "play" } & ControlRequestBase)
   | ({ type: "pause" } & ControlRequestBase)
@@ -465,6 +475,7 @@ export type ControlCommand =
       windowStart?: number;
       windowEnd?: number;
     } & ControlRequestBase)
+  | ({ type: "get_ui_debug" } & ControlRequestBase)
   | ({ type: "get_memory_stats" } & ControlRequestBase)
   | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase);
 
@@ -480,6 +491,7 @@ export interface ControlResponse {
     | "components_list"
     | "render_table"
     | "render_debug"
+    | "ui_debug"
     | "ui_notice"
     | "ui_error"
     | "memory_stats"
@@ -497,6 +509,7 @@ export interface VisualizationState {
     isActive: boolean;
   }>;
   selectedMetrics: SelectedMetric[];
+  analysisMetrics: SelectedMetric[];
   playback: PlaybackState;
   windowSize: number;
   windowStart: number;
