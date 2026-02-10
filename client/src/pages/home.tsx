@@ -1358,10 +1358,14 @@ export default function Home() {
     const nextModes = new Map<string, "lite" | "full">();
     captures.forEach((capture) => {
       const hasSelected = selectedMetrics.some((metric) => metric.captureId === capture.id);
+      const captureSource =
+        typeof capture.source === "string" ? capture.source.trim() : "";
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === capture.id);
-      const hasLiveSource = Boolean(liveEntry && liveEntry.source.trim().length > 0);
+      const liveSource = liveEntry ? liveEntry.source.trim() : "";
       // File-backed live streams stay in lite mode to avoid streaming full frames into the UI.
-      nextModes.set(capture.id, hasSelected && !hasLiveSource ? "full" : "lite");
+      // Use capture.source as well to avoid races during startup before liveStreams is populated.
+      const isFileBacked = Boolean(captureSource) || Boolean(liveSource);
+      nextModes.set(capture.id, hasSelected && !isFileBacked ? "full" : "lite");
     });
 
     nextModes.forEach((mode, captureId) => {
@@ -2496,7 +2500,9 @@ export default function Home() {
       const fallbackName = `${captureId}.jsonl`;
       if (!existing) {
         const stats = createEmptyCaptureStats();
-        stats.componentNodes = countComponentNodes(components);
+        // The server sends a fully-merged component tree. Counting/merging on every update is
+        // expensive for large captures and can starve the WS control loop.
+        stats.componentNodes = components.length;
         nodeCount = stats.componentNodes;
         captureStatsRef.current.set(captureId, stats);
         activeCaptureIdsRef.current.add(captureId);
@@ -2517,12 +2523,12 @@ export default function Home() {
         ];
       }
 
-      const mergedComponents =
-        existing.components.length > 0
-          ? mergeComponentTrees(existing.components, components)
-          : components;
       const stats = captureStatsRef.current.get(captureId) ?? createEmptyCaptureStats();
-      stats.componentNodes = countComponentNodes(mergedComponents);
+      // The server already maintains a merged tree (and only sends when it grows). Avoid merging
+      // and deep counting here to keep UI responsive during large capture loads.
+      if (!stats.componentNodes) {
+        stats.componentNodes = components.length;
+      }
       nodeCount = stats.componentNodes;
       captureStatsRef.current.set(captureId, stats);
       durationMs = (typeof performance !== "undefined" && typeof performance.now === "function"
@@ -2531,7 +2537,7 @@ export default function Home() {
 
       return prev.map((capture) =>
         capture.id === captureId
-          ? { ...capture, components: mergedComponents }
+          ? { ...capture, components }
           : capture,
       );
     });
@@ -3072,17 +3078,59 @@ export default function Home() {
   );
 
   const handleRunDerivationPlugin = useCallback(
-    (options: { groupId: string; pluginId: string }) => {
+    (options: { groupId: string; pluginId: string; outputCaptureId?: string }) => {
       sendMessageRef.current({
         type: "run_derivation_plugin",
         groupId: options.groupId,
         pluginId: options.pluginId,
+        outputCaptureId: options.outputCaptureId,
       });
     },
     [],
   );
 
+  const autoReplayDerivationsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!initialSyncReady) {
+      return;
+    }
+    if (derivationGroups.length === 0) {
+      return;
+    }
+    derivationGroups.forEach((group) => {
+      const pluginId = typeof group.pluginId === "string" ? group.pluginId.trim() : "";
+      if (!pluginId) {
+        return;
+      }
+      const metrics = Array.isArray(group.metrics) ? group.metrics : [];
+      if (metrics.length === 0) {
+        return;
+      }
+      const outputCaptureId = `derive-${group.id}-${pluginId}`;
+      const existing = captures.find((capture) => capture.id === outputCaptureId);
+      // Replay only when the derived capture isn't present in this browser session yet.
+      // This restores derived outputs after a refresh without persisting the full result.
+      if (existing && existing.records.length > 0) {
+        return;
+      }
+      const key = `${group.id}::${pluginId}`;
+      if (autoReplayDerivationsRef.current.has(key)) {
+        return;
+      }
+      autoReplayDerivationsRef.current.add(key);
+      handleRunDerivationPlugin({ groupId: group.id, pluginId, outputCaptureId });
+    });
+  }, [captures, derivationGroups, handleRunDerivationPlugin, initialSyncReady]);
+
   const prevSelectedRef = useRef<SelectedMetric[]>([]);
+
+  const captureSeriesIdentity = captures
+    .map((capture) => {
+      const source = typeof capture.source === "string" ? capture.source.trim() : "";
+      return `${capture.id}:${capture.isActive ? 1 : 0}:${source}`;
+    })
+    .join("|");
 
   useEffect(() => {
     if (captures.length === 0 || selectedMetrics.length === 0) {
@@ -3111,7 +3159,7 @@ export default function Home() {
     metricsByCapture.forEach((metrics, captureId) => {
       fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: true });
     });
-  }, [captures, fetchMetricSeriesBatch, selectedMetrics]);
+  }, [captureSeriesIdentity, fetchMetricSeriesBatch, selectedMetrics]);
 
   useEffect(() => {
     const prev = prevSelectedRef.current;
@@ -4764,9 +4812,11 @@ export default function Home() {
                                     if (!canRunPlugin) {
                                       return;
                                     }
+                                    const stableOutputCaptureId = `derive-${group.id}-${selectedPluginId}`;
                                     handleRunDerivationPlugin({
                                       groupId: group.id,
                                       pluginId: selectedPluginId,
+                                      outputCaptureId: stableOutputCaptureId,
                                     });
                                   }}
                                   disabled={!canRunPlugin}

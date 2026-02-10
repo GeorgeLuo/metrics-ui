@@ -249,6 +249,12 @@ export function useWebSocketControl({
     }
   }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
 
+  const sendStateRef = useRef(sendState);
+
+  useEffect(() => {
+    sendStateRef.current = sendState;
+  }, [sendState]);
+
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
     if (!requestId) {
       return;
@@ -881,6 +887,9 @@ export function useWebSocketControl({
               } catch (error) {
                 console.warn("[ws] Failed to sync capture sources from localStorage:", error);
               }
+              // Ensure the server has the latest state after a refresh/reconnect so agent-side
+              // derivation runs (which read derivationGroups from lastVisualizationState) work.
+              sendStateRef.current("initial_state_sync");
             }
             return;
           }

@@ -665,6 +665,7 @@ async function extractSeriesBatchFromSource(options: {
 
 const agentClients = new Set<WebSocket>();
 let frontendClient: WebSocket | null = null;
+const clientRoles = new Map<WebSocket, "frontend" | "agent">();
 const pendingClients = new Map<WebSocket, boolean>();
 const activeSockets = new Set<Socket>();
 let shuttingDown = false;
@@ -1819,8 +1820,18 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
   }
 
   const outputKeys = manifest.outputs.map((output) => output.key);
-  const derivedBase = outputCaptureId.trim() ? outputCaptureId.trim() : `derive-${groupId}-${pluginId}`;
-  const derivedCaptureId = toUniqueCaptureId(derivedBase);
+  const trimmedOutputCaptureId = outputCaptureId.trim();
+  const derivedBase = trimmedOutputCaptureId ? trimmedOutputCaptureId : `derive-${groupId}-${pluginId}`;
+  // For replay/restore flows we want a stable output id. Only uniquify when the caller didn't specify one.
+  const derivedCaptureId = trimmedOutputCaptureId ? derivedBase : toUniqueCaptureId(derivedBase);
+
+  // Stop any in-flight job targeting the same output capture id.
+  for (const existing of derivationJobs.values()) {
+    if (existing.outputCaptureId === derivedCaptureId && existing.status === "running") {
+      existing.controller.abort();
+      existing.status = "stopped";
+    }
+  }
 
   const jobId = `derive-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const controller = new AbortController();
@@ -2060,8 +2071,10 @@ const captureComponentState = new Map<
   {
     components: ComponentNode[];
     sentCount: number;
+    lastSentAt?: number;
   }
 >();
+const CAPTURE_COMPONENT_SEND_INTERVAL_MS = 1000;
 
 function resetFrameCache(captureId: string) {
   captureFrameSamples.delete(captureId);
@@ -2280,14 +2293,18 @@ function updateCaptureComponents(
     return;
   }
   const emit = options.emit ?? true;
-  const state = captureComponentState.get(captureId) ?? { components: [], sentCount: 0 };
+  const state = captureComponentState.get(captureId) ?? { components: [], sentCount: 0, lastSentAt: 0 };
   const merged = mergeComponentTrees(state.components, rawComponents);
   const pruned = pruneComponentTree(merged);
   const nodeCount = countComponentNodes(pruned);
-  const shouldSend = nodeCount > state.sentCount;
+  const now = Date.now();
+  const shouldSend =
+    nodeCount > state.sentCount &&
+    (state.sentCount === 0 || now - (state.lastSentAt ?? 0) >= CAPTURE_COMPONENT_SEND_INTERVAL_MS);
   captureComponentState.set(captureId, {
     components: pruned,
     sentCount: shouldSend ? nodeCount : state.sentCount,
+    lastSentAt: shouldSend ? now : state.lastSentAt,
   });
   if (emit && shouldSend) {
     sendCaptureComponents(captureId, pruned);
@@ -3290,13 +3307,24 @@ export async function registerRoutes(
         if (message.type === "register") {
           pendingClients.delete(ws);
           if (message.role === "frontend") {
+            const previous = frontendClient;
+            if (previous && previous !== ws && previous.readyState === WebSocket.OPEN) {
+              // Single-client assumption: replacing the frontend should close the old session.
+              try {
+                previous.close(1000, "frontend replaced");
+              } catch {
+                // ignore close errors
+              }
+            }
             frontendClient = ws;
+            clientRoles.set(ws, "frontend");
             console.log("[ws] Frontend registered");
             ws.send(JSON.stringify({ type: "ack", payload: "registered as frontend" }));
             ensurePersistedCaptureSourcesRunning();
             flushQueuedCommands();
           } else {
             agentClients.add(ws);
+            clientRoles.set(ws, "agent");
             console.log("[ws] Agent registered, total agents:", agentClients.size);
             ws.send(JSON.stringify({ type: "ack", payload: "registered as agent" }));
           }
@@ -3627,13 +3655,27 @@ export async function registerRoutes(
 
     ws.on("close", () => {
       pendingClients.delete(ws);
+      const role = clientRoles.get(ws);
+      clientRoles.delete(ws);
+      if (role === "frontend") {
+        if (ws === frontendClient) {
+          frontendClient = null;
+        }
+        console.log("[ws] Frontend disconnected");
+        return;
+      }
+      if (role === "agent") {
+        agentClients.delete(ws);
+        console.log("[ws] Agent disconnected, remaining:", agentClients.size);
+        return;
+      }
       if (ws === frontendClient) {
         frontendClient = null;
         console.log("[ws] Frontend disconnected");
-      } else {
-        agentClients.delete(ws);
-        console.log("[ws] Agent disconnected, remaining:", agentClients.size);
+        return;
       }
+      agentClients.delete(ws);
+      console.log("[ws] Agent disconnected, remaining:", agentClients.size);
     });
 
     ws.on("error", (err) => {
