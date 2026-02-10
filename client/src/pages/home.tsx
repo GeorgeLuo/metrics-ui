@@ -4311,7 +4311,7 @@ export default function Home() {
                                 data-testid={`button-derivation-group-delete-${group.id}`}
                                 aria-label={`Delete derivation group ${group.name}`}
                                 title="Delete group"
-                                className="h-3 w-3 bg-red-500/50 hover:bg-red-500 transition-colors"
+                                className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
                               />
                               <button
                                 type="button"
