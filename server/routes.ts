@@ -3,9 +3,18 @@ import { createServer, type Server } from "http";
 import type { Socket } from "net";
 import multer from "multer";
 import { WebSocketServer, WebSocket } from "ws";
-import type { CaptureAppendFrame, ComponentNode, ControlCommand, ControlResponse } from "@shared/schema";
+import type {
+  CaptureAppendFrame,
+  ComponentNode,
+  ControlCommand,
+  ControlResponse,
+  DerivationGroup,
+  SelectedMetric,
+  VisualizationState,
+} from "@shared/schema";
 import { compactEntities, compactValue, DEFAULT_MAX_NUMERIC_DEPTH } from "@shared/compact";
 import { buildComponentTreeFromEntities, mergeComponentTrees, pruneComponentTree } from "@shared/component-tree";
+import { ComponentManager, EntityManager, System, SystemManager, type ComponentType, type SystemContext } from "@georgeluo/ecs";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -598,6 +607,8 @@ let frontendClient: WebSocket | null = null;
 const pendingClients = new Map<WebSocket, boolean>();
 const activeSockets = new Set<Socket>();
 let shuttingDown = false;
+let lastVisualizationState: VisualizationState | null = null;
+let lastVisualizationStateAt: string | null = null;
 const queuedAgentCommands: ControlCommand[] = [];
 const MAX_QUEUED_COMMANDS = 500;
 const MAX_PENDING_CAPTURE_FRAMES = 5000;
@@ -693,6 +704,475 @@ const captureMetadata = new Map<string, { filename?: string; source?: string }>(
 const captureStreamModes = new Map<string, "lite" | "full">();
 const liteFrameBuffers = new Map<string, CaptureAppendFrame[]>();
 const captureLastTicks = new Map<string, number>();
+
+type DerivationJobStatus = "running" | "completed" | "failed" | "stopped";
+type DerivationKind = "moving_average" | "diff";
+type DerivationJob = {
+  jobId: string;
+  kind: DerivationKind;
+  groupId: string;
+  outputCaptureId: string;
+  startedAt: string;
+  status: DerivationJobStatus;
+  error: string | null;
+  controller: AbortController;
+};
+
+const derivationJobs = new Map<string, DerivationJob>();
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function numberOrNullComponent(id: string): ComponentType<number | null> {
+  return {
+    id,
+    validate: (payload: unknown): payload is number | null =>
+      payload === null || isFiniteNumber(payload),
+  };
+}
+
+class DiffSystem extends System {
+  constructor(
+    private readonly entity: number,
+    private readonly left: ComponentType<number | null>,
+    private readonly right: ComponentType<number | null>,
+    private readonly out: ComponentType<number | null>,
+  ) {
+    super();
+  }
+
+  update({ componentManager }: SystemContext) {
+    const left = componentManager.getComponent(this.entity, this.left)?.payload ?? null;
+    const right = componentManager.getComponent(this.entity, this.right)?.payload ?? null;
+    const value = left === null || right === null ? null : right - left;
+    componentManager.addComponent(this.entity, this.out, value);
+  }
+}
+
+class MovingAverageSystem extends System {
+  private readonly window: number[];
+  private sum: number;
+
+  constructor(
+    private readonly entity: number,
+    private readonly input: ComponentType<number | null>,
+    private readonly out: ComponentType<number | null>,
+    private readonly windowSize: number,
+  ) {
+    super();
+    this.window = [];
+    this.sum = 0;
+  }
+
+  update({ componentManager }: SystemContext) {
+    const next = componentManager.getComponent(this.entity, this.input)?.payload ?? null;
+    if (next === null) {
+      componentManager.addComponent(this.entity, this.out, null);
+      return;
+    }
+
+    this.window.push(next);
+    this.sum += next;
+    if (this.window.length > this.windowSize) {
+      const removed = this.window.shift();
+      if (typeof removed === "number") {
+        this.sum -= removed;
+      }
+    }
+    const denom = this.window.length || 1;
+    componentManager.addComponent(this.entity, this.out, this.sum / denom);
+  }
+}
+
+function getCaptureSourceForId(captureId: string): string {
+  return captureSources.get(captureId) ?? liveStreamStates.get(captureId)?.source ?? "";
+}
+
+function getDerivationGroup(groupId: string): DerivationGroup | null {
+  if (!lastVisualizationState) {
+    return null;
+  }
+  const groups = Array.isArray(lastVisualizationState.derivationGroups)
+    ? lastVisualizationState.derivationGroups
+    : [];
+  return groups.find((group) => group && typeof group.id === "string" && group.id === groupId) ?? null;
+}
+
+async function streamMetricValuesFromSource(options: {
+  source: string;
+  metrics: SelectedMetric[];
+  signal: AbortSignal;
+  onValue: (event: { metric: SelectedMetric; tick: number; value: number | null }) => void;
+}) {
+  const { source, metrics, signal, onValue } = options;
+  const componentLookup = new Map<string, Array<{ metric: SelectedMetric; rest: string[] }>>();
+  const componentIdNeedles = new Set<string>();
+
+  metrics.forEach((metric) => {
+    if (metric.path.length >= 2) {
+      const key = `${metric.path[0]}::${metric.path[1]}`;
+      const rest = metric.path.slice(2);
+      componentIdNeedles.add(metric.path[1]);
+      const list = componentLookup.get(key);
+      if (list) {
+        list.push({ metric, rest });
+      } else {
+        componentLookup.set(key, [{ metric, rest }]);
+      }
+    }
+  });
+
+  const onLine = (line: string) => {
+    if (!line.trim()) {
+      return;
+    }
+    // Performance: avoid JSON.parse for lines that cannot possibly match our metric component ids.
+    // This is critical for large JSONL captures where only a tiny fraction of lines contain the
+    // component ids we care about.
+    if (!line.includes("\"entities\"") && componentIdNeedles.size > 0) {
+      let maybeRelevant = false;
+      for (const needle of componentIdNeedles) {
+        if (line.includes(needle)) {
+          maybeRelevant = true;
+          break;
+        }
+      }
+      if (!maybeRelevant) {
+        return;
+      }
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      return;
+    }
+    if (!parsed || typeof parsed !== "object") {
+      return;
+    }
+
+    const tick = (parsed as { tick?: number }).tick;
+    if (!Number.isFinite(tick)) {
+      return;
+    }
+    const numericTick = tick as number;
+
+    const entities = (parsed as { entities?: unknown }).entities;
+    if (entities && typeof entities === "object" && !Array.isArray(entities)) {
+      metrics.forEach((metric) => {
+        const rawValue = getValueAtPath(entities, metric.path);
+        const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
+        onValue({ metric, tick: numericTick, value });
+      });
+      return;
+    }
+
+    const entityId = (parsed as { entityId?: unknown }).entityId;
+    const componentId = (parsed as { componentId?: unknown }).componentId;
+    if (typeof entityId === "string" && typeof componentId === "string") {
+      const list = componentLookup.get(`${entityId}::${componentId}`);
+      if (!list) {
+        return;
+      }
+      const valueSource = (parsed as { value?: unknown }).value;
+      list.forEach(({ metric, rest }) => {
+        const rawValue = rest.length === 0 ? valueSource : getValueAtPath(valueSource, rest);
+        const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
+        onValue({ metric, tick: numericTick, value });
+      });
+    }
+  };
+
+  const trimmed = source.trim();
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    const response = await fetch(trimmed, { signal });
+    if (!response.ok) {
+      throw new Error(`Capture fetch failed (${response.status})`);
+    }
+    await streamLinesFromResponse({ response, signal, onLine });
+  } else {
+    const filePath = resolveLocalCapturePath(trimmed);
+    await streamLinesFromFile({ filePath, startOffset: 0, initialRemainder: "", signal, onLine });
+  }
+}
+
+function safeInt(value: unknown, fallback: number): number {
+  return Number.isInteger(value) ? (value as number) : fallback;
+}
+
+function buildDerivationOutputComponents(outputKey: string) {
+  const dummyFrame: CaptureRecord = {
+    tick: 1,
+    entities: {
+      "0": {
+        derivations: {
+          [outputKey]: 0,
+        },
+      },
+    },
+  };
+  return componentsFromFrame(dummyFrame);
+}
+
+async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) {
+  const kind = (command as { kind?: unknown }).kind;
+  const groupId = String((command as { groupId?: unknown }).groupId ?? "");
+  const window = safeInt((command as { window?: unknown }).window, 20);
+  const outputCaptureId =
+    typeof (command as { outputCaptureId?: unknown }).outputCaptureId === "string"
+      ? String((command as { outputCaptureId: string }).outputCaptureId)
+      : "";
+  const inputIndex = safeInt((command as { inputIndex?: unknown }).inputIndex, 0);
+  const leftIndex = safeInt((command as { leftIndex?: unknown }).leftIndex, 0);
+  const rightIndex = safeInt((command as { rightIndex?: unknown }).rightIndex, 1);
+
+  if (kind !== "moving_average" && kind !== "diff") {
+    throw new Error(`Unknown derivation kind: ${String(kind)}`);
+  }
+  if (!groupId.trim()) {
+    throw new Error("groupId is required.");
+  }
+  if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
+    throw new Error("Frontend not connected.");
+  }
+
+  const group = getDerivationGroup(groupId);
+  if (!group) {
+    throw new Error(`Derivation group not found: ${groupId}`);
+  }
+
+  const metrics = Array.isArray(group.metrics) ? group.metrics : [];
+  if (kind === "diff" && metrics.length < 2) {
+    throw new Error(`Diff derivation requires at least 2 metrics (group ${groupId} has ${metrics.length}).`);
+  }
+  if (kind === "moving_average" && metrics.length < 1) {
+    throw new Error(`Moving average derivation requires at least 1 metric (group ${groupId} has ${metrics.length}).`);
+  }
+  if (kind === "moving_average" && (!Number.isInteger(window) || window <= 0)) {
+    throw new Error(`window must be a positive integer (got ${window}).`);
+  }
+
+  const derivedCaptureId =
+    outputCaptureId.trim()
+      ? outputCaptureId.trim()
+      : kind === "moving_average"
+        ? `derive-${groupId}-moving_average-${window}`
+        : `derive-${groupId}-diff`;
+  const outputKey =
+    kind === "moving_average" ? `moving_avg_${window}` : "diff";
+
+  // Stop any in-flight job targeting the same output capture id.
+  for (const job of derivationJobs.values()) {
+    if (job.outputCaptureId === derivedCaptureId && job.status === "running") {
+      job.controller.abort();
+      job.status = "stopped";
+    }
+  }
+
+  resetFrameCache(derivedCaptureId);
+  captureSources.delete(derivedCaptureId);
+  captureMetadata.set(derivedCaptureId, { filename: `${derivedCaptureId}.jsonl`, source: undefined });
+  captureComponentState.set(derivedCaptureId, { components: [], sentCount: 0 });
+  captureStreamModes.set(derivedCaptureId, "full");
+  captureLastTicks.delete(derivedCaptureId);
+  liteFrameBuffers.delete(derivedCaptureId);
+
+  const jobId = `derive-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const controller = new AbortController();
+  const job: DerivationJob = {
+    jobId,
+    kind,
+    groupId,
+    outputCaptureId: derivedCaptureId,
+    startedAt: new Date().toISOString(),
+    status: "running",
+    error: null,
+    controller,
+  };
+  derivationJobs.set(jobId, job);
+
+  // Initialize the derived capture and ensure outputs are selectable immediately.
+  sendToFrontend({ type: "capture_init", captureId: derivedCaptureId, filename: `${derivedCaptureId}.jsonl`, reset: true });
+  updateCaptureComponents(derivedCaptureId, buildDerivationOutputComponents(outputKey));
+  sendToFrontend({ type: "select_metric", captureId: derivedCaptureId, path: ["0", "derivations", outputKey] });
+
+  const selectedInputs =
+    kind === "moving_average"
+      ? [metrics[Math.max(0, Math.min(metrics.length - 1, inputIndex))]]
+      : [
+          metrics[Math.max(0, Math.min(metrics.length - 1, leftIndex))],
+          metrics[Math.max(0, Math.min(metrics.length - 1, rightIndex))],
+        ];
+
+  const entities = new EntityManager();
+  const components = new ComponentManager();
+  const systems = new SystemManager(entities, components);
+  const root = entities.create();
+
+  const entityId = "0";
+  const componentId = "derivations";
+
+  if (kind === "diff") {
+    const leftMetric = selectedInputs[0];
+    const rightMetric = selectedInputs[1];
+    const leftKey = `${leftMetric.captureId}::${leftMetric.fullPath}`;
+    const rightKey = `${rightMetric.captureId}::${rightMetric.fullPath}`;
+    const leftSeries = new Map<number, number | null>();
+    const rightSeries = new Map<number, number | null>();
+    const emitted = new Set<number>();
+    let maxTickLeft = 0;
+    let maxTickRight = 0;
+
+    const leftType = numberOrNullComponent("derive.in.left");
+    const rightType = numberOrNullComponent("derive.in.right");
+    const outType = numberOrNullComponent("derive.out.diff");
+    systems.addSystem(new DiffSystem(root, leftType, rightType, outType));
+
+    const emitDiff = (tick: number) => {
+      if (emitted.has(tick)) {
+        return;
+      }
+      const left = leftSeries.get(tick) ?? null;
+      const right = rightSeries.get(tick) ?? null;
+      components.addComponent(root, leftType, left);
+      components.addComponent(root, rightType, right);
+      systems.runCycle();
+      const diff = components.getComponent(root, outType)?.payload ?? null;
+      sendCaptureAppend(derivedCaptureId, {
+        tick,
+        entityId,
+        componentId,
+        value: { [outputKey]: diff },
+      });
+      emitted.add(tick);
+    };
+
+    const byCapture = new Map<string, SelectedMetric[]>();
+    selectedInputs.forEach((metric) => {
+      const list = byCapture.get(metric.captureId);
+      if (list) {
+        list.push(metric);
+      } else {
+        byCapture.set(metric.captureId, [metric]);
+      }
+    });
+
+    const streamPromises = Array.from(byCapture.entries()).map(async ([captureId, captureMetrics]) => {
+      const source = getCaptureSourceForId(captureId);
+      if (!source.trim()) {
+        throw new Error(`No capture source found for captureId ${captureId}`);
+      }
+      await streamMetricValuesFromSource({
+        source,
+        metrics: captureMetrics,
+        signal: controller.signal,
+        onValue: ({ metric, tick, value }) => {
+          if (controller.signal.aborted) {
+            return;
+          }
+          const metricKey = `${metric.captureId}::${metric.fullPath}`;
+          if (metricKey === leftKey) {
+            leftSeries.set(tick, value);
+            if (tick > maxTickLeft) {
+              maxTickLeft = tick;
+            }
+            if (rightSeries.has(tick)) {
+              emitDiff(tick);
+            }
+            return;
+          }
+          if (metricKey === rightKey) {
+            rightSeries.set(tick, value);
+            if (tick > maxTickRight) {
+              maxTickRight = tick;
+            }
+            if (leftSeries.has(tick)) {
+              emitDiff(tick);
+            }
+          }
+        },
+      });
+    });
+
+    await Promise.all(streamPromises);
+
+    const tickEnd = Math.max(1, maxTickLeft, maxTickRight);
+    for (let tick = 1; tick <= tickEnd; tick += 1) {
+      if (controller.signal.aborted) {
+        job.status = "stopped";
+        sendCaptureEnd(derivedCaptureId);
+        return;
+      }
+      if (emitted.has(tick)) {
+        continue;
+      }
+      emitDiff(tick);
+    }
+  } else {
+    const inputMetric = selectedInputs[0];
+    let lastTickEmitted = 0;
+
+    const inType = numberOrNullComponent("derive.in.value");
+    const outType = numberOrNullComponent("derive.out.moving_avg");
+    systems.addSystem(new MovingAverageSystem(root, inType, outType, window));
+
+    const source = getCaptureSourceForId(inputMetric.captureId);
+    if (!source.trim()) {
+      throw new Error(`No capture source found for captureId ${inputMetric.captureId}`);
+    }
+
+    await streamMetricValuesFromSource({
+      source,
+      metrics: [inputMetric],
+      signal: controller.signal,
+      onValue: ({ tick, value }) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (tick <= lastTickEmitted) {
+          return;
+        }
+        while (lastTickEmitted + 1 < tick) {
+          const gapTick = lastTickEmitted + 1;
+          components.addComponent(root, inType, null);
+          systems.runCycle();
+          const ma = components.getComponent(root, outType)?.payload ?? null;
+          sendCaptureAppend(derivedCaptureId, {
+            tick: gapTick,
+            entityId,
+            componentId,
+            value: { [outputKey]: ma },
+          });
+          lastTickEmitted = gapTick;
+        }
+
+        components.addComponent(root, inType, value);
+        systems.runCycle();
+        const ma = components.getComponent(root, outType)?.payload ?? null;
+        sendCaptureAppend(derivedCaptureId, {
+          tick,
+          entityId,
+          componentId,
+          value: { [outputKey]: ma },
+        });
+        lastTickEmitted = tick;
+      },
+    });
+  }
+
+  sendCaptureEnd(derivedCaptureId);
+  job.status = "completed";
+
+  ws.send(JSON.stringify({
+    type: "ui_notice",
+    payload: {
+      message: "Derivation complete",
+      context: { jobId, kind, groupId, outputCaptureId: derivedCaptureId },
+    },
+    request_id: command.request_id,
+  } as ControlResponse));
+}
 type CachedFrame = {
   frame: CaptureRecord;
   index: number;
@@ -1899,6 +2379,30 @@ export async function registerRoutes(
         const isFrontend = ws === frontendClient;
         
         if (isFrontend) {
+          if (message.type === "state_update") {
+            const payload = (message as { payload?: unknown }).payload;
+            if (payload && typeof payload === "object") {
+              lastVisualizationState = payload as VisualizationState;
+              lastVisualizationStateAt = new Date().toISOString();
+            }
+          }
+          if (message.type === "run_derivation") {
+            const command = message as ControlCommand;
+            runDerivationFromCommand(command, ws).catch((error) => {
+              console.error("[derivation] run error:", error);
+              ws.send(JSON.stringify({
+                type: "error",
+                error: error instanceof Error ? error.message : "Failed to run derivation.",
+                request_id: command.request_id,
+              } as ControlResponse));
+            });
+            ws.send(JSON.stringify({
+              type: "ack",
+              payload: { command: "run_derivation" },
+              request_id: command.request_id,
+            } as ControlResponse));
+            return;
+          }
           if (message.type === "set_stream_mode") {
             const captureId = String(message.captureId ?? "");
             const mode = message.mode === "full" ? "full" : "lite";
@@ -1921,6 +2425,22 @@ export async function registerRoutes(
 
         const command = message as ControlCommand;
         const captureId = "captureId" in command ? String(command.captureId ?? "") : "";
+        if (command.type === "run_derivation") {
+          runDerivationFromCommand(command, ws).catch((error) => {
+            console.error("[derivation] run error:", error);
+            ws.send(JSON.stringify({
+              type: "error",
+              error: error instanceof Error ? error.message : "Failed to run derivation.",
+              request_id: command.request_id,
+            } as ControlResponse));
+          });
+          ws.send(JSON.stringify({
+            type: "ack",
+            payload: { command: "run_derivation" },
+            request_id: command.request_id,
+          } as ControlResponse));
+          return;
+        }
         if (command.type === "clear_captures") {
           clearCaptureState();
         }

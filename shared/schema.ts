@@ -25,6 +25,11 @@ export interface CaptureSession {
   records: CaptureRecord[];
   components: ComponentNode[];
   isActive: boolean;
+  /**
+   * Optional capture source. When unset, the capture is considered "push-only"
+   * (frames arrive via WebSocket), and series endpoints may not be available.
+   */
+  source?: string;
 }
 
 export interface ParsedCapture {
@@ -398,6 +403,16 @@ export type ControlCommand =
   | ({ type: "set_active_derivation_group"; groupId: string } & ControlRequestBase)
   | ({ type: "update_derivation_group"; groupId: string; newGroupId?: string; name?: string } & ControlRequestBase)
   | ({ type: "set_display_derivation_group"; groupId?: string } & ControlRequestBase)
+  | ({
+      type: "run_derivation";
+      kind: "moving_average" | "diff";
+      groupId: string;
+      window?: number;
+      inputIndex?: number;
+      leftIndex?: number;
+      rightIndex?: number;
+      outputCaptureId?: string;
+    } & ControlRequestBase)
   | ({ type: "clear_captures" } & ControlRequestBase)
   | ({ type: "play" } & ControlRequestBase)
   | ({ type: "pause" } & ControlRequestBase)

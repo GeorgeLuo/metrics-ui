@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   Activity,
+  ArrowLeftRight,
   X,
   FileText,
   Trash2,
@@ -977,8 +978,13 @@ export default function Home() {
       }
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
       const hasLiveSource = Boolean(liveEntry && liveEntry.source.trim().length > 0);
+      const capture = capturesRef.current.find((entry) => entry.id === captureId);
+      const hasCaptureSource = Boolean(capture && typeof capture.source === "string" && capture.source.trim().length > 0);
+      if (!hasCaptureSource && !hasLiveSource) {
+        // Push-only capture: rely on capture_append frames for chart data.
+        return;
+      }
       if (hasLiveSource) {
-        const capture = capturesRef.current.find((entry) => entry.id === captureId);
         const hasTicks = Boolean(capture && capture.tickCount > 0);
         if (!hasTicks) {
           return;
@@ -2194,6 +2200,7 @@ export default function Home() {
               records: [],
               components: [],
               isActive: true,
+              source: source.trim() ? source : undefined,
             },
           ];
         }
@@ -2206,6 +2213,7 @@ export default function Home() {
               ? {
                   ...capture,
                   filename: filename || capture.filename || fallbackName,
+                  source: source.trim() ? source : capture.source,
                 }
               : capture,
           );
@@ -2219,6 +2227,7 @@ export default function Home() {
                 tickCount: 0,
                 records: [],
                 components: [],
+                source: source.trim() ? source : capture.source,
               }
             : capture,
         );
@@ -2708,14 +2717,41 @@ export default function Home() {
 
   const handleSelectAnalysisMetric = useCallback((captureId: string, path: string[]) => {
     const fullPath = path.join(".");
-    const metric = selectedMetricsRef.current.find(
+    const label = path[path.length - 1] ?? fullPath;
+    const key = `${captureId}::${fullPath}`;
+
+    const existing = selectedMetricsRef.current.find(
       (entry) => entry.captureId === captureId && entry.fullPath === fullPath,
     );
-    if (!metric) {
-      return false;
-    }
+
+    const metric: SelectedMetric =
+      existing ??
+      (() => {
+        // Deterministic color assignment so agent-driven flows (select+analysis-select sent back-to-back)
+        // don't depend on React state update timing.
+        let hash = 0;
+        for (let i = 0; i < key.length; i += 1) {
+          hash = (hash * 31 + key.charCodeAt(i)) | 0;
+        }
+        const colorIndex = Math.abs(hash) % METRIC_COLORS.length;
+        return {
+          captureId,
+          path,
+          fullPath,
+          label,
+          color: METRIC_COLORS[colorIndex]!,
+        };
+      })();
+
+    // Ensure the metric exists in the displayed set as well.
+    setSelectedMetrics((prev) => {
+      const exists = prev.some((entry) => entry.captureId === captureId && entry.fullPath === fullPath);
+      if (exists) {
+        return prev;
+      }
+      return [...prev, metric];
+    });
     const groupId = ensureActiveDerivationGroupId();
-    const key = `${captureId}::${fullPath}`;
     setDerivationGroups((prev) =>
       prev.map((group) => {
         if (group.id !== groupId) {
@@ -2776,7 +2812,12 @@ export default function Home() {
       const id = toUniqueGroupId(desiredId);
       const name = options?.name?.trim() || id;
       const group: DerivationGroup = { id, name, metrics: [] };
-      setDerivationGroups((prev) => [...prev, group]);
+      setDerivationGroups((prev) => {
+        const next = [...prev, group];
+        derivationGroupsRef.current = next;
+        return next;
+      });
+      activeDerivationGroupIdRef.current = id;
       setActiveDerivationGroupId(id);
     },
     [toUniqueGroupId],
@@ -2785,18 +2826,23 @@ export default function Home() {
   const handleDeleteDerivationGroup = useCallback((groupId: string) => {
     const nextGroups = derivationGroupsRef.current.filter((group) => group.id !== groupId);
     if (activeDerivationGroupIdRef.current === groupId) {
-      setActiveDerivationGroupId(nextGroups[0]?.id ?? "");
+      const nextId = nextGroups[0]?.id ?? "";
+      activeDerivationGroupIdRef.current = nextId;
+      setActiveDerivationGroupId(nextId);
     }
     if (displayDerivationGroupIdRef.current === groupId) {
+      displayDerivationGroupIdRef.current = "";
       setDisplayDerivationGroupId("");
     }
-    setDerivationGroups((prev) => prev.filter((group) => group.id !== groupId));
+    derivationGroupsRef.current = nextGroups;
+    setDerivationGroups(nextGroups);
   }, []);
 
   const handleSetActiveDerivationGroup = useCallback((groupId: string) => {
     if (!derivationGroupsRef.current.some((group) => group.id === groupId)) {
       return;
     }
+    activeDerivationGroupIdRef.current = groupId;
     setActiveDerivationGroupId(groupId);
   }, []);
 
@@ -2807,9 +2853,11 @@ export default function Home() {
       const nextName = updates.name?.trim();
 
       if (nextId && nextId !== groupId && activeDerivationGroupIdRef.current === groupId) {
+        activeDerivationGroupIdRef.current = nextId;
         setActiveDerivationGroupId(nextId);
       }
       if (nextId && nextId !== groupId && displayDerivationGroupIdRef.current === groupId) {
+        displayDerivationGroupIdRef.current = nextId;
         setDisplayDerivationGroupId(nextId);
       }
 
@@ -2831,14 +2879,28 @@ export default function Home() {
 
   const handleSetDisplayDerivationGroup = useCallback((groupId: string) => {
     if (!groupId) {
+      displayDerivationGroupIdRef.current = "";
       setDisplayDerivationGroupId("");
       return;
     }
     if (!derivationGroupsRef.current.some((group) => group.id === groupId)) {
       return;
     }
+    displayDerivationGroupIdRef.current = groupId;
     setDisplayDerivationGroupId(groupId);
   }, []);
+
+  const handleRunDerivation = useCallback(
+    (options: { groupId: string; kind: "moving_average" | "diff"; window?: number }) => {
+      sendMessageRef.current({
+        type: "run_derivation",
+        groupId: options.groupId,
+        kind: options.kind,
+        window: options.window,
+      });
+    },
+    [],
+  );
 
   const prevSelectedRef = useRef<SelectedMetric[]>([]);
 
@@ -4350,6 +4412,8 @@ export default function Home() {
                       {derivationGroups.map((group) => {
                         const isActive = group.id === resolvedActiveDerivationGroupId;
                         const isDisplayed = group.id === resolvedDisplayDerivationGroupId;
+                        const canDiff = group.metrics.length >= 2;
+                        const canMa = group.metrics.length >= 1;
                         return (
                           <div
                             key={group.id}
@@ -4389,6 +4453,48 @@ export default function Home() {
                                 aria-label={`Derivation group name`}
                               />
                               <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    if (canDiff) {
+                                      handleRunDerivation({ groupId: group.id, kind: "diff" });
+                                    }
+                                  }}
+                                  disabled={!canDiff}
+                                  aria-label={`Run diff derivation for ${group.name}`}
+                                  data-testid={`button-derivation-group-run-diff-${group.id}`}
+                                  className={`h-5 w-5 flex items-center justify-center rounded-sm transition-colors ${
+                                    canDiff
+                                      ? "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                      : "text-muted-foreground/30 cursor-not-allowed"
+                                  }`}
+                                >
+                                  <ArrowLeftRight className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    if (canMa) {
+                                      handleRunDerivation({
+                                        groupId: group.id,
+                                        kind: "moving_average",
+                                        window: 20,
+                                      });
+                                    }
+                                  }}
+                                  disabled={!canMa}
+                                  aria-label={`Run moving average derivation for ${group.name}`}
+                                  data-testid={`button-derivation-group-run-ma-${group.id}`}
+                                  className={`h-5 w-5 flex items-center justify-center rounded-sm transition-colors ${
+                                    canMa
+                                      ? "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                                      : "text-muted-foreground/30 cursor-not-allowed"
+                                  }`}
+                                >
+                                  <Activity className="w-3 h-3" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() =>

@@ -367,18 +367,11 @@ export function useWebSocketControl({
         onClearSelection();
         sendAck(requestId, command.type);
         break;
-      case "select_analysis_metric": {
-        const ok = onSelectAnalysisMetric(command.captureId, command.path);
-        if (!ok) {
-          sendError(requestId, "Analysis metric must already be selected in the HUD.", {
-            captureId: command.captureId,
-            path: command.path,
-          });
-          break;
-        }
+      case "select_analysis_metric":
+        // Treated as "add to derivation group". The UI will ensure the metric exists in the HUD selection.
+        onSelectAnalysisMetric(command.captureId, command.path);
         sendAck(requestId, command.type);
         break;
-      }
       case "deselect_analysis_metric":
         onDeselectAnalysisMetric(command.captureId, command.fullPath);
         sendAck(requestId, command.type);

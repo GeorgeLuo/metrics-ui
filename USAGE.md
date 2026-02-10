@@ -238,6 +238,7 @@ Capture streaming (push records over WS):
 - `set_active_derivation_group`
 - `update_derivation_group`
 - `set_display_derivation_group`
+- `run_derivation`
 - `clear_captures`
 - `play`
 - `pause`
