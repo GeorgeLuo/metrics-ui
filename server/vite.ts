@@ -22,7 +22,8 @@ export async function setupVite(server: Server, app: Express) {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
+        // Keep the dev server alive. Vite can surface many recoverable errors (HMR, runtime overlays,
+        // transient filesystem/network issues) and exiting the whole UI server makes the UX brittle.
       },
     },
     server: serverOptions,
