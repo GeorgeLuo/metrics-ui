@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Sidebar,
   SidebarContent,
@@ -38,6 +39,7 @@ import {
   Maximize2,
   Minimize2,
   Play,
+  Code,
 } from "lucide-react";
 import { Link } from "wouter";
 import type {
@@ -134,6 +136,15 @@ type DerivationPluginRecord = {
   uploadedAt: string;
   valid: boolean;
   error: string | null;
+};
+
+type DerivationPluginSourceResponse = {
+  pluginId: string;
+  name: string;
+  filename: string;
+  bytes: number;
+  truncated: boolean;
+  source: string;
 };
 
 function generateId(): string {
@@ -419,6 +430,11 @@ export default function Home() {
   });
   const [derivationPlugins, setDerivationPlugins] = useState<DerivationPluginRecord[]>([]);
   const [derivationPluginsError, setDerivationPluginsError] = useState<string | null>(null);
+  const [isDerivationPluginSourceOpen, setIsDerivationPluginSourceOpen] = useState(false);
+  const [derivationPluginSource, setDerivationPluginSource] =
+    useState<DerivationPluginSourceResponse | null>(null);
+  const [derivationPluginSourceLoading, setDerivationPluginSourceLoading] = useState(false);
+  const [derivationPluginSourceError, setDerivationPluginSourceError] = useState<string | null>(null);
   const derivationPluginFileRef = useRef<HTMLInputElement | null>(null);
   const [activeDerivationGroupId, setActiveDerivationGroupId] = useState<string>(() => {
     if (typeof window === "undefined") {
@@ -1267,6 +1283,33 @@ export default function Home() {
     },
     [refreshDerivationPlugins],
   );
+
+  const handleViewDerivationPluginSource = useCallback(async (pluginId: string) => {
+    setDerivationPluginSourceError(null);
+    setDerivationPluginSourceLoading(true);
+    setIsDerivationPluginSourceOpen(true);
+    try {
+      const response = await fetch(
+        `/api/derivations/plugins/${encodeURIComponent(pluginId)}/source`,
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : `Failed to load plugin source (${response.status})`,
+        );
+      }
+      setDerivationPluginSource(payload as DerivationPluginSourceResponse);
+    } catch (error) {
+      setDerivationPluginSource(null);
+      setDerivationPluginSourceError(
+        error instanceof Error ? error.message : "Failed to load derivation plugin source.",
+      );
+    } finally {
+      setDerivationPluginSourceLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     liveStreamsRef.current = liveStreams;
@@ -4348,6 +4391,47 @@ export default function Home() {
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
+      <Dialog
+        open={isDerivationPluginSourceOpen}
+        onOpenChange={(open) => {
+          setIsDerivationPluginSourceOpen(open);
+          if (!open) {
+            setDerivationPluginSource(null);
+            setDerivationPluginSourceError(null);
+            setDerivationPluginSourceLoading(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl h-[80vh] flex flex-col gap-3">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Derivation System Source</DialogTitle>
+          </DialogHeader>
+          {derivationPluginSourceLoading && (
+            <div className="text-xs text-muted-foreground">Loading source...</div>
+          )}
+          {derivationPluginSourceError && (
+            <div className="text-xs text-red-500">{derivationPluginSourceError}</div>
+          )}
+          {derivationPluginSource && (
+            <div className="flex flex-col gap-2 flex-1 min-h-0">
+              <div className="text-xs text-muted-foreground flex items-center justify-between gap-2">
+                <span className="truncate">
+                  {derivationPluginSource.name} ({derivationPluginSource.pluginId})
+                </span>
+                <span className="font-mono text-[11px] shrink-0">
+                  {formatBytes(derivationPluginSource.bytes)}
+                  {derivationPluginSource.truncated ? " (truncated)" : ""}
+                </span>
+              </div>
+              <ScrollArea className="flex-1 rounded-md border border-border/50 bg-muted/20">
+                <pre className="p-3 text-[11px] leading-relaxed font-mono text-foreground whitespace-pre overflow-x-auto">
+                  {derivationPluginSource.source}
+                </pre>
+              </ScrollArea>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <Sidebar>
           <SidebarHeader ref={sidebarHeaderRef} className="p-4">
@@ -4907,12 +4991,23 @@ export default function Home() {
                                 </div>
                               )}
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteDerivationPlugin(plugin.id)}
-                              aria-label={`Delete derivation system ${plugin.name}`}
-                              className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors shrink-0 mt-0.5"
-                            />
+                            <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleViewDerivationPluginSource(plugin.id)}
+                                aria-label={`View derivation system source ${plugin.name}`}
+                                data-testid={`button-derivation-plugin-source-${plugin.id}`}
+                                className="h-3 w-3 rounded-sm bg-muted/40 hover:bg-muted/60 transition-colors flex items-center justify-center"
+                              >
+                                <Code className="w-[10px] h-[10px] text-muted-foreground" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDerivationPlugin(plugin.id)}
+                                aria-label={`Delete derivation system ${plugin.name}`}
+                                className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>

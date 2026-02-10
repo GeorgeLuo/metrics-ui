@@ -45,6 +45,7 @@ How it works:
 - The server verifies it on upload (imports it and runs a short dry-run).
 - You select a plugin for a group and run it.
 - The server streams the derived outputs as a new "push-only" capture; the UI auto-selects the derived metrics.
+- In the browser UI, each plugin row includes a small **source** button to view the uploaded plugin code.
 
 ### Upload / List / Delete (HTTP)
 
@@ -58,6 +59,12 @@ List plugins:
 
 ```bash
 curl http://<host>/api/derivations/plugins
+```
+
+Fetch plugin source:
+
+```bash
+curl http://<host>/api/derivations/plugins/<pluginId>/source
 ```
 
 Delete a plugin:

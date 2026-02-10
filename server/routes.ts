@@ -3755,6 +3755,43 @@ export async function registerRoutes(
     return res.json({ plugins });
   });
 
+  app.get("/api/derivations/plugins/:pluginId/source", (req, res) => {
+    const pluginId = typeof req.params?.pluginId === "string" ? req.params.pluginId : "";
+    if (!pluginId) {
+      return res.status(400).json({ error: "pluginId is required." });
+    }
+
+    const record = derivationPlugins.get(pluginId);
+    if (!record) {
+      return res.status(404).json({ error: "Plugin not found." });
+    }
+
+    const resolvedRoot = path.resolve(DERIVATION_PLUGIN_ROOT);
+    const resolvedPath = path.resolve(record.filePath);
+    if (!resolvedPath.startsWith(resolvedRoot + path.sep)) {
+      return res.status(400).json({ error: "Invalid plugin path." });
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+      return res.status(404).json({ error: "Plugin source file missing." });
+    }
+
+    // Avoid accidentally loading huge files into memory; truncation is explicit in the response.
+    const MAX_SOURCE_BYTES = 512 * 1024;
+    const buffer = fs.readFileSync(resolvedPath);
+    const truncated = buffer.length > MAX_SOURCE_BYTES;
+    const source = truncated ? buffer.subarray(0, MAX_SOURCE_BYTES).toString("utf-8") : buffer.toString("utf-8");
+
+    return res.json({
+      pluginId: record.id,
+      name: record.name,
+      filename: path.basename(record.filePath),
+      bytes: buffer.length,
+      truncated,
+      source,
+    });
+  });
+
   app.post(
     "/api/derivations/plugins/upload",
     derivationPluginUpload.single("file"),

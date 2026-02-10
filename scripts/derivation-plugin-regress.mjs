@@ -29,6 +29,15 @@ async function uploadPlugin(pluginPath) {
   return payload;
 }
 
+async function fetchPluginSource(pluginId) {
+  const res = await fetch(`${UI_HTTP}/api/derivations/plugins/${encodeURIComponent(pluginId)}/source`);
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(payload?.error || `plugin source fetch failed (${res.status})`);
+  }
+  return payload;
+}
+
 function connectWs(role) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(UI_WS);
@@ -62,6 +71,10 @@ async function main() {
   const outputCaptureId = `derive-test-${Date.now()}`;
 
   await uploadPlugin(pluginPath);
+  const sourcePayload = await fetchPluginSource("diff");
+  if (typeof sourcePayload?.source !== "string" || !sourcePayload.source.includes('id: "diff"')) {
+    throw new Error("Plugin source endpoint did not return expected contents.");
+  }
 
   const frontend = await connectWs("frontend");
   const agent = await connectWs("agent");
