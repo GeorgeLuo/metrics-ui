@@ -4400,10 +4400,10 @@ export default function Home() {
                                       ? `Show all metrics (stop solo display for ${group.name})`
                                       : `Show only metrics in ${group.name}`
                                   }
-                                  className={`h-3 w-3 rounded-full border transition-colors ${
+                                  className={`h-3 w-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${
                                     isDisplayed
-                                      ? "bg-yellow-400/90 border-yellow-400/90 ring-1 ring-yellow-400/50"
-                                      : "bg-yellow-400/20 border-yellow-400/30 hover:bg-yellow-400/30"
+                                      ? "bg-yellow-400/90 hover:bg-yellow-400"
+                                      : "bg-yellow-400/20 hover:bg-yellow-400/30"
                                   }`}
                                 />
                                 <button
