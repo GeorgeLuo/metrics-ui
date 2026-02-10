@@ -25,6 +25,7 @@ import {
   X,
   FileText,
   Trash2,
+  Plus,
   BookOpen,
   ChevronDown,
   Eye,
@@ -4263,12 +4264,14 @@ export default function Home() {
                       </span>
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
+                        size="icon"
+                        className="h-7 w-7"
                         onClick={() => handleCreateDerivationGroup()}
                         data-testid="button-derivation-group-create"
+                        aria-label="New group"
+                        title="New group"
                       >
-                        New group
+                        <Plus className="w-3 h-3" />
                       </Button>
                     </div>
                     {derivationGroups.length === 0 && (
