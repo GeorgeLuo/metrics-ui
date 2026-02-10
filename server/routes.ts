@@ -39,7 +39,9 @@ const DERIVATION_PLUGIN_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui",
 const DERIVATION_PLUGIN_INDEX_FILE = path.join(DERIVATION_PLUGIN_ROOT, "plugins.json");
 const MAX_DERIVATION_PLUGIN_SIZE_BYTES = 5 * 1024 * 1024;
 
-const requireFromServer = createRequire(import.meta.url);
+const requireFromServer = createRequire(
+  typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url),
+);
 
 function resolveServerNodeModulesDir(): string | null {
   const fromCwd = path.resolve(process.cwd(), "node_modules");
