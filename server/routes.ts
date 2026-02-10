@@ -38,6 +38,7 @@ const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024 * 1024;
 const DERIVATION_PLUGIN_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui", "derivation-plugins");
 const DERIVATION_PLUGIN_INDEX_FILE = path.join(DERIVATION_PLUGIN_ROOT, "plugins.json");
 const MAX_DERIVATION_PLUGIN_SIZE_BYTES = 5 * 1024 * 1024;
+const CAPTURE_SOURCES_FILE = path.join(os.homedir(), ".simeval", "metrics-ui", "capture-sources.json");
 
 const requireFromServer = createRequire(
   typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url),
@@ -764,6 +765,189 @@ const captureMetadata = new Map<string, { filename?: string; source?: string }>(
 const captureStreamModes = new Map<string, "lite" | "full">();
 const liteFrameBuffers = new Map<string, CaptureAppendFrame[]>();
 const captureLastTicks = new Map<string, number>();
+
+type PersistedCaptureSource = {
+  captureId: string;
+  source: string;
+  filename?: string;
+  pollIntervalMs?: number;
+  updatedAt: string;
+};
+
+const persistedCaptureSources = new Map<string, PersistedCaptureSource>();
+
+function loadPersistedCaptureSources() {
+  persistedCaptureSources.clear();
+  try {
+    if (!fs.existsSync(CAPTURE_SOURCES_FILE)) {
+      return;
+    }
+    const raw = fs.readFileSync(CAPTURE_SOURCES_FILE, "utf-8");
+    if (!raw.trim()) {
+      return;
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    const list = Array.isArray(parsed)
+      ? parsed
+      : parsed && typeof parsed === "object"
+        ? // tolerate older keys if present
+          (Array.isArray((parsed as { sources?: unknown }).sources)
+            ? (parsed as { sources: unknown[] }).sources
+            : Array.isArray((parsed as { captures?: unknown }).captures)
+              ? (parsed as { captures: unknown[] }).captures
+              : Array.isArray((parsed as { liveStreams?: unknown }).liveStreams)
+                ? (parsed as { liveStreams: unknown[] }).liveStreams
+                : [])
+        : [];
+
+    const now = new Date().toISOString();
+    for (const entry of list) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const captureId =
+        "captureId" in entry && typeof (entry as { captureId?: unknown }).captureId === "string"
+          ? (entry as { captureId: string }).captureId
+          : "id" in entry && typeof (entry as { id?: unknown }).id === "string"
+            ? (entry as { id: string }).id
+            : "";
+      const source =
+        "source" in entry && typeof (entry as { source?: unknown }).source === "string"
+          ? (entry as { source: string }).source
+          : "";
+      if (!captureId || !source.trim()) {
+        continue;
+      }
+      const filename =
+        "filename" in entry && typeof (entry as { filename?: unknown }).filename === "string"
+          ? (entry as { filename: string }).filename
+          : undefined;
+      const pollIntervalMsRaw =
+        "pollIntervalMs" in entry ? Number((entry as { pollIntervalMs?: unknown }).pollIntervalMs) : NaN;
+      const pollIntervalMs =
+        Number.isFinite(pollIntervalMsRaw) && pollIntervalMsRaw > 0 ? pollIntervalMsRaw : undefined;
+      const updatedAt =
+        "updatedAt" in entry && typeof (entry as { updatedAt?: unknown }).updatedAt === "string"
+          ? (entry as { updatedAt: string }).updatedAt
+          : now;
+
+      persistedCaptureSources.set(captureId, {
+        captureId,
+        source,
+        filename,
+        pollIntervalMs,
+        updatedAt,
+      });
+
+      // Seed in-memory metadata so sources show up after server restart.
+      if (!captureSources.has(captureId)) {
+        captureSources.set(captureId, source);
+      }
+      const meta = captureMetadata.get(captureId) ?? {};
+      if (!meta.source) {
+        meta.source = source;
+      }
+      if (!meta.filename && filename) {
+        meta.filename = filename;
+      }
+      captureMetadata.set(captureId, meta);
+      if (!captureStreamModes.has(captureId)) {
+        captureStreamModes.set(captureId, "lite");
+      }
+    }
+  } catch (error) {
+    console.warn("[persist] Failed to load capture sources:", error);
+  }
+}
+
+function savePersistedCaptureSources() {
+  try {
+    fs.mkdirSync(path.dirname(CAPTURE_SOURCES_FILE), { recursive: true });
+    const payload = {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      sources: Array.from(persistedCaptureSources.values()).sort((a, b) =>
+        a.captureId.localeCompare(b.captureId),
+      ),
+    };
+    const tmpFile = `${CAPTURE_SOURCES_FILE}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2));
+    fs.renameSync(tmpFile, CAPTURE_SOURCES_FILE);
+  } catch (error) {
+    console.warn("[persist] Failed to save capture sources:", error);
+  }
+}
+
+function syncPersistedCaptureSources(
+  sources: Array<{ captureId: string; source: string; filename?: string; pollIntervalMs?: number }>,
+  options?: { replace?: boolean },
+) {
+  const replace = Boolean(options?.replace);
+  const next = new Map<string, PersistedCaptureSource>(
+    replace ? [] : Array.from(persistedCaptureSources.entries()),
+  );
+
+  const now = new Date().toISOString();
+  for (const entry of sources) {
+    const captureId = typeof entry?.captureId === "string" ? entry.captureId : "";
+    const source = typeof entry?.source === "string" ? entry.source : "";
+    if (!captureId || !source.trim()) {
+      continue;
+    }
+    const existing = next.get(captureId);
+    const pollIntervalMsRaw =
+      entry?.pollIntervalMs === undefined ? NaN : Number(entry.pollIntervalMs);
+    const pollIntervalMs =
+      Number.isFinite(pollIntervalMsRaw) && pollIntervalMsRaw > 0
+        ? pollIntervalMsRaw
+        : existing?.pollIntervalMs;
+    next.set(captureId, {
+      captureId,
+      source,
+      filename: entry.filename ?? existing?.filename,
+      pollIntervalMs,
+      updatedAt: now,
+    });
+
+    // Keep in-memory metadata aligned.
+    captureSources.set(captureId, source);
+    const meta = captureMetadata.get(captureId) ?? {};
+    meta.source = source;
+    if (entry.filename) {
+      meta.filename = entry.filename;
+    }
+    captureMetadata.set(captureId, meta);
+    if (!captureStreamModes.has(captureId)) {
+      captureStreamModes.set(captureId, "lite");
+    }
+  }
+
+  persistedCaptureSources.clear();
+  for (const [captureId, entry] of next.entries()) {
+    persistedCaptureSources.set(captureId, entry);
+  }
+  savePersistedCaptureSources();
+}
+
+function removePersistedCaptureSource(captureId: string) {
+  if (!captureId) {
+    return;
+  }
+  if (!persistedCaptureSources.delete(captureId)) {
+    return;
+  }
+  savePersistedCaptureSources();
+}
+
+function clearPersistedCaptureSources() {
+  if (persistedCaptureSources.size === 0) {
+    return;
+  }
+  persistedCaptureSources.clear();
+  savePersistedCaptureSources();
+}
+
+loadPersistedCaptureSources();
 
 type DerivationJobStatus = "running" | "completed" | "failed" | "stopped";
 type DerivationKind = "moving_average" | "diff" | "plugin";
@@ -2265,6 +2449,7 @@ async function streamCaptureFromSource(captureId: string, source: string) {
 }
 
 function clearCaptureState() {
+  clearPersistedCaptureSources();
   pendingCaptureBuffers.clear();
   captureComponentState.clear();
   captureSources.clear();
@@ -2286,6 +2471,7 @@ function removeCaptureState(captureId: string) {
   if (!captureId) {
     return;
   }
+  removePersistedCaptureSource(captureId);
   pendingCaptureBuffers.delete(captureId);
   captureComponentState.delete(captureId);
   captureSources.delete(captureId);
@@ -2302,6 +2488,15 @@ function isCaptureEmpty(captureId: string): boolean {
     return true;
   }
   if (liveStreamStates.has(captureId)) {
+    return false;
+  }
+  if (captureSources.has(captureId)) {
+    return false;
+  }
+  if (captureMetadata.get(captureId)?.source) {
+    return false;
+  }
+  if (persistedCaptureSources.has(captureId)) {
     return false;
   }
   const pending = pendingCaptureBuffers.get(captureId);
@@ -2880,6 +3075,59 @@ function inferFilename(source: string) {
   return base || "live-capture.jsonl";
 }
 
+function captureNeedsBootstrap(captureId: string) {
+  if (!captureId) {
+    return false;
+  }
+  if (liveStreamStates.has(captureId)) {
+    return false;
+  }
+  const pending = pendingCaptureBuffers.get(captureId);
+  if (pending && pending.frames.length > 0) {
+    return false;
+  }
+  if (captureLastTicks.has(captureId)) {
+    return false;
+  }
+  const componentState = captureComponentState.get(captureId);
+  if (componentState && componentState.components.length > 0) {
+    return false;
+  }
+  return true;
+}
+
+function ensurePersistedCaptureSourcesRunning() {
+  if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
+    return;
+  }
+  for (const entry of persistedCaptureSources.values()) {
+    if (!entry.captureId || !entry.source.trim()) {
+      continue;
+    }
+    if (!captureNeedsBootstrap(entry.captureId)) {
+      continue;
+    }
+    if (liveStreamStates.has(entry.captureId)) {
+      continue;
+    }
+    const pollIntervalMs =
+      typeof entry.pollIntervalMs === "number" && Number.isFinite(entry.pollIntervalMs)
+        ? entry.pollIntervalMs
+        : 2000;
+    const filename = entry.filename ?? inferFilename(entry.source);
+    try {
+      startLiveStream({
+        source: entry.source,
+        captureId: entry.captureId,
+        filename,
+        pollIntervalMs,
+      });
+    } catch (error) {
+      console.warn("[persist] Failed to start persisted capture source:", entry.captureId, error);
+    }
+  }
+}
+
 function startLiveStream({
   source,
   captureId,
@@ -2917,6 +3165,10 @@ function startLiveStream({
   }
   captureSources.set(captureId, source);
   captureMetadata.set(captureId, { filename, source });
+  syncPersistedCaptureSources(
+    [{ captureId, source, filename, pollIntervalMs }],
+    { replace: false },
+  );
   captureStreamModes.set(captureId, "lite");
   liveStreamStates.set(captureId, state);
   captureComponentState.set(captureId, { components: [], sentCount: 0 });
@@ -3041,6 +3293,7 @@ export async function registerRoutes(
             frontendClient = ws;
             console.log("[ws] Frontend registered");
             ws.send(JSON.stringify({ type: "ack", payload: "registered as frontend" }));
+            ensurePersistedCaptureSourcesRunning();
             flushQueuedCommands();
           } else {
             agentClients.add(ws);
@@ -3068,6 +3321,55 @@ export async function registerRoutes(
               lastVisualizationState = payload as VisualizationState;
               lastVisualizationStateAt = new Date().toISOString();
             }
+          }
+          if (message.type === "sync_capture_sources") {
+            const rawSources = (message as { sources?: unknown }).sources;
+            const replace = Boolean((message as { replace?: unknown }).replace);
+            const list = Array.isArray(rawSources) ? rawSources : [];
+            const sources = list
+              .map((entry) => {
+                if (!entry || typeof entry !== "object") {
+                  return null;
+                }
+                const captureId =
+                  "captureId" in entry && typeof (entry as { captureId?: unknown }).captureId === "string"
+                    ? (entry as { captureId: string }).captureId
+                    : "id" in entry && typeof (entry as { id?: unknown }).id === "string"
+                      ? (entry as { id: string }).id
+                      : "";
+                const source =
+                  "source" in entry && typeof (entry as { source?: unknown }).source === "string"
+                    ? (entry as { source: string }).source
+                    : "";
+                if (!captureId || !source.trim()) {
+                  return null;
+                }
+                const filename =
+                  "filename" in entry && typeof (entry as { filename?: unknown }).filename === "string"
+                    ? (entry as { filename: string }).filename
+                    : undefined;
+                const pollIntervalMsRaw =
+                  "pollIntervalMs" in entry ? Number((entry as { pollIntervalMs?: unknown }).pollIntervalMs) : NaN;
+                const pollIntervalMs =
+                  Number.isFinite(pollIntervalMsRaw) && pollIntervalMsRaw > 0 ? pollIntervalMsRaw : undefined;
+                const next: { captureId: string; source: string; filename?: string; pollIntervalMs?: number } = {
+                  captureId,
+                  source,
+                };
+                if (filename) {
+                  next.filename = filename;
+                }
+                if (pollIntervalMs !== undefined) {
+                  next.pollIntervalMs = pollIntervalMs;
+                }
+                return next;
+              })
+              .filter((entry): entry is { captureId: string; source: string; filename?: string; pollIntervalMs?: number } =>
+                Boolean(entry),
+              );
+            syncPersistedCaptureSources(sources, { replace });
+            ensurePersistedCaptureSourcesRunning();
+            return;
           }
           if (message.type === "run_derivation") {
             const command = message as ControlCommand;
@@ -3134,6 +3436,19 @@ export async function registerRoutes(
             JSON.stringify({
               type: "derivation_plugins",
               payload: { plugins: Array.from(derivationPlugins.values()) },
+              request_id: command.request_id,
+            } as ControlResponse),
+          );
+          return;
+        }
+        if (command.type === "sync_capture_sources") {
+          const sources = Array.isArray(command.sources) ? command.sources : [];
+          syncPersistedCaptureSources(sources, { replace: Boolean(command.replace) });
+          ensurePersistedCaptureSourcesRunning();
+          ws.send(
+            JSON.stringify({
+              type: "ack",
+              payload: { command: "sync_capture_sources", count: sources.length },
               request_id: command.request_id,
             } as ControlResponse),
           );

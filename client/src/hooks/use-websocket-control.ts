@@ -843,6 +843,45 @@ export function useWebSocketControl({
           const message = JSON.parse(event.data);
           if (message.type === "ack") {
             console.log("[ws] Registration confirmed:", message.payload);
+            if (message.payload === "registered as frontend") {
+              try {
+                const stored = window.localStorage.getItem("metrics-ui-live-streams");
+                const parsed = stored ? JSON.parse(stored) : [];
+                const list = Array.isArray(parsed) ? parsed : [];
+                const sources: Array<{
+                  captureId: string;
+                  source: string;
+                  pollIntervalMs?: number;
+                }> = [];
+                list.forEach((entry) => {
+                  const captureId =
+                    typeof entry?.captureId === "string"
+                      ? entry.captureId
+                      : typeof entry?.id === "string"
+                        ? entry.id
+                        : "";
+                  const source = typeof entry?.source === "string" ? entry.source : "";
+                  const pollSecondsRaw = Number(entry?.pollSeconds);
+                  const pollIntervalMs =
+                    Number.isFinite(pollSecondsRaw) && pollSecondsRaw > 0
+                      ? Math.round(pollSecondsRaw * 1000)
+                      : undefined;
+                  if (!captureId || !source.trim()) {
+                    return;
+                  }
+                  sources.push({ captureId, source, pollIntervalMs });
+                });
+                ws.send(
+                  JSON.stringify({
+                    type: "sync_capture_sources",
+                    sources,
+                    replace: true,
+                  } satisfies ControlCommand),
+                );
+              } catch (error) {
+                console.warn("[ws] Failed to sync capture sources from localStorage:", error);
+              }
+            }
             return;
           }
           if (message.type === "error") {

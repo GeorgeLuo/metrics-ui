@@ -618,6 +618,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "set_stream_mode",
       "set_source_mode",
       "set_live_source",
+      "sync_capture_sources",
       "live_start",
       "live_stop",
       "capture_init",

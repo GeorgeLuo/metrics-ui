@@ -454,6 +454,16 @@ export type ControlCommand =
   | ({ type: "set_source_mode"; mode: "file" | "live" } & ControlRequestBase)
   | ({ type: "set_live_source"; source: string; captureId?: string } & ControlRequestBase)
   | ({
+      type: "sync_capture_sources";
+      sources: Array<{
+        captureId: string;
+        source: string;
+        filename?: string;
+        pollIntervalMs?: number;
+      }>;
+      replace?: boolean;
+    } & ControlRequestBase)
+  | ({
       type: "state_sync";
       captures?: { captureId: string; lastTick?: number | null }[];
     } & ControlRequestBase)
