@@ -4287,36 +4287,31 @@ export default function Home() {
                             }`}
                           >
                             <div className="flex items-center gap-2">
-                              <Button
-                                variant={isActive ? "secondary" : "ghost"}
-                                size="sm"
-                                className="h-7 px-2 text-xs"
+                              <button
+                                type="button"
                                 onClick={() => handleSetActiveDerivationGroup(group.id)}
                                 data-testid={`button-derivation-group-active-${group.id}`}
-                              >
-                                {isActive ? "Active" : "Use"}
-                              </Button>
-                              <Input
-                                defaultValue={group.id}
-                                onBlur={(event) => {
-                                  const nextId = event.target.value.trim();
-                                  if (nextId && nextId !== group.id) {
-                                    handleUpdateDerivationGroup(group.id, { newGroupId: nextId });
-                                  }
-                                }}
-                                className="h-7 px-2 py-1 text-xs font-mono"
-                                aria-label={`Derivation group id ${group.id}`}
+                                aria-label={
+                                  isActive
+                                    ? `Derivation group ${group.id} is active`
+                                    : `Set derivation group ${group.id} active`
+                                }
+                                title={isActive ? "Active" : "Set active"}
+                                className={`h-3 w-3 rounded-full bg-emerald-500 transition-opacity ${
+                                  isActive ? "opacity-100" : "opacity-30 hover:opacity-70"
+                                }`}
                               />
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
+                              <div className="text-[10px] text-muted-foreground font-mono">
+                                {group.id}
+                              </div>
+                              <button
+                                type="button"
                                 onClick={() => handleDeleteDerivationGroup(group.id)}
                                 data-testid={`button-derivation-group-delete-${group.id}`}
                                 aria-label={`Delete derivation group ${group.id}`}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
+                                title="Delete group"
+                                className="h-3 w-3 bg-red-500/50 hover:bg-red-500 transition-colors"
+                              />
                             </div>
                             <Input
                               defaultValue={group.name}
