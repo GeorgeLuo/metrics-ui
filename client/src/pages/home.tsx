@@ -4301,29 +4301,33 @@ export default function Home() {
                                   isActive ? "opacity-100" : "opacity-30 hover:opacity-70"
                                 }`}
                               />
-                              <div className="text-[10px] text-muted-foreground font-mono">
-                                {group.id}
-                              </div>
+                              <Input
+                                key={`${group.id}-${group.name}`}
+                                defaultValue={group.name}
+                                onBlur={(event) => {
+                                  const nextName = event.target.value.trim();
+                                  if (nextName && nextName !== group.name) {
+                                    handleUpdateDerivationGroup(group.id, { name: nextName });
+                                  }
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    (event.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="h-auto p-0 text-xs text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                aria-label={`Derivation group name`}
+                              />
                               <button
                                 type="button"
                                 onClick={() => handleDeleteDerivationGroup(group.id)}
                                 data-testid={`button-derivation-group-delete-${group.id}`}
-                                aria-label={`Delete derivation group ${group.id}`}
+                                aria-label={`Delete derivation group ${group.name}`}
                                 title="Delete group"
                                 className="h-3 w-3 bg-red-500/50 hover:bg-red-500 transition-colors"
                               />
                             </div>
-                            <Input
-                              defaultValue={group.name}
-                              onBlur={(event) => {
-                                const nextName = event.target.value.trim();
-                                if (nextName && nextName !== group.name) {
-                                  handleUpdateDerivationGroup(group.id, { name: nextName });
-                                }
-                              }}
-                              className="h-7 px-2 py-1 text-xs"
-                              aria-label={`Derivation group name ${group.id}`}
-                            />
                             <div className="flex flex-col gap-1">
                               {group.metrics.length === 0 && (
                                 <div className="text-xs text-muted-foreground">
