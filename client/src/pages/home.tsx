@@ -4316,7 +4316,7 @@ export default function Home() {
                                     (event.target as HTMLInputElement).blur();
                                   }
                                 }}
-                                className="h-auto p-0 text-xs text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                className="h-auto p-0 text-xs font-mono tracking-tight text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                                 aria-label={`Derivation group name`}
                               />
                               <button
