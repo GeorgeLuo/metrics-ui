@@ -4307,6 +4307,14 @@ export default function Home() {
                               />
                               <button
                                 type="button"
+                                onClick={() => handleDeleteDerivationGroup(group.id)}
+                                data-testid={`button-derivation-group-delete-${group.id}`}
+                                aria-label={`Delete derivation group ${group.name}`}
+                                title="Delete group"
+                                className="h-3 w-3 bg-red-500/50 hover:bg-red-500 transition-colors"
+                              />
+                              <button
+                                type="button"
                                 onClick={() => handleSetActiveDerivationGroup(group.id)}
                                 data-testid={`button-derivation-group-active-${group.id}`}
                                 aria-label={
@@ -4318,14 +4326,6 @@ export default function Home() {
                                 className={`h-3 w-3 rounded-full bg-emerald-500 transition-opacity ${
                                   isActive ? "opacity-100" : "opacity-30 hover:opacity-70"
                                 }`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDerivationGroup(group.id)}
-                                data-testid={`button-derivation-group-delete-${group.id}`}
-                                aria-label={`Delete derivation group ${group.name}`}
-                                title="Delete group"
-                                className="h-3 w-3 bg-red-500/50 hover:bg-red-500 transition-colors"
                               />
                             </div>
                             <div className="flex flex-col gap-1">
