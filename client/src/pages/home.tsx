@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Sidebar,
   SidebarContent,
@@ -22,7 +23,6 @@ import {
 } from "@/components/ui/sidebar";
 import {
   Activity,
-  ArrowLeftRight,
   X,
   FileText,
   Trash2,
@@ -35,6 +35,7 @@ import {
   Maximize,
   Maximize2,
   Minimize2,
+  Play,
 } from "lucide-react";
 import { Link } from "wouter";
 import type {
@@ -118,6 +119,19 @@ interface LiveStatusStream {
   pollIntervalMs?: unknown;
   lastError?: unknown;
 }
+
+type DerivationPluginOutput = { key: string; label?: string };
+type DerivationPluginRecord = {
+  id: string;
+  name: string;
+  description?: string;
+  minInputs: number;
+  maxInputs: number | null;
+  outputs: DerivationPluginOutput[];
+  uploadedAt: string;
+  valid: boolean;
+  error: string | null;
+};
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
@@ -382,6 +396,7 @@ export default function Home() {
           return;
         }
         const name = typeof group.name === "string" ? group.name : group.id;
+        const pluginId = typeof group.pluginId === "string" ? group.pluginId : undefined;
         const metricsRaw = Array.isArray(group.metrics) ? group.metrics : [];
         const metrics = metricsRaw.filter(
           (metric: any) =>
@@ -392,13 +407,16 @@ export default function Home() {
             typeof metric.label === "string" &&
             typeof metric.color === "string",
         ) as SelectedMetric[];
-        groups.push({ id: group.id, name, metrics });
+        groups.push({ id: group.id, name, metrics, pluginId });
       });
       return groups;
     } catch {
       return [];
     }
   });
+  const [derivationPlugins, setDerivationPlugins] = useState<DerivationPluginRecord[]>([]);
+  const [derivationPluginsError, setDerivationPluginsError] = useState<string | null>(null);
+  const derivationPluginFileRef = useRef<HTMLInputElement | null>(null);
   const [activeDerivationGroupId, setActiveDerivationGroupId] = useState<string>(() => {
     if (typeof window === "undefined") {
       return "";
@@ -541,6 +559,71 @@ export default function Home() {
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
   const activeCaptureIdsRef = useRef(new Set<string>());
   const streamModeRef = useRef(new Map<string, "lite" | "full">());
+
+  const normalizeDerivationPlugins = useCallback((raw: unknown): DerivationPluginRecord[] => {
+    if (!Array.isArray(raw)) {
+      return [];
+    }
+    const plugins: DerivationPluginRecord[] = [];
+    raw.forEach((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return;
+      }
+      const id = typeof (entry as any).id === "string" ? String((entry as any).id).trim() : "";
+      const name = typeof (entry as any).name === "string" ? String((entry as any).name).trim() : "";
+      if (!id || !name) {
+        return;
+      }
+      const outputsRaw = Array.isArray((entry as any).outputs) ? (entry as any).outputs : [];
+      const outputs: DerivationPluginOutput[] = outputsRaw
+        .map((output: any): DerivationPluginOutput => ({
+          key: typeof output?.key === "string" ? output.key : "",
+          label: typeof output?.label === "string" ? output.label : undefined,
+        }))
+        .filter((output: DerivationPluginOutput) => output.key.length > 0);
+
+      plugins.push({
+        id,
+        name,
+        description: typeof (entry as any).description === "string" ? (entry as any).description : undefined,
+        minInputs:
+          Number.isInteger((entry as any).minInputs) && (entry as any).minInputs >= 0
+            ? (entry as any).minInputs
+            : 1,
+        maxInputs:
+          Number.isInteger((entry as any).maxInputs) && (entry as any).maxInputs >= 0
+            ? (entry as any).maxInputs
+            : null,
+        outputs,
+        uploadedAt: typeof (entry as any).uploadedAt === "string" ? (entry as any).uploadedAt : "",
+        valid: Boolean((entry as any).valid),
+        error: typeof (entry as any).error === "string" ? (entry as any).error : null,
+      });
+    });
+    return plugins;
+  }, []);
+
+  const refreshDerivationPlugins = useCallback(async () => {
+    setDerivationPluginsError(null);
+    try {
+      const response = await fetch("/api/derivations/plugins");
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : `Failed to load derivation plugins (${response.status})`,
+        );
+      }
+      setDerivationPlugins(normalizeDerivationPlugins(payload?.plugins));
+    } catch (error) {
+      setDerivationPluginsError(error instanceof Error ? error.message : "Failed to load derivation plugins.");
+    }
+  }, [normalizeDerivationPlugins]);
+
+  useEffect(() => {
+    refreshDerivationPlugins();
+  }, [refreshDerivationPlugins]);
 
   const activeCaptures = useMemo(() => captures.filter((capture) => capture.isActive), [captures]);
   const maxTotalTicks = activeCaptures.length > 0 
@@ -1085,6 +1168,59 @@ export default function Home() {
       setUploadError(error.message);
     },
   });
+
+  const handleUploadDerivationPlugin = useCallback(
+    async (file: File) => {
+      setDerivationPluginsError(null);
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const response = await fetch("/api/derivations/plugins/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            typeof payload?.error === "string"
+              ? payload.error
+              : `Failed to upload plugin (${response.status})`,
+          );
+        }
+        if (payload?.plugins) {
+          setDerivationPlugins(normalizeDerivationPlugins(payload.plugins));
+        } else {
+          refreshDerivationPlugins();
+        }
+      } catch (error) {
+        setDerivationPluginsError(error instanceof Error ? error.message : "Failed to upload derivation plugin.");
+      }
+    },
+    [normalizeDerivationPlugins, refreshDerivationPlugins],
+  );
+
+  const handleDeleteDerivationPlugin = useCallback(
+    async (pluginId: string) => {
+      setDerivationPluginsError(null);
+      try {
+        const response = await fetch(`/api/derivations/plugins/${encodeURIComponent(pluginId)}`, {
+          method: "DELETE",
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            typeof payload?.error === "string"
+              ? payload.error
+              : `Failed to delete plugin (${response.status})`,
+          );
+        }
+        refreshDerivationPlugins();
+      } catch (error) {
+        setDerivationPluginsError(error instanceof Error ? error.message : "Failed to delete derivation plugin.");
+      }
+    },
+    [refreshDerivationPlugins],
+  );
 
   useEffect(() => {
     liveStreamsRef.current = liveStreams;
@@ -2036,7 +2172,8 @@ export default function Home() {
     if (sourceMode === "live") {
       resetInitialSync();
     }
-  }, [resetInitialSync, sourceMode]);
+    refreshDerivationPlugins();
+  }, [refreshDerivationPlugins, resetInitialSync, sourceMode]);
 
   const handleStateSync = useCallback(
     (syncCaptures: { captureId: string; lastTick?: number | null }[]) => {
@@ -2847,10 +2984,13 @@ export default function Home() {
   }, []);
 
   const handleUpdateDerivationGroup = useCallback(
-    (groupId: string, updates: { newGroupId?: string; name?: string }) => {
+    (groupId: string, updates: { newGroupId?: string; name?: string; pluginId?: string }) => {
       const desiredNewId = updates.newGroupId?.trim();
       const nextId = desiredNewId ? toUniqueGroupId(desiredNewId, groupId) : null;
       const nextName = updates.name?.trim();
+      const wantsPluginUpdate = Object.prototype.hasOwnProperty.call(updates, "pluginId");
+      const nextPluginIdRaw = typeof updates.pluginId === "string" ? updates.pluginId.trim() : "";
+      const nextPluginId = nextPluginIdRaw.length > 0 ? nextPluginIdRaw : undefined;
 
       if (nextId && nextId !== groupId && activeDerivationGroupIdRef.current === groupId) {
         activeDerivationGroupIdRef.current = nextId;
@@ -2870,6 +3010,7 @@ export default function Home() {
             ...group,
             id: nextId ?? group.id,
             name: nextName ?? group.name,
+            pluginId: wantsPluginUpdate ? nextPluginId : group.pluginId,
           };
         }),
       );
@@ -2897,6 +3038,17 @@ export default function Home() {
         groupId: options.groupId,
         kind: options.kind,
         window: options.window,
+      });
+    },
+    [],
+  );
+
+  const handleRunDerivationPlugin = useCallback(
+    (options: { groupId: string; pluginId: string }) => {
+      sendMessageRef.current({
+        type: "run_derivation_plugin",
+        groupId: options.groupId,
+        pluginId: options.pluginId,
       });
     },
     [],
@@ -3794,6 +3946,10 @@ export default function Home() {
     onClearSubtitles: handleClearSubtitles,
     getMemoryStats: buildMemoryStats,
     getUiDebug,
+    onDerivationPlugins: (plugins) => {
+      setDerivationPluginsError(null);
+      setDerivationPlugins(normalizeDerivationPlugins(plugins));
+    },
     onReconnect: handleWsReconnect,
     onStateSync: handleStateSync,
   });
@@ -4388,6 +4544,87 @@ export default function Home() {
                 <SidebarGroup>
                   <SidebarGroupLabel>Derivations</SidebarGroupLabel>
                   <SidebarGroupContent>
+                    <input
+                      ref={derivationPluginFileRef}
+                      type="file"
+                      accept=".mjs,.js"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) {
+                          handleUploadDerivationPlugin(file);
+                        }
+                        event.target.value = "";
+                      }}
+                    />
+                    <div className="flex items-center justify-between px-2 pb-2">
+                      <span className="text-xs text-muted-foreground">
+                        {derivationPlugins.length} systems
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => derivationPluginFileRef.current?.click()}
+                        data-testid="button-derivation-plugin-upload"
+                        aria-label="Upload derivation system"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    {derivationPluginsError && (
+                      <div className="px-2 text-xs text-red-500">
+                        {derivationPluginsError}
+                      </div>
+                    )}
+                    {derivationPlugins.length === 0 && (
+                      <div className="px-2 text-xs text-muted-foreground">
+                        Upload a derivation system plugin to compute derived metrics.
+                      </div>
+                    )}
+                    {derivationPlugins.length > 0 && (
+                      <div className="flex flex-col gap-2 px-2 pb-2 text-xs text-muted-foreground">
+                        {derivationPlugins.map((plugin) => (
+                          <div
+                            key={plugin.id}
+                            className={`rounded-md border px-2 py-1.5 flex items-start justify-between gap-2 ${
+                              plugin.valid ? "border-border/50" : "border-red-500/40"
+                            }`}
+                          >
+                            <div className="min-w-0 flex flex-col gap-0.5">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="truncate font-medium text-foreground">
+                                  {plugin.name}
+                                </span>
+                                <span className="truncate font-mono text-[10px] text-muted-foreground">
+                                  {plugin.id}
+                                </span>
+                              </div>
+                              <div className="truncate text-[10px] text-muted-foreground">
+                                outputs:{" "}
+                                {plugin.outputs.length > 0
+                                  ? plugin.outputs.map((output) => output.key).join(", ")
+                                  : "-"}
+                              </div>
+                              {!plugin.valid && plugin.error && (
+                                <div className="text-[10px] text-red-500">
+                                  {plugin.error}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDerivationPlugin(plugin.id)}
+                              aria-label={`Delete derivation system ${plugin.name}`}
+                              className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors shrink-0 mt-0.5"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mx-2 h-px bg-border/50" />
+
                     <div className="flex items-center justify-between px-2 pb-2">
                       <span className="text-xs text-muted-foreground">
                         {derivationGroups.length} groups
@@ -4412,8 +4649,14 @@ export default function Home() {
                       {derivationGroups.map((group) => {
                         const isActive = group.id === resolvedActiveDerivationGroupId;
                         const isDisplayed = group.id === resolvedDisplayDerivationGroupId;
-                        const canDiff = group.metrics.length >= 2;
-                        const canMa = group.metrics.length >= 1;
+                        const selectedPluginId =
+                          typeof group.pluginId === "string" ? group.pluginId : "";
+                        const selectedPlugin = selectedPluginId
+                          ? derivationPlugins.find((plugin) => plugin.id === selectedPluginId) ?? null
+                          : null;
+                        const canRunPlugin = Boolean(
+                          selectedPluginId && selectedPlugin && selectedPlugin.valid,
+                        );
                         return (
                           <div
                             key={group.id}
@@ -4453,47 +4696,61 @@ export default function Home() {
                                 aria-label={`Derivation group name`}
                               />
                               <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    if (canDiff) {
-                                      handleRunDerivation({ groupId: group.id, kind: "diff" });
-                                    }
-                                  }}
-                                  disabled={!canDiff}
-                                  aria-label={`Run diff derivation for ${group.name}`}
-                                  data-testid={`button-derivation-group-run-diff-${group.id}`}
-                                  className={`h-5 w-5 flex items-center justify-center rounded-sm transition-colors ${
-                                    canDiff
-                                      ? "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                                      : "text-muted-foreground/30 cursor-not-allowed"
-                                  }`}
+                                <div
+                                  className="w-[7.5rem]"
+                                  onClick={(event) => event.stopPropagation()}
                                 >
-                                  <ArrowLeftRight className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    if (canMa) {
-                                      handleRunDerivation({
-                                        groupId: group.id,
-                                        kind: "moving_average",
-                                        window: 20,
+                                  <Select
+                                    value={selectedPluginId || "__none__"}
+                                    onValueChange={(value) => {
+                                      handleUpdateDerivationGroup(group.id, {
+                                        pluginId: value === "__none__" ? "" : value,
                                       });
+                                    }}
+                                  >
+                                    <SelectTrigger
+                                      className="h-6 px-2 py-1 text-xs font-mono tracking-tight bg-transparent border-border/50 focus:ring-0 focus:ring-offset-0"
+                                      aria-label={`Derivation system for ${group.name}`}
+                                      data-testid={`select-derivation-group-plugin-${group.id}`}
+                                    >
+                                      <SelectValue placeholder="No system" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none__">No system</SelectItem>
+                                      {derivationPlugins.map((plugin) => (
+                                        <SelectItem
+                                          key={plugin.id}
+                                          value={plugin.id}
+                                          disabled={!plugin.valid}
+                                        >
+                                          {plugin.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    if (!canRunPlugin) {
+                                      return;
                                     }
+                                    handleRunDerivationPlugin({
+                                      groupId: group.id,
+                                      pluginId: selectedPluginId,
+                                    });
                                   }}
-                                  disabled={!canMa}
-                                  aria-label={`Run moving average derivation for ${group.name}`}
-                                  data-testid={`button-derivation-group-run-ma-${group.id}`}
+                                  disabled={!canRunPlugin}
+                                  aria-label={`Run derivation system for ${group.name}`}
+                                  data-testid={`button-derivation-group-run-plugin-${group.id}`}
                                   className={`h-5 w-5 flex items-center justify-center rounded-sm transition-colors ${
-                                    canMa
+                                    canRunPlugin
                                       ? "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                                       : "text-muted-foreground/30 cursor-not-allowed"
                                   }`}
                                 >
-                                  <Activity className="w-3 h-3" />
+                                  <Play className="w-3 h-3" />
                                 </button>
                                 <button
                                   type="button"

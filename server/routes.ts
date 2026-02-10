@@ -14,18 +14,71 @@ import type {
 } from "@shared/schema";
 import { compactEntities, compactValue, DEFAULT_MAX_NUMERIC_DEPTH } from "@shared/compact";
 import { buildComponentTreeFromEntities, mergeComponentTrees, pruneComponentTree } from "@shared/component-tree";
-import { ComponentManager, EntityManager, System, SystemManager, type ComponentType, type SystemContext } from "@georgeluo/ecs";
+import {
+  ComponentManager,
+  EntityManager,
+  System,
+  SystemManager,
+  TimeComponent,
+  type ComponentType,
+  type SystemContext,
+} from "@georgeluo/ecs";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { Readable } from "stream";
 import { ReadableStream } from "stream/web";
 import crypto from "crypto";
+import { createRequire } from "module";
 
 const UPLOAD_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui", "uploads");
 const UPLOAD_INDEX_FILE = path.join(UPLOAD_ROOT, "index.json");
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024 * 1024;
+const DERIVATION_PLUGIN_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui", "derivation-plugins");
+const DERIVATION_PLUGIN_INDEX_FILE = path.join(DERIVATION_PLUGIN_ROOT, "plugins.json");
+const MAX_DERIVATION_PLUGIN_SIZE_BYTES = 5 * 1024 * 1024;
+
+const requireFromServer = createRequire(import.meta.url);
+
+function resolveServerNodeModulesDir(): string | null {
+  const fromCwd = path.resolve(process.cwd(), "node_modules");
+  if (fs.existsSync(fromCwd)) {
+    return fromCwd;
+  }
+  try {
+    const ecsPkg = requireFromServer.resolve("@georgeluo/ecs/package.json");
+    return path.resolve(ecsPkg, "..", "..", "..");
+  } catch {
+    return null;
+  }
+}
+
+function ensureDerivationPluginNodeModulesLink() {
+  const target = resolveServerNodeModulesDir();
+  if (!target) {
+    return;
+  }
+  try {
+    fs.mkdirSync(DERIVATION_PLUGIN_ROOT, { recursive: true });
+    const linkPath = path.join(DERIVATION_PLUGIN_ROOT, "node_modules");
+    if (fs.existsSync(linkPath)) {
+      const stat = fs.lstatSync(linkPath);
+      if (!stat.isSymbolicLink()) {
+        return;
+      }
+      const existing = fs.readlinkSync(linkPath);
+      const resolvedExisting = path.resolve(DERIVATION_PLUGIN_ROOT, existing);
+      if (resolvedExisting === target) {
+        return;
+      }
+      fs.unlinkSync(linkPath);
+    }
+    fs.symlinkSync(target, linkPath, "dir");
+  } catch (error) {
+    console.warn("[derivations] Failed to ensure derivation plugin node_modules link:", error);
+  }
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -41,6 +94,11 @@ const upload = multer({
     },
   }),
   limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+});
+
+const derivationPluginUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_DERIVATION_PLUGIN_SIZE_BYTES },
 });
 const LIVE_INACTIVITY_MIN_MS = 15000;
 const LIVE_INACTIVITY_MULTIPLIER = 5;
@@ -706,7 +764,7 @@ const liteFrameBuffers = new Map<string, CaptureAppendFrame[]>();
 const captureLastTicks = new Map<string, number>();
 
 type DerivationJobStatus = "running" | "completed" | "failed" | "stopped";
-type DerivationKind = "moving_average" | "diff";
+type DerivationKind = "moving_average" | "diff" | "plugin";
 type DerivationJob = {
   jobId: string;
   kind: DerivationKind;
@@ -719,6 +777,322 @@ type DerivationJob = {
 };
 
 const derivationJobs = new Map<string, DerivationJob>();
+
+type DerivationPluginOutput = { key: string; label?: string };
+type DerivationPluginManifest = {
+  id: string;
+  name: string;
+  description?: string;
+  minInputs?: number;
+  maxInputs?: number;
+  outputs: DerivationPluginOutput[];
+  createSystems: (context: {
+    entity: number;
+    inputs: Array<{ metric: SelectedMetric; component: ComponentType<number | null>; index: number }>;
+    outputs: Record<string, ComponentType<number | null>>;
+    params?: unknown;
+  }) => unknown;
+};
+
+type DerivationPluginRecord = {
+  id: string;
+  name: string;
+  description?: string;
+  minInputs: number;
+  maxInputs: number | null;
+  outputs: DerivationPluginOutput[];
+  filePath: string;
+  hash: string;
+  uploadedAt: string;
+  valid: boolean;
+  error: string | null;
+};
+
+const derivationPlugins = new Map<string, DerivationPluginRecord>();
+
+function loadDerivationPluginIndex(): DerivationPluginRecord[] {
+  try {
+    const raw = fs.readFileSync(DERIVATION_PLUGIN_INDEX_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed as DerivationPluginRecord[];
+  } catch (error) {
+    if (error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+function saveDerivationPluginIndex(records: DerivationPluginRecord[]) {
+  fs.mkdirSync(DERIVATION_PLUGIN_ROOT, { recursive: true });
+  fs.writeFileSync(DERIVATION_PLUGIN_INDEX_FILE, `${JSON.stringify(records, null, 2)}\n`, "utf-8");
+}
+
+function isSafeDerivationOutputKey(key: string) {
+  return /^[A-Za-z0-9_]+$/.test(key);
+}
+
+async function loadDerivationPluginFromFile(filePath: string): Promise<{
+  record: Omit<DerivationPluginRecord, "filePath" | "hash" | "uploadedAt">;
+  manifest: DerivationPluginManifest | null;
+}> {
+  ensureDerivationPluginNodeModulesLink();
+  const moduleUrl = pathToFileURL(filePath).href;
+  let mod: any;
+  try {
+    mod = await import(moduleUrl);
+  } catch (error) {
+    return {
+      record: {
+        id: path.basename(filePath),
+        name: path.basename(filePath),
+        minInputs: 1,
+        maxInputs: null,
+        outputs: [],
+        valid: false,
+        error: error instanceof Error ? error.message : "Failed to import plugin module.",
+      },
+      manifest: null,
+    };
+  }
+
+  const exported = mod?.default ?? mod?.createDerivationPlugin ?? mod?.createPlugin ?? null;
+  const manifest: unknown = typeof exported === "function" ? await exported() : exported;
+
+  if (!manifest || typeof manifest !== "object") {
+    return {
+      record: {
+        id: path.basename(filePath),
+        name: path.basename(filePath),
+        minInputs: 1,
+        maxInputs: null,
+        outputs: [],
+        valid: false,
+        error: "Plugin must export a manifest object (default export) or a factory that returns one.",
+      },
+      manifest: null,
+    };
+  }
+
+  const id = typeof (manifest as any).id === "string" ? (manifest as any).id.trim() : "";
+  const name = typeof (manifest as any).name === "string" ? (manifest as any).name.trim() : "";
+  const description =
+    typeof (manifest as any).description === "string" ? (manifest as any).description : undefined;
+  const minInputs =
+    Number.isInteger((manifest as any).minInputs) && (manifest as any).minInputs >= 0
+      ? (manifest as any).minInputs
+      : 1;
+  const maxInputs =
+    Number.isInteger((manifest as any).maxInputs) && (manifest as any).maxInputs >= minInputs
+      ? (manifest as any).maxInputs
+      : null;
+  const outputsRaw = Array.isArray((manifest as any).outputs) ? (manifest as any).outputs : [];
+  const outputs: DerivationPluginOutput[] = outputsRaw
+    .map((entry: any): DerivationPluginOutput => ({
+      key: typeof entry?.key === "string" ? entry.key.trim() : "",
+      label: typeof entry?.label === "string" ? entry.label : undefined,
+    }))
+    .filter((entry: DerivationPluginOutput) => entry.key.length > 0);
+
+  const createSystems =
+    typeof (manifest as any).createSystems === "function"
+      ? (manifest as any).createSystems
+      : typeof (manifest as any).createSystem === "function"
+        ? (ctx: any) => [(manifest as any).createSystem(ctx)]
+        : null;
+
+  if (!id || !name) {
+    return {
+      record: {
+        id: id || path.basename(filePath),
+        name: name || id || path.basename(filePath),
+        description,
+        minInputs,
+        maxInputs,
+        outputs,
+        valid: false,
+        error: "Plugin manifest must include non-empty string fields: id, name.",
+      },
+      manifest: null,
+    };
+  }
+
+  if (!Array.isArray(outputs) || outputs.length === 0) {
+    return {
+      record: {
+        id,
+        name,
+        description,
+        minInputs,
+        maxInputs,
+        outputs,
+        valid: false,
+        error: "Plugin manifest must include outputs: [{ key: string }...].",
+      },
+      manifest: null,
+    };
+  }
+
+  const badKey = outputs.find((entry) => !isSafeDerivationOutputKey(entry.key));
+  if (badKey) {
+    return {
+      record: {
+        id,
+        name,
+        description,
+        minInputs,
+        maxInputs,
+        outputs,
+        valid: false,
+        error: `Output key '${badKey.key}' is invalid. Use only letters, numbers, and underscores.`,
+      },
+      manifest: null,
+    };
+  }
+
+  const outputKeys = outputs.map((entry) => entry.key);
+  const uniqueKeys = new Set(outputKeys);
+  if (uniqueKeys.size !== outputKeys.length) {
+    return {
+      record: {
+        id,
+        name,
+        description,
+        minInputs,
+        maxInputs,
+        outputs,
+        valid: false,
+        error: "Output keys must be unique within a plugin.",
+      },
+      manifest: null,
+    };
+  }
+
+  if (!createSystems) {
+    return {
+      record: {
+        id,
+        name,
+        description,
+        minInputs,
+        maxInputs,
+        outputs,
+        valid: false,
+        error: "Plugin manifest must include createSystems(ctx) or createSystem(ctx).",
+      },
+      manifest: null,
+    };
+  }
+
+  const typedManifest: DerivationPluginManifest = {
+    id,
+    name,
+    description,
+    minInputs,
+    maxInputs: maxInputs ?? undefined,
+    outputs,
+    createSystems,
+  };
+
+  // Lightweight verification: instantiate systems and execute a few cycles.
+  try {
+    const entities = new EntityManager();
+    const components = new ComponentManager();
+    const systems = new SystemManager(entities, components);
+    const root = entities.create();
+
+    const inputs = Array.from({ length: Math.max(typedManifest.minInputs ?? 1, 1) }, (_, index) => {
+      const component = numberOrNullComponent(`verify.in.${index}`);
+      const metric: SelectedMetric = {
+        captureId: "verify",
+        path: ["0", "verify", `in_${index}`],
+        fullPath: `0.verify.in_${index}`,
+        label: `in_${index}`,
+        color: "#000000",
+      };
+      return { metric, component, index };
+    });
+    const outputsMap: Record<string, ComponentType<number | null>> = {};
+    typedManifest.outputs.forEach((output) => {
+      outputsMap[output.key] = numberOrNullComponent(`verify.out.${output.key}`);
+    });
+
+    const created = typedManifest.createSystems({
+      entity: root,
+      inputs,
+      outputs: outputsMap,
+      params: {},
+    });
+    const systemList = Array.isArray(created) ? created : [created];
+    systemList.forEach((system) => {
+      if (!system || typeof (system as any).update !== "function") {
+        throw new Error("createSystems must return System-like objects with an update(context) method.");
+      }
+      if (typeof (system as any).initialize !== "function") {
+        (system as any).initialize = () => {};
+      }
+      if (typeof (system as any).destroy !== "function") {
+        (system as any).destroy = () => {};
+      }
+      systems.addSystem(system as any);
+    });
+
+    for (let tick = 1; tick <= 3; tick += 1) {
+      components.addComponent(root, (TimeComponent as any), { tick });
+      inputs.forEach((input) => {
+        components.addComponent(root, input.component, tick * 10 + input.index);
+      });
+      systems.runCycle();
+      typedManifest.outputs.forEach((output) => {
+        const payload = components.getComponent(root, outputsMap[output.key])?.payload ?? null;
+        if (payload !== null && !isFiniteNumber(payload)) {
+          throw new Error(`Output '${output.key}' must be a number or null.`);
+        }
+      });
+    }
+  } catch (error) {
+    return {
+      record: {
+        id,
+        name,
+        description,
+        minInputs,
+        maxInputs,
+        outputs,
+        valid: false,
+        error: error instanceof Error ? error.message : "Plugin verification failed.",
+      },
+      manifest: null,
+    };
+  }
+
+  return {
+    record: {
+      id,
+      name,
+      description,
+      minInputs,
+      maxInputs,
+      outputs,
+      valid: true,
+      error: null,
+    },
+    manifest: typedManifest,
+  };
+}
+
+function bootstrapDerivationPluginsFromDisk() {
+  const records = loadDerivationPluginIndex();
+  records.forEach((record) => {
+    if (record && typeof record.id === "string") {
+      derivationPlugins.set(record.id, record);
+    }
+  });
+}
+bootstrapDerivationPluginsFromDisk();
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -902,12 +1276,20 @@ function safeInt(value: unknown, fallback: number): number {
 }
 
 function buildDerivationOutputComponents(outputKey: string) {
+  return buildDerivationOutputComponentsFromKeys([outputKey]);
+}
+
+function buildDerivationOutputComponentsFromKeys(outputKeys: string[]) {
+  const derivations: Record<string, number> = {};
+  outputKeys.forEach((key) => {
+    derivations[key] = 0;
+  });
   const dummyFrame: CaptureRecord = {
     tick: 1,
     entities: {
       "0": {
         derivations: {
-          [outputKey]: 0,
+          ...derivations,
         },
       },
     },
@@ -1172,6 +1554,305 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
     },
     request_id: command.request_id,
   } as ControlResponse));
+}
+
+function toUniqueCaptureId(base: string) {
+  const trimmed = base.trim() || `derive-${Date.now()}`;
+  if (
+    !captureMetadata.has(trimmed) &&
+    !captureSources.has(trimmed) &&
+    !captureComponentState.has(trimmed) &&
+    !liveStreamStates.has(trimmed)
+  ) {
+    return trimmed;
+  }
+  let counter = 2;
+  while (counter < 1000) {
+    const candidate = `${trimmed}-${counter}`;
+    if (
+      !captureMetadata.has(candidate) &&
+      !captureSources.has(candidate) &&
+      !captureComponentState.has(candidate) &&
+      !liveStreamStates.has(candidate)
+    ) {
+      return candidate;
+    }
+    counter += 1;
+  }
+  return `${trimmed}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSocket) {
+  const pluginId = String((command as { pluginId?: unknown }).pluginId ?? "").trim();
+  const groupId = String((command as { groupId?: unknown }).groupId ?? "").trim();
+  const params = (command as { params?: unknown }).params;
+  const outputCaptureId =
+    typeof (command as { outputCaptureId?: unknown }).outputCaptureId === "string"
+      ? String((command as { outputCaptureId: string }).outputCaptureId)
+      : "";
+
+  if (!pluginId) {
+    throw new Error("pluginId is required.");
+  }
+  if (!groupId) {
+    throw new Error("groupId is required.");
+  }
+  if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
+    throw new Error("Frontend not connected.");
+  }
+
+  const pluginRecord = derivationPlugins.get(pluginId);
+  if (!pluginRecord) {
+    throw new Error(`Derivation plugin not found: ${pluginId}`);
+  }
+  if (!pluginRecord.valid) {
+    throw new Error(`Derivation plugin is invalid: ${pluginId}${pluginRecord.error ? ` (${pluginRecord.error})` : ""}`);
+  }
+
+  const loaded = await loadDerivationPluginFromFile(pluginRecord.filePath);
+  const manifest = loaded.manifest;
+  if (!manifest) {
+    throw new Error(`Failed to load derivation plugin: ${pluginId}${loaded.record.error ? ` (${loaded.record.error})` : ""}`);
+  }
+
+  const group = getDerivationGroup(groupId);
+  if (!group) {
+    throw new Error(`Derivation group not found: ${groupId}`);
+  }
+  const metrics = Array.isArray(group.metrics) ? group.metrics : [];
+  const minInputs = Number.isInteger(manifest.minInputs) ? (manifest.minInputs as number) : 1;
+  const maxInputs =
+    Number.isInteger(manifest.maxInputs) && (manifest.maxInputs as number) >= minInputs
+      ? (manifest.maxInputs as number)
+      : null;
+  if (metrics.length < minInputs) {
+    throw new Error(`Plugin ${pluginId} requires at least ${minInputs} input metrics (group ${groupId} has ${metrics.length}).`);
+  }
+  if (maxInputs !== null && metrics.length > maxInputs) {
+    throw new Error(`Plugin ${pluginId} allows at most ${maxInputs} input metrics (group ${groupId} has ${metrics.length}).`);
+  }
+
+  const outputKeys = manifest.outputs.map((output) => output.key);
+  const derivedBase = outputCaptureId.trim() ? outputCaptureId.trim() : `derive-${groupId}-${pluginId}`;
+  const derivedCaptureId = toUniqueCaptureId(derivedBase);
+
+  const jobId = `derive-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const controller = new AbortController();
+  const job: DerivationJob = {
+    jobId,
+    kind: "plugin",
+    groupId,
+    outputCaptureId: derivedCaptureId,
+    startedAt: new Date().toISOString(),
+    status: "running",
+    error: null,
+    controller,
+  };
+  derivationJobs.set(jobId, job);
+
+  resetFrameCache(derivedCaptureId);
+  captureSources.delete(derivedCaptureId);
+  captureMetadata.set(derivedCaptureId, { filename: `${derivedCaptureId}.jsonl`, source: undefined });
+  captureComponentState.set(derivedCaptureId, { components: [], sentCount: 0 });
+  captureStreamModes.set(derivedCaptureId, "full");
+  captureLastTicks.delete(derivedCaptureId);
+  liteFrameBuffers.delete(derivedCaptureId);
+
+  sendToFrontend({ type: "capture_init", captureId: derivedCaptureId, filename: `${derivedCaptureId}.jsonl`, reset: true });
+  updateCaptureComponents(derivedCaptureId, buildDerivationOutputComponentsFromKeys(outputKeys));
+  outputKeys.forEach((key) => {
+    sendToFrontend({ type: "select_metric", captureId: derivedCaptureId, path: ["0", "derivations", key] });
+  });
+
+  const entities = new EntityManager();
+  const components = new ComponentManager();
+  const systems = new SystemManager(entities, components);
+  const root = entities.create();
+
+  const inputTypes = metrics.map((_metric, index) => numberOrNullComponent(`derive.in.${index}`));
+  const outputsMap: Record<string, ComponentType<number | null>> = {};
+  outputKeys.forEach((key) => {
+    outputsMap[key] = numberOrNullComponent(`derive.out.${key}`);
+  });
+
+  const created = manifest.createSystems({
+    entity: root,
+    inputs: metrics.map((metric, index) => ({ metric, component: inputTypes[index]!, index })),
+    outputs: outputsMap,
+    params,
+  });
+  const systemList = Array.isArray(created) ? created : [created];
+  systemList.forEach((system) => {
+    if (!system || typeof (system as any).update !== "function") {
+      throw new Error("createSystems must return System-like objects with an update(context) method.");
+    }
+    if (typeof (system as any).initialize !== "function") {
+      (system as any).initialize = () => {};
+    }
+    if (typeof (system as any).destroy !== "function") {
+      (system as any).destroy = () => {};
+    }
+    systems.addSystem(system as any);
+  });
+
+  const totalInputs = metrics.length;
+  const metricIndexByKey = new Map<string, number>();
+  metrics.forEach((metric, index) => {
+    metricIndexByKey.set(`${metric.captureId}::${metric.fullPath}`, index);
+  });
+
+  const UNSET = Symbol("unset");
+  type TickEntry = { values: Array<number | null | typeof UNSET>; count: number };
+  const tickBuffer = new Map<number, TickEntry>();
+  const firstTickByIndex: Array<number | null> = Array.from({ length: totalInputs }, () => null);
+  let startTick: number | null = null;
+  let nextTick: number | null = null;
+  let maxTickObserved = 0;
+
+  const ensureEntry = (tick: number): TickEntry => {
+    const existing = tickBuffer.get(tick);
+    if (existing) {
+      return existing;
+    }
+    const entry: TickEntry = { values: Array.from({ length: totalInputs }, () => UNSET), count: 0 };
+    tickBuffer.set(tick, entry);
+    return entry;
+  };
+
+  const setValue = (index: number, tick: number, value: number | null) => {
+    const entry = ensureEntry(tick);
+    if (entry.values[index] === UNSET) {
+      entry.count += 1;
+    }
+    entry.values[index] = value;
+  };
+
+  const runTick = (tick: number, values: Array<number | null>) => {
+    components.addComponent(root, TimeComponent, { tick });
+    values.forEach((value, index) => {
+      components.addComponent(root, inputTypes[index]!, value);
+    });
+    systems.runCycle();
+    const outValue: Record<string, number | null> = {};
+    outputKeys.forEach((key) => {
+      const payload = components.getComponent(root, outputsMap[key]!)?.payload ?? null;
+      outValue[key] = payload === null || isFiniteNumber(payload) ? payload : null;
+    });
+    sendCaptureAppend(derivedCaptureId, {
+      tick,
+      entityId: "0",
+      componentId: "derivations",
+      value: outValue,
+    });
+  };
+
+  const trySetStartTick = () => {
+    if (startTick !== null) {
+      return;
+    }
+    if (firstTickByIndex.some((entry) => entry === null)) {
+      return;
+    }
+    const ticks = firstTickByIndex.filter((entry): entry is number => typeof entry === "number");
+    if (ticks.length === 0) {
+      return;
+    }
+    startTick = Math.min(...ticks);
+    nextTick = startTick;
+  };
+
+  const tryEmit = () => {
+    if (startTick === null || nextTick === null) {
+      return;
+    }
+    while (nextTick !== null) {
+      const entry = tickBuffer.get(nextTick);
+      if (!entry || entry.count < totalInputs) {
+        return;
+      }
+      const values = entry.values.map((value) => (value === UNSET ? null : value)) as Array<number | null>;
+      tickBuffer.delete(nextTick);
+      runTick(nextTick, values);
+      nextTick += 1;
+    }
+  };
+
+  const byCapture = new Map<string, SelectedMetric[]>();
+  metrics.forEach((metric) => {
+    const list = byCapture.get(metric.captureId);
+    if (list) {
+      list.push(metric);
+    } else {
+      byCapture.set(metric.captureId, [metric]);
+    }
+  });
+
+  const streamPromises = Array.from(byCapture.entries()).map(async ([captureId, captureMetrics]) => {
+    const source = getCaptureSourceForId(captureId);
+    if (!source.trim()) {
+      throw new Error(`No capture source found for captureId ${captureId}`);
+    }
+    await streamMetricValuesFromSource({
+      source,
+      metrics: captureMetrics,
+      signal: controller.signal,
+      onValue: ({ metric, tick, value }) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        maxTickObserved = Math.max(maxTickObserved, tick);
+        const index = metricIndexByKey.get(`${metric.captureId}::${metric.fullPath}`);
+        if (typeof index !== "number") {
+          return;
+        }
+        if (firstTickByIndex[index] === null) {
+          firstTickByIndex[index] = tick;
+        }
+        setValue(index, tick, value);
+        trySetStartTick();
+        tryEmit();
+      },
+    });
+  });
+
+  await Promise.all(streamPromises);
+
+  const tickEnd = Array.from(byCapture.keys()).reduce((acc, captureId) => {
+    const last = captureLastTicks.get(captureId) ?? liveStreamStates.get(captureId)?.lastTick ?? null;
+    return typeof last === "number" ? Math.max(acc, last) : acc;
+  }, Math.max(1, maxTickObserved));
+
+  if (startTick === null || nextTick === null) {
+    startTick = 1;
+    nextTick = 1;
+  }
+
+  for (let tick = nextTick; tick <= tickEnd; tick += 1) {
+    if (controller.signal.aborted) {
+      job.status = "stopped";
+      sendCaptureEnd(derivedCaptureId);
+      return;
+    }
+    const entry = tickBuffer.get(tick);
+    const values = entry
+      ? (entry.values.map((value) => (value === UNSET ? null : value)) as Array<number | null>)
+      : Array.from({ length: totalInputs }, () => null);
+    runTick(tick, values);
+  }
+
+  sendCaptureEnd(derivedCaptureId);
+  job.status = "completed";
+
+  ws.send(
+    JSON.stringify({
+      type: "ui_notice",
+      payload: {
+        message: "Derivation plugin complete",
+        context: { jobId, pluginId, groupId, outputCaptureId: derivedCaptureId },
+      },
+      request_id: command.request_id,
+    } as ControlResponse),
+  );
 }
 type CachedFrame = {
   frame: CaptureRecord;
@@ -2403,6 +3084,27 @@ export async function registerRoutes(
             } as ControlResponse));
             return;
           }
+          if (message.type === "run_derivation_plugin") {
+            const command = message as ControlCommand;
+            runDerivationPluginFromCommand(command, ws).catch((error) => {
+              console.error("[derivation-plugin] run error:", error);
+              ws.send(
+                JSON.stringify({
+                  type: "error",
+                  error: error instanceof Error ? error.message : "Failed to run derivation plugin.",
+                  request_id: command.request_id,
+                } as ControlResponse),
+              );
+            });
+            ws.send(
+              JSON.stringify({
+                type: "ack",
+                payload: { command: "run_derivation_plugin" },
+                request_id: command.request_id,
+              } as ControlResponse),
+            );
+            return;
+          }
           if (message.type === "set_stream_mode") {
             const captureId = String(message.captureId ?? "");
             const mode = message.mode === "full" ? "full" : "lite";
@@ -2425,6 +3127,16 @@ export async function registerRoutes(
 
         const command = message as ControlCommand;
         const captureId = "captureId" in command ? String(command.captureId ?? "") : "";
+        if (command.type === "get_derivation_plugins") {
+          ws.send(
+            JSON.stringify({
+              type: "derivation_plugins",
+              payload: { plugins: Array.from(derivationPlugins.values()) },
+              request_id: command.request_id,
+            } as ControlResponse),
+          );
+          return;
+        }
         if (command.type === "run_derivation") {
           runDerivationFromCommand(command, ws).catch((error) => {
             console.error("[derivation] run error:", error);
@@ -2439,6 +3151,26 @@ export async function registerRoutes(
             payload: { command: "run_derivation" },
             request_id: command.request_id,
           } as ControlResponse));
+          return;
+        }
+        if (command.type === "run_derivation_plugin") {
+          runDerivationPluginFromCommand(command, ws).catch((error) => {
+            console.error("[derivation-plugin] run error:", error);
+            ws.send(
+              JSON.stringify({
+                type: "error",
+                error: error instanceof Error ? error.message : "Failed to run derivation plugin.",
+                request_id: command.request_id,
+              } as ControlResponse),
+            );
+          });
+          ws.send(
+            JSON.stringify({
+              type: "ack",
+              payload: { command: "run_derivation_plugin" },
+              request_id: command.request_id,
+            } as ControlResponse),
+          );
           return;
         }
         if (command.type === "clear_captures") {
@@ -2638,6 +3370,103 @@ export async function registerRoutes(
       console.error('Failed to read USAGE.md:', error);
       res.status(500).send('Documentation not available');
     }
+  });
+
+  app.get("/api/derivations/plugins", (_req, res) => {
+    const plugins = Array.from(derivationPlugins.values()).sort((a, b) =>
+      b.uploadedAt.localeCompare(a.uploadedAt),
+    );
+    return res.json({ plugins });
+  });
+
+  app.post(
+    "/api/derivations/plugins/upload",
+    derivationPluginUpload.single("file"),
+    async (req, res) => {
+      try {
+        if (!req.file || !req.file.buffer) {
+          return res.status(400).json({ error: "No plugin file uploaded." });
+        }
+        const buffer: Buffer = req.file.buffer as Buffer;
+        const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+        fs.mkdirSync(DERIVATION_PLUGIN_ROOT, { recursive: true });
+        const filePath = path.join(DERIVATION_PLUGIN_ROOT, `${hash}.mjs`);
+        const existed = fs.existsSync(filePath);
+        if (!existed) {
+          fs.writeFileSync(filePath, buffer);
+        }
+
+        const loaded = await loadDerivationPluginFromFile(filePath);
+        const uploadedAt = new Date().toISOString();
+        if (!loaded.record.valid || !loaded.manifest) {
+          if (!existed) {
+            try {
+              fs.unlinkSync(filePath);
+            } catch (error) {
+              console.warn("[derivations] Failed to cleanup invalid plugin file:", error);
+            }
+          }
+          return res.status(400).json({
+            error: loaded.record.error ?? "Derivation plugin failed validation.",
+            plugin: {
+              ...loaded.record,
+              filePath,
+              hash,
+              uploadedAt,
+            },
+          });
+        }
+        const record: DerivationPluginRecord = {
+          ...loaded.record,
+          filePath,
+          hash,
+          uploadedAt,
+        };
+        derivationPlugins.set(record.id, record);
+        saveDerivationPluginIndex(Array.from(derivationPlugins.values()));
+
+        const plugins = Array.from(derivationPlugins.values()).sort((a, b) =>
+          b.uploadedAt.localeCompare(a.uploadedAt),
+        );
+        sendToFrontend({ type: "derivation_plugins", payload: { plugins } } as ControlResponse);
+        return res.json({ success: true, plugin: record, plugins });
+      } catch (error) {
+        console.error("[derivations] Plugin upload error:", error);
+        return res.status(500).json({ error: "Failed to upload derivation plugin." });
+      }
+    },
+  );
+
+  app.delete("/api/derivations/plugins/:pluginId", (req, res) => {
+    const pluginId = typeof req.params?.pluginId === "string" ? req.params.pluginId : "";
+    if (!pluginId) {
+      return res.status(400).json({ error: "pluginId is required." });
+    }
+    const record = derivationPlugins.get(pluginId);
+    if (!record) {
+      return res.status(404).json({ error: "Plugin not found." });
+    }
+    derivationPlugins.delete(pluginId);
+    saveDerivationPluginIndex(Array.from(derivationPlugins.values()));
+
+    const stillReferenced = Array.from(derivationPlugins.values()).some(
+      (entry) => entry.filePath === record.filePath,
+    );
+    if (!stillReferenced) {
+      try {
+        if (fs.existsSync(record.filePath)) {
+          fs.unlinkSync(record.filePath);
+        }
+      } catch (error) {
+        console.warn("[derivations] Failed to delete plugin file:", error);
+      }
+    }
+
+    const plugins = Array.from(derivationPlugins.values()).sort((a, b) =>
+      b.uploadedAt.localeCompare(a.uploadedAt),
+    );
+    sendToFrontend({ type: "derivation_plugins", payload: { plugins } } as ControlResponse);
+    return res.json({ success: true, pluginId });
   });
 
   app.post('/api/upload', upload.single('file'), async (req, res) => {

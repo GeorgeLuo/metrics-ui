@@ -100,6 +100,7 @@ interface UseWebSocketControlProps {
   getUiDebug?: () => UiDebugResponse;
   onReconnect?: () => void;
   onStateSync?: (captures: { captureId: string; lastTick?: number | null }[]) => void;
+  onDerivationPlugins?: (plugins: unknown[]) => void;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -203,6 +204,7 @@ export function useWebSocketControl({
   getUiDebug,
   onStateSync,
   onReconnect,
+  onDerivationPlugins,
 }: UseWebSocketControlProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -759,6 +761,13 @@ export function useWebSocketControl({
         sendAck(requestId, command.type);
         break;
       }
+      case "derivation_plugins": {
+        const payload = (command as ControlResponse).payload as { plugins?: unknown } | undefined;
+        const pluginsRaw = payload?.plugins;
+        const plugins = Array.isArray(pluginsRaw) ? pluginsRaw : [];
+        onDerivationPlugins?.(plugins);
+        break;
+      }
     }
   }, [
     sendState,
@@ -796,6 +805,7 @@ export function useWebSocketControl({
     onClearSubtitles,
     getMemoryStats,
     buildMetricCoverage,
+    onDerivationPlugins,
     captures,
     selectedMetrics,
     playbackState,

@@ -1,0 +1,11 @@
+{"tick":1,"entityId":"0","componentId":"metrics","value":{"a":1,"b":2}}
+{"tick":2,"entityId":"0","componentId":"metrics","value":{"a":2,"b":4}}
+{"tick":3,"entityId":"0","componentId":"metrics","value":{"a":3,"b":6}}
+{"tick":4,"entityId":"0","componentId":"metrics","value":{"a":4,"b":8}}
+{"tick":5,"entityId":"0","componentId":"metrics","value":{"a":5,"b":10}}
+{"tick":6,"entityId":"0","componentId":"metrics","value":{"a":6,"b":12}}
+{"tick":7,"entityId":"0","componentId":"metrics","value":{"a":7,"b":14}}
+{"tick":8,"entityId":"0","componentId":"metrics","value":{"a":8,"b":16}}
+{"tick":9,"entityId":"0","componentId":"metrics","value":{"a":9,"b":18}}
+{"tick":10,"entityId":"0","componentId":"metrics","value":{"a":10,"b":20}}
+

@@ -17,7 +17,7 @@ This site visualizes simulation or evaluation **capture files**. You upload a JS
    - Press **Play** to resume; auto-scroll turns back on and the window expands to the right.
    - Use the **reset window** button (refresh icon in the header) to show the full range again.
 6. **Add annotations** by clicking on the chart (silent add). Click an existing annotation line to edit its label.
-7. **Derivations (groups)**: click a metric in the HUD to add it to the active derivation group (Derivations pane). Click a group card to make it active, create/delete groups, rename them, and (optionally) solo-display only that group's metrics on the chart.
+7. **Derivations**: click a metric in the HUD to add it to the active derivation group (Derivations pane). Upload a derivation system plugin and run it on a group to emit derived metrics as a new capture (auto-selected into the chart).
 
 The UI shows multiple captures at once; they share a common tick axis.
 
@@ -32,7 +32,61 @@ Current behavior:
 - If no derivation groups exist yet, selecting a metric creates a default group and adds the metric.
 - The active group is highlighted. Clicking anywhere on a group card selects it as active.
 - Each group includes a small "solo display" toggle. When enabled, the chart/HUD will display **only** metrics from that group.
-- Group **ids** exist for WS/CLI control (and future derivation plugins), but the browser UI only exposes the group **name**.
+- Group **ids** exist for WS/CLI control (and derivation plugins), but the browser UI only exposes the group **name**.
+
+---
+
+## Derivation Systems (Plugins)
+
+Derivation systems are server-side plugins that compute **new metrics** from the metrics inside a derivation group.
+
+How it works:
+- You upload a plugin file to the UI server.
+- The server verifies it on upload (imports it and runs a short dry-run).
+- You select a plugin for a group and run it.
+- The server streams the derived outputs as a new "push-only" capture; the UI auto-selects the derived metrics.
+
+### Upload / List / Delete (HTTP)
+
+Upload a plugin (ESM `.mjs` or ESM `.js`):
+
+```bash
+curl -X POST -F "file=@my-plugin.mjs" http://<host>/api/derivations/plugins/upload
+```
+
+List plugins:
+
+```bash
+curl http://<host>/api/derivations/plugins
+```
+
+Delete a plugin:
+
+```bash
+curl -X DELETE http://<host>/api/derivations/plugins/<pluginId>
+```
+
+### Plugin Manifest Shape
+
+A plugin exports a manifest object (default export) or a factory function returning a manifest:
+
+```js
+export default {
+  id: "my_plugin",
+  name: "My Plugin",
+  minInputs: 1,
+  maxInputs: 2,
+  outputs: [{ key: "out" }],
+  createSystems({ entity, inputs, outputs, params }) {
+    // return an array of ECS System objects with update(context)
+    return [];
+  },
+};
+```
+
+Notes:
+- Output keys must match `^[A-Za-z0-9_]+$`.
+- Outputs must be `number` or `null`.
 
 ---
 
@@ -149,6 +203,19 @@ Examples:
 {"type":"select_analysis_metric","captureId":"legacy","path":["0","job_release_summary","pending_jobs"]}
 ```
 
+### Derivation Systems (Plugins)
+
+Commands:
+- `get_derivation_plugins` (returns `derivation_plugins`)
+- `run_derivation_plugin` (`groupId`, `pluginId`, optional `params`, optional `outputCaptureId`)
+
+Examples:
+
+```json
+{"type":"get_derivation_plugins","request_id":"p1"}
+{"type":"run_derivation_plugin","groupId":"compare_pending_jobs","pluginId":"my_plugin"}
+```
+
 ### Agent Discovery
 
 If an agent only knows the site URL, it can `curl` the root and find control details in headers:
@@ -239,6 +306,8 @@ Capture streaming (push records over WS):
 - `update_derivation_group`
 - `set_display_derivation_group`
 - `run_derivation`
+- `get_derivation_plugins`
+- `run_derivation_plugin`
 - `clear_captures`
 - `play`
 - `pause`
@@ -300,6 +369,7 @@ Common responses include:
 - `error`
 - `state_update`
 - `capabilities`
+- `derivation_plugins`
 - `display_snapshot`
 - `series_window`
 - `components_list`

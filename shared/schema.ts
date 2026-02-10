@@ -61,6 +61,11 @@ export interface DerivationGroup {
   id: string;
   name: string;
   metrics: SelectedMetric[];
+  /**
+   * Optional derivation plugin id selected for this group.
+   * The plugin itself is stored/validated server-side.
+   */
+  pluginId?: string;
 }
 
 export interface DataPoint {
@@ -503,7 +508,15 @@ export type ControlCommand =
     } & ControlRequestBase)
   | ({ type: "get_ui_debug" } & ControlRequestBase)
   | ({ type: "get_memory_stats" } & ControlRequestBase)
-  | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase);
+  | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase)
+  | ({ type: "get_derivation_plugins" } & ControlRequestBase)
+  | ({
+      type: "run_derivation_plugin";
+      pluginId: string;
+      groupId: string;
+      params?: unknown;
+      outputCaptureId?: string;
+    } & ControlRequestBase);
 
 export interface ControlResponse {
   type:
@@ -512,6 +525,7 @@ export interface ControlResponse {
     | "error"
     | "ack"
     | "capabilities"
+    | "derivation_plugins"
     | "display_snapshot"
     | "series_window"
     | "components_list"
