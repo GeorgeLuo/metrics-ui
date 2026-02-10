@@ -726,17 +726,6 @@ export default function Home() {
     );
   }, [captures, displayGroupMetrics, resolvedDisplayDerivationGroupId]);
 
-  useEffect(() => {
-    // If the chosen display group only references missing (or inactive) captures, it will
-    // render as "no metrics selected". In that case, fall back to the normal selected metrics.
-    if (!resolvedDisplayDerivationGroupId) {
-      return;
-    }
-    if (!displayGroupHasActiveCaptures) {
-      setDisplayDerivationGroupId("");
-    }
-  }, [displayGroupHasActiveCaptures, resolvedDisplayDerivationGroupId]);
-
   const displayMetrics = useMemo(() => {
     if (!resolvedDisplayDerivationGroupId || !displayGroupHasActiveCaptures) {
       return selectedMetrics;
