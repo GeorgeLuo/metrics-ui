@@ -81,6 +81,7 @@ const FULLSCREEN_RESIZE_DELAY = 0;
 const PERF_SAMPLE_MAX = 200;
 const EVENT_LOOP_INTERVAL_MS = 100;
 const COMPONENT_UPDATE_THROTTLE_MS = 250;
+const STREAM_IDLE_MS = 1500;
 
 const METRIC_COLORS = [
   "#E4572E",
@@ -515,6 +516,7 @@ export default function Home() {
     pendingTicks: 0,
     updatedAt: 0,
   }));
+  const [streamActivityVersion, setStreamActivityVersion] = useState(0);
 
   const playbackRef = useRef<number | null>(null);
   const capturesRef = useRef(captures);
@@ -565,6 +567,9 @@ export default function Home() {
     lastDurationMs: null as number | null,
   });
   const endedCapturesRef = useRef(new Set<string>());
+  const streamingCapturesRef = useRef(new Set<string>());
+  const streamLastActivityAtRef = useRef(new Map<string, number>());
+  const streamIdleTimersRef = useRef(new Map<string, number>());
   const sendMessageRef = useRef<(message: ControlResponse | ControlCommand) => boolean>(() => false);
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
   const activeCaptureIdsRef = useRef(new Set<string>());
@@ -2385,6 +2390,68 @@ export default function Home() {
     updateLiveStream,
   ]);
 
+  const stopStreamingIndicator = useCallback((captureId: string) => {
+    if (!captureId) {
+      return;
+    }
+    const timer = streamIdleTimersRef.current.get(captureId);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      streamIdleTimersRef.current.delete(captureId);
+    }
+    streamLastActivityAtRef.current.delete(captureId);
+    if (streamingCapturesRef.current.delete(captureId)) {
+      setStreamActivityVersion((v) => v + 1);
+    }
+  }, []);
+
+  const noteStreamingActivity = useCallback((captureId: string) => {
+    if (!captureId) {
+      return;
+    }
+    streamLastActivityAtRef.current.set(captureId, Date.now());
+
+    if (!streamingCapturesRef.current.has(captureId)) {
+      streamingCapturesRef.current.add(captureId);
+      setStreamActivityVersion((v) => v + 1);
+    }
+
+    if (streamIdleTimersRef.current.has(captureId)) {
+      return;
+    }
+
+    const scheduleIdleCheck = () => {
+      const last = streamLastActivityAtRef.current.get(captureId) ?? 0;
+      const elapsed = Date.now() - last;
+      const delay = Math.max(0, STREAM_IDLE_MS - elapsed);
+      const timer = window.setTimeout(() => {
+        streamIdleTimersRef.current.delete(captureId);
+        const nextLast = streamLastActivityAtRef.current.get(captureId) ?? 0;
+        const nextElapsed = Date.now() - nextLast;
+        if (nextElapsed >= STREAM_IDLE_MS) {
+          streamLastActivityAtRef.current.delete(captureId);
+          if (streamingCapturesRef.current.delete(captureId)) {
+            setStreamActivityVersion((v) => v + 1);
+          }
+          return;
+        }
+        scheduleIdleCheck();
+      }, delay);
+      streamIdleTimersRef.current.set(captureId, timer);
+    };
+
+    scheduleIdleCheck();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      streamIdleTimersRef.current.forEach((timer) => {
+        window.clearTimeout(timer);
+      });
+      streamIdleTimersRef.current.clear();
+    };
+  }, []);
+
   const handleCaptureInit = useCallback(
     (
       captureId: string,
@@ -2398,6 +2465,7 @@ export default function Home() {
 
       // A new capture init means this capture is active again (even if it previously ended).
       endedCapturesRef.current.delete(captureId);
+      stopStreamingIndicator(captureId);
 
       setCaptures((prev) => {
         const fallbackName = `${captureId}.jsonl`;
@@ -2504,7 +2572,7 @@ export default function Home() {
       );
       fetchMetricSeriesBatch(captureId, selectedForCapture, { preferCache: true });
     },
-    [fetchMetricSeriesBatch, getLiveMeta, sourceMode],
+    [fetchMetricSeriesBatch, getLiveMeta, sourceMode, stopStreamingIndicator],
   );
 
   const handleCaptureComponents = useCallback((captureId: string, components: ComponentNode[]) => {
@@ -2755,6 +2823,7 @@ export default function Home() {
     if (!activeCaptureIdsRef.current.has(captureId)) {
       return;
     }
+    noteStreamingActivity(captureId);
 
     const pending = pendingAppendsRef.current;
     const list = pending.get(captureId);
@@ -2768,7 +2837,7 @@ export default function Home() {
         flushPendingAppends();
       }, APPEND_FLUSH_MS);
     }
-  }, [flushPendingAppends]);
+  }, [flushPendingAppends, noteStreamingActivity]);
 
   const handleCaptureTick = useCallback((captureId: string, tick: number) => {
     if (!activeCaptureIdsRef.current.has(captureId)) {
@@ -2779,16 +2848,18 @@ export default function Home() {
         return;
       }
     }
+    noteStreamingActivity(captureId);
     const existing = pendingTicksRef.current.get(captureId) ?? 0;
     if (tick > existing) {
       pendingTicksRef.current.set(captureId, tick);
     }
     flushPendingTicks();
-  }, [captures, flushPendingTicks]);
+  }, [captures, flushPendingTicks, noteStreamingActivity]);
 
   const handleCaptureEnd = useCallback(
     (captureId: string) => {
       endedCapturesRef.current.add(captureId);
+      stopStreamingIndicator(captureId);
       clearLiveRetry(captureId);
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
       if (liveEntry) {
@@ -2814,7 +2885,7 @@ export default function Home() {
       });
       fetchMetricSeriesBatch(captureId, pending, { force: true, preferCache: false });
     },
-    [clearLiveRetry, fetchMetricSeriesBatch, getLiveMeta],
+    [clearLiveRetry, fetchMetricSeriesBatch, getLiveMeta, stopStreamingIndicator],
   );
 
   const handleToggleCapture = useCallback((captureId: string) => {
@@ -2853,6 +2924,7 @@ export default function Home() {
 
   const handleRemoveCapture = useCallback((captureId: string) => {
     endedCapturesRef.current.delete(captureId);
+    stopStreamingIndicator(captureId);
     setCaptures(prev => prev.filter(c => c.id !== captureId));
     setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
     setDerivationGroups((prev) =>
@@ -2873,7 +2945,7 @@ export default function Home() {
     });
     handleRemoveLiveStream(captureId);
     sendMessageRef.current({ type: "remove_capture", captureId });
-  }, [handleRemoveLiveStream]);
+  }, [handleRemoveLiveStream, stopStreamingIndicator]);
 
   const handleSelectMetric = useCallback((captureId: string, path: string[]) => {
     const fullPath = path.join(".");
@@ -3283,6 +3355,11 @@ export default function Home() {
     setSelectedMetrics([]);
     captureStatsRef.current.clear();
     endedCapturesRef.current.clear();
+    streamingCapturesRef.current.clear();
+    streamLastActivityAtRef.current.clear();
+    streamIdleTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    streamIdleTimersRef.current.clear();
+    setStreamActivityVersion((v) => v + 1);
     activeCaptureIdsRef.current.clear();
     pendingTicksRef.current.clear();
     lastSeriesRefreshRef.current.clear();
@@ -3711,32 +3788,31 @@ export default function Home() {
       });
     });
 
-    captures.forEach((capture) => {
-      if (!capture.isActive) {
+    const liveStreamingIds = new Set(
+      liveStreams
+        .filter((entry) => entry.status !== "idle" && entry.status !== "completed")
+        .map((entry) => entry.id),
+    );
+    Array.from(streamingCapturesRef.current).forEach((captureId) => {
+      if (liveStreamingIds.has(captureId)) {
         return;
       }
-      // Push-only captures (no source) stream via WS frames. Track them separately so derived captures show up.
-      if (capture.source) {
+      const capture = captures.find((entry) => entry.id === captureId);
+      if (!capture || !capture.isActive) {
         return;
       }
-      if (endedCapturesRef.current.has(capture.id)) {
-        return;
-      }
-      const isLive = liveStreams.some(
-        (entry) => entry.id === capture.id && entry.source.trim().length > 0,
-      );
-      if (isLive) {
+      if (endedCapturesRef.current.has(captureId)) {
         return;
       }
       entries.push({
-        key: `push_${capture.id}`,
-        label: `Streaming: ${capture.id}`,
+        key: `stream_${captureId}`,
+        label: `Streaming: ${captureId}`,
         detail: capture.tickCount > 0 ? `${capture.tickCount} tick(s)` : undefined,
       });
     });
 
     return entries;
-  }, [captures, initialSyncReady, liveStreams, loadingProbe, uploadMutation.isPending]);
+  }, [captures, initialSyncReady, liveStreams, loadingProbe, streamActivityVersion, uploadMutation.isPending]);
 
   const isLoading = loadingEntries.length > 0;
 
