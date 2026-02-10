@@ -118,6 +118,7 @@ The client keeps:
 
 - `captures` (stateful list)
 - `selectedMetrics`
+- `derivationGroups` + `activeDerivationGroupId` (analysis metric groupings)
 - `playback` (current tick + speed)
 - `windowStart` / `windowEnd` / `windowSize`
 - `autoScroll`
@@ -156,6 +157,15 @@ When a metric is selected:
 When a metric is removed:
 
 - The metric path is removed from all records for that capture.
+
+### Derivation Groups
+
+Derivation groups are named collections of metrics intended as inputs for downstream calculations.
+
+- The UI maintains `derivationGroups` and `activeDerivationGroupId` in state (persisted to localStorage).
+- Clicking a metric in the HUD toggles it in the active group.
+- `select_analysis_metric` / `deselect_analysis_metric` WS commands operate on the active group.
+- The `analysisMetrics` field in `state_update` is a compatibility view of the active group's metrics.
 
 ### Playback + Windowing
 

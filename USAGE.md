@@ -17,9 +17,21 @@ This site visualizes simulation or evaluation **capture files**. You upload a JS
    - Press **Play** to resume; auto-scroll turns back on and the window expands to the right.
    - Use the **reset window** button (refresh icon in the header) to show the full range again.
 6. **Add annotations** by clicking on the chart (silent add). Click an existing annotation line to edit its label.
-7. **Mark analysis metrics** by clicking a metric in the HUD. They appear in the Derivations pane.
+7. **Derivations (groups)**: click a metric in the HUD to add it to the active derivation group (Derivations pane). Click a group card to make it active, create/delete groups, and rename them.
 
 The UI shows multiple captures at once; they share a common tick axis.
+
+---
+
+## Derivation Groups (Derivations Pane)
+
+Derivation groups are named collections of metrics you want to use as **inputs** for downstream calculations (derivations).
+
+Current behavior:
+- Clicking a metric in the HUD toggles it inside the **active** derivation group.
+- If no derivation groups exist yet, selecting a metric creates a default group and adds the metric.
+- The active group is highlighted. Clicking anywhere on a group card selects it as active.
+- Group **ids** exist for WS/CLI control (and future derivation plugins), but the browser UI only exposes the group **name**.
 
 ---
 
@@ -106,6 +118,32 @@ Anything the browser can do can be driven over WebSocket. The server relays agen
 - `set_window_start`, `set_window_end`, `set_window_size`, and `set_window_range` **pause playback** and **disable auto-scroll**.
 - `set_auto_scroll true` anchors the **left edge** of the window and expands the right edge as ticks advance.
 - `play` re-enables auto-scroll if it was off (using the current `windowEnd` as the starting point).
+
+### Derivation Groups + Analysis Metrics
+
+Derivation groups let you organize which metrics you plan to feed into derivation systems.
+
+State fields:
+- `derivationGroups`: array of `{ id, name, metrics[] }`
+- `activeDerivationGroupId`: which group is active
+- `analysisMetrics`: the metrics in the active group (kept for compatibility)
+
+Commands:
+- `create_derivation_group` (optional `groupId`, `name`)
+- `update_derivation_group` (`groupId`, optional `newGroupId`, `name`)
+- `delete_derivation_group` (`groupId`)
+- `set_active_derivation_group` (`groupId`)
+- `select_analysis_metric` adds the metric to the active group (creating a default group if needed)
+- `deselect_analysis_metric` removes the metric from the active group
+- `clear_analysis_metrics` clears metrics from all groups
+
+Examples:
+
+```json
+{"type":"create_derivation_group","groupId":"compare_pending_jobs","name":"compare_pending_jobs"}
+{"type":"set_active_derivation_group","groupId":"compare_pending_jobs"}
+{"type":"select_analysis_metric","captureId":"legacy","path":["0","job_release_summary","pending_jobs"]}
+```
 
 ### Agent Discovery
 

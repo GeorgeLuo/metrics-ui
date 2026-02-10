@@ -4284,7 +4284,19 @@ export default function Home() {
                             key={group.id}
                             className={`rounded-md border p-2 flex flex-col gap-2 ${
                               isActive ? "border-foreground/40" : "border-border/50"
-                            }`}
+                            } cursor-pointer`}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleSetActiveDerivationGroup(group.id)}
+                            onKeyDown={(event) => {
+                              if (event.target !== event.currentTarget) {
+                                return;
+                              }
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                handleSetActiveDerivationGroup(group.id);
+                              }
+                            }}
                           >
                             <div className="flex items-center gap-2">
                               <Input
@@ -4313,20 +4325,6 @@ export default function Home() {
                                   aria-label={`Delete derivation group ${group.name}`}
                                   title="Delete group"
                                   className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleSetActiveDerivationGroup(group.id)}
-                                  data-testid={`button-derivation-group-active-${group.id}`}
-                                  aria-label={
-                                    isActive
-                                      ? `Derivation group ${group.name} is active`
-                                      : `Set derivation group ${group.name} active`
-                                  }
-                                  title={isActive ? "Active" : "Set active"}
-                                  className={`h-3 w-3 rounded-full bg-emerald-500 transition-opacity ${
-                                    isActive ? "opacity-100" : "opacity-30 hover:opacity-70"
-                                  }`}
                                 />
                               </div>
                             </div>
