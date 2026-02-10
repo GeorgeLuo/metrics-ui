@@ -9,6 +9,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -506,6 +508,13 @@ export default function Home() {
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
   const [initialSyncReady, setInitialSyncReady] = useState(false);
+  const [loadingProbe, setLoadingProbe] = useState(() => ({
+    pendingSeries: 0,
+    pendingAppends: 0,
+    pendingComponentUpdates: 0,
+    pendingTicks: 0,
+    updatedAt: 0,
+  }));
 
   const playbackRef = useRef<number | null>(null);
   const capturesRef = useRef(captures);
@@ -555,6 +564,7 @@ export default function Home() {
     lastStart: null as number | null,
     lastDurationMs: null as number | null,
   });
+  const endedCapturesRef = useRef(new Set<string>());
   const sendMessageRef = useRef<(message: ControlResponse | ControlCommand) => boolean>(() => false);
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
   const activeCaptureIdsRef = useRef(new Set<string>());
@@ -857,6 +867,7 @@ export default function Home() {
         uploadError,
         highlightedMetricKey,
         initialSyncReady,
+        loadingProbe,
         viewport,
       },
       refs: {
@@ -897,6 +908,7 @@ export default function Home() {
         baselineHeap: baselineHeapRef.current,
         selectionHandlers: selectionHandlersRef.current.size,
         prevSelectedCount: prevSelectedRef.current.length,
+        endedCaptures: Array.from(endedCapturesRef.current),
       },
       localStorage: localStorageSnapshot,
     };
@@ -915,6 +927,7 @@ export default function Home() {
     isSelectionOpen,
     isWindowed,
     liveStreams,
+    loadingProbe,
     memoryStatsAt,
     memoryStatsSnapshot,
     playbackState,
@@ -1749,6 +1762,36 @@ export default function Home() {
   }, [updateBaselineHeap]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      const next = {
+        pendingSeries: pendingSeriesRef.current.size,
+        pendingAppends: pendingAppendsRef.current.size,
+        pendingComponentUpdates: pendingComponentUpdatesRef.current.size,
+        pendingTicks: pendingTicksRef.current.size,
+      };
+      setLoadingProbe((prev) => {
+        if (
+          prev.pendingSeries === next.pendingSeries
+          && prev.pendingAppends === next.pendingAppends
+          && prev.pendingComponentUpdates === next.pendingComponentUpdates
+          && prev.pendingTicks === next.pendingTicks
+        ) {
+          return prev;
+        }
+        return { ...next, updatedAt: Date.now() };
+      });
+    }, 500);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof document === "undefined") {
       return;
     }
@@ -2353,6 +2396,9 @@ export default function Home() {
       let shouldFetch = true;
       let shouldClear = true;
 
+      // A new capture init means this capture is active again (even if it previously ended).
+      endedCapturesRef.current.delete(captureId);
+
       setCaptures((prev) => {
         const fallbackName = `${captureId}.jsonl`;
         const existing = prev.find((capture) => capture.id === captureId);
@@ -2742,6 +2788,7 @@ export default function Home() {
 
   const handleCaptureEnd = useCallback(
     (captureId: string) => {
+      endedCapturesRef.current.add(captureId);
       clearLiveRetry(captureId);
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
       if (liveEntry) {
@@ -2805,6 +2852,7 @@ export default function Home() {
   }, [captures, fetchMetricSeriesBatch]);
 
   const handleRemoveCapture = useCallback((captureId: string) => {
+    endedCapturesRef.current.delete(captureId);
     setCaptures(prev => prev.filter(c => c.id !== captureId));
     setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
     setDerivationGroups((prev) =>
@@ -3234,6 +3282,7 @@ export default function Home() {
     setCaptures([]);
     setSelectedMetrics([]);
     captureStatsRef.current.clear();
+    endedCapturesRef.current.clear();
     activeCaptureIdsRef.current.clear();
     pendingTicksRef.current.clear();
     lastSeriesRefreshRef.current.clear();
@@ -3596,6 +3645,100 @@ export default function Home() {
     () => extractDataPoints(captures, activeMetrics),
     [captures, activeMetrics],
   );
+
+  const loadingEntries = useMemo(() => {
+    const entries: Array<{ key: string; label: string; detail?: string }> = [];
+
+    if (!initialSyncReady) {
+      entries.push({ key: "initial_sync", label: "Waiting for initial sync" });
+    }
+
+    if (uploadMutation.isPending) {
+      entries.push({ key: "upload_capture", label: "Uploading capture file" });
+    }
+
+    if (loadingProbe.pendingSeries > 0) {
+      entries.push({
+        key: "pending_series",
+        label: "Fetching metric series",
+        detail: `${loadingProbe.pendingSeries} request(s) in flight`,
+      });
+    }
+
+    if (loadingProbe.pendingComponentUpdates > 0) {
+      entries.push({
+        key: "pending_components",
+        label: "Applying component tree updates",
+        detail: `${loadingProbe.pendingComponentUpdates} capture(s) pending`,
+      });
+    }
+
+    if (loadingProbe.pendingAppends > 0) {
+      entries.push({
+        key: "pending_appends",
+        label: "Applying streamed frames",
+        detail: `${loadingProbe.pendingAppends} capture(s) buffered`,
+      });
+    }
+
+    if (loadingProbe.pendingTicks > 0) {
+      entries.push({
+        key: "pending_ticks",
+        label: "Applying tick updates",
+        detail: `${loadingProbe.pendingTicks} capture(s) pending`,
+      });
+    }
+
+    liveStreams.forEach((entry) => {
+      const source = entry.source.trim();
+      if (!source) {
+        return;
+      }
+      if (entry.status === "idle" || entry.status === "completed") {
+        return;
+      }
+      const tickCount = captures.find((capture) => capture.id === entry.id)?.tickCount ?? 0;
+      const statusLabel =
+        entry.status === "connecting"
+          ? "Connecting"
+          : entry.status === "retrying"
+            ? "Retrying"
+            : "Streaming";
+      entries.push({
+        key: `live_${entry.id}`,
+        label: `${statusLabel}: ${entry.id}`,
+        detail: tickCount > 0 ? `${tickCount} tick(s)` : undefined,
+      });
+    });
+
+    captures.forEach((capture) => {
+      if (!capture.isActive) {
+        return;
+      }
+      // Push-only captures (no source) stream via WS frames. Track them separately so derived captures show up.
+      if (capture.source) {
+        return;
+      }
+      if (endedCapturesRef.current.has(capture.id)) {
+        return;
+      }
+      const isLive = liveStreams.some(
+        (entry) => entry.id === capture.id && entry.source.trim().length > 0,
+      );
+      if (isLive) {
+        return;
+      }
+      entries.push({
+        key: `push_${capture.id}`,
+        label: `Streaming: ${capture.id}`,
+        detail: capture.tickCount > 0 ? `${capture.tickCount} tick(s)` : undefined,
+      });
+    });
+
+    return entries;
+  }, [captures, initialSyncReady, liveStreams, loadingProbe, uploadMutation.isPending]);
+
+  const isLoading = loadingEntries.length > 0;
 
   const currentData =
     chartData.find((dataPoint) => dataPoint.tick === playbackState.currentTick) || null;
@@ -4940,6 +5083,45 @@ export default function Home() {
               >
                 <Maximize className="w-4 h-4" />
               </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 px-2"
+                    data-testid="button-loading-status"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {isLoading ? loadingEntries.length : "Stable"}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Loading</div>
+                    <div className="text-xs text-muted-foreground">
+                      {isLoading ? "In progress" : "None"}
+                    </div>
+                  </div>
+                  <ScrollArea className="mt-3 max-h-72 pr-2">
+                    {loadingEntries.length === 0 ? (
+                      <div className="text-xs text-muted-foreground">No active work.</div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {loadingEntries.map((entry) => (
+                          <div key={entry.key} className="text-xs">
+                            <div className="text-foreground">{entry.label}</div>
+                            {entry.detail ? (
+                              <div className="text-muted-foreground">{entry.detail}</div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
               <div className="h-6 w-px bg-border/60 mx-1" />
               <Button
                 variant="ghost"
