@@ -766,6 +766,7 @@ const captureMetadata = new Map<string, { filename?: string; source?: string }>(
 const captureStreamModes = new Map<string, "lite" | "full">();
 const liteFrameBuffers = new Map<string, CaptureAppendFrame[]>();
 const captureLastTicks = new Map<string, number>();
+const captureEnded = new Set<string>();
 
 type PersistedCaptureSource = {
   captureId: string;
@@ -1540,6 +1541,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
   }
 
   resetFrameCache(derivedCaptureId);
+  captureEnded.delete(derivedCaptureId);
   captureSources.delete(derivedCaptureId);
   captureMetadata.set(derivedCaptureId, { filename: `${derivedCaptureId}.jsonl`, source: undefined });
   captureComponentState.set(derivedCaptureId, { components: [], sentCount: 0 });
@@ -1848,6 +1850,7 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
   derivationJobs.set(jobId, job);
 
   resetFrameCache(derivedCaptureId);
+  captureEnded.delete(derivedCaptureId);
   captureSources.delete(derivedCaptureId);
   captureMetadata.set(derivedCaptureId, { filename: `${derivedCaptureId}.jsonl`, source: undefined });
   captureComponentState.set(derivedCaptureId, { components: [], sentCount: 0 });
@@ -2390,6 +2393,7 @@ function shouldStreamFrames(captureId: string) {
 }
 
 function sendCaptureEnd(captureId: string) {
+  captureEnded.add(captureId);
   const command: ControlCommand = { type: "capture_end", captureId };
   if (!sendToFrontend(command)) {
     bufferCaptureFrame(command);
@@ -2405,6 +2409,7 @@ function registerCaptureSource(options: {
   if (!captureId) {
     throw new Error("captureId is required.");
   }
+  captureEnded.delete(captureId);
   resetFrameCache(captureId);
   captureSources.set(captureId, source);
   captureMetadata.set(captureId, { filename, source });
@@ -2482,6 +2487,7 @@ function clearCaptureState() {
   captureFrameCacheDisabled.clear();
   lastCacheBudgetCount = 0;
   stopAllLiveStreams();
+  captureEnded.clear();
 }
 
 function removeCaptureState(captureId: string) {
@@ -2498,6 +2504,7 @@ function removeCaptureState(captureId: string) {
   liteFrameBuffers.delete(captureId);
   resetFrameCache(captureId);
   stopLiveStream(captureId);
+  captureEnded.delete(captureId);
 }
 
 function isCaptureEmpty(captureId: string): boolean {
@@ -2677,6 +2684,12 @@ function sendKnownCaptures(options: { excludeIds?: Set<string> } = {}) {
     if (typeof lastTick === "number") {
       sendLiteAppendTick(captureId, lastTick);
     }
+    // Capture completion is session-based in the browser (it only knows a capture finished after
+    // seeing a capture_end). On refresh/reconnect, replay capture_end for captures that already
+    // ended so the UI can show a stable state.
+    if (captureEnded.has(captureId) && !liveStreamStates.has(captureId)) {
+      sendToFrontend({ type: "capture_end", captureId });
+    }
   }
 }
 
@@ -2706,6 +2719,7 @@ function bufferCaptureFrame(command: ControlCommand) {
     pending.components = undefined;
     pending.frames = [];
     pending.ended = false;
+    captureEnded.delete(captureId);
     return;
   }
 
@@ -2716,6 +2730,7 @@ function bufferCaptureFrame(command: ControlCommand) {
 
   if (command.type === "capture_end") {
     pending.ended = true;
+    captureEnded.add(captureId);
     return;
   }
 
@@ -3159,6 +3174,7 @@ function startLiveStream({
   if (liveStreamStates.has(captureId)) {
     throw new Error("Live stream already running for captureId.");
   }
+  captureEnded.delete(captureId);
   const controller = new AbortController();
   const state: LiveStreamState = {
     captureId,
@@ -3525,6 +3541,7 @@ export async function registerRoutes(
           removeCaptureState(captureId);
         }
         if (command.type === "capture_init" && captureId) {
+          captureEnded.delete(captureId);
           captureComponentState.set(captureId, { components: [], sentCount: 0 });
           captureStreamModes.set(captureId, "lite");
           if (typeof (command as { source?: unknown }).source === "string") {
@@ -4097,6 +4114,7 @@ export async function registerRoutes(
     const captures = Array.from(ids).map((captureId) => ({
       captureId,
       lastTick: captureLastTicks.get(captureId) ?? null,
+      ended: captureEnded.has(captureId),
       hasMetadata: captureMetadata.has(captureId),
       hasSource: captureSources.has(captureId),
       hasComponents: captureComponentState.has(captureId),
