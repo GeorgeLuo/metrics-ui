@@ -703,12 +703,51 @@ export default function Home() {
     );
   }, [derivationGroups, resolvedActiveDerivationGroupId]);
 
-  const displayMetrics = useMemo(() => {
+  const displayGroupMetrics = useMemo(() => {
     if (!resolvedDisplayDerivationGroupId) {
+      return null;
+    }
+    return (
+      derivationGroups.find((group) => group.id === resolvedDisplayDerivationGroupId)?.metrics ??
+      []
+    );
+  }, [derivationGroups, resolvedDisplayDerivationGroupId]);
+
+  const displayGroupHasActiveCaptures = useMemo(() => {
+    if (!resolvedDisplayDerivationGroupId) {
+      return false;
+    }
+    const metrics = displayGroupMetrics ?? [];
+    if (metrics.length === 0) {
+      return false;
+    }
+    return metrics.some((metric) =>
+      captures.some((capture) => capture.id === metric.captureId && capture.isActive),
+    );
+  }, [captures, displayGroupMetrics, resolvedDisplayDerivationGroupId]);
+
+  useEffect(() => {
+    // If the chosen display group only references missing (or inactive) captures, it will
+    // render as "no metrics selected". In that case, fall back to the normal selected metrics.
+    if (!resolvedDisplayDerivationGroupId) {
+      return;
+    }
+    if (!displayGroupHasActiveCaptures) {
+      setDisplayDerivationGroupId("");
+    }
+  }, [displayGroupHasActiveCaptures, resolvedDisplayDerivationGroupId]);
+
+  const displayMetrics = useMemo(() => {
+    if (!resolvedDisplayDerivationGroupId || !displayGroupHasActiveCaptures) {
       return selectedMetrics;
     }
-    return derivationGroups.find((group) => group.id === resolvedDisplayDerivationGroupId)?.metrics ?? [];
-  }, [derivationGroups, resolvedDisplayDerivationGroupId, selectedMetrics]);
+    return displayGroupMetrics ?? [];
+  }, [
+    displayGroupHasActiveCaptures,
+    displayGroupMetrics,
+    resolvedDisplayDerivationGroupId,
+    selectedMetrics,
+  ]);
 
   const getUiDebug = useCallback(() => {
     const serializeMap = <T,>(
