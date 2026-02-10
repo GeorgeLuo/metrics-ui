@@ -397,6 +397,7 @@ export type ControlCommand =
   | ({ type: "delete_derivation_group"; groupId: string } & ControlRequestBase)
   | ({ type: "set_active_derivation_group"; groupId: string } & ControlRequestBase)
   | ({ type: "update_derivation_group"; groupId: string; newGroupId?: string; name?: string } & ControlRequestBase)
+  | ({ type: "set_display_derivation_group"; groupId?: string } & ControlRequestBase)
   | ({ type: "clear_captures" } & ControlRequestBase)
   | ({ type: "play" } & ControlRequestBase)
   | ({ type: "pause" } & ControlRequestBase)
@@ -522,6 +523,7 @@ export interface VisualizationState {
   analysisMetrics: SelectedMetric[];
   derivationGroups: DerivationGroup[];
   activeDerivationGroupId: string;
+  displayDerivationGroupId: string;
   playback: PlaybackState;
   windowSize: number;
   windowStart: number;

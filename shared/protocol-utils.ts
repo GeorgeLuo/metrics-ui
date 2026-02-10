@@ -592,6 +592,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "delete_derivation_group",
       "set_active_derivation_group",
       "update_derivation_group",
+      "set_display_derivation_group",
       "clear_captures",
       "play",
       "pause",

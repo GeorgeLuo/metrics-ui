@@ -32,6 +32,7 @@ interface UseWebSocketControlProps {
   analysisMetrics: SelectedMetric[];
   derivationGroups: DerivationGroup[];
   activeDerivationGroupId: string;
+  displayDerivationGroupId: string;
   playbackState: PlaybackState;
   windowSize: number;
   windowStart: number;
@@ -65,6 +66,7 @@ interface UseWebSocketControlProps {
     groupId: string,
     updates: { newGroupId?: string; name?: string },
   ) => void;
+  onSetDisplayDerivationGroup: (groupId: string) => void;
   onClearCaptures: () => void;
   onPlay: () => void;
   onPause: () => void;
@@ -145,6 +147,7 @@ export function useWebSocketControl({
   analysisMetrics,
   derivationGroups,
   activeDerivationGroupId,
+  displayDerivationGroupId,
   playbackState,
   windowSize,
   windowStart,
@@ -169,6 +172,7 @@ export function useWebSocketControl({
   onDeleteDerivationGroup,
   onSetActiveDerivationGroup,
   onUpdateDerivationGroup,
+  onSetDisplayDerivationGroup,
   onClearCaptures,
   onPlay,
   onPause,
@@ -224,6 +228,7 @@ export function useWebSocketControl({
         analysisMetrics,
         derivationGroups,
         activeDerivationGroupId,
+        displayDerivationGroupId,
         playback: playbackState,
         windowSize,
         windowStart,
@@ -240,7 +245,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
+  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
 
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
     if (!requestId) {
@@ -399,6 +404,10 @@ export function useWebSocketControl({
           newGroupId: command.newGroupId,
           name: command.name,
         });
+        sendAck(requestId, command.type);
+        break;
+      case "set_display_derivation_group":
+        onSetDisplayDerivationGroup(command.groupId ? String(command.groupId) : "");
         sendAck(requestId, command.type);
         break;
       case "clear_captures":
@@ -866,7 +875,7 @@ export function useWebSocketControl({
 
   useEffect(() => {
     sendState();
-  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, annotations, subtitles, sendState]);
+  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, annotations, subtitles, sendState]);
 
   return { sendState, sendMessage };
 }

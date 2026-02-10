@@ -17,7 +17,7 @@ This site visualizes simulation or evaluation **capture files**. You upload a JS
    - Press **Play** to resume; auto-scroll turns back on and the window expands to the right.
    - Use the **reset window** button (refresh icon in the header) to show the full range again.
 6. **Add annotations** by clicking on the chart (silent add). Click an existing annotation line to edit its label.
-7. **Derivations (groups)**: click a metric in the HUD to add it to the active derivation group (Derivations pane). Click a group card to make it active, create/delete groups, and rename them.
+7. **Derivations (groups)**: click a metric in the HUD to add it to the active derivation group (Derivations pane). Click a group card to make it active, create/delete groups, rename them, and (optionally) solo-display only that group's metrics on the chart.
 
 The UI shows multiple captures at once; they share a common tick axis.
 
@@ -31,6 +31,7 @@ Current behavior:
 - Clicking a metric in the HUD toggles it inside the **active** derivation group.
 - If no derivation groups exist yet, selecting a metric creates a default group and adds the metric.
 - The active group is highlighted. Clicking anywhere on a group card selects it as active.
+- Each group includes a small "solo display" toggle. When enabled, the chart/HUD will display **only** metrics from that group.
 - Group **ids** exist for WS/CLI control (and future derivation plugins), but the browser UI only exposes the group **name**.
 
 ---
@@ -127,12 +128,14 @@ State fields:
 - `derivationGroups`: array of `{ id, name, metrics[] }`
 - `activeDerivationGroupId`: which group is active
 - `analysisMetrics`: the metrics in the active group (kept for compatibility)
+- `displayDerivationGroupId`: when set, the chart/HUD displays **only** the metrics in this group (empty string means "show selected metrics")
 
 Commands:
 - `create_derivation_group` (optional `groupId`, `name`)
 - `update_derivation_group` (`groupId`, optional `newGroupId`, `name`)
 - `delete_derivation_group` (`groupId`)
 - `set_active_derivation_group` (`groupId`)
+- `set_display_derivation_group` (optional `groupId`; missing/empty clears the filter)
 - `select_analysis_metric` adds the metric to the active group (creating a default group if needed)
 - `deselect_analysis_metric` removes the metric from the active group
 - `clear_analysis_metrics` clears metrics from all groups
@@ -142,6 +145,7 @@ Examples:
 ```json
 {"type":"create_derivation_group","groupId":"compare_pending_jobs","name":"compare_pending_jobs"}
 {"type":"set_active_derivation_group","groupId":"compare_pending_jobs"}
+{"type":"set_display_derivation_group","groupId":"compare_pending_jobs"}
 {"type":"select_analysis_metric","captureId":"legacy","path":["0","job_release_summary","pending_jobs"]}
 ```
 
@@ -233,6 +237,7 @@ Capture streaming (push records over WS):
 - `delete_derivation_group`
 - `set_active_derivation_group`
 - `update_derivation_group`
+- `set_display_derivation_group`
 - `clear_captures`
 - `play`
 - `pause`

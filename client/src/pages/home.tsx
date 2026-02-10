@@ -404,6 +404,12 @@ export default function Home() {
     }
     return window.localStorage.getItem("metrics-ui-active-derivation-group") ?? "";
   });
+  const [displayDerivationGroupId, setDisplayDerivationGroupId] = useState<string>(() => {
+    if (typeof window === "undefined") {
+      return "";
+    }
+    return window.localStorage.getItem("metrics-ui-display-derivation-group") ?? "";
+  });
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [memoryStatsSnapshot, setMemoryStatsSnapshot] = useState<MemoryStatsResponse | null>(null);
   const [memoryStatsAt, setMemoryStatsAt] = useState<number | null>(null);
@@ -488,6 +494,7 @@ export default function Home() {
   const selectedMetricsRef = useRef(selectedMetrics);
   const derivationGroupsRef = useRef(derivationGroups);
   const activeDerivationGroupIdRef = useRef(activeDerivationGroupId);
+  const displayDerivationGroupIdRef = useRef(displayDerivationGroupId);
   const liveMetaRef = useRef(new Map<string, LiveStreamMeta>());
   const initialSyncTimerRef = useRef<number | null>(null);
   const initialSyncReadyRef = useRef(false);
@@ -586,6 +593,22 @@ export default function Home() {
     }
   }, [activeDerivationGroupId, resolvedActiveDerivationGroupId]);
 
+  const resolvedDisplayDerivationGroupId = useMemo(() => {
+    if (!displayDerivationGroupId) {
+      return "";
+    }
+    if (derivationGroups.some((group) => group.id === displayDerivationGroupId)) {
+      return displayDerivationGroupId;
+    }
+    return "";
+  }, [derivationGroups, displayDerivationGroupId]);
+
+  useEffect(() => {
+    if (resolvedDisplayDerivationGroupId !== displayDerivationGroupId) {
+      setDisplayDerivationGroupId(resolvedDisplayDerivationGroupId);
+    }
+  }, [displayDerivationGroupId, resolvedDisplayDerivationGroupId]);
+
   const analysisMetrics = useMemo(() => {
     if (!resolvedActiveDerivationGroupId) {
       return [];
@@ -595,6 +618,13 @@ export default function Home() {
       []
     );
   }, [derivationGroups, resolvedActiveDerivationGroupId]);
+
+  const displayMetrics = useMemo(() => {
+    if (!resolvedDisplayDerivationGroupId) {
+      return selectedMetrics;
+    }
+    return derivationGroups.find((group) => group.id === resolvedDisplayDerivationGroupId)?.metrics ?? [];
+  }, [derivationGroups, resolvedDisplayDerivationGroupId, selectedMetrics]);
 
   const getUiDebug = useCallback(() => {
     const serializeMap = <T,>(
@@ -622,6 +652,9 @@ export default function Home() {
         derivationGroups: safeParse(window.localStorage.getItem("metrics-ui-derivation-groups")),
         activeDerivationGroupId: safeParse(
           window.localStorage.getItem("metrics-ui-active-derivation-group"),
+        ),
+        displayDerivationGroupId: safeParse(
+          window.localStorage.getItem("metrics-ui-display-derivation-group"),
         ),
         liveStreams: safeParse(window.localStorage.getItem("metrics-ui-live-streams")),
         sourceMode: safeParse(window.localStorage.getItem("metrics-ui-source-mode")),
@@ -688,6 +721,7 @@ export default function Home() {
         analysisMetrics,
         derivationGroups,
         activeDerivationGroupId: resolvedActiveDerivationGroupId,
+        displayDerivationGroupId: resolvedDisplayDerivationGroupId,
         playback: playbackState,
         windowStart,
         windowEnd,
@@ -758,6 +792,7 @@ export default function Home() {
     analysisMetrics,
     derivationGroups,
     resolvedActiveDerivationGroupId,
+    resolvedDisplayDerivationGroupId,
     annotations,
     captures,
     initialSyncReady,
@@ -1066,6 +1101,10 @@ export default function Home() {
   }, [activeDerivationGroupId]);
 
   useEffect(() => {
+    displayDerivationGroupIdRef.current = displayDerivationGroupId;
+  }, [displayDerivationGroupId]);
+
+  useEffect(() => {
     if (!windowStartEditingRef.current) {
       setWindowStartInput(String(windowStart));
     }
@@ -1200,6 +1239,16 @@ export default function Home() {
       activeDerivationGroupId,
     );
   }, [activeDerivationGroupId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(
+      "metrics-ui-display-derivation-group",
+      displayDerivationGroupId,
+    );
+  }, [displayDerivationGroupId]);
 
   useEffect(() => {
     if (sidebarMode !== "analysis") {
@@ -2738,6 +2787,9 @@ export default function Home() {
     if (activeDerivationGroupIdRef.current === groupId) {
       setActiveDerivationGroupId(nextGroups[0]?.id ?? "");
     }
+    if (displayDerivationGroupIdRef.current === groupId) {
+      setDisplayDerivationGroupId("");
+    }
     setDerivationGroups((prev) => prev.filter((group) => group.id !== groupId));
   }, []);
 
@@ -2757,6 +2809,9 @@ export default function Home() {
       if (nextId && nextId !== groupId && activeDerivationGroupIdRef.current === groupId) {
         setActiveDerivationGroupId(nextId);
       }
+      if (nextId && nextId !== groupId && displayDerivationGroupIdRef.current === groupId) {
+        setDisplayDerivationGroupId(nextId);
+      }
 
       setDerivationGroups((prev) =>
         prev.map((group) => {
@@ -2773,6 +2828,17 @@ export default function Home() {
     },
     [toUniqueGroupId],
   );
+
+  const handleSetDisplayDerivationGroup = useCallback((groupId: string) => {
+    if (!groupId) {
+      setDisplayDerivationGroupId("");
+      return;
+    }
+    if (!derivationGroupsRef.current.some((group) => group.id === groupId)) {
+      return;
+    }
+    setDisplayDerivationGroupId(groupId);
+  }, []);
 
   const prevSelectedRef = useRef<SelectedMetric[]>([]);
 
@@ -3230,10 +3296,10 @@ export default function Home() {
 
   const activeMetrics = useMemo(
     () =>
-      selectedMetrics.filter((metric) =>
+      displayMetrics.filter((metric) =>
         captures.some((capture) => capture.id === metric.captureId && capture.isActive),
       ),
-    [selectedMetrics, captures],
+    [displayMetrics, captures],
   );
 
   const { data: chartData, coverage: metricCoverage } = useMemo(
@@ -3612,6 +3678,7 @@ export default function Home() {
     analysisMetrics,
     derivationGroups,
     activeDerivationGroupId: resolvedActiveDerivationGroupId,
+    displayDerivationGroupId: resolvedDisplayDerivationGroupId,
     playbackState,
     windowSize,
     windowStart,
@@ -3636,6 +3703,7 @@ export default function Home() {
     onDeleteDerivationGroup: handleDeleteDerivationGroup,
     onSetActiveDerivationGroup: handleSetActiveDerivationGroup,
     onUpdateDerivationGroup: handleUpdateDerivationGroup,
+    onSetDisplayDerivationGroup: handleSetDisplayDerivationGroup,
     onClearCaptures: handleClearCaptures,
     onPlay: handlePlay,
     onPause: handlePause,
@@ -4281,6 +4349,7 @@ export default function Home() {
                     <div className="flex flex-col gap-3 px-2 text-xs text-muted-foreground">
                       {derivationGroups.map((group) => {
                         const isActive = group.id === resolvedActiveDerivationGroupId;
+                        const isDisplayed = group.id === resolvedDisplayDerivationGroupId;
                         return (
                           <div
                             key={group.id}
@@ -4322,10 +4391,26 @@ export default function Home() {
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   type="button"
+                                  onClick={() =>
+                                    handleSetDisplayDerivationGroup(isDisplayed ? "" : group.id)
+                                  }
+                                  data-testid={`button-derivation-group-display-${group.id}`}
+                                  aria-label={
+                                    isDisplayed
+                                      ? `Show all metrics (stop solo display for ${group.name})`
+                                      : `Show only metrics in ${group.name}`
+                                  }
+                                  className={`h-3 w-3 rounded-sm border transition-colors ${
+                                    isDisplayed
+                                      ? "bg-foreground/40 border-foreground/40"
+                                      : "bg-transparent border-border/60 hover:bg-muted/50"
+                                  }`}
+                                />
+                                <button
+                                  type="button"
                                   onClick={() => handleDeleteDerivationGroup(group.id)}
                                   data-testid={`button-derivation-group-delete-${group.id}`}
                                   aria-label={`Delete derivation group ${group.name}`}
-                                  title="Delete group"
                                   className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
                                 />
                               </div>
