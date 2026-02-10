@@ -4269,7 +4269,6 @@ export default function Home() {
                         onClick={() => handleCreateDerivationGroup()}
                         data-testid="button-derivation-group-create"
                         aria-label="New group"
-                        title="New group"
                       >
                         <Plus className="w-3 h-3" />
                       </Button>
