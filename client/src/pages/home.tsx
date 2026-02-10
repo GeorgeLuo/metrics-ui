@@ -4287,20 +4287,6 @@ export default function Home() {
                             }`}
                           >
                             <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleSetActiveDerivationGroup(group.id)}
-                                data-testid={`button-derivation-group-active-${group.id}`}
-                                aria-label={
-                                  isActive
-                                    ? `Derivation group ${group.id} is active`
-                                    : `Set derivation group ${group.id} active`
-                                }
-                                title={isActive ? "Active" : "Set active"}
-                                className={`h-3 w-3 rounded-full bg-emerald-500 transition-opacity ${
-                                  isActive ? "opacity-100" : "opacity-30 hover:opacity-70"
-                                }`}
-                              />
                               <Input
                                 key={`${group.id}-${group.name}`}
                                 defaultValue={group.name}
@@ -4316,8 +4302,22 @@ export default function Home() {
                                     (event.target as HTMLInputElement).blur();
                                   }
                                 }}
-                                className="h-auto p-0 text-xs font-mono tracking-tight text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                                className="flex-1 min-w-0 h-auto p-0 text-xs font-mono tracking-tight text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                                 aria-label={`Derivation group name`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSetActiveDerivationGroup(group.id)}
+                                data-testid={`button-derivation-group-active-${group.id}`}
+                                aria-label={
+                                  isActive
+                                    ? `Derivation group ${group.name} is active`
+                                    : `Set derivation group ${group.name} active`
+                                }
+                                title={isActive ? "Active" : "Set active"}
+                                className={`h-3 w-3 rounded-full bg-emerald-500 transition-opacity ${
+                                  isActive ? "opacity-100" : "opacity-30 hover:opacity-70"
+                                }`}
                               />
                               <button
                                 type="button"
