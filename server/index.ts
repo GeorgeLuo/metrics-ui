@@ -58,7 +58,59 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        const shouldLogBody = process.env.LOG_API_BODY === "true";
+        if (shouldLogBody) {
+          // Still guard against megabyte-scale payload logs.
+          let serialized = "";
+          try {
+            serialized = JSON.stringify(capturedJsonResponse);
+          } catch {
+            serialized = "[unserializable json]";
+          }
+          const limit = 2000;
+          logLine += ` :: ${
+            serialized.length > limit
+              ? `${serialized.slice(0, limit)}... (${serialized.length} chars)`
+              : serialized
+          }`;
+        } else {
+          const body = capturedJsonResponse as any;
+          const summary: Record<string, unknown> = {};
+
+          if (typeof body.success === "boolean") summary.success = body.success;
+          if (typeof body.error === "string") summary.error = body.error;
+          if (typeof body.message === "string") summary.message = body.message;
+          if (typeof body.captureId === "string") summary.captureId = body.captureId;
+          if (typeof body.streaming === "boolean") summary.streaming = body.streaming;
+          if (typeof body.running === "boolean") summary.running = body.running;
+          if (typeof body.tickCount === "number") summary.tickCount = body.tickCount;
+          if (typeof body.count === "number") summary.count = body.count;
+
+          if (Array.isArray(body.plugins)) {
+            summary.pluginsCount = body.plugins.length;
+          }
+
+          if (Array.isArray(body.streams)) {
+            summary.streamsCount = body.streams.length;
+            summary.streams = body.streams
+              .map((s: any) => (s && typeof s.captureId === "string" ? s.captureId : "?"))
+              .slice(0, 8);
+          }
+
+          if (Array.isArray(body.series)) {
+            summary.seriesCount = body.series.length;
+            summary.pointsCount = body.series.reduce((acc: number, entry: any) => {
+              if (entry && Array.isArray(entry.points)) {
+                return acc + entry.points.length;
+              }
+              return acc;
+            }, 0);
+          }
+
+          if (Object.keys(summary).length > 0) {
+            logLine += ` :: ${JSON.stringify(summary)}`;
+          }
+        }
       }
 
       log(logLine);
