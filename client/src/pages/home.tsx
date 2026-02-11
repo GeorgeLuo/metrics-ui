@@ -28,7 +28,6 @@ import {
   Activity,
   X,
   FileText,
-  Trash2,
   Plus,
   BookOpen,
   ChevronDown,
@@ -5481,16 +5480,14 @@ export default function Home() {
                                     >
                                       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                                         <span>Stream {index + 1}</span>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6"
+                                        <button
+                                          type="button"
                                           onClick={() => handleRemoveLiveStream(entry.id)}
                                           data-testid={`button-live-remove-${entry.id}`}
                                           aria-label={`Remove live stream ${index + 1}`}
+                                          className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
                                         >
-                                          <Trash2 className="w-3 h-3" />
-                                        </Button>
+                                        </button>
                                       </div>
                                       <Input
                                         placeholder="Capture file URL or path"
@@ -5581,15 +5578,13 @@ export default function Home() {
                           <span className="text-xs text-muted-foreground font-mono">
                             {capture.tickCount}
                           </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
+                          <button
+                            type="button"
+                            className="h-3 w-3 shrink-0 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
                             onClick={() => handleRemoveCapture(capture.id)}
                             data-testid={`button-remove-capture-${capture.id}`}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
+                            aria-label={`Remove capture ${capture.id}`}
+                          />
                         </div>
                       ))}
                       {captures.length === 0 && (
