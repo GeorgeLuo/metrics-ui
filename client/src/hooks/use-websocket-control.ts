@@ -969,10 +969,12 @@ export function useWebSocketControl({
         let instanceId = "";
         try {
           const key = "metrics-ui-frontend-instance-id";
-          instanceId = window.localStorage.getItem(key) ?? "";
+          // sessionStorage is per-tab. This prevents two browser tabs from sharing the same
+          // instance id, which would otherwise make "single frontend" enforcement impossible.
+          instanceId = window.sessionStorage.getItem(key) ?? "";
           if (!instanceId.trim()) {
             instanceId = `frontend-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
-            window.localStorage.setItem(key, instanceId);
+            window.sessionStorage.setItem(key, instanceId);
           }
         } catch {
           // ignore storage errors
