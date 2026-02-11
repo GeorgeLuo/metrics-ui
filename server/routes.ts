@@ -3886,11 +3886,26 @@ export async function registerRoutes(
         if (command.type === "run_derivation") {
           runDerivationFromCommand(command, ws).catch((error) => {
             console.error("[derivation] run error:", error);
+            const message = error instanceof Error ? error.message : "Failed to run derivation.";
             ws.send(JSON.stringify({
               type: "error",
-              error: error instanceof Error ? error.message : "Failed to run derivation.",
+              error: message,
               request_id: command.request_id,
             } as ControlResponse));
+            sendToFrontend({
+              type: "ui_error",
+              error: message,
+              request_id: command.request_id,
+              payload: {
+                context: {
+                  command: "run_derivation",
+                  groupId:
+                    typeof (command as { groupId?: unknown }).groupId === "string"
+                      ? (command as { groupId: string }).groupId
+                      : undefined,
+                },
+              },
+            } as ControlResponse);
           });
           ws.send(JSON.stringify({
             type: "ack",
@@ -3902,13 +3917,33 @@ export async function registerRoutes(
         if (command.type === "run_derivation_plugin") {
           runDerivationPluginFromCommand(command, ws).catch((error) => {
             console.error("[derivation-plugin] run error:", error);
+            const message =
+              error instanceof Error ? error.message : "Failed to run derivation plugin.";
             ws.send(
               JSON.stringify({
                 type: "error",
-                error: error instanceof Error ? error.message : "Failed to run derivation plugin.",
+                error: message,
                 request_id: command.request_id,
               } as ControlResponse),
             );
+            sendToFrontend({
+              type: "ui_error",
+              error: message,
+              request_id: command.request_id,
+              payload: {
+                context: {
+                  command: "run_derivation_plugin",
+                  groupId:
+                    typeof (command as { groupId?: unknown }).groupId === "string"
+                      ? (command as { groupId: string }).groupId
+                      : undefined,
+                  pluginId:
+                    typeof (command as { pluginId?: unknown }).pluginId === "string"
+                      ? (command as { pluginId: string }).pluginId
+                      : undefined,
+                },
+              },
+            } as ControlResponse);
           });
           ws.send(
             JSON.stringify({

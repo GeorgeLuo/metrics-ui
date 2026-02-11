@@ -168,6 +168,13 @@ interface UiEvent {
   timestamp: number;
 }
 
+type ConnectionLockState = {
+  reason: "busy" | "replaced";
+  message: string;
+  closeCode: number;
+  closeReason: string;
+} | null;
+
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
 }
@@ -279,6 +286,52 @@ function cloneMetric(metric: SelectedMetric): SelectedMetric {
     label: metric.label,
     color: metric.color,
   };
+}
+
+function metricOutputKey(metric: Pick<SelectedMetric, "path" | "label">): string {
+  const fromPath = metric.path[metric.path.length - 1];
+  if (typeof fromPath === "string" && fromPath.trim().length > 0) {
+    return fromPath;
+  }
+  return metric.label;
+}
+
+function buildDerivedMetricLabel(groupName: string, metric: Pick<SelectedMetric, "path" | "label">): string {
+  const baseName = groupName.trim().length > 0 ? groupName.trim() : "Derivation";
+  return `${baseName}.${metricOutputKey(metric)}`;
+}
+
+function resolveDerivedGroupIdForCapture(
+  captureId: string,
+  groups: DerivationGroup[],
+  outputGroupByCapture?: Map<string, string>,
+): string {
+  if (!captureId.startsWith("derive-")) {
+    return "";
+  }
+
+  const mappedGroupId = outputGroupByCapture?.get(captureId) ?? "";
+  if (mappedGroupId && groups.some((group) => group.id === mappedGroupId)) {
+    return mappedGroupId;
+  }
+
+  for (const group of groups) {
+    const pluginId = typeof group.pluginId === "string" ? group.pluginId.trim() : "";
+    if (pluginId) {
+      const baseCaptureId = `derive-${group.id}-${pluginId}`;
+      if (captureId === baseCaptureId || captureId.startsWith(`${baseCaptureId}-`)) {
+        return group.id;
+      }
+    }
+    const hasDerivedMetricFromCapture = getDerivationGroupDerivedMetrics(group).some(
+      (metric) => metric.captureId === captureId,
+    );
+    if (hasDerivedMetricFromCapture) {
+      return group.id;
+    }
+  }
+
+  return "";
 }
 
 function normalizeDerivationGroups(raw: unknown): DerivationGroup[] {
@@ -653,6 +706,7 @@ export default function Home() {
   const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
   const [isEventsVisible, setIsEventsVisible] = useState(false);
   const [streamActivityVersion, setStreamActivityVersion] = useState(0);
+  const [connectionLock, setConnectionLock] = useState<ConnectionLockState>(null);
 
   const playbackRef = useRef<number | null>(null);
   const capturesRef = useRef(captures);
@@ -708,6 +762,7 @@ export default function Home() {
   const streamingCapturesRef = useRef(new Set<string>());
   const streamLastActivityAtRef = useRef(new Map<string, number>());
   const streamIdleTimersRef = useRef(new Map<string, number>());
+  const liveErrorEventsRef = useRef(new Map<string, string>());
   const sendMessageRef = useRef<(message: ControlResponse | ControlCommand) => boolean>(() => false);
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
   const activeCaptureIdsRef = useRef(new Set<string>());
@@ -1833,6 +1888,34 @@ export default function Home() {
       meta.completed = entry.status === "completed";
     });
   }, [getLiveMeta, liveStreams]);
+
+  useEffect(() => {
+    const activeIds = new Set(liveStreams.map((entry) => entry.id));
+    for (const existingId of Array.from(liveErrorEventsRef.current.keys())) {
+      if (!activeIds.has(existingId)) {
+        liveErrorEventsRef.current.delete(existingId);
+      }
+    }
+
+    liveStreams.forEach((entry) => {
+      const errorText = typeof entry.error === "string" ? entry.error.trim() : "";
+      if (!errorText) {
+        liveErrorEventsRef.current.delete(entry.id);
+        return;
+      }
+      const fingerprint = `${entry.source}::${errorText}`;
+      const previous = liveErrorEventsRef.current.get(entry.id);
+      if (previous === fingerprint) {
+        return;
+      }
+      liveErrorEventsRef.current.set(entry.id, fingerprint);
+      pushUiEvent({
+        level: "error",
+        message: "Live stream source error",
+        detail: `${entry.id}: ${errorText}`,
+      });
+    });
+  }, [liveStreams, pushUiEvent]);
 
   const updateLiveStream = useCallback(
     (id: string, updates: Partial<LiveStreamEntry>) => {
@@ -3372,13 +3455,23 @@ export default function Home() {
 
   const handleSelectMetric = useCallback((captureId: string, path: string[]) => {
     const fullPath = path.join(".");
-    const label = path[path.length - 1];
+    const baseLabel = path[path.length - 1];
     const key = `${captureId}::${fullPath}`;
     const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
     if (liveEntry && liveEntry.status !== "idle" && !liveEntry.source.trim()) {
       streamModeRef.current.set(captureId, "full");
       sendMessageRef.current({ type: "set_stream_mode", captureId, mode: "full" });
     }
+
+    const targetGroupId = resolveDerivedGroupIdForCapture(
+      captureId,
+      derivationGroupsRef.current,
+      derivationOutputGroupByCaptureRef.current,
+    );
+    const targetGroup = targetGroupId
+      ? derivationGroupsRef.current.find((group) => group.id === targetGroupId) ?? null
+      : null;
+
     const existingMetric = selectedMetricsRef.current.find(
       (metric) => metric.captureId === captureId && metric.fullPath === fullPath,
     );
@@ -3391,6 +3484,10 @@ export default function Home() {
           hash = (hash * 31 + key.charCodeAt(i)) | 0;
         }
         const colorIndex = Math.abs(hash) % METRIC_COLORS.length;
+        const label =
+          targetGroup && captureId.startsWith("derive-")
+            ? buildDerivedMetricLabel(targetGroup.name, { path, label: baseLabel })
+            : baseLabel;
         return {
           captureId,
           path,
@@ -3400,6 +3497,13 @@ export default function Home() {
         };
       })();
 
+    if (targetGroup && captureId.startsWith("derive-")) {
+      const expectedLabel = buildDerivedMetricLabel(targetGroup.name, selectedMetric);
+      if (selectedMetric.label !== expectedLabel) {
+        selectedMetric = { ...selectedMetric, label: expectedLabel };
+      }
+    }
+
     const refExists = selectedMetricsRef.current.some(
       (metric) => metric.captureId === captureId && metric.fullPath === fullPath,
     );
@@ -3408,12 +3512,26 @@ export default function Home() {
     }
 
     setSelectedMetrics((prev) => {
-      const exists = prev.some((metric) => metric.captureId === captureId && metric.fullPath === fullPath);
-      if (exists) {
-        const found = prev.find((metric) => metric.captureId === captureId && metric.fullPath === fullPath);
-        if (found) {
-          selectedMetric = found;
+      const existingIndex = prev.findIndex(
+        (metric) => metric.captureId === captureId && metric.fullPath === fullPath,
+      );
+      if (existingIndex >= 0) {
+        const found = prev[existingIndex]!;
+        let nextMetric = found;
+        if (targetGroup && captureId.startsWith("derive-")) {
+          const expectedLabel = buildDerivedMetricLabel(targetGroup.name, found);
+          if (found.label !== expectedLabel) {
+            nextMetric = { ...found, label: expectedLabel };
+          }
         }
+        if (nextMetric !== found) {
+          const next = [...prev];
+          next[existingIndex] = nextMetric;
+          selectedMetric = nextMetric;
+          selectedMetricsRef.current = next;
+          return next;
+        }
+        selectedMetric = found;
         selectedMetricsRef.current = prev;
         return prev;
       }
@@ -3421,21 +3539,6 @@ export default function Home() {
       selectedMetricsRef.current = next;
       return next;
     });
-
-    let targetGroupId = derivationOutputGroupByCaptureRef.current.get(captureId) ?? "";
-    if (!targetGroupId && captureId.startsWith("derive-")) {
-      for (const group of derivationGroupsRef.current) {
-        const pluginId = typeof group.pluginId === "string" ? group.pluginId.trim() : "";
-        if (!pluginId) {
-          continue;
-        }
-        const baseCaptureId = `derive-${group.id}-${pluginId}`;
-        if (captureId === baseCaptureId || captureId.startsWith(`${baseCaptureId}-`)) {
-          targetGroupId = group.id;
-          break;
-        }
-      }
-    }
     if (targetGroupId) {
       const selectedKey = getMetricKey(selectedMetric);
       setDerivationGroups((prev) =>
@@ -5237,6 +5340,17 @@ export default function Home() {
     },
     onReconnect: handleWsReconnect,
     onStateSync: handleStateSync,
+    onConnectionLock: (event) => {
+      setConnectionLock(event);
+      pushUiEvent({
+        level: "error",
+        message: "Dashboard locked",
+        detail: `${event.message} (code ${event.closeCode})`,
+      });
+    },
+    onConnectionUnlock: () => {
+      setConnectionLock(null);
+    },
   });
 
   useEffect(() => {
@@ -5263,6 +5377,26 @@ export default function Home() {
 
   const toggleSidebarMode = useCallback(() => {
     setSidebarMode((prev) => (prev === "setup" ? "analysis" : "setup"));
+  }, []);
+
+  const handleTakeoverDashboard = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("takeover", "1");
+      window.location.assign(url.toString());
+    } catch {
+      window.location.reload();
+    }
+  }, []);
+
+  const handleRetryConnection = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.location.reload();
   }, []);
 
   useLayoutEffect(() => {
@@ -5305,6 +5439,66 @@ export default function Home() {
       })),
     );
   }, [getAnalysisKey, selectedMetrics]);
+
+  useEffect(() => {
+    const groups = derivationGroupsRef.current;
+    if (groups.length === 0) {
+      return;
+    }
+
+    setSelectedMetrics((prev) => {
+      let changed = false;
+      const next = prev.map((metric) => {
+        const groupId = resolveDerivedGroupIdForCapture(
+          metric.captureId,
+          groups,
+          derivationOutputGroupByCaptureRef.current,
+        );
+        if (!groupId) {
+          return metric;
+        }
+        const group = groups.find((entry) => entry.id === groupId);
+        if (!group) {
+          return metric;
+        }
+        const expectedLabel = buildDerivedMetricLabel(group.name, metric);
+        if (metric.label === expectedLabel) {
+          return metric;
+        }
+        changed = true;
+        return { ...metric, label: expectedLabel };
+      });
+      if (!changed) {
+        return prev;
+      }
+      selectedMetricsRef.current = next;
+      return next;
+    });
+
+    setDerivationGroups((prev) => {
+      let changed = false;
+      const next = prev.map((group) => {
+        const derived = getDerivationGroupDerivedMetrics(group);
+        const nextDerived = derived.map((metric) => {
+          const expectedLabel = buildDerivedMetricLabel(group.name, metric);
+          if (metric.label === expectedLabel) {
+            return metric;
+          }
+          changed = true;
+          return { ...metric, label: expectedLabel };
+        });
+        if (nextDerived === derived || nextDerived.every((metric, index) => metric === derived[index])) {
+          return group;
+        }
+        return { ...group, derivedMetrics: nextDerived };
+      });
+      if (!changed) {
+        return prev;
+      }
+      derivationGroupsRef.current = next;
+      return next;
+    });
+  }, [derivationGroups, selectedMetrics]);
 
   const handleToggleAnalysisMetric = useCallback((metric: SelectedMetric) => {
     const key = getAnalysisKey(metric);
@@ -5388,6 +5582,41 @@ export default function Home() {
           )}
         </DialogContent>
       </Dialog>
+      {connectionLock ? (
+        <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-lg rounded-md border border-border/60 bg-card/95 shadow-xl p-4 flex flex-col gap-3">
+            <div className="text-sm font-medium tracking-tight text-foreground">
+              Dashboard access locked
+            </div>
+            <div className="text-xs text-muted-foreground leading-relaxed">
+              {connectionLock.message}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              close code: {connectionLock.closeCode}
+              {connectionLock.closeReason ? ` | reason: ${connectionLock.closeReason}` : ""}
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleTakeoverDashboard}
+                data-testid="button-dashboard-lock-takeover"
+              >
+                Take over this session
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleRetryConnection}
+                data-testid="button-dashboard-lock-retry"
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <Sidebar>
           <SidebarHeader ref={sidebarHeaderRef} className="p-4">

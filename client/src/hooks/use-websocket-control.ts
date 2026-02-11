@@ -136,6 +136,13 @@ interface UseWebSocketControlProps {
   onReconnect?: () => void;
   onStateSync?: (captures: { captureId: string; lastTick?: number | null }[]) => void;
   onDerivationPlugins?: (plugins: unknown[]) => void;
+  onConnectionLock?: (event: {
+    reason: "busy" | "replaced";
+    message: string;
+    closeCode: number;
+    closeReason: string;
+  }) => void;
+  onConnectionUnlock?: () => void;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -255,6 +262,8 @@ export function useWebSocketControl({
   onStateSync,
   onReconnect,
   onDerivationPlugins,
+  onConnectionLock,
+  onConnectionUnlock,
 }: UseWebSocketControlProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -1069,6 +1078,8 @@ export function useWebSocketControl({
             console.log("[ws] Registration confirmed:", message.payload);
             if (message.payload === "registered as frontend") {
               isRegisteredRef.current = true;
+              reconnectDisabledRef.current = false;
+              onConnectionUnlock?.();
               try {
                 const stored = window.localStorage.getItem("metrics-ui-live-streams");
                 const parsed = stored ? JSON.parse(stored) : [];
@@ -1163,6 +1174,13 @@ export function useWebSocketControl({
 
         if (event.code === WS_CLOSE_FRONTEND_BUSY) {
           reconnectDisabledRef.current = true;
+          onConnectionLock?.({
+            reason: "busy",
+            message:
+              "Another browser session already controls this dashboard. This tab is locked until you take over.",
+            closeCode: event.code,
+            closeReason: event.reason || "frontend already connected",
+          });
           console.warn(
             "[ws] Another UI tab is already connected. Staying disconnected. (Use ?takeover=1 to take over.)",
           );
@@ -1170,6 +1188,12 @@ export function useWebSocketControl({
         }
         if (event.code === WS_CLOSE_FRONTEND_REPLACED) {
           reconnectDisabledRef.current = true;
+          onConnectionLock?.({
+            reason: "replaced",
+            message: "This dashboard session was replaced by another tab and is now locked.",
+            closeCode: event.code,
+            closeReason: event.reason || "frontend replaced",
+          });
           console.warn("[ws] This UI tab was replaced by another. Staying disconnected.");
           return;
         }
