@@ -544,6 +544,7 @@ export default function Home() {
   const liveMetaRef = useRef(new Map<string, LiveStreamMeta>());
   const initialSyncTimerRef = useRef<number | null>(null);
   const initialSyncReadyRef = useRef(false);
+  const restoredFromServerRef = useRef(false);
   const attemptConnectRef = useRef<(
     id: string,
     options?: { force?: boolean; showConnecting?: boolean; allowCompleted?: boolean },
@@ -2357,6 +2358,69 @@ export default function Home() {
       markInitialSyncReady();
     },
     [markInitialSyncReady],
+  );
+
+  const handleRestoreState = useCallback(
+    (command: Extract<ControlCommand, { type: "restore_state" }>) => {
+      if (!command || typeof command !== "object") {
+        return;
+      }
+      if (restoredFromServerRef.current) {
+        return;
+      }
+
+      // Avoid overwriting an existing localStorage-driven session.
+      if (selectedMetricsRef.current.length > 0 || derivationGroupsRef.current.length > 0) {
+        return;
+      }
+
+      const state = command.state ?? {};
+      restoredFromServerRef.current = true;
+
+      if (Array.isArray(state.selectedMetrics)) {
+        setSelectedMetrics(state.selectedMetrics);
+      }
+      if (Array.isArray(state.derivationGroups)) {
+        setDerivationGroups(state.derivationGroups);
+      }
+      if (typeof state.activeDerivationGroupId === "string") {
+        setActiveDerivationGroupId(state.activeDerivationGroupId);
+      }
+      if (typeof state.displayDerivationGroupId === "string") {
+        setDisplayDerivationGroupId(state.displayDerivationGroupId);
+      }
+      if (state.playback && typeof state.playback === "object") {
+        const maybe = state.playback as Partial<PlaybackState>;
+        setPlaybackState((prev) => ({
+          ...prev,
+          isPlaying: typeof maybe.isPlaying === "boolean" ? maybe.isPlaying : prev.isPlaying,
+          speed: typeof maybe.speed === "number" ? maybe.speed : prev.speed,
+          currentTick:
+            typeof maybe.currentTick === "number" ? Math.max(1, Math.floor(maybe.currentTick)) : prev.currentTick,
+        }));
+      }
+
+      const autoScroll = typeof state.autoScroll === "boolean" ? state.autoScroll : isAutoScroll;
+      setIsAutoScroll(autoScroll);
+      setIsWindowed(!autoScroll);
+
+      if (typeof state.windowSize === "number") {
+        setWindowSize(Math.max(1, Math.floor(state.windowSize)));
+      }
+      if (typeof state.windowStart === "number") {
+        setWindowStart(Math.max(1, Math.floor(state.windowStart)));
+      }
+      if (typeof state.windowEnd === "number") {
+        setWindowEnd(Math.max(1, Math.floor(state.windowEnd)));
+      }
+      if (Array.isArray(state.annotations)) {
+        setAnnotations(state.annotations);
+      }
+      if (Array.isArray(state.subtitles)) {
+        setSubtitles(state.subtitles);
+      }
+    },
+    [isAutoScroll],
   );
 
   const handleLiveRefresh = useCallback(
@@ -4241,6 +4305,7 @@ export default function Home() {
     viewport,
     annotations,
     subtitles,
+    onRestoreState: handleRestoreState,
     onSourceModeChange: handleSourceModeChange,
     onLiveSourceChange: handleLiveSourceCommand,
     onToggleCapture: handleToggleCapture,

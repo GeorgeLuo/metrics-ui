@@ -580,6 +580,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "hello",
       "get_state",
       "list_captures",
+      "restore_state",
       "toggle_capture",
       "remove_capture",
       "select_metric",

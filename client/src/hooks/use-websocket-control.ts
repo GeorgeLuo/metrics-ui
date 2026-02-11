@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import type {
   ControlCommand,
   ControlResponse,
@@ -25,6 +25,8 @@ import {
   buildRenderDebug,
   buildSeriesWindow,
 } from "@shared/protocol-utils";
+
+type RestoreStateCommand = Extract<ControlCommand, { type: "restore_state" }>;
 
 const RESPONSE_TYPES = new Set<ControlResponse["type"]>([
   "state_update",
@@ -69,6 +71,7 @@ interface UseWebSocketControlProps {
   viewport?: VisualizationState["viewport"];
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
+  onRestoreState?: (command: RestoreStateCommand) => void;
   onWindowSizeChange: (windowSize: number) => void;
   onWindowStartChange: (windowStart: number) => void;
   onWindowEndChange: (windowEnd: number) => void;
@@ -185,6 +188,7 @@ export function useWebSocketControl({
   viewport,
   annotations,
   subtitles,
+  onRestoreState,
   onSourceModeChange,
   onLiveSourceChange,
   onToggleCapture,
@@ -235,7 +239,9 @@ export function useWebSocketControl({
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const isRegisteredRef = useRef(false);
+  const isBootstrappedRef = useRef(false);
   const outboundQueueRef = useRef<ControlCommand[]>([]);
+  const autoSyncTimerRef = useRef<number | null>(null);
 
   const sendMessage = useCallback((message: ControlResponse | ControlCommand) => {
     const ws = wsRef.current;
@@ -295,6 +301,66 @@ export function useWebSocketControl({
     sendStateRef.current = sendState;
   }, [sendState]);
 
+  const captureIdentity = useMemo(() => {
+    return captures
+      .map((capture) => `${capture.id}:${capture.isActive ? 1 : 0}:${capture.filename}`)
+      .sort()
+      .join("|");
+  }, [captures]);
+
+  const playbackIdentity = `${playbackState.isPlaying ? 1 : 0}:${playbackState.speed}`;
+
+  useEffect(() => {
+    if (!isRegisteredRef.current) {
+      return;
+    }
+
+    const hasMeaningfulState =
+      selectedMetrics.length > 0 ||
+      derivationGroups.length > 0 ||
+      annotations.length > 0 ||
+      subtitles.length > 0;
+
+    // Prevent an empty, freshly-loaded browser session from overwriting server-side state. Once the
+    // user makes a meaningful selection (or the server restores state), we start syncing normally.
+    if (!isBootstrappedRef.current && !hasMeaningfulState) {
+      return;
+    }
+    if (!isBootstrappedRef.current && hasMeaningfulState) {
+      isBootstrappedRef.current = true;
+    }
+
+    if (autoSyncTimerRef.current !== null) {
+      window.clearTimeout(autoSyncTimerRef.current);
+    }
+    autoSyncTimerRef.current = window.setTimeout(() => {
+      autoSyncTimerRef.current = null;
+      sendStateRef.current("auto_state_sync");
+    }, 250);
+
+    return () => {
+      if (autoSyncTimerRef.current !== null) {
+        window.clearTimeout(autoSyncTimerRef.current);
+        autoSyncTimerRef.current = null;
+      }
+    };
+  }, [
+    captureIdentity,
+    selectedMetrics,
+    analysisMetrics,
+    derivationGroups,
+    activeDerivationGroupId,
+    displayDerivationGroupId,
+    playbackIdentity,
+    windowSize,
+    windowStart,
+    windowEnd,
+    autoScroll,
+    isFullscreen,
+    annotations,
+    subtitles,
+  ]);
+
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
     if (!requestId) {
       return;
@@ -352,6 +418,11 @@ export function useWebSocketControl({
         break;
       case "list_captures":
         sendState(requestId);
+        sendAck(requestId, command.type);
+        break;
+      case "restore_state":
+        onRestoreState?.(command);
+        isBootstrappedRef.current = true;
         sendAck(requestId, command.type);
         break;
       case "toggle_capture":
@@ -919,19 +990,41 @@ export function useWebSocketControl({
                   }
                   sources.push({ captureId, source, pollIntervalMs });
                 });
-                ws.send(
-                  JSON.stringify({
-                    type: "sync_capture_sources",
-                    sources,
-                    replace: true,
-                  } satisfies ControlCommand),
-                );
+                if (sources.length > 0) {
+                  ws.send(
+                    JSON.stringify({
+                      type: "sync_capture_sources",
+                      sources,
+                      replace: true,
+                    } satisfies ControlCommand),
+                  );
+                }
               } catch (error) {
                 console.warn("[ws] Failed to sync capture sources from localStorage:", error);
               }
-              // Ensure the server has the latest state after a refresh/reconnect so agent-side
-              // derivation runs (which read derivationGroups from lastVisualizationState) work.
-              sendStateRef.current("initial_state_sync");
+
+              // Only push initial state when we have meaningful localStorage-driven state. A brand
+              // new browser session should not overwrite server-side state; it will receive a
+              // restore_state command instead.
+              try {
+                const storedSelected = window.localStorage.getItem("metrics-ui-selected-metrics");
+                const selected = storedSelected ? JSON.parse(storedSelected) : [];
+                const storedGroups = window.localStorage.getItem("metrics-ui-derivation-groups");
+                const groups = storedGroups ? JSON.parse(storedGroups) : [];
+                const hasLocalState =
+                  (Array.isArray(selected) && selected.length > 0) ||
+                  (Array.isArray(groups) && groups.length > 0);
+
+                isBootstrappedRef.current = hasLocalState;
+                if (hasLocalState) {
+                  // Ensure the server has the latest state after a refresh/reconnect so agent-side
+                  // derivation runs (which read derivationGroups from lastVisualizationState) work.
+                  sendStateRef.current("initial_state_sync");
+                }
+              } catch (error) {
+                console.warn("[ws] Failed to inspect localStorage for dashboard state:", error);
+                isBootstrappedRef.current = false;
+              }
 
               // Flush any queued user commands (remove/clear capture) that may have been triggered
               // while the WS was disconnected.
@@ -978,13 +1071,13 @@ export function useWebSocketControl({
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      if (autoSyncTimerRef.current !== null) {
+        window.clearTimeout(autoSyncTimerRef.current);
+        autoSyncTimerRef.current = null;
+      }
       wsRef.current?.close();
     };
   }, []);
-
-  useEffect(() => {
-    sendState();
-  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, annotations, subtitles, sendState]);
 
   return { sendState, sendMessage };
 }

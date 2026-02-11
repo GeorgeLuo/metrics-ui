@@ -395,6 +395,25 @@ export type ControlCommand =
   | ({ type: "hello" } & ControlRequestBase)
   | ({ type: "get_state" } & ControlRequestBase)
   | ({ type: "list_captures" } & ControlRequestBase)
+  | ({
+      type: "restore_state";
+      state: Partial<Pick<
+        VisualizationState,
+        | "selectedMetrics"
+        | "analysisMetrics"
+        | "derivationGroups"
+        | "activeDerivationGroupId"
+        | "displayDerivationGroupId"
+        | "playback"
+        | "windowSize"
+        | "windowStart"
+        | "windowEnd"
+        | "autoScroll"
+        | "annotations"
+        | "subtitles"
+      >>;
+      savedAt?: string;
+    } & ControlRequestBase)
   | ({ type: "toggle_capture"; captureId: string } & ControlRequestBase)
   | ({ type: "remove_capture"; captureId: string } & ControlRequestBase)
   | ({ type: "select_metric"; captureId: string; path: string[] } & ControlRequestBase)

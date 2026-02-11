@@ -39,6 +39,7 @@ const DERIVATION_PLUGIN_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui",
 const DERIVATION_PLUGIN_INDEX_FILE = path.join(DERIVATION_PLUGIN_ROOT, "plugins.json");
 const MAX_DERIVATION_PLUGIN_SIZE_BYTES = 5 * 1024 * 1024;
 const CAPTURE_SOURCES_FILE = path.join(os.homedir(), ".simeval", "metrics-ui", "capture-sources.json");
+const DASHBOARD_STATE_FILE = path.join(os.homedir(), ".simeval", "metrics-ui", "dashboard-state.json");
 
 const requireFromServer = createRequire(
   typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url),
@@ -778,6 +779,187 @@ type PersistedCaptureSource = {
 
 const persistedCaptureSources = new Map<string, PersistedCaptureSource>();
 
+type PersistableDashboardState = Partial<
+  Pick<
+    VisualizationState,
+    | "selectedMetrics"
+    | "analysisMetrics"
+    | "derivationGroups"
+    | "activeDerivationGroupId"
+    | "displayDerivationGroupId"
+    | "playback"
+    | "windowSize"
+    | "windowStart"
+    | "windowEnd"
+    | "autoScroll"
+    | "annotations"
+    | "subtitles"
+  >
+>;
+
+type PersistedDashboardStateFile = {
+  version: 1;
+  updatedAt: string;
+  state: PersistableDashboardState;
+};
+
+let persistedDashboardState: PersistableDashboardState | null = null;
+let persistedDashboardStateAt: string | null = null;
+let persistedDashboardStateJson: string | null = null;
+let pendingDashboardState: PersistableDashboardState | null = null;
+let dashboardStateWriteTimer: NodeJS.Timeout | null = null;
+
+function buildVisualizationStateFromPersistedState(
+  state: PersistableDashboardState,
+): VisualizationState {
+  const playback =
+    state.playback && typeof state.playback === "object"
+      ? state.playback
+      : { isPlaying: true, currentTick: 1, speed: 1, totalTicks: 0 };
+
+  const windowSize = typeof state.windowSize === "number" ? state.windowSize : 50;
+  const windowStart = typeof state.windowStart === "number" ? state.windowStart : 1;
+  const windowEnd =
+    typeof state.windowEnd === "number" ? state.windowEnd : Math.max(windowStart, windowSize);
+
+  return {
+    captures: [],
+    selectedMetrics: Array.isArray(state.selectedMetrics) ? state.selectedMetrics : [],
+    analysisMetrics: Array.isArray(state.analysisMetrics) ? state.analysisMetrics : [],
+    derivationGroups: Array.isArray(state.derivationGroups) ? state.derivationGroups : [],
+    activeDerivationGroupId:
+      typeof state.activeDerivationGroupId === "string" ? state.activeDerivationGroupId : "",
+    displayDerivationGroupId:
+      typeof state.displayDerivationGroupId === "string" ? state.displayDerivationGroupId : "",
+    playback,
+    windowSize,
+    windowStart,
+    windowEnd,
+    autoScroll: typeof state.autoScroll === "boolean" ? state.autoScroll : true,
+    isFullscreen: false,
+    annotations: Array.isArray(state.annotations) ? state.annotations : [],
+    subtitles: Array.isArray(state.subtitles) ? state.subtitles : [],
+  };
+}
+
+function loadPersistedDashboardState() {
+  persistedDashboardState = null;
+  persistedDashboardStateAt = null;
+  persistedDashboardStateJson = null;
+  try {
+    if (!fs.existsSync(DASHBOARD_STATE_FILE)) {
+      return;
+    }
+    const raw = fs.readFileSync(DASHBOARD_STATE_FILE, "utf-8");
+    if (!raw.trim()) {
+      return;
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") {
+      return;
+    }
+    const maybeFile = parsed as Partial<PersistedDashboardStateFile> & { savedAt?: unknown };
+    const state =
+      maybeFile.state && typeof maybeFile.state === "object"
+        ? (maybeFile.state as PersistableDashboardState)
+        : (parsed as PersistableDashboardState);
+    persistedDashboardState = state;
+    const at =
+      typeof maybeFile.updatedAt === "string"
+        ? maybeFile.updatedAt
+        : typeof (maybeFile as any).savedAt === "string"
+          ? String((maybeFile as any).savedAt)
+          : null;
+    persistedDashboardStateAt = at;
+    persistedDashboardStateJson = JSON.stringify(state);
+    // Make derivation runs possible before the browser reconnects by seeding lastVisualizationState.
+    lastVisualizationState = buildVisualizationStateFromPersistedState(state);
+    lastVisualizationStateAt = at ?? new Date().toISOString();
+  } catch (error) {
+    console.warn("[persist] Failed to load dashboard state:", error);
+  }
+}
+
+function savePersistedDashboardState() {
+  if (!pendingDashboardState) {
+    return;
+  }
+  try {
+    fs.mkdirSync(path.dirname(DASHBOARD_STATE_FILE), { recursive: true });
+    const updatedAt = new Date().toISOString();
+    const payload: PersistedDashboardStateFile = {
+      version: 1,
+      updatedAt,
+      state: pendingDashboardState,
+    };
+    const nextJson = JSON.stringify(payload.state);
+    if (nextJson === persistedDashboardStateJson) {
+      return;
+    }
+    const tmpFile = `${DASHBOARD_STATE_FILE}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2));
+    fs.renameSync(tmpFile, DASHBOARD_STATE_FILE);
+    persistedDashboardState = payload.state;
+    persistedDashboardStateAt = updatedAt;
+    persistedDashboardStateJson = nextJson;
+  } catch (error) {
+    console.warn("[persist] Failed to save dashboard state:", error);
+  }
+}
+
+function schedulePersistedDashboardStateSave(state: PersistableDashboardState) {
+  pendingDashboardState = state;
+  if (dashboardStateWriteTimer) {
+    return;
+  }
+  dashboardStateWriteTimer = setTimeout(() => {
+    dashboardStateWriteTimer = null;
+    savePersistedDashboardState();
+  }, 500);
+  dashboardStateWriteTimer.unref();
+}
+
+function extractPersistableDashboardState(payload: VisualizationState): PersistableDashboardState {
+  const state: PersistableDashboardState = {};
+  if (Array.isArray(payload.selectedMetrics)) {
+    state.selectedMetrics = payload.selectedMetrics;
+  }
+  if (Array.isArray(payload.analysisMetrics)) {
+    state.analysisMetrics = payload.analysisMetrics;
+  }
+  if (Array.isArray(payload.derivationGroups)) {
+    state.derivationGroups = payload.derivationGroups;
+  }
+  if (typeof payload.activeDerivationGroupId === "string") {
+    state.activeDerivationGroupId = payload.activeDerivationGroupId;
+  }
+  if (typeof payload.displayDerivationGroupId === "string") {
+    state.displayDerivationGroupId = payload.displayDerivationGroupId;
+  }
+  if (payload.playback && typeof payload.playback === "object") {
+    state.playback = payload.playback;
+  }
+  if (typeof payload.windowSize === "number") {
+    state.windowSize = payload.windowSize;
+  }
+  if (typeof payload.windowStart === "number") {
+    state.windowStart = payload.windowStart;
+  }
+  if (typeof payload.windowEnd === "number") {
+    state.windowEnd = payload.windowEnd;
+  }
+  if (typeof payload.autoScroll === "boolean") {
+    state.autoScroll = payload.autoScroll;
+  }
+  if (Array.isArray(payload.annotations)) {
+    state.annotations = payload.annotations;
+  }
+  if (Array.isArray(payload.subtitles)) {
+    state.subtitles = payload.subtitles;
+  }
+  return state;
+}
+
 function loadPersistedCaptureSources() {
   persistedCaptureSources.clear();
   try {
@@ -961,6 +1143,7 @@ function clearPersistedCaptureSources() {
 }
 
 loadPersistedCaptureSources();
+loadPersistedDashboardState();
 
 type DerivationJobStatus = "running" | "completed" | "failed" | "stopped";
 type DerivationKind = "moving_average" | "diff" | "plugin";
@@ -3346,13 +3529,27 @@ export async function registerRoutes(
                 // ignore close errors
               }
             }
-            frontendClient = ws;
-            clientRoles.set(ws, "frontend");
-            console.log("[ws] Frontend registered");
-            ws.send(JSON.stringify({ type: "ack", payload: "registered as frontend" }));
-            ensurePersistedCaptureSourcesRunning();
-            flushQueuedCommands();
-          } else {
+	            frontendClient = ws;
+	            clientRoles.set(ws, "frontend");
+	            console.log("[ws] Frontend registered");
+	            ws.send(JSON.stringify({ type: "ack", payload: "registered as frontend" }));
+	            if (persistedCaptureSources.size > 0) {
+	              sendToFrontend({ type: "set_source_mode", mode: "live" });
+	            }
+	            if (persistedDashboardState) {
+	              const restoreCommand: ControlCommand = {
+	                type: "restore_state",
+	                state: persistedDashboardState,
+	              };
+	              if (persistedDashboardStateAt) {
+	                (restoreCommand as Extract<ControlCommand, { type: "restore_state" }>).savedAt =
+	                  persistedDashboardStateAt;
+	              }
+	              sendToFrontend(restoreCommand);
+	            }
+	            ensurePersistedCaptureSourcesRunning();
+	            flushQueuedCommands();
+	          } else {
             agentClients.add(ws);
             clientRoles.set(ws, "agent");
             console.log("[ws] Agent registered, total agents:", agentClients.size);
@@ -3372,12 +3569,21 @@ export async function registerRoutes(
 
         const isFrontend = ws === frontendClient;
         
-        if (isFrontend) {
+          if (isFrontend) {
           if (message.type === "state_update") {
             const payload = (message as { payload?: unknown }).payload;
             if (payload && typeof payload === "object") {
               lastVisualizationState = payload as VisualizationState;
               lastVisualizationStateAt = new Date().toISOString();
+              try {
+                const extracted = extractPersistableDashboardState(lastVisualizationState);
+                const nextJson = JSON.stringify(extracted);
+                if (nextJson !== persistedDashboardStateJson) {
+                  schedulePersistedDashboardStateSave(extracted);
+                }
+              } catch (error) {
+                console.warn("[persist] Failed to schedule dashboard state save:", error);
+              }
             }
           }
           if (message.type === "sync_capture_sources") {

@@ -299,6 +299,7 @@ Capture streaming (push records over WS):
 - `hello`
 - `get_state`
 - `list_captures`
+- `restore_state`
 - `toggle_capture`
 - `remove_capture`
 - `select_metric`
