@@ -235,8 +235,8 @@ export default function DocsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
+      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border shrink-0">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link href="/">
@@ -259,23 +259,25 @@ export default function DocsPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        {isLoading && (
-          <div className="space-y-4">
-            <div className="h-8 bg-muted animate-pulse rounded w-3/4" />
-            <div className="h-4 bg-muted animate-pulse rounded w-full" />
-            <div className="h-4 bg-muted animate-pulse rounded w-5/6" />
-            <div className="h-4 bg-muted animate-pulse rounded w-4/5" />
-          </div>
-        )}
+      <main className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-6 py-8">
+          {isLoading && (
+            <div className="space-y-4">
+              <div className="h-8 bg-muted animate-pulse rounded w-3/4" />
+              <div className="h-4 bg-muted animate-pulse rounded w-full" />
+              <div className="h-4 bg-muted animate-pulse rounded w-5/6" />
+              <div className="h-4 bg-muted animate-pulse rounded w-4/5" />
+            </div>
+          )}
 
-        {error && (
-          <div className="text-destructive p-4 bg-destructive/10 rounded-md">
-            Failed to load documentation
-          </div>
-        )}
+          {error && (
+            <div className="text-destructive p-4 bg-destructive/10 rounded-md">
+              Failed to load documentation
+            </div>
+          )}
 
-        {data?.content && <MarkdownRenderer content={data.content} />}
+          {data?.content && <MarkdownRenderer content={data.content} />}
+        </div>
       </main>
     </div>
   );

@@ -57,6 +57,14 @@ const QUEUED_COMMAND_TYPES = new Set<ControlCommand["type"]>([
   "clear_captures",
 ]);
 
+function isDerivedSourceString(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.startsWith("derive://") || trimmed.startsWith("derive:/");
+}
+
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
   selectedMetrics: SelectedMetric[];
@@ -85,7 +93,7 @@ interface UseWebSocketControlProps {
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
-  onSelectMetric: (captureId: string, path: string[]) => void;
+  onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
   onDeselectMetric: (captureId: string, fullPath: string) => void;
   onClearSelection: () => void;
   onSelectAnalysisMetric: (captureId: string, path: string[]) => boolean;
@@ -96,7 +104,7 @@ interface UseWebSocketControlProps {
   onSetActiveDerivationGroup: (groupId: string) => void;
   onUpdateDerivationGroup: (
     groupId: string,
-    updates: { newGroupId?: string; name?: string },
+    updates: { newGroupId?: string; name?: string; pluginId?: string },
   ) => void;
   onReorderDerivationGroupMetrics: (groupId: string, fromIndex: number, toIndex: number) => void;
   onSetDisplayDerivationGroup: (groupId: string) => void;
@@ -464,7 +472,7 @@ export function useWebSocketControl({
         sendAck(requestId, command.type);
         break;
       case "select_metric":
-        onSelectMetric(command.captureId, command.path);
+        onSelectMetric(command.captureId, command.path, command.groupId);
         {
           const fullPath = command.path.join(".");
           const label = command.path[command.path.length - 1] ?? fullPath;
@@ -545,6 +553,7 @@ export function useWebSocketControl({
         onUpdateDerivationGroup(command.groupId, {
           newGroupId: command.newGroupId,
           name: command.name,
+          pluginId: command.pluginId,
         });
         sendAck(requestId, command.type);
         break;
@@ -1102,7 +1111,7 @@ export function useWebSocketControl({
                     Number.isFinite(pollSecondsRaw) && pollSecondsRaw > 0
                       ? Math.round(pollSecondsRaw * 1000)
                       : undefined;
-                  if (!captureId || !source.trim()) {
+                  if (!captureId || !source.trim() || isDerivedSourceString(source)) {
                     return;
                   }
                   sources.push({ captureId, source, pollIntervalMs });

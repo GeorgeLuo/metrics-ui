@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { GripVertical } from "lucide-react";
 import type { SelectedMetric, DataPoint, CaptureSession } from "@shared/schema";
 import { cn } from "@/lib/utils";
@@ -6,6 +6,10 @@ import { cn } from "@/lib/utils";
 function sanitizeKey(key: string): string {
   return key.replace(/\./g, "_");
 }
+
+const HUD_MAX_VISIBLE_ROWS = 10;
+const HUD_ROW_AREA_MAX_HEIGHT_PX = 300;
+const HUD_DEFAULT_POSITION = { x: 16, y: 16 };
 
 interface MetricsHUDProps {
   currentData: DataPoint | null;
@@ -32,9 +36,16 @@ export function MetricsHUD({
   onDeselectMetric,
   onHoverMetric,
 }: MetricsHUDProps) {
-  const [position, setPosition] = useState({ x: 16, y: 16 });
+  const [position, setPosition] = useState(HUD_DEFAULT_POSITION);
   const [isDragging, setIsDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!isVisible) {
+      setPosition(HUD_DEFAULT_POSITION);
+      setIsDragging(false);
+    }
+  }, [isVisible]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -66,6 +77,7 @@ export function MetricsHUD({
   }
 
   const dataPoint = currentData ?? ({} as DataPoint);
+  const shouldScrollRows = selectedMetrics.length > HUD_MAX_VISIBLE_ROWS;
 
   const getDataKey = (metric: SelectedMetric): string => {
     return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
@@ -101,7 +113,15 @@ export function MetricsHUD({
         </div>
       </div>
       <div
-        className="flex flex-col gap-1.5"
+        className={cn(
+          "flex flex-col gap-1.5",
+          shouldScrollRows && "overflow-y-auto overscroll-contain pr-1",
+        )}
+        style={
+          shouldScrollRows
+            ? { maxHeight: `${HUD_ROW_AREA_MAX_HEIGHT_PX}px` }
+            : undefined
+        }
         onMouseLeave={() => onHoverMetric?.(null)}
       >
         {selectedMetrics.map((metric) => {

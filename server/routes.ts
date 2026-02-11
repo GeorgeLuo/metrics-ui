@@ -40,6 +40,7 @@ const DERIVATION_PLUGIN_INDEX_FILE = path.join(DERIVATION_PLUGIN_ROOT, "plugins.
 const MAX_DERIVATION_PLUGIN_SIZE_BYTES = 5 * 1024 * 1024;
 const CAPTURE_SOURCES_FILE = path.join(os.homedir(), ".simeval", "metrics-ui", "capture-sources.json");
 const DASHBOARD_STATE_FILE = path.join(os.homedir(), ".simeval", "metrics-ui", "dashboard-state.json");
+const DERIVED_SOURCE_PREFIX = "derive://";
 
 const requireFromServer = createRequire(
   typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url),
@@ -383,6 +384,17 @@ async function streamLinesFromResponse(options: {
 }
 
 async function parseJSONLFromSource(source: string, signal: AbortSignal) {
+  const derivedCaptureId = parseDerivedSource(source);
+  if (derivedCaptureId) {
+    const records = getDerivedCaptureRecords(derivedCaptureId);
+    const components = captureComponentState.get(derivedCaptureId)?.components ?? [];
+    return {
+      records,
+      components,
+      sizeBytes: 0,
+    };
+  }
+
   const frames = new Map<number, CaptureRecord>();
   let components: ComponentNode[] = [];
   const onLine = (line: string) => {
@@ -521,6 +533,12 @@ async function extractSeriesFromSource(options: {
   path: string[];
   signal: AbortSignal;
 }) {
+  const derivedCaptureId = parseDerivedSource(options.source);
+  if (derivedCaptureId) {
+    const records = getDerivedCaptureRecords(derivedCaptureId);
+    return extractSeriesFromFrames(records, options.path);
+  }
+
   const pointsByTick = new Map<number, number | null>();
   const { source, path, signal } = options;
 
@@ -594,6 +612,12 @@ async function extractSeriesBatchFromSource(options: {
   paths: string[][];
   signal: AbortSignal;
 }) {
+  const derivedCaptureId = parseDerivedSource(options.source);
+  if (derivedCaptureId) {
+    const records = getDerivedCaptureRecords(derivedCaptureId);
+    return extractSeriesFromFramesBatch(records, options.paths);
+  }
+
   const { source, paths, signal } = options;
   const pointsByTickList = paths.map(() => new Map<number, number | null>());
   const componentLookup = new Map<string, Array<{ index: number; rest: string[] }>>();
@@ -788,6 +812,14 @@ const captureStreamModes = new Map<string, "lite" | "full">();
 const liteFrameBuffers = new Map<string, CaptureAppendFrame[]>();
 const captureLastTicks = new Map<string, number>();
 const captureEnded = new Set<string>();
+const derivedCaptureStores = new Map<
+  string,
+  {
+    frames: Map<number, CaptureRecord>;
+    lineCount: number;
+    updatedAt: string;
+  }
+>();
 
 type PersistedCaptureSource = {
   captureId: string;
@@ -1005,6 +1037,7 @@ function loadPersistedCaptureSources() {
         : [];
 
     const now = new Date().toISOString();
+    let droppedDerivedEntries = false;
     for (const entry of list) {
       if (!entry || typeof entry !== "object") {
         continue;
@@ -1020,6 +1053,10 @@ function loadPersistedCaptureSources() {
           ? (entry as { source: string }).source
           : "";
       if (!captureId || !source.trim()) {
+        continue;
+      }
+      if (isDerivedSource(source)) {
+        droppedDerivedEntries = true;
         continue;
       }
       const filename =
@@ -1059,6 +1096,9 @@ function loadPersistedCaptureSources() {
         captureStreamModes.set(captureId, "lite");
       }
     }
+    if (droppedDerivedEntries) {
+      savePersistedCaptureSources();
+    }
   } catch (error) {
     console.warn("[persist] Failed to load capture sources:", error);
   }
@@ -1096,6 +1136,9 @@ function syncPersistedCaptureSources(
     const captureId = typeof entry?.captureId === "string" ? entry.captureId : "";
     const source = typeof entry?.source === "string" ? entry.source : "";
     if (!captureId || !source.trim()) {
+      continue;
+    }
+    if (isDerivedSource(source)) {
       continue;
     }
     const existing = next.get(captureId);
@@ -1164,6 +1207,109 @@ function clearPersistedCaptureSources() {
 
 loadPersistedCaptureSources();
 loadPersistedDashboardState();
+
+function buildDerivedSource(captureId: string): string {
+  return `${DERIVED_SOURCE_PREFIX}${encodeURIComponent(captureId)}`;
+}
+
+function parseDerivedSource(source: string): string | null {
+  if (typeof source !== "string") {
+    return null;
+  }
+  const trimmed = source.trim();
+  if (!trimmed.startsWith(DERIVED_SOURCE_PREFIX)) {
+    return null;
+  }
+  const encoded = trimmed.slice(DERIVED_SOURCE_PREFIX.length);
+  if (!encoded) {
+    return null;
+  }
+  try {
+    const decoded = decodeURIComponent(encoded);
+    return decoded.trim() ? decoded : null;
+  } catch {
+    return encoded.trim() ? encoded : null;
+  }
+}
+
+function isDerivedSource(source: string): boolean {
+  return parseDerivedSource(source) !== null;
+}
+
+function ensureDerivedCaptureStore(captureId: string) {
+  const existing = derivedCaptureStores.get(captureId);
+  if (existing) {
+    return existing;
+  }
+  const created = {
+    frames: new Map<number, CaptureRecord>(),
+    lineCount: 0,
+    updatedAt: new Date().toISOString(),
+  };
+  derivedCaptureStores.set(captureId, created);
+  return created;
+}
+
+function resetDerivedCaptureStore(captureId: string) {
+  derivedCaptureStores.set(captureId, {
+    frames: new Map<number, CaptureRecord>(),
+    lineCount: 0,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function removeDerivedCaptureStore(captureId: string) {
+  derivedCaptureStores.delete(captureId);
+}
+
+function getDerivedCaptureRecords(captureId: string): CaptureRecord[] {
+  const store = derivedCaptureStores.get(captureId);
+  if (!store) {
+    return [];
+  }
+  return Array.from(store.frames.values()).sort((a, b) => a.tick - b.tick);
+}
+
+function appendDerivedCaptureFrame(captureId: string, frame: CaptureAppendFrame) {
+  const store = ensureDerivedCaptureStore(captureId);
+  const tick = Number((frame as { tick?: unknown }).tick);
+  if (!Number.isFinite(tick)) {
+    return;
+  }
+  const numericTick = tick as number;
+  const existing = store.frames.get(numericTick) ?? { tick: numericTick, entities: {} };
+  if ("entities" in frame) {
+    const entities = compactEntities(
+      frame.entities as Record<string, Record<string, unknown>>,
+      DEFAULT_MAX_NUMERIC_DEPTH,
+    );
+    mergeEntities(existing.entities, entities);
+  } else if (typeof frame.entityId === "string" && typeof frame.componentId === "string") {
+    const compactedValue = compactValue(frame.value, 1, DEFAULT_MAX_NUMERIC_DEPTH);
+    if (compactedValue !== undefined) {
+      if (!existing.entities[frame.entityId]) {
+        existing.entities[frame.entityId] = {};
+      }
+      existing.entities[frame.entityId][frame.componentId] = compactedValue;
+    }
+  }
+  store.frames.set(numericTick, existing);
+  store.lineCount += 1;
+  store.updatedAt = new Date().toISOString();
+}
+
+function initializeDerivedOutputCapture(captureId: string) {
+  const source = buildDerivedSource(captureId);
+  resetFrameCache(captureId);
+  captureEnded.delete(captureId);
+  captureSources.set(captureId, source);
+  captureMetadata.set(captureId, { filename: `${captureId}.jsonl`, source });
+  captureComponentState.set(captureId, { components: [], sentCount: 0 });
+  captureStreamModes.set(captureId, "full");
+  captureLastTicks.delete(captureId);
+  liteFrameBuffers.delete(captureId);
+  resetDerivedCaptureStore(captureId);
+}
 
 type DerivationJobStatus = "running" | "completed" | "failed" | "stopped";
 type DerivationKind = "moving_average" | "diff" | "plugin";
@@ -1562,7 +1708,12 @@ class MovingAverageSystem extends System {
 }
 
 function getCaptureSourceForId(captureId: string): string {
-  return captureSources.get(captureId) ?? liveStreamStates.get(captureId)?.source ?? "";
+  return (
+    captureSources.get(captureId) ??
+    captureMetadata.get(captureId)?.source ??
+    liveStreamStates.get(captureId)?.source ??
+    ""
+  );
 }
 
 function getDerivationGroup(groupId: string): DerivationGroup | null {
@@ -1636,6 +1787,35 @@ async function streamMetricValuesFromSource(options: {
     Number.isInteger(options.yieldEveryLines) && (options.yieldEveryLines as number) > 0
       ? (options.yieldEveryLines as number)
       : undefined;
+  const derivedCaptureId = parseDerivedSource(source);
+  if (derivedCaptureId) {
+    const records = getDerivedCaptureRecords(derivedCaptureId);
+    let lastTick: number | null = null;
+    for (const record of records) {
+      if (signal.aborted) {
+        throw createAbortError();
+      }
+      if (!record || typeof record.tick !== "number" || !Number.isFinite(record.tick)) {
+        continue;
+      }
+      const tick = record.tick;
+      if (lastTick !== null && tick > lastTick + 1) {
+        for (let gapTick = lastTick + 1; gapTick < tick; gapTick += 1) {
+          metrics.forEach((metric) => {
+            onValue({ metric, tick: gapTick, value: null });
+          });
+        }
+      }
+      metrics.forEach((metric) => {
+        const rawValue = getValueAtPath(record.entities, metric.path);
+        const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
+        onValue({ metric, tick, value });
+      });
+      lastTick = tick;
+    }
+    return;
+  }
+
   const componentLookup = new Map<string, Array<{ metric: SelectedMetric; rest: string[] }>>();
   const metricKey = (metric: SelectedMetric) => `${metric.captureId}::${metric.fullPath}`;
   const latestByMetricKey = new Map<string, number | null>();
@@ -1827,14 +2007,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
     }
   }
 
-  resetFrameCache(derivedCaptureId);
-  captureEnded.delete(derivedCaptureId);
-  captureSources.delete(derivedCaptureId);
-  captureMetadata.set(derivedCaptureId, { filename: `${derivedCaptureId}.jsonl`, source: undefined });
-  captureComponentState.set(derivedCaptureId, { components: [], sentCount: 0 });
-  captureStreamModes.set(derivedCaptureId, "full");
-  captureLastTicks.delete(derivedCaptureId);
-  liteFrameBuffers.delete(derivedCaptureId);
+  initializeDerivedOutputCapture(derivedCaptureId);
 
   const jobId = `derive-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const controller = new AbortController();
@@ -1853,7 +2026,12 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
   // Initialize the derived capture and ensure outputs are selectable immediately.
   sendToFrontend({ type: "capture_init", captureId: derivedCaptureId, filename: `${derivedCaptureId}.jsonl`, reset: true });
   updateCaptureComponents(derivedCaptureId, buildDerivationOutputComponents(outputKey));
-  sendToFrontend({ type: "select_metric", captureId: derivedCaptureId, path: ["0", "derivations", outputKey] });
+  sendToFrontend({
+    type: "select_metric",
+    captureId: derivedCaptureId,
+    path: ["0", "derivations", outputKey],
+    groupId,
+  });
 
   const selectedInputs =
     kind === "moving_average"
@@ -2139,19 +2317,24 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
   };
   derivationJobs.set(jobId, job);
 
-  resetFrameCache(derivedCaptureId);
-  captureEnded.delete(derivedCaptureId);
-  captureSources.delete(derivedCaptureId);
-  captureMetadata.set(derivedCaptureId, { filename: `${derivedCaptureId}.jsonl`, source: undefined });
-  captureComponentState.set(derivedCaptureId, { components: [], sentCount: 0 });
-  captureStreamModes.set(derivedCaptureId, "full");
-  captureLastTicks.delete(derivedCaptureId);
-  liteFrameBuffers.delete(derivedCaptureId);
+  initializeDerivedOutputCapture(derivedCaptureId);
+
+  // Keep group metadata in sync for agent/CLI-triggered runs too.
+  sendToFrontend({
+    type: "update_derivation_group",
+    groupId,
+    pluginId,
+  });
 
   sendToFrontend({ type: "capture_init", captureId: derivedCaptureId, filename: `${derivedCaptureId}.jsonl`, reset: true });
   updateCaptureComponents(derivedCaptureId, buildDerivationOutputComponentsFromKeys(outputKeys));
   outputKeys.forEach((key) => {
-    sendToFrontend({ type: "select_metric", captureId: derivedCaptureId, path: ["0", "derivations", key] });
+    sendToFrontend({
+      type: "select_metric",
+      captureId: derivedCaptureId,
+      path: ["0", "derivations", key],
+      groupId,
+    });
   });
 
   const entities = new EntityManager();
@@ -2669,6 +2852,11 @@ function sendCaptureComponents(captureId: string, components: ComponentNode[]) {
 
 function sendCaptureAppend(captureId: string, frame: CaptureAppendFrame) {
   captureLastTicks.set(captureId, frame.tick);
+  const source = captureSources.get(captureId) ?? captureMetadata.get(captureId)?.source ?? "";
+  const derivedCaptureId = parseDerivedSource(source);
+  if (derivedCaptureId) {
+    appendDerivedCaptureFrame(derivedCaptureId, frame);
+  }
   const command: ControlCommand = { type: "capture_append", captureId, frame };
   if (!sendToFrontend(command)) {
     bufferCaptureFrame(command);
@@ -2811,6 +2999,7 @@ function clearCaptureState() {
   captureFrameTailBytes.clear();
   captureFrameCacheStats.clear();
   captureFrameCacheDisabled.clear();
+  derivedCaptureStores.clear();
   lastCacheBudgetCount = 0;
   stopAllLiveStreams();
   captureEnded.clear();
@@ -2831,6 +3020,7 @@ function removeCaptureState(captureId: string, options?: { persist?: boolean }) 
   captureStreamModes.delete(captureId);
   captureLastTicks.delete(captureId);
   liteFrameBuffers.delete(captureId);
+  removeDerivedCaptureStore(captureId);
   resetFrameCache(captureId);
   stopLiveStream(captureId);
   captureEnded.delete(captureId);
@@ -3463,6 +3653,9 @@ function ensurePersistedCaptureSourcesRunning() {
   }
   for (const entry of persistedCaptureSources.values()) {
     if (!entry.captureId || !entry.source.trim()) {
+      continue;
+    }
+    if (isDerivedSource(entry.source)) {
       continue;
     }
     if (!captureNeedsBootstrap(entry.captureId)) {
@@ -4573,6 +4766,21 @@ export async function registerRoutes(
     }
     const pendingIds = Array.from(pendingCaptureBuffers.keys());
     const captures = Array.from(ids).map((captureId) => ({
+      source: captureSources.get(captureId) ?? captureMetadata.get(captureId)?.source ?? null,
+      sourceKind: (() => {
+        const source = captureSources.get(captureId) ?? captureMetadata.get(captureId)?.source ?? "";
+        if (!source) {
+          return "none";
+        }
+        if (isDerivedSource(source)) {
+          return "derived";
+        }
+        const trimmed = source.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+          return "http";
+        }
+        return "file";
+      })(),
       captureId,
       lastTick: captureLastTicks.get(captureId) ?? null,
       ended: captureEnded.has(captureId),
@@ -4588,6 +4796,8 @@ export async function registerRoutes(
         (captureFrameSampleBytes.get(captureId) ?? 0) +
         (captureFrameTailBytes.get(captureId) ?? 0),
       cacheDisabled: captureFrameCacheDisabled.has(captureId),
+      derivedStoreTicks: derivedCaptureStores.get(captureId)?.frames.size ?? 0,
+      derivedStoreFrames: derivedCaptureStores.get(captureId)?.lineCount ?? 0,
     }));
     res.json({ captures, pendingIds });
   });

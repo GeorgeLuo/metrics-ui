@@ -11,6 +11,7 @@
     "ui:regress": "bash scripts/ui-regress.sh",
     "ws:single-frontend:regress": "node scripts/single-frontend-regress.mjs",
     "derivation:regress": "node scripts/derivation-plugin-regress.mjs",
+    "derivation:chain:regress": "node scripts/derivation-chain-regress.mjs",
     "docs:ws": "tsx script/ws-docs.ts",
     "docs:ws:check": "tsx script/ws-docs.ts --check",
     "db:push": "drizzle-kit push"

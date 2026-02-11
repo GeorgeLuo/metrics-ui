@@ -424,7 +424,12 @@ export type ControlCommand =
     } & ControlRequestBase)
   | ({ type: "toggle_capture"; captureId: string } & ControlRequestBase)
   | ({ type: "remove_capture"; captureId: string } & ControlRequestBase)
-  | ({ type: "select_metric"; captureId: string; path: string[] } & ControlRequestBase)
+  | ({
+      type: "select_metric";
+      captureId: string;
+      path: string[];
+      groupId?: string;
+    } & ControlRequestBase)
   | ({ type: "deselect_metric"; captureId: string; fullPath: string } & ControlRequestBase)
   | ({ type: "clear_selection" } & ControlRequestBase)
   | ({ type: "select_analysis_metric"; captureId: string; path: string[] } & ControlRequestBase)
@@ -433,7 +438,13 @@ export type ControlCommand =
   | ({ type: "create_derivation_group"; groupId?: string; name?: string } & ControlRequestBase)
   | ({ type: "delete_derivation_group"; groupId: string } & ControlRequestBase)
   | ({ type: "set_active_derivation_group"; groupId: string } & ControlRequestBase)
-  | ({ type: "update_derivation_group"; groupId: string; newGroupId?: string; name?: string } & ControlRequestBase)
+  | ({
+      type: "update_derivation_group";
+      groupId: string;
+      newGroupId?: string;
+      name?: string;
+      pluginId?: string;
+    } & ControlRequestBase)
   | ({
       type: "reorder_derivation_group_metrics";
       groupId: string;

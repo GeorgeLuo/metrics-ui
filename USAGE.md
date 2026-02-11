@@ -17,7 +17,10 @@ This site visualizes simulation or evaluation **capture files**. You upload a JS
    - Press **Play** to resume; auto-scroll turns back on and the window expands to the right.
    - Use the **reset window** button (refresh icon in the header) to show the full range again.
 6. **Add annotations** by clicking on the chart (silent add). Click an existing annotation line to edit its label.
-7. **Derivations**: click a metric in the HUD to add it to the active derivation group (Derivations pane). Upload a derivation system plugin and run it on a group to emit derived metrics as a new capture (auto-selected into the chart).
+7. **Derivations**:
+   - Click a metric in the HUD to add/remove it from the active derivation group.
+   - Select a plugin for that group and run it.
+   - Outputs appear as a derived capture, are auto-selected in the chart, and are also added back into the same group under `Derived`.
 
 The UI shows multiple captures at once; they share a common tick axis.
 
@@ -37,6 +40,7 @@ Current behavior:
 - Derived output metrics from a group run are auto-added back into that same group.
 - Derived outputs are stored separately from input metrics, so plugin reruns keep using only the input order.
 - Group metrics are visually split into `Inputs` and `Derived` sections.
+- Derived metric labels are synced to `groupName.outputKey` in the HUD/chart.
 - Group **ids** exist for WS/CLI control (and derivation plugins), but the browser UI only exposes the group **name**.
 
 ---
@@ -49,8 +53,19 @@ How it works:
 - You upload a plugin file to the UI server.
 - The server verifies it on upload (imports it and runs a short dry-run).
 - You select a plugin for a group and run it.
-- The server streams the derived outputs as a new "push-only" capture; the UI auto-selects the derived metrics.
+- The server streams derived outputs as a new capture and also registers an internal source (`derive://...`), so downstream derivations can consume derived metrics directly.
+- Derived outputs can be used as inputs to more derivations (derivation chaining).
 - In the browser UI, each plugin row includes a small **source** button to view the uploaded plugin code.
+
+Output model:
+- Derivation outputs are emitted at `["0","derivations","<outputKey>"]`.
+- A plugin can emit multiple outputs (multiple keys in `outputs`).
+- Derived captures are source-backed on the server (`derive://...`) so `/api/series` and `/api/series/batch` work on them like normal captures.
+
+Run lifecycle and errors:
+- Run request is acknowledged quickly (`ack`), then completion/failure arrives asynchronously.
+- Success emits `ui_notice` (`Derivation plugin complete` or `Derivation complete`).
+- Failures emit `error` and `ui_error` with command/group/plugin context.
 
 ### Upload / List / Delete (HTTP)
 
@@ -191,9 +206,9 @@ Anything the browser can do can be driven over WebSocket. The server relays agen
 Derivation groups let you organize which metrics you plan to feed into derivation systems.
 
 State fields:
-- `derivationGroups`: array of `{ id, name, metrics[] }`
+- `derivationGroups`: array of `{ id, name, metrics[], derivedMetrics?, pluginId? }`
 - `activeDerivationGroupId`: which group is active
-- `analysisMetrics`: the metrics in the active group (kept for compatibility)
+- `analysisMetrics`: compatibility projection of the active group's input metrics
 - `displayDerivationGroupId`: when set, the chart/HUD displays **only** the metrics in this group (empty string means "show selected metrics")
 
 Commands:
@@ -205,6 +220,7 @@ Commands:
 - `select_analysis_metric` adds the metric to the active group (creating a default group if needed)
 - `deselect_analysis_metric` removes the metric from the active group
 - `clear_analysis_metrics` clears metrics from all groups
+- `reorder_derivation_group_metrics` changes plugin input order for the group
 
 Examples:
 
@@ -220,13 +236,21 @@ Examples:
 Commands:
 - `get_derivation_plugins` (returns `derivation_plugins`)
 - `run_derivation_plugin` (`groupId`, `pluginId`, optional `params`, optional `outputCaptureId`)
+- `run_derivation` (built-in derivations: `diff` / `moving_average`)
 
 Examples:
 
 ```json
 {"type":"get_derivation_plugins","request_id":"p1"}
 {"type":"run_derivation_plugin","groupId":"compare_pending_jobs","pluginId":"my_plugin"}
+{"type":"run_derivation","kind":"moving_average","groupId":"compare_pending_jobs","window":5}
 ```
+
+Chaining example:
+1. Run plugin `diff` on group `A` -> output capture `derive-A-diff`.
+2. Add metric `derive-A-diff / 0.derivations.diff` into group `B`.
+3. Run plugin or built-in derivation on group `B`.
+4. Result is a second-level derived capture (derivation of derivation).
 
 ### Agent Discovery
 

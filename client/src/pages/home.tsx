@@ -40,8 +40,8 @@ import {
   Minimize2,
   Play,
   Code,
+  ExternalLink,
 } from "lucide-react";
-import { Link } from "wouter";
 import type {
   Annotation,
   SubtitleOverlay,
@@ -116,6 +116,14 @@ interface LiveStreamMeta {
   retryTimer: number | null;
   retrySource: string | null;
   completed: boolean;
+}
+
+function isDerivedCaptureSource(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.startsWith("derive://") || trimmed.startsWith("derive:/");
 }
 
 interface LiveStatusStream {
@@ -707,6 +715,10 @@ export default function Home() {
   const [isEventsVisible, setIsEventsVisible] = useState(false);
   const [streamActivityVersion, setStreamActivityVersion] = useState(0);
   const [connectionLock, setConnectionLock] = useState<ConnectionLockState>(null);
+  const [isDocsOpen, setIsDocsOpen] = useState(false);
+  const [docsContent, setDocsContent] = useState<string>("");
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState<string | null>(null);
 
   const playbackRef = useRef<number | null>(null);
   const capturesRef = useRef(captures);
@@ -1814,7 +1826,10 @@ export default function Home() {
       return;
     }
     const payload = liveStreams
-      .filter((entry) => entry.source.trim().length > 0)
+      .filter(
+        (entry) =>
+          entry.source.trim().length > 0 && !isDerivedCaptureSource(entry.source),
+      )
       .map((entry) => ({
         id: entry.id,
         source: entry.source,
@@ -1888,6 +1903,25 @@ export default function Home() {
       meta.completed = entry.status === "completed";
     });
   }, [getLiveMeta, liveStreams]);
+
+  useEffect(() => {
+    const activeIds = new Set<string>();
+    captures.forEach((capture) => activeIds.add(capture.id));
+    liveStreams.forEach((entry) => activeIds.add(entry.id));
+
+    for (const [id, meta] of liveMetaRef.current.entries()) {
+      if (activeIds.has(id)) {
+        continue;
+      }
+      const hasSource =
+        (meta.lastSource !== null && meta.lastSource.trim().length > 0) ||
+        (meta.retrySource !== null && meta.retrySource.trim().length > 0);
+      const hasPendingWork = meta.retryTimer !== null || meta.dirty || meta.completed;
+      if (!hasSource && !hasPendingWork) {
+        liveMetaRef.current.delete(id);
+      }
+    }
+  }, [captures, liveStreams]);
 
   useEffect(() => {
     const activeIds = new Set(liveStreams.map((entry) => entry.id));
@@ -2980,6 +3014,7 @@ export default function Home() {
       });
 
       if (sourceMode === "live" && source.trim()) {
+        if (!isDerivedCaptureSource(source)) {
         setLiveStreams((prev) => {
           const existing = prev.find((entry) => entry.id === captureId);
           if (existing) {
@@ -3005,9 +3040,10 @@ export default function Home() {
           liveStreamsRef.current = next;
           return next;
         });
-        const meta = getLiveMeta(captureId);
-        meta.dirty = false;
-        meta.lastSource = source.trim();
+          const meta = getLiveMeta(captureId);
+          meta.dirty = false;
+          meta.lastSource = source.trim();
+        }
       }
 
       if (shouldClear) {
@@ -3453,7 +3489,7 @@ export default function Home() {
     sendMessageRef.current({ type: "remove_capture", captureId });
   }, [clearDerivationRunPendingByCapture, handleRemoveLiveStream, stopStreamingIndicator]);
 
-  const handleSelectMetric = useCallback((captureId: string, path: string[]) => {
+  const handleSelectMetric = useCallback((captureId: string, path: string[], explicitGroupId?: string) => {
     const fullPath = path.join(".");
     const baseLabel = path[path.length - 1];
     const key = `${captureId}::${fullPath}`;
@@ -3463,11 +3499,18 @@ export default function Home() {
       sendMessageRef.current({ type: "set_stream_mode", captureId, mode: "full" });
     }
 
-    const targetGroupId = resolveDerivedGroupIdForCapture(
-      captureId,
-      derivationGroupsRef.current,
-      derivationOutputGroupByCaptureRef.current,
-    );
+    const explicitGroup =
+      typeof explicitGroupId === "string" && explicitGroupId.trim().length > 0
+        ? explicitGroupId.trim()
+        : null;
+    const targetGroupId =
+      explicitGroup && derivationGroupsRef.current.some((group) => group.id === explicitGroup)
+        ? explicitGroup
+        : resolveDerivedGroupIdForCapture(
+            captureId,
+            derivationGroupsRef.current,
+            derivationOutputGroupByCaptureRef.current,
+          );
     const targetGroup = targetGroupId
       ? derivationGroupsRef.current.find((group) => group.id === targetGroupId) ?? null
       : null;
@@ -4203,10 +4246,18 @@ export default function Home() {
       if (metrics.length === 0) {
         return;
       }
-      const outputCaptureId = `derive-${group.id}-${pluginId}`;
+      const knownDerivedCaptureIds = Array.from(
+        new Set(
+          getDerivationGroupDerivedMetrics(group)
+            .map((metric) => metric.captureId)
+            .filter((captureId) => typeof captureId === "string" && captureId.length > 0),
+        ),
+      );
+      const outputCaptureId =
+        knownDerivedCaptureIds[0] ?? `derive-${group.id}-${pluginId}`;
       const existing = captures.find((capture) => capture.id === outputCaptureId);
-      // Replay only when the derived capture isn't present in this browser session yet.
-      // This restores derived outputs after a refresh without persisting the full result.
+      // Replay only when the output capture already has records in this session.
+      // This restores derived outputs after refresh without creating duplicate output captures.
       if (existing && existing.records.length > 0) {
         return;
       }
@@ -5539,6 +5590,33 @@ export default function Home() {
     [getAnalysisKey],
   );
 
+  const handleOpenDocs = useCallback(() => {
+    setIsDocsOpen(true);
+    if (docsLoading || docsContent.length > 0) {
+      return;
+    }
+    setDocsLoading(true);
+    setDocsError(null);
+    fetch("/api/docs")
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || typeof payload?.content !== "string") {
+          throw new Error(
+            typeof payload?.error === "string"
+              ? payload.error
+              : `Failed to load docs (${response.status})`,
+          );
+        }
+        setDocsContent(payload.content);
+      })
+      .catch((error) => {
+        setDocsError(error instanceof Error ? error.message : "Failed to load docs.");
+      })
+      .finally(() => {
+        setDocsLoading(false);
+      });
+  }, [docsContent.length, docsLoading]);
+
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
       <Dialog
@@ -5580,6 +5658,35 @@ export default function Home() {
               </ScrollArea>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isDocsOpen} onOpenChange={setIsDocsOpen}>
+        <DialogContent className="max-w-5xl h-[85vh] flex flex-col gap-3">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex items-center gap-2">
+              <span>Documentation</span>
+              <a
+                href="/USAGE.md"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Raw
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </DialogTitle>
+          </DialogHeader>
+          {docsLoading ? (
+            <div className="text-xs text-muted-foreground">Loading docs...</div>
+          ) : null}
+          {docsError ? <div className="text-xs text-destructive">{docsError}</div> : null}
+          <div className="flex-1 min-h-0 rounded-md border border-border/50 bg-muted/20 overflow-hidden">
+            <ScrollArea className="h-full">
+              <pre className="p-3 text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words text-foreground">
+                {docsContent || "No documentation content loaded."}
+              </pre>
+            </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
       {connectionLock ? (
@@ -6616,11 +6723,14 @@ export default function Home() {
               >
                 {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </Button>
-              <Link href="/docs">
-                <Button variant="ghost" size="icon" data-testid="button-docs">
-                  <BookOpen className="w-4 h-4" />
-                </Button>
-              </Link>
+              <Button
+                variant="ghost"
+                size="icon"
+                data-testid="button-docs"
+                onClick={handleOpenDocs}
+              >
+                <BookOpen className="w-4 h-4" />
+              </Button>
               <ThemeToggle />
             </div>
           </header>
