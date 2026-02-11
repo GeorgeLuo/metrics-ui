@@ -26,6 +26,32 @@ import {
   buildSeriesWindow,
 } from "@shared/protocol-utils";
 
+const RESPONSE_TYPES = new Set<ControlResponse["type"]>([
+  "state_update",
+  "captures_list",
+  "error",
+  "ack",
+  "capabilities",
+  "derivation_plugins",
+  "display_snapshot",
+  "series_window",
+  "components_list",
+  "render_table",
+  "render_debug",
+  "ui_debug",
+  "ui_notice",
+  "ui_error",
+  "memory_stats",
+  "metric_coverage",
+]);
+
+const QUEUED_COMMAND_TYPES = new Set<ControlCommand["type"]>([
+  // Critical for correctness: ensures server-side persisted capture sources are updated even if the
+  // WS is temporarily disconnected when the user removes a capture.
+  "remove_capture",
+  "clear_captures",
+]);
+
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
   selectedMetrics: SelectedMetric[];
@@ -208,11 +234,25 @@ export function useWebSocketControl({
 }: UseWebSocketControlProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const isRegisteredRef = useRef(false);
+  const outboundQueueRef = useRef<ControlCommand[]>([]);
 
   const sendMessage = useCallback((message: ControlResponse | ControlCommand) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN && isRegisteredRef.current) {
+      ws.send(JSON.stringify(message));
       return true;
+    }
+    const type = (message as { type?: unknown }).type;
+    if (typeof type === "string" && !RESPONSE_TYPES.has(type as ControlResponse["type"])) {
+      const commandType = type as ControlCommand["type"];
+      if (QUEUED_COMMAND_TYPES.has(commandType)) {
+        outboundQueueRef.current.push(message as ControlCommand);
+        // Keep this bounded; if the queue grows without a connection something is wrong.
+        if (outboundQueueRef.current.length > 200) {
+          outboundQueueRef.current.splice(0, outboundQueueRef.current.length - 200);
+        }
+      }
     }
     return false;
   }, []);
@@ -840,6 +880,7 @@ export function useWebSocketControl({
       
       ws.onopen = () => {
         console.log("[ws] Connected to control server, registering as frontend...");
+        isRegisteredRef.current = false;
         ws.send(JSON.stringify({ type: "register", role: "frontend" }));
         onReconnect?.();
       };
@@ -850,6 +891,7 @@ export function useWebSocketControl({
           if (message.type === "ack") {
             console.log("[ws] Registration confirmed:", message.payload);
             if (message.payload === "registered as frontend") {
+              isRegisteredRef.current = true;
               try {
                 const stored = window.localStorage.getItem("metrics-ui-live-streams");
                 const parsed = stored ? JSON.parse(stored) : [];
@@ -890,6 +932,21 @@ export function useWebSocketControl({
               // Ensure the server has the latest state after a refresh/reconnect so agent-side
               // derivation runs (which read derivationGroups from lastVisualizationState) work.
               sendStateRef.current("initial_state_sync");
+
+              // Flush any queued user commands (remove/clear capture) that may have been triggered
+              // while the WS was disconnected.
+              if (outboundQueueRef.current.length > 0) {
+                const queued = [...outboundQueueRef.current];
+                outboundQueueRef.current = [];
+                queued.forEach((command) => {
+                  try {
+                    ws.send(JSON.stringify(command));
+                  } catch {
+                    // If this fails, re-queue and rely on the next reconnect.
+                    outboundQueueRef.current.push(command);
+                  }
+                });
+              }
             }
             return;
           }
@@ -905,6 +962,7 @@ export function useWebSocketControl({
 
       ws.onclose = () => {
         if (!isCleanedUp) {
+          isRegisteredRef.current = false;
           console.log("[ws] Disconnected, reconnecting in 3s...");
           reconnectTimeoutRef.current = window.setTimeout(connect, 3000);
         }

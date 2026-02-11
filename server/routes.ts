@@ -924,6 +924,17 @@ function syncPersistedCaptureSources(
     }
   }
 
+  if (replace) {
+    // When the browser reconnects it sends `sync_capture_sources` with `replace: true` based on its
+    // localStorage. If we don't actively remove stale captures here, they can reappear on refresh
+    // even after the user deleted them (because the server still has old capture state in memory).
+    for (const captureId of persistedCaptureSources.keys()) {
+      if (!next.has(captureId)) {
+        removeCaptureState(captureId, { persist: false });
+      }
+    }
+  }
+
   persistedCaptureSources.clear();
   for (const [captureId, entry] of next.entries()) {
     persistedCaptureSources.set(captureId, entry);
@@ -2490,11 +2501,14 @@ function clearCaptureState() {
   captureEnded.clear();
 }
 
-function removeCaptureState(captureId: string) {
+function removeCaptureState(captureId: string, options?: { persist?: boolean }) {
   if (!captureId) {
     return;
   }
-  removePersistedCaptureSource(captureId);
+  const persist = options?.persist !== false;
+  if (persist) {
+    removePersistedCaptureSource(captureId);
+  }
   pendingCaptureBuffers.delete(captureId);
   captureComponentState.delete(captureId);
   captureSources.delete(captureId);
