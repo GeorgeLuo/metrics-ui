@@ -288,6 +288,7 @@ const ChartLines = memo(function ChartLines({
               name={dataKey}
               stroke={metric.color}
               strokeWidth={isHighlighted ? 4 : 2}
+              connectNulls={true}
               dot={false}
               activeDot={false}
               isAnimationActive={false}

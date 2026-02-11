@@ -98,6 +98,7 @@ interface UseWebSocketControlProps {
     groupId: string,
     updates: { newGroupId?: string; name?: string },
   ) => void;
+  onReorderDerivationGroupMetrics: (groupId: string, fromIndex: number, toIndex: number) => void;
   onSetDisplayDerivationGroup: (groupId: string) => void;
   onClearCaptures: () => void;
   onPlay: () => void;
@@ -130,6 +131,8 @@ interface UseWebSocketControlProps {
   onClearSubtitles: () => void;
   getMemoryStats: () => MemoryStatsResponse;
   getUiDebug?: () => UiDebugResponse;
+  onUiNotice?: (notice: { message: string; context?: Record<string, unknown>; requestId?: string }) => void;
+  onUiError?: (notice: { error: string; context?: Record<string, unknown>; requestId?: string }) => void;
   onReconnect?: () => void;
   onStateSync?: (captures: { captureId: string; lastTick?: number | null }[]) => void;
   onDerivationPlugins?: (plugins: unknown[]) => void;
@@ -174,6 +177,17 @@ function normalizeCaptureAppendFrame(frame: CaptureAppendFrame): CaptureRecord |
   return null;
 }
 
+function isBenignAbortErrorMessage(message: string): boolean {
+  const normalized = message.trim().toLowerCase();
+  return (
+    normalized === "aborterror" ||
+    normalized === "aborted" ||
+    normalized.includes("aborterror") ||
+    normalized.includes("operation was aborted") ||
+    normalized.includes("request was aborted")
+  );
+}
+
 export function useWebSocketControl({
   captures,
   selectedMetrics,
@@ -206,6 +220,7 @@ export function useWebSocketControl({
   onDeleteDerivationGroup,
   onSetActiveDerivationGroup,
   onUpdateDerivationGroup,
+  onReorderDerivationGroupMetrics,
   onSetDisplayDerivationGroup,
   onClearCaptures,
   onPlay,
@@ -235,6 +250,8 @@ export function useWebSocketControl({
   onClearSubtitles,
   getMemoryStats,
   getUiDebug,
+  onUiNotice,
+  onUiError,
   onStateSync,
   onReconnect,
   onDerivationPlugins,
@@ -520,6 +537,10 @@ export function useWebSocketControl({
           newGroupId: command.newGroupId,
           name: command.name,
         });
+        sendAck(requestId, command.type);
+        break;
+      case "reorder_derivation_group_metrics":
+        onReorderDerivationGroupMetrics(command.groupId, command.fromIndex, command.toIndex);
         sendAck(requestId, command.type);
         break;
       case "set_display_derivation_group":
@@ -889,6 +910,52 @@ export function useWebSocketControl({
         onDerivationPlugins?.(plugins);
         break;
       }
+      case "ui_notice": {
+        const payload = (command as ControlResponse).payload as
+          | { message?: unknown; context?: unknown }
+          | undefined;
+        const message =
+          typeof payload?.message === "string" && payload.message.trim().length > 0
+            ? payload.message.trim()
+            : "Notice";
+        const context =
+          payload?.context && typeof payload.context === "object" && !Array.isArray(payload.context)
+            ? (payload.context as Record<string, unknown>)
+            : undefined;
+        onUiNotice?.({ message, context, requestId });
+        break;
+      }
+      case "ui_error": {
+        const payload = (command as ControlResponse).payload as
+          | { context?: unknown }
+          | undefined;
+        const context =
+          payload?.context && typeof payload.context === "object" && !Array.isArray(payload.context)
+            ? (payload.context as Record<string, unknown>)
+            : undefined;
+        const errorMessage =
+          typeof (command as ControlResponse).error === "string" &&
+          (command as ControlResponse).error!.trim().length > 0
+            ? (command as ControlResponse).error!.trim()
+            : "UI error";
+        if (isBenignAbortErrorMessage(errorMessage)) {
+          break;
+        }
+        onUiError?.({ error: errorMessage, context, requestId });
+        break;
+      }
+      case "error": {
+        const errorMessage =
+          typeof (command as ControlResponse).error === "string" &&
+          (command as ControlResponse).error!.trim().length > 0
+            ? (command as ControlResponse).error!.trim()
+            : "Server error";
+        if (isBenignAbortErrorMessage(errorMessage)) {
+          break;
+        }
+        onUiError?.({ error: errorMessage, requestId });
+        break;
+      }
     }
   }, [
     sendState,
@@ -927,6 +994,8 @@ export function useWebSocketControl({
     getMemoryStats,
     buildMetricCoverage,
     onDerivationPlugins,
+    onUiNotice,
+    onUiError,
     captures,
     selectedMetrics,
     playbackState,
@@ -1078,10 +1147,6 @@ export function useWebSocketControl({
                 });
               }
             }
-            return;
-          }
-          if (message.type === "error") {
-            console.error("[ws] Server error:", message.error);
             return;
           }
           handleCommandRef.current(message as ControlCommand);

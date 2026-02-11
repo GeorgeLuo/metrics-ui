@@ -251,6 +251,11 @@ type LineConsumerResult = {
   remainder: string;
 };
 
+function yieldToEventLoop(delayMs = 0): Promise<void> {
+  const normalizedDelay = Number.isFinite(delayMs) ? Math.max(0, Math.floor(delayMs)) : 0;
+  return new Promise((resolve) => setTimeout(resolve, normalizedDelay));
+}
+
 function createAbortError() {
   const error = new Error("AbortError");
   error.name = "AbortError";
@@ -263,12 +268,17 @@ async function consumeLineStream(options: {
   signal?: AbortSignal;
   onLine: (line: string) => void;
   maxLines?: number;
+  yieldEveryLines?: number;
 }): Promise<LineConsumerResult> {
   const { readable, signal, onLine } = options;
   let remainder = options.initialRemainder ?? "";
   let bytesRead = 0;
   let lineCount = 0;
   const maxLines = Number.isFinite(options.maxLines) ? Math.max(1, options.maxLines as number) : null;
+  const yieldEveryLines =
+    Number.isInteger(options.yieldEveryLines) && (options.yieldEveryLines as number) > 0
+      ? (options.yieldEveryLines as number)
+      : 0;
   const abortHandler = () => {
     readable.destroy(createAbortError());
   };
@@ -293,6 +303,9 @@ async function consumeLineStream(options: {
         const part = parts[index];
         lineCount += 1;
         onLine(part);
+        if (yieldEveryLines > 0 && lineCount % yieldEveryLines === 0) {
+          await yieldToEventLoop();
+        }
         if (maxLines && lineCount >= maxLines) {
           const remaining = parts.slice(index + 1).join("\n");
           if (remaining) {
@@ -321,6 +334,7 @@ async function streamLinesFromFile(options: {
   signal?: AbortSignal;
   onLine: (line: string) => void;
   maxLines?: number;
+  yieldEveryLines?: number;
 }): Promise<LineConsumerResult> {
   const stream = fs.createReadStream(options.filePath, {
     start: options.startOffset,
@@ -332,6 +346,7 @@ async function streamLinesFromFile(options: {
     signal: options.signal,
     onLine: options.onLine,
     maxLines: options.maxLines,
+    yieldEveryLines: options.yieldEveryLines,
   });
 }
 
@@ -341,6 +356,7 @@ async function streamLinesFromResponse(options: {
   signal?: AbortSignal;
   onLine: (line: string) => void;
   maxLines?: number;
+  yieldEveryLines?: number;
 }): Promise<LineConsumerResult> {
   if (!options.response.body) {
     const text = await options.response.text();
@@ -351,6 +367,7 @@ async function streamLinesFromResponse(options: {
       signal: options.signal,
       onLine: options.onLine,
       maxLines: options.maxLines,
+      yieldEveryLines: options.yieldEveryLines,
     });
   }
 
@@ -361,6 +378,7 @@ async function streamLinesFromResponse(options: {
     signal: options.signal,
     onLine: options.onLine,
     maxLines: options.maxLines,
+    yieldEveryLines: options.yieldEveryLines,
   });
 }
 
@@ -696,6 +714,7 @@ const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "delete_derivation_group",
   "set_active_derivation_group",
   "update_derivation_group",
+  "reorder_derivation_group_metrics",
   "set_display_derivation_group",
   "clear_captures",
   "play",
@@ -1556,21 +1575,87 @@ function getDerivationGroup(groupId: string): DerivationGroup | null {
   return groups.find((group) => group && typeof group.id === "string" && group.id === groupId) ?? null;
 }
 
+function normalizeSelectedMetrics(raw: unknown): SelectedMetric[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const normalized: SelectedMetric[] = [];
+  const seen = new Set<string>();
+  raw.forEach((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const value = entry as Record<string, unknown>;
+    if (typeof value.captureId !== "string") {
+      return;
+    }
+    if (!Array.isArray(value.path) || value.path.some((part) => typeof part !== "string")) {
+      return;
+    }
+    if (typeof value.fullPath !== "string" || typeof value.label !== "string") {
+      return;
+    }
+    if (typeof value.color !== "string") {
+      return;
+    }
+    const metric: SelectedMetric = {
+      captureId: value.captureId,
+      path: [...(value.path as string[])],
+      fullPath: value.fullPath,
+      label: value.label,
+      color: value.color,
+    };
+    const key = `${metric.captureId}::${metric.fullPath}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    normalized.push(metric);
+  });
+  return normalized;
+}
+
+function resolveDerivationInputMetrics(command: ControlCommand, groupId: string): SelectedMetric[] {
+  const group = getDerivationGroup(groupId);
+  const groupMetrics = normalizeSelectedMetrics(group?.metrics);
+  if (groupMetrics.length > 0) {
+    return groupMetrics;
+  }
+  return normalizeSelectedMetrics((command as { metrics?: unknown }).metrics);
+}
+
 async function streamMetricValuesFromSource(options: {
   source: string;
   metrics: SelectedMetric[];
   signal: AbortSignal;
   onValue: (event: { metric: SelectedMetric; tick: number; value: number | null }) => void;
+  yieldEveryLines?: number;
 }) {
   const { source, metrics, signal, onValue } = options;
+  const yieldEveryLines =
+    Number.isInteger(options.yieldEveryLines) && (options.yieldEveryLines as number) > 0
+      ? (options.yieldEveryLines as number)
+      : undefined;
   const componentLookup = new Map<string, Array<{ metric: SelectedMetric; rest: string[] }>>();
-  const componentIdNeedles = new Set<string>();
+  const metricKey = (metric: SelectedMetric) => `${metric.captureId}::${metric.fullPath}`;
+  const latestByMetricKey = new Map<string, number | null>();
+  metrics.forEach((metric) => {
+    latestByMetricKey.set(metricKey(metric), null);
+  });
+  let componentTick: number | null = null;
+  let componentModeSeen = false;
+
+  const emitComponentTick = (tick: number) => {
+    metrics.forEach((metric) => {
+      const key = metricKey(metric);
+      onValue({ metric, tick, value: latestByMetricKey.get(key) ?? null });
+    });
+  };
 
   metrics.forEach((metric) => {
     if (metric.path.length >= 2) {
       const key = `${metric.path[0]}::${metric.path[1]}`;
       const rest = metric.path.slice(2);
-      componentIdNeedles.add(metric.path[1]);
       const list = componentLookup.get(key);
       if (list) {
         list.push({ metric, rest });
@@ -1583,21 +1668,6 @@ async function streamMetricValuesFromSource(options: {
   const onLine = (line: string) => {
     if (!line.trim()) {
       return;
-    }
-    // Performance: avoid JSON.parse for lines that cannot possibly match our metric component ids.
-    // This is critical for large JSONL captures where only a tiny fraction of lines contain the
-    // component ids we care about.
-    if (!line.includes("\"entities\"") && componentIdNeedles.size > 0) {
-      let maybeRelevant = false;
-      for (const needle of componentIdNeedles) {
-        if (line.includes(needle)) {
-          maybeRelevant = true;
-          break;
-        }
-      }
-      if (!maybeRelevant) {
-        return;
-      }
     }
     let parsed: unknown;
     try {
@@ -1628,6 +1698,17 @@ async function streamMetricValuesFromSource(options: {
     const entityId = (parsed as { entityId?: unknown }).entityId;
     const componentId = (parsed as { componentId?: unknown }).componentId;
     if (typeof entityId === "string" && typeof componentId === "string") {
+      componentModeSeen = true;
+      if (componentTick === null) {
+        componentTick = numericTick;
+      } else if (numericTick !== componentTick) {
+        emitComponentTick(componentTick);
+        for (let tick = componentTick + 1; tick < numericTick; tick += 1) {
+          emitComponentTick(tick);
+        }
+        componentTick = numericTick;
+      }
+
       const list = componentLookup.get(`${entityId}::${componentId}`);
       if (!list) {
         return;
@@ -1636,7 +1717,7 @@ async function streamMetricValuesFromSource(options: {
       list.forEach(({ metric, rest }) => {
         const rawValue = rest.length === 0 ? valueSource : getValueAtPath(valueSource, rest);
         const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
-        onValue({ metric, tick: numericTick, value });
+        latestByMetricKey.set(metricKey(metric), value);
       });
     }
   };
@@ -1647,10 +1728,21 @@ async function streamMetricValuesFromSource(options: {
     if (!response.ok) {
       throw new Error(`Capture fetch failed (${response.status})`);
     }
-    await streamLinesFromResponse({ response, signal, onLine });
+    await streamLinesFromResponse({ response, signal, onLine, yieldEveryLines });
   } else {
     const filePath = resolveLocalCapturePath(trimmed);
-    await streamLinesFromFile({ filePath, startOffset: 0, initialRemainder: "", signal, onLine });
+    await streamLinesFromFile({
+      filePath,
+      startOffset: 0,
+      initialRemainder: "",
+      signal,
+      onLine,
+      yieldEveryLines,
+    });
+  }
+
+  if (componentModeSeen && componentTick !== null) {
+    emitComponentTick(componentTick);
   }
 }
 
@@ -1702,12 +1794,12 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
     throw new Error("Frontend not connected.");
   }
 
-  const group = getDerivationGroup(groupId);
-  if (!group) {
-    throw new Error(`Derivation group not found: ${groupId}`);
+  const metrics = resolveDerivationInputMetrics(command, groupId);
+  if (metrics.length === 0) {
+    throw new Error(
+      `Derivation group not found: ${groupId}. Provide metrics in command payload to run before state sync.`,
+    );
   }
-
-  const metrics = Array.isArray(group.metrics) ? group.metrics : [];
   if (kind === "diff" && metrics.length < 2) {
     throw new Error(`Diff derivation requires at least 2 metrics (group ${groupId} has ${metrics.length}).`);
   }
@@ -1833,6 +1925,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
         source,
         metrics: captureMetrics,
         signal: controller.signal,
+        yieldEveryLines: 256,
         onValue: ({ metric, tick, value }) => {
           if (controller.signal.aborted) {
             return;
@@ -1892,6 +1985,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
       source,
       metrics: [inputMetric],
       signal: controller.signal,
+      yieldEveryLines: 256,
       onValue: ({ tick, value }) => {
         if (controller.signal.aborted) {
           return;
@@ -1999,11 +2093,12 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
     throw new Error(`Failed to load derivation plugin: ${pluginId}${loaded.record.error ? ` (${loaded.record.error})` : ""}`);
   }
 
-  const group = getDerivationGroup(groupId);
-  if (!group) {
-    throw new Error(`Derivation group not found: ${groupId}`);
+  const metrics = resolveDerivationInputMetrics(command, groupId);
+  if (metrics.length === 0) {
+    throw new Error(
+      `Derivation group not found: ${groupId}. Provide metrics in command payload to run before state sync.`,
+    );
   }
-  const metrics = Array.isArray(group.metrics) ? group.metrics : [];
   const minInputs = Number.isInteger(manifest.minInputs) ? (manifest.minInputs as number) : 1;
   const maxInputs =
     Number.isInteger(manifest.maxInputs) && (manifest.maxInputs as number) >= minInputs
@@ -2156,19 +2251,48 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
     nextTick = startTick;
   };
 
-  const tryEmit = () => {
+  const EMIT_BATCH_SIZE = 8;
+  const EMIT_BATCH_DELAY_MS = 12;
+  let ticksSinceYield = 0;
+  let emitInProgress = false;
+
+  const hasReadyTick = () => {
     if (startTick === null || nextTick === null) {
+      return false;
+    }
+    const entry = tickBuffer.get(nextTick);
+    return Boolean(entry && entry.count >= totalInputs);
+  };
+
+  const tryEmit = async () => {
+    if (emitInProgress) {
       return;
     }
-    while (nextTick !== null) {
-      const entry = tickBuffer.get(nextTick);
-      if (!entry || entry.count < totalInputs) {
-        return;
+    emitInProgress = true;
+    try {
+      while (nextTick !== null) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        const entry = tickBuffer.get(nextTick);
+        if (!entry || entry.count < totalInputs) {
+          return;
+        }
+        const values = entry.values.map((value) => (value === UNSET ? null : value)) as Array<number | null>;
+        tickBuffer.delete(nextTick);
+        runTick(nextTick, values);
+        nextTick += 1;
+        ticksSinceYield += 1;
+        if (ticksSinceYield >= EMIT_BATCH_SIZE) {
+          ticksSinceYield = 0;
+          await yieldToEventLoop(EMIT_BATCH_DELAY_MS);
+        }
       }
-      const values = entry.values.map((value) => (value === UNSET ? null : value)) as Array<number | null>;
-      tickBuffer.delete(nextTick);
-      runTick(nextTick, values);
-      nextTick += 1;
+    } finally {
+      emitInProgress = false;
+      if (hasReadyTick()) {
+        void tryEmit();
+      }
     }
   };
 
@@ -2191,6 +2315,7 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
       source,
       metrics: captureMetrics,
       signal: controller.signal,
+      yieldEveryLines: 256,
       onValue: ({ metric, tick, value }) => {
         if (controller.signal.aborted) {
           return;
@@ -2205,12 +2330,13 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
         }
         setValue(index, tick, value);
         trySetStartTick();
-        tryEmit();
+        void tryEmit();
       },
     });
   });
 
   await Promise.all(streamPromises);
+  await tryEmit();
 
   const tickEnd = Array.from(byCapture.keys()).reduce((acc, captureId) => {
     const last = captureLastTicks.get(captureId) ?? liveStreamStates.get(captureId)?.lastTick ?? null;
@@ -2233,6 +2359,11 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
       ? (entry.values.map((value) => (value === UNSET ? null : value)) as Array<number | null>)
       : Array.from({ length: totalInputs }, () => null);
     runTick(tick, values);
+    ticksSinceYield += 1;
+    if (ticksSinceYield >= EMIT_BATCH_SIZE) {
+      ticksSinceYield = 0;
+      await yieldToEventLoop(EMIT_BATCH_DELAY_MS);
+    }
   }
 
   sendCaptureEnd(derivedCaptureId);
@@ -4274,8 +4405,9 @@ export async function registerRoutes(
       const cacheStats = captureFrameCacheStats.get(captureId);
       const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
       const preferCache = req.body?.preferCache !== false;
-      const isLive = liveStreamStates.has(captureId);
-      const allowSampledCache = isLive;
+      // For restore/startup UX we allow sampled cache for both live and file-backed captures,
+      // then let the client request a full backfill (preferCache=false) as needed.
+      const allowSampledCache = true;
       const usedCache =
         cachedFrames.length > 0 && preferCache && (allowSampledCache || !isSampled);
       const result =
@@ -4296,7 +4428,7 @@ export async function registerRoutes(
         tickCount: result.tickCount,
         numericCount: result.numericCount,
         lastTick: result.lastTick,
-        partial: usedCache && (isSampled || isLive),
+        partial: usedCache && isSampled,
       });
     } catch (error) {
       console.error("Series load error:", error);
@@ -4328,8 +4460,9 @@ export async function registerRoutes(
       const cacheStats = captureFrameCacheStats.get(captureId);
       const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
       const preferCache = req.body?.preferCache !== false;
-      const isLive = liveStreamStates.has(captureId);
-      const allowSampledCache = isLive;
+      // For restore/startup UX we allow sampled cache for both live and file-backed captures,
+      // then let the client request a full backfill (preferCache=false) as needed.
+      const allowSampledCache = true;
       const usedCache =
         cachedFrames.length > 0 && preferCache && (allowSampledCache || !isSampled);
       const results =
@@ -4350,7 +4483,7 @@ export async function registerRoutes(
           tickCount: result.tickCount,
           numericCount: result.numericCount,
           lastTick: result.lastTick,
-          partial: usedCache && (isSampled || isLive),
+          partial: usedCache && isSampled,
         };
       });
 

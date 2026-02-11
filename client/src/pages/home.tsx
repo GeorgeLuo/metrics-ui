@@ -32,6 +32,7 @@ import {
   Plus,
   BookOpen,
   ChevronDown,
+  GripVertical,
   Eye,
   EyeOff,
   RefreshCw,
@@ -147,6 +148,27 @@ type DerivationPluginSourceResponse = {
   source: string;
 };
 
+type DerivationDragState = {
+  groupId: string;
+  fromIndex: number;
+} | null;
+
+type DerivationDropState = {
+  groupId: string;
+  targetIndex: number;
+  position: "before" | "after";
+} | null;
+
+type UiEventLevel = "info" | "error";
+
+interface UiEvent {
+  id: string;
+  level: UiEventLevel;
+  message: string;
+  detail?: string;
+  timestamp: number;
+}
+
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
 }
@@ -194,6 +216,120 @@ function parseComponentTree(records: CaptureRecord[]): ComponentNode[] {
 
 function sanitizeKey(key: string): string {
   return key.replace(/\./g, "_");
+}
+
+function getMetricKey(metric: Pick<SelectedMetric, "captureId" | "fullPath">): string {
+  return `${metric.captureId}::${metric.fullPath}`;
+}
+
+function uniqueMetrics(metrics: SelectedMetric[]): SelectedMetric[] {
+  const seen = new Set<string>();
+  const result: SelectedMetric[] = [];
+  metrics.forEach((metric) => {
+    const key = getMetricKey(metric);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(metric);
+  });
+  return result;
+}
+
+function getDerivationGroupInputMetrics(group: DerivationGroup): SelectedMetric[] {
+  return Array.isArray(group.metrics) ? group.metrics : [];
+}
+
+function getDerivationGroupDerivedMetrics(group: DerivationGroup): SelectedMetric[] {
+  return Array.isArray(group.derivedMetrics) ? group.derivedMetrics : [];
+}
+
+function getDerivationGroupDisplayMetrics(group: DerivationGroup): SelectedMetric[] {
+  return uniqueMetrics([
+    ...getDerivationGroupInputMetrics(group),
+    ...getDerivationGroupDerivedMetrics(group),
+  ]);
+}
+
+function isSelectedMetricLike(metric: unknown): metric is SelectedMetric {
+  if (!metric || typeof metric !== "object") {
+    return false;
+  }
+  const value = metric as Record<string, unknown>;
+  return (
+    typeof value.captureId === "string" &&
+    Array.isArray(value.path) &&
+    typeof value.fullPath === "string" &&
+    typeof value.label === "string" &&
+    typeof value.color === "string"
+  );
+}
+
+function normalizeMetricList(metrics: unknown): SelectedMetric[] {
+  if (!Array.isArray(metrics)) {
+    return [];
+  }
+  return uniqueMetrics(metrics.filter((entry) => isSelectedMetricLike(entry)));
+}
+
+function cloneMetric(metric: SelectedMetric): SelectedMetric {
+  return {
+    captureId: metric.captureId,
+    path: [...metric.path],
+    fullPath: metric.fullPath,
+    label: metric.label,
+    color: metric.color,
+  };
+}
+
+function normalizeDerivationGroups(raw: unknown): DerivationGroup[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const groups: DerivationGroup[] = [];
+  raw.forEach((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return;
+    }
+    const candidate = entry as Record<string, unknown>;
+    const id = typeof candidate.id === "string" ? candidate.id : "";
+    if (!id) {
+      return;
+    }
+    const name = typeof candidate.name === "string" ? candidate.name : id;
+    const pluginId = typeof candidate.pluginId === "string" ? candidate.pluginId : undefined;
+    const normalizedPluginId = pluginId?.trim() ?? "";
+    const metrics = normalizeMetricList(candidate.metrics);
+    const derivedMetrics = normalizeMetricList(candidate.derivedMetrics);
+
+    let inputMetrics = metrics;
+    let outputMetrics = derivedMetrics;
+    // Backward compatibility with legacy state where derived metrics were stored in metrics[].
+    if (outputMetrics.length === 0 && normalizedPluginId.length > 0) {
+      const derivedPrefix = `derive-${id}-${normalizedPluginId}`;
+      inputMetrics = [];
+      outputMetrics = [];
+      metrics.forEach((metric) => {
+        if (
+          metric.captureId === derivedPrefix ||
+          metric.captureId.startsWith(`${derivedPrefix}-`)
+        ) {
+          outputMetrics.push(metric);
+        } else {
+          inputMetrics.push(metric);
+        }
+      });
+    }
+
+    groups.push({
+      id,
+      name,
+      metrics: uniqueMetrics(inputMetrics),
+      derivedMetrics: uniqueMetrics(outputMetrics),
+      pluginId: normalizedPluginId.length > 0 ? normalizedPluginId : undefined,
+    });
+  });
+  return groups;
 }
 
 function buildSeriesKey(captureId: string, fullPath: string): string {
@@ -401,29 +537,7 @@ export default function Home() {
     }
     try {
       const parsed = JSON.parse(stored);
-      if (!Array.isArray(parsed)) {
-        return [];
-      }
-      const groups: DerivationGroup[] = [];
-      parsed.forEach((group) => {
-        if (!group || typeof group.id !== "string") {
-          return;
-        }
-        const name = typeof group.name === "string" ? group.name : group.id;
-        const pluginId = typeof group.pluginId === "string" ? group.pluginId : undefined;
-        const metricsRaw = Array.isArray(group.metrics) ? group.metrics : [];
-        const metrics = metricsRaw.filter(
-          (metric: any) =>
-            metric &&
-            typeof metric.captureId === "string" &&
-            Array.isArray(metric.path) &&
-            typeof metric.fullPath === "string" &&
-            typeof metric.label === "string" &&
-            typeof metric.color === "string",
-        ) as SelectedMetric[];
-        groups.push({ id: group.id, name, metrics, pluginId });
-      });
-      return groups;
+      return normalizeDerivationGroups(parsed);
     } catch {
       return [];
     }
@@ -525,6 +639,8 @@ export default function Home() {
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
   const [initialSyncReady, setInitialSyncReady] = useState(false);
+  const [derivationDragState, setDerivationDragState] = useState<DerivationDragState>(null);
+  const [derivationDropState, setDerivationDropState] = useState<DerivationDropState>(null);
   const [loadingProbe, setLoadingProbe] = useState(() => ({
     pendingSeries: 0,
     pendingAppends: 0,
@@ -532,6 +648,11 @@ export default function Home() {
     pendingTicks: 0,
     updatedAt: 0,
   }));
+  const [pendingDerivationRuns, setPendingDerivationRuns] = useState<
+    Array<{ requestId: string; outputCaptureId: string; label: string }>
+  >([]);
+  const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
+  const [isEventsVisible, setIsEventsVisible] = useState(false);
   const [streamActivityVersion, setStreamActivityVersion] = useState(0);
 
   const playbackRef = useRef<number | null>(null);
@@ -557,6 +678,7 @@ export default function Home() {
   const tickFlushTimerRef = useRef<number | null>(null);
   const captureStatsRef = useRef<Map<string, CaptureStats>>(new Map());
   const pendingSeriesRef = useRef(new Set<string>());
+  const pendingFullBackfillRef = useRef(new Set<string>());
   const loadedSeriesRef = useRef(new Set<string>());
   const partialSeriesRef = useRef(new Set<string>());
   const seriesRefreshTimerRef = useRef<number | null>(null);
@@ -591,6 +713,107 @@ export default function Home() {
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
   const activeCaptureIdsRef = useRef(new Set<string>());
   const streamModeRef = useRef(new Map<string, "lite" | "full">());
+  const derivationRerunTimersRef = useRef(new Map<string, number>());
+  const derivationOutputGroupByCaptureRef = useRef(new Map<string, string>());
+  const pendingDerivationByRequestRef = useRef(
+    new Map<string, { outputCaptureId: string; label: string }>(),
+  );
+  const pendingDerivationRequestsByCaptureRef = useRef(new Map<string, Set<string>>());
+  const staleSeriesRecoverAtRef = useRef(new Map<string, number>());
+
+  const pushUiEvent = useCallback((event: Omit<UiEvent, "id" | "timestamp">) => {
+    setUiEvents((prev) => {
+      const next: UiEvent = {
+        id: generateId(),
+        timestamp: Date.now(),
+        ...event,
+      };
+      const updated = [...prev, next];
+      if (updated.length <= 200) {
+        return updated;
+      }
+      return updated.slice(updated.length - 200);
+    });
+  }, []);
+
+  const syncPendingDerivationRuns = useCallback(() => {
+    const next = Array.from(pendingDerivationByRequestRef.current.entries()).map(
+      ([requestId, entry]) => ({
+        requestId,
+        outputCaptureId: entry.outputCaptureId,
+        label: entry.label,
+      }),
+    );
+    setPendingDerivationRuns(next);
+  }, []);
+
+  const markDerivationRunPending = useCallback(
+    (requestId: string, outputCaptureId: string, label: string) => {
+      if (!requestId.trim() || !outputCaptureId.trim()) {
+        return;
+      }
+      pendingDerivationByRequestRef.current.set(requestId, {
+        outputCaptureId,
+        label: label.trim(),
+      });
+      const existing = pendingDerivationRequestsByCaptureRef.current.get(outputCaptureId);
+      if (existing) {
+        existing.add(requestId);
+      } else {
+        pendingDerivationRequestsByCaptureRef.current.set(outputCaptureId, new Set([requestId]));
+      }
+      syncPendingDerivationRuns();
+    },
+    [syncPendingDerivationRuns],
+  );
+
+  const clearDerivationRunPendingByRequest = useCallback(
+    (requestId?: string) => {
+      if (!requestId || !requestId.trim()) {
+        return;
+      }
+      const existing = pendingDerivationByRequestRef.current.get(requestId);
+      if (!existing) {
+        return;
+      }
+      pendingDerivationByRequestRef.current.delete(requestId);
+      const captureSet = pendingDerivationRequestsByCaptureRef.current.get(
+        existing.outputCaptureId,
+      );
+      if (captureSet) {
+        captureSet.delete(requestId);
+        if (captureSet.size === 0) {
+          pendingDerivationRequestsByCaptureRef.current.delete(existing.outputCaptureId);
+        }
+      }
+      syncPendingDerivationRuns();
+    },
+    [syncPendingDerivationRuns],
+  );
+
+  const clearDerivationRunPendingByCapture = useCallback(
+    (captureId: string) => {
+      if (!captureId.trim()) {
+        return;
+      }
+      const captureSet = pendingDerivationRequestsByCaptureRef.current.get(captureId);
+      if (!captureSet || captureSet.size === 0) {
+        return;
+      }
+      captureSet.forEach((requestId) => {
+        pendingDerivationByRequestRef.current.delete(requestId);
+      });
+      pendingDerivationRequestsByCaptureRef.current.delete(captureId);
+      syncPendingDerivationRuns();
+    },
+    [syncPendingDerivationRuns],
+  );
+
+  const clearAllPendingDerivationRuns = useCallback(() => {
+    pendingDerivationByRequestRef.current.clear();
+    pendingDerivationRequestsByCaptureRef.current.clear();
+    syncPendingDerivationRuns();
+  }, [syncPendingDerivationRuns]);
 
   const normalizeDerivationPlugins = useCallback((raw: unknown): DerivationPluginRecord[] => {
     if (!Array.isArray(raw)) {
@@ -683,7 +906,9 @@ export default function Home() {
     const handler = (newMetrics: SelectedMetric[]) => {
       setSelectedMetrics((prev) => {
         const otherMetrics = prev.filter((metric) => metric.captureId !== captureId);
-        return [...otherMetrics, ...newMetrics];
+        const next = [...otherMetrics, ...newMetrics];
+        selectedMetricsRef.current = next;
+        return next;
       });
     };
     selectionHandlersRef.current.set(captureId, handler);
@@ -729,20 +954,16 @@ export default function Home() {
     if (!resolvedActiveDerivationGroupId) {
       return [];
     }
-    return (
-      derivationGroups.find((group) => group.id === resolvedActiveDerivationGroupId)?.metrics ??
-      []
-    );
+    const group = derivationGroups.find((entry) => entry.id === resolvedActiveDerivationGroupId);
+    return group ? getDerivationGroupInputMetrics(group) : [];
   }, [derivationGroups, resolvedActiveDerivationGroupId]);
 
   const displayGroupMetrics = useMemo(() => {
     if (!resolvedDisplayDerivationGroupId) {
       return null;
     }
-    return (
-      derivationGroups.find((group) => group.id === resolvedDisplayDerivationGroupId)?.metrics ??
-      []
-    );
+    const group = derivationGroups.find((entry) => entry.id === resolvedDisplayDerivationGroupId);
+    return group ? getDerivationGroupDisplayMetrics(group) : [];
   }, [derivationGroups, resolvedDisplayDerivationGroupId]);
 
   const displayGroupHasActiveCaptures = useMemo(() => {
@@ -887,6 +1108,8 @@ export default function Home() {
         memoryStatsSnapshot,
         memoryStatsAt,
         uploadError,
+        uiEvents,
+        pendingDerivationRuns,
         highlightedMetricKey,
         initialSyncReady,
         loadingProbe,
@@ -916,6 +1139,19 @@ export default function Home() {
         pendingComponentUpdates,
         componentUpdateTimers,
         componentUpdateLastApplied,
+        pendingDerivationByRequest: Array.from(
+          pendingDerivationByRequestRef.current.entries(),
+        ).map(([requestId, value]) => ({
+          requestId,
+          outputCaptureId: value.outputCaptureId,
+          label: value.label,
+        })),
+        pendingDerivationByCapture: Array.from(
+          pendingDerivationRequestsByCaptureRef.current.entries(),
+        ).map(([captureId, requestIds]) => ({
+          captureId,
+          requestIds: Array.from(requestIds.values()),
+        })),
         eventLoopLagSamples: [...eventLoopLagSamplesRef.current],
         frameTimeSamples: [...frameTimeSamplesRef.current],
         longTaskStats: { ...longTaskStatsRef.current },
@@ -952,12 +1188,14 @@ export default function Home() {
     loadingProbe,
     memoryStatsAt,
     memoryStatsSnapshot,
+    pendingDerivationRuns,
     playbackState,
     selectedMetrics,
     sourceMode,
     sidebarMode,
     subtitles,
     uploadError,
+    uiEvents,
     viewport,
     windowEndInput,
     windowEnd,
@@ -973,6 +1211,11 @@ export default function Home() {
     selectionHandlersRef.current.forEach((_handler, id) => {
       if (!activeIds.has(id)) {
         selectionHandlersRef.current.delete(id);
+      }
+    });
+    staleSeriesRecoverAtRef.current.forEach((_value, id) => {
+      if (!activeIds.has(id)) {
+        staleSeriesRecoverAtRef.current.delete(id);
       }
     });
   }, [captures]);
@@ -1151,6 +1394,7 @@ export default function Home() {
         return;
       }
       const metricsToFetch = Array.from(uniqueMetrics.values());
+      const metricsNeedingBackfill: SelectedMetric[] = [];
       metricsToFetch.forEach((metric) => {
         pendingSeriesRef.current.add(buildSeriesKey(metric.captureId, metric.fullPath));
       });
@@ -1188,12 +1432,31 @@ export default function Home() {
           const seriesKey = buildSeriesKey(metric.captureId, metric.fullPath);
           if (entry.partial) {
             partialSeriesRef.current.add(seriesKey);
+            if (options?.preferCache !== false && !pendingFullBackfillRef.current.has(seriesKey)) {
+              pendingFullBackfillRef.current.add(seriesKey);
+              metricsNeedingBackfill.push(metric);
+            }
           } else {
             partialSeriesRef.current.delete(seriesKey);
+            pendingFullBackfillRef.current.delete(seriesKey);
           }
         });
+
+        if (metricsNeedingBackfill.length > 0 && options?.preferCache !== false) {
+          const backfillMetrics = [...metricsNeedingBackfill];
+          window.setTimeout(() => {
+            void fetchMetricSeriesBatch(captureId, backfillMetrics, {
+              force: true,
+              preferCache: false,
+            });
+          }, 0);
+        }
       } catch (error) {
         console.error("[series] Batch fetch error:", error);
+        metricsToFetch.forEach((metric) => {
+          const key = buildSeriesKey(metric.captureId, metric.fullPath);
+          pendingFullBackfillRef.current.delete(key);
+        });
       } finally {
         metricsToFetch.forEach((metric) => {
           pendingSeriesRef.current.delete(buildSeriesKey(metric.captureId, metric.fullPath));
@@ -2378,10 +2641,12 @@ export default function Home() {
       restoredFromServerRef.current = true;
 
       if (Array.isArray(state.selectedMetrics)) {
-        setSelectedMetrics(state.selectedMetrics);
+        const nextSelected = normalizeMetricList(state.selectedMetrics);
+        selectedMetricsRef.current = nextSelected;
+        setSelectedMetrics(nextSelected);
       }
       if (Array.isArray(state.derivationGroups)) {
-        setDerivationGroups(state.derivationGroups);
+        setDerivationGroups(normalizeDerivationGroups(state.derivationGroups));
       }
       if (typeof state.activeDerivationGroupId === "string") {
         setActiveDerivationGroupId(state.activeDerivationGroupId);
@@ -2559,6 +2824,15 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      derivationRerunTimersRef.current.forEach((timer) => {
+        window.clearTimeout(timer);
+      });
+      derivationRerunTimersRef.current.clear();
+    };
+  }, []);
+
   const handleCaptureInit = useCallback(
     (
       captureId: string,
@@ -2661,12 +2935,14 @@ export default function Home() {
         partialSeriesRef.current.forEach((key) => {
           if (key.startsWith(`${captureId}::`)) {
             partialSeriesRef.current.delete(key);
+            pendingFullBackfillRef.current.delete(key);
           }
         });
         Array.from(loadedSeriesRef.current.keys()).forEach((key) => {
           if (key.startsWith(`${captureId}::`)) {
             loadedSeriesRef.current.delete(key);
             pendingSeriesRef.current.delete(key);
+            pendingFullBackfillRef.current.delete(key);
           }
         });
       }
@@ -2805,13 +3081,22 @@ export default function Home() {
           continue;
         }
         const metricsForCapture = metricsByCapture.get(captureId) ?? [];
-        const shouldAppend = metricsForCapture.length > 0;
+        const isDerivedCapture = captureId.startsWith("derive-");
+        const shouldAppend = metricsForCapture.length > 0 || isDerivedCapture;
         const newRecords: CaptureRecord[] = [];
         let lastTick: number | null = null;
 
         frames.forEach((frame) => {
           lastTick = frame.tick;
           if (!shouldAppend) {
+            return;
+          }
+          if (isDerivedCapture) {
+            const compactedFrame = compactRecord(frame);
+            if (Object.keys(compactedFrame.entities).length === 0) {
+              return;
+            }
+            newRecords.push(compactedFrame);
             return;
           }
           const filteredEntities = buildEntitiesForMetrics(
@@ -2966,6 +3251,7 @@ export default function Home() {
   const handleCaptureEnd = useCallback(
     (captureId: string) => {
       endedCapturesRef.current.add(captureId);
+      clearDerivationRunPendingByCapture(captureId);
       stopStreamingIndicator(captureId);
       clearLiveRetry(captureId);
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
@@ -2992,7 +3278,13 @@ export default function Home() {
       });
       fetchMetricSeriesBatch(captureId, pending, { force: true, preferCache: false });
     },
-    [clearLiveRetry, fetchMetricSeriesBatch, getLiveMeta, stopStreamingIndicator],
+    [
+      clearDerivationRunPendingByCapture,
+      clearLiveRetry,
+      fetchMetricSeriesBatch,
+      getLiveMeta,
+      stopStreamingIndicator,
+    ],
   );
 
   const handleToggleCapture = useCallback((captureId: string) => {
@@ -3030,14 +3322,24 @@ export default function Home() {
   }, [captures, fetchMetricSeriesBatch]);
 
   const handleRemoveCapture = useCallback((captureId: string) => {
+    clearDerivationRunPendingByCapture(captureId);
     endedCapturesRef.current.delete(captureId);
     stopStreamingIndicator(captureId);
     setCaptures(prev => prev.filter(c => c.id !== captureId));
-    setSelectedMetrics(prev => prev.filter(m => m.captureId !== captureId));
+    setSelectedMetrics((prev) => {
+      const next = prev.filter((metric) => metric.captureId !== captureId);
+      selectedMetricsRef.current = next;
+      return next;
+    });
     setDerivationGroups((prev) =>
       prev.map((group) => ({
         ...group,
-        metrics: group.metrics.filter((metric) => metric.captureId !== captureId),
+        metrics: getDerivationGroupInputMetrics(group).filter(
+          (metric) => metric.captureId !== captureId,
+        ),
+        derivedMetrics: getDerivationGroupDerivedMetrics(group).filter(
+          (metric) => metric.captureId !== captureId,
+        ),
       })),
     );
     captureStatsRef.current.delete(captureId);
@@ -3045,45 +3347,133 @@ export default function Home() {
     pendingTicksRef.current.delete(captureId);
     lastSeriesRefreshRef.current.delete(captureId);
     lastSeriesTickRef.current.delete(captureId);
+    staleSeriesRecoverAtRef.current.delete(captureId);
     partialSeriesRef.current.forEach((key) => {
       if (key.startsWith(`${captureId}::`)) {
         partialSeriesRef.current.delete(key);
+        pendingFullBackfillRef.current.delete(key);
       }
     });
+    loadedSeriesRef.current.forEach((key) => {
+      if (key.startsWith(`${captureId}::`)) {
+        loadedSeriesRef.current.delete(key);
+        pendingFullBackfillRef.current.delete(key);
+      }
+    });
+    pendingSeriesRef.current.forEach((key) => {
+      if (key.startsWith(`${captureId}::`)) {
+        pendingSeriesRef.current.delete(key);
+        pendingFullBackfillRef.current.delete(key);
+      }
+    });
+    derivationOutputGroupByCaptureRef.current.delete(captureId);
     handleRemoveLiveStream(captureId);
     sendMessageRef.current({ type: "remove_capture", captureId });
-  }, [handleRemoveLiveStream, stopStreamingIndicator]);
+  }, [clearDerivationRunPendingByCapture, handleRemoveLiveStream, stopStreamingIndicator]);
 
   const handleSelectMetric = useCallback((captureId: string, path: string[]) => {
     const fullPath = path.join(".");
     const label = path[path.length - 1];
+    const key = `${captureId}::${fullPath}`;
     const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
     if (liveEntry && liveEntry.status !== "idle" && !liveEntry.source.trim()) {
       streamModeRef.current.set(captureId, "full");
       sendMessageRef.current({ type: "set_stream_mode", captureId, mode: "full" });
     }
+    const existingMetric = selectedMetricsRef.current.find(
+      (metric) => metric.captureId === captureId && metric.fullPath === fullPath,
+    );
+    let selectedMetric: SelectedMetric =
+      existingMetric ??
+      (() => {
+        // Deterministic color assignment so asynchronous selection events do not produce unstable colors.
+        let hash = 0;
+        for (let i = 0; i < key.length; i += 1) {
+          hash = (hash * 31 + key.charCodeAt(i)) | 0;
+        }
+        const colorIndex = Math.abs(hash) % METRIC_COLORS.length;
+        return {
+          captureId,
+          path,
+          fullPath,
+          label,
+          color: METRIC_COLORS[colorIndex]!,
+        };
+      })();
+
+    const refExists = selectedMetricsRef.current.some(
+      (metric) => metric.captureId === captureId && metric.fullPath === fullPath,
+    );
+    if (!refExists) {
+      selectedMetricsRef.current = [...selectedMetricsRef.current, selectedMetric];
+    }
+
     setSelectedMetrics((prev) => {
       const exists = prev.some((metric) => metric.captureId === captureId && metric.fullPath === fullPath);
       if (exists) {
+        const found = prev.find((metric) => metric.captureId === captureId && metric.fullPath === fullPath);
+        if (found) {
+          selectedMetric = found;
+        }
+        selectedMetricsRef.current = prev;
         return prev;
       }
-      const colorIndex = prev.length % METRIC_COLORS.length;
-      const newMetric: SelectedMetric = {
-        captureId,
-        path,
-        fullPath,
-        label,
-        color: METRIC_COLORS[colorIndex],
-      };
-      return [...prev, newMetric];
+      const next = [...prev, selectedMetric];
+      selectedMetricsRef.current = next;
+      return next;
     });
+
+    let targetGroupId = derivationOutputGroupByCaptureRef.current.get(captureId) ?? "";
+    if (!targetGroupId && captureId.startsWith("derive-")) {
+      for (const group of derivationGroupsRef.current) {
+        const pluginId = typeof group.pluginId === "string" ? group.pluginId.trim() : "";
+        if (!pluginId) {
+          continue;
+        }
+        const baseCaptureId = `derive-${group.id}-${pluginId}`;
+        if (captureId === baseCaptureId || captureId.startsWith(`${baseCaptureId}-`)) {
+          targetGroupId = group.id;
+          break;
+        }
+      }
+    }
+    if (targetGroupId) {
+      const selectedKey = getMetricKey(selectedMetric);
+      setDerivationGroups((prev) =>
+        prev.map((group) => {
+          if (group.id !== targetGroupId) {
+            return group;
+          }
+          const existing = uniqueMetrics([
+            ...getDerivationGroupInputMetrics(group),
+            ...getDerivationGroupDerivedMetrics(group),
+          ]);
+          const exists = existing.some((entry) => getMetricKey(entry) === selectedKey);
+          if (exists) {
+            return group;
+          }
+          return {
+            ...group,
+            derivedMetrics: [
+              ...getDerivationGroupDerivedMetrics(group),
+              selectedMetric,
+            ],
+          };
+        }),
+      );
+    }
   }, []);
 
   const handleDeselectMetric = useCallback((captureId: string, fullPath: string) => {
-    setSelectedMetrics(prev => prev.filter(m => !(m.captureId === captureId && m.fullPath === fullPath)));
+    setSelectedMetrics((prev) => {
+      const next = prev.filter((metric) => !(metric.captureId === captureId && metric.fullPath === fullPath));
+      selectedMetricsRef.current = next;
+      return next;
+    });
   }, []);
 
   const handleClearSelection = useCallback(() => {
+    selectedMetricsRef.current = [];
     setSelectedMetrics([]);
   }, []);
 
@@ -3107,7 +3497,7 @@ export default function Home() {
       return resolved;
     }
     const id = "default";
-    const group: DerivationGroup = { id, name: "Default", metrics: [] };
+    const group: DerivationGroup = { id, name: "Default", metrics: [], derivedMetrics: [] };
     setDerivationGroups([group]);
     setActiveDerivationGroupId(id);
     return id;
@@ -3145,9 +3535,12 @@ export default function Home() {
     setSelectedMetrics((prev) => {
       const exists = prev.some((entry) => entry.captureId === captureId && entry.fullPath === fullPath);
       if (exists) {
+        selectedMetricsRef.current = prev;
         return prev;
       }
-      return [...prev, metric];
+      const next = [...prev, metric];
+      selectedMetricsRef.current = next;
+      return next;
     });
     const groupId = ensureActiveDerivationGroupId();
     setDerivationGroups((prev) =>
@@ -3155,10 +3548,10 @@ export default function Home() {
         if (group.id !== groupId) {
           return group;
         }
-        if (group.metrics.some((entry) => `${entry.captureId}::${entry.fullPath}` === key)) {
+        if (getDerivationGroupInputMetrics(group).some((entry) => getMetricKey(entry) === key)) {
           return group;
         }
-        return { ...group, metrics: [...group.metrics, metric] };
+        return { ...group, metrics: [...getDerivationGroupInputMetrics(group), metric] };
       }),
     );
     return true;
@@ -3176,7 +3569,7 @@ export default function Home() {
         }
         return {
           ...group,
-          metrics: group.metrics.filter(
+          metrics: getDerivationGroupInputMetrics(group).filter(
             (entry) => !(entry.captureId === captureId && entry.fullPath === fullPath),
           ),
         };
@@ -3185,7 +3578,9 @@ export default function Home() {
   }, []);
 
   const handleClearAnalysisMetrics = useCallback(() => {
-    setDerivationGroups((prev) => prev.map((group) => ({ ...group, metrics: [] })));
+    setDerivationGroups((prev) =>
+      prev.map((group) => ({ ...group, metrics: [] })),
+    );
   }, []);
 
   const toUniqueGroupId = useCallback((desired: string, ignoreId?: string): string => {
@@ -3209,7 +3604,7 @@ export default function Home() {
       const desiredId = options?.groupId?.trim() || `group-${generateId()}`;
       const id = toUniqueGroupId(desiredId);
       const name = options?.name?.trim() || id;
-      const group: DerivationGroup = { id, name, metrics: [] };
+      const group: DerivationGroup = { id, name, metrics: [], derivedMetrics: [] };
       setDerivationGroups((prev) => {
         const next = [...prev, group];
         derivationGroupsRef.current = next;
@@ -3221,7 +3616,99 @@ export default function Home() {
     [toUniqueGroupId],
   );
 
+  const removeCaptureIds = useCallback(
+    (captureIds: string[]) => {
+      const ids = Array.from(
+        new Set(
+          captureIds
+            .map((id) => id.trim())
+            .filter((id) => id.length > 0),
+        ),
+      );
+      if (ids.length === 0) {
+        return;
+      }
+
+      const idSet = new Set(ids);
+      const matchesCapturePrefix = (key: string) => {
+        for (const id of idSet) {
+          if (key.startsWith(`${id}::`)) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      ids.forEach((captureId) => {
+        clearDerivationRunPendingByCapture(captureId);
+        endedCapturesRef.current.delete(captureId);
+        stopStreamingIndicator(captureId);
+        captureStatsRef.current.delete(captureId);
+        activeCaptureIdsRef.current.delete(captureId);
+        pendingTicksRef.current.delete(captureId);
+        lastSeriesRefreshRef.current.delete(captureId);
+        lastSeriesTickRef.current.delete(captureId);
+        staleSeriesRecoverAtRef.current.delete(captureId);
+        derivationOutputGroupByCaptureRef.current.delete(captureId);
+        handleRemoveLiveStream(captureId);
+        sendMessageRef.current({ type: "remove_capture", captureId });
+      });
+
+      partialSeriesRef.current.forEach((key) => {
+        if (matchesCapturePrefix(key)) {
+          partialSeriesRef.current.delete(key);
+          pendingFullBackfillRef.current.delete(key);
+        }
+      });
+      loadedSeriesRef.current.forEach((key) => {
+        if (matchesCapturePrefix(key)) {
+          loadedSeriesRef.current.delete(key);
+          pendingFullBackfillRef.current.delete(key);
+        }
+      });
+      pendingSeriesRef.current.forEach((key) => {
+        if (matchesCapturePrefix(key)) {
+          pendingSeriesRef.current.delete(key);
+          pendingFullBackfillRef.current.delete(key);
+        }
+      });
+
+      setCaptures((prev) => prev.filter((capture) => !idSet.has(capture.id)));
+      setSelectedMetrics((prev) => {
+        const next = prev.filter((metric) => !idSet.has(metric.captureId));
+        selectedMetricsRef.current = next;
+        return next;
+      });
+      setDerivationGroups((prev) =>
+        prev.map((group) => ({
+          ...group,
+          metrics: getDerivationGroupInputMetrics(group).filter(
+            (metric) => !idSet.has(metric.captureId),
+          ),
+          derivedMetrics: getDerivationGroupDerivedMetrics(group).filter(
+            (metric) => !idSet.has(metric.captureId),
+          ),
+        })),
+      );
+    },
+    [clearDerivationRunPendingByCapture, handleRemoveLiveStream, stopStreamingIndicator],
+  );
+
   const handleDeleteDerivationGroup = useCallback((groupId: string) => {
+    const derivedPrefix = `derive-${groupId}-`;
+    const derivedCaptureIds = new Set<string>();
+    for (const [captureId, mappedGroupId] of derivationOutputGroupByCaptureRef.current.entries()) {
+      if (mappedGroupId === groupId) {
+        derivedCaptureIds.add(captureId);
+      }
+    }
+    capturesRef.current.forEach((capture) => {
+      if (capture.id.startsWith(derivedPrefix)) {
+        derivedCaptureIds.add(capture.id);
+      }
+    });
+    removeCaptureIds(Array.from(derivedCaptureIds));
+
     const nextGroups = derivationGroupsRef.current.filter((group) => group.id !== groupId);
     if (activeDerivationGroupIdRef.current === groupId) {
       const nextId = nextGroups[0]?.id ?? "";
@@ -3232,9 +3719,60 @@ export default function Home() {
       displayDerivationGroupIdRef.current = "";
       setDisplayDerivationGroupId("");
     }
+    for (const [captureId, mappedGroupId] of derivationOutputGroupByCaptureRef.current.entries()) {
+      if (mappedGroupId === groupId) {
+        derivationOutputGroupByCaptureRef.current.delete(captureId);
+      }
+    }
+    for (const [timerKey, timerId] of derivationRerunTimersRef.current.entries()) {
+      if (!timerKey.startsWith(`${groupId}::`)) {
+        continue;
+      }
+      window.clearTimeout(timerId);
+      derivationRerunTimersRef.current.delete(timerKey);
+    }
+    for (const key of autoReplayDerivationsRef.current) {
+      if (key.startsWith(`${groupId}::`)) {
+        autoReplayDerivationsRef.current.delete(key);
+      }
+    }
     derivationGroupsRef.current = nextGroups;
     setDerivationGroups(nextGroups);
-  }, []);
+  }, [removeCaptureIds]);
+
+  useEffect(() => {
+    if (!initialSyncReady || captures.length === 0) {
+      return;
+    }
+    const groupIds = new Set(derivationGroups.map((group) => group.id));
+    const orphanDerivedCaptureIds = captures
+      .filter((capture) => {
+        if (!capture.id.startsWith("derive-")) {
+          return false;
+        }
+        const mappedGroup = derivationOutputGroupByCaptureRef.current.get(capture.id);
+        if (mappedGroup && groupIds.has(mappedGroup)) {
+          return false;
+        }
+        for (const groupId of groupIds) {
+          if (capture.id.startsWith(`derive-${groupId}-`)) {
+            return false;
+          }
+        }
+        return true;
+      })
+      .map((capture) => capture.id);
+
+    if (orphanDerivedCaptureIds.length === 0) {
+      return;
+    }
+    pushUiEvent({
+      level: "info",
+      message: "Removing orphan derived captures",
+      detail: orphanDerivedCaptureIds.join(", "),
+    });
+    removeCaptureIds(orphanDerivedCaptureIds);
+  }, [captures, derivationGroups, initialSyncReady, pushUiEvent, removeCaptureIds]);
 
   const handleSetActiveDerivationGroup = useCallback((groupId: string) => {
     if (!derivationGroupsRef.current.some((group) => group.id === groupId)) {
@@ -3267,17 +3805,201 @@ export default function Home() {
           if (group.id !== groupId) {
             return group;
           }
+          const resolvedPluginId = wantsPluginUpdate ? nextPluginId : group.pluginId;
+          const shouldResetDerived =
+            wantsPluginUpdate && resolvedPluginId !== group.pluginId;
           return {
             ...group,
             id: nextId ?? group.id,
             name: nextName ?? group.name,
-            pluginId: wantsPluginUpdate ? nextPluginId : group.pluginId,
+            pluginId: resolvedPluginId,
+            derivedMetrics: shouldResetDerived
+              ? []
+              : getDerivationGroupDerivedMetrics(group),
           };
         }),
       );
     },
     [toUniqueGroupId],
   );
+
+  const scheduleDerivationRecompute = useCallback((groupId: string, pluginId: string) => {
+    const normalizedGroupId = groupId.trim();
+    const normalizedPluginId = pluginId.trim();
+    if (!normalizedGroupId || !normalizedPluginId) {
+      return;
+    }
+
+    const timerKey = `${normalizedGroupId}::${normalizedPluginId}`;
+    const existingTimer = derivationRerunTimersRef.current.get(timerKey);
+    if (existingTimer !== undefined) {
+      window.clearTimeout(existingTimer);
+    }
+
+    const timer = window.setTimeout(() => {
+      derivationRerunTimersRef.current.delete(timerKey);
+      const currentGroup = derivationGroupsRef.current.find(
+        (group) => group.id === normalizedGroupId,
+      );
+      if (!currentGroup) {
+        pushUiEvent({
+          level: "info",
+          message: "Derivation recompute canceled",
+          detail: `group deleted: ${normalizedGroupId}`,
+        });
+        return;
+      }
+      const currentPluginId =
+        typeof currentGroup.pluginId === "string" ? currentGroup.pluginId.trim() : "";
+      if (currentPluginId !== normalizedPluginId) {
+        pushUiEvent({
+          level: "info",
+          message: "Derivation recompute canceled",
+          detail: `plugin changed: ${normalizedGroupId}`,
+        });
+        return;
+      }
+      const outputCaptureId = `derive-${normalizedGroupId}-${normalizedPluginId}`;
+      const inputMetrics = getDerivationGroupInputMetrics(currentGroup).map(cloneMetric);
+      const requestId = `derive-recompute-${generateId()}`;
+      pushUiEvent({
+        level: "info",
+        message: "Derivation recompute started",
+        detail: `${normalizedGroupId} -> ${normalizedPluginId}`,
+      });
+      markDerivationRunPending(
+        requestId,
+        outputCaptureId,
+        `${normalizedGroupId} -> ${normalizedPluginId}`,
+      );
+      const sent = sendMessageRef.current({
+        type: "run_derivation_plugin",
+        groupId: normalizedGroupId,
+        pluginId: normalizedPluginId,
+        outputCaptureId,
+        metrics: inputMetrics,
+        request_id: requestId,
+      });
+      if (!sent) {
+        clearDerivationRunPendingByRequest(requestId);
+      }
+    }, 180);
+
+    derivationRerunTimersRef.current.set(timerKey, timer);
+    pushUiEvent({
+      level: "info",
+      message: "Derivation recompute queued",
+      detail: `${normalizedGroupId} -> ${normalizedPluginId}`,
+    });
+  }, [clearDerivationRunPendingByRequest, markDerivationRunPending, pushUiEvent]);
+
+  const handleReorderDerivationGroupMetrics = useCallback(
+    (groupId: string, fromIndex: number, toIndex: number) => {
+      if (!Number.isFinite(fromIndex) || !Number.isFinite(toIndex)) {
+        return;
+      }
+      const from = Math.floor(fromIndex);
+      const to = Math.floor(toIndex);
+
+      const existingGroup = derivationGroupsRef.current.find((group) => group.id === groupId);
+      if (!existingGroup) {
+        return;
+      }
+      const size = getDerivationGroupInputMetrics(existingGroup).length;
+      if (size <= 1) {
+        return;
+      }
+      if (from < 0 || from >= size || to < 0 || to >= size || from === to) {
+        return;
+      }
+
+      setDerivationGroups((prev) => {
+        const next = prev.map((group) => {
+          if (group.id !== groupId) {
+            return group;
+          }
+          const nextMetrics = [...getDerivationGroupInputMetrics(group)];
+          const [moved] = nextMetrics.splice(from, 1);
+          if (!moved) {
+            return group;
+          }
+          nextMetrics.splice(to, 0, moved);
+          return { ...group, metrics: nextMetrics };
+        });
+        derivationGroupsRef.current = next;
+        return next;
+      });
+
+      const pluginId = typeof existingGroup.pluginId === "string" ? existingGroup.pluginId.trim() : "";
+      if (pluginId) {
+        scheduleDerivationRecompute(groupId, pluginId);
+      }
+    },
+    [scheduleDerivationRecompute],
+  );
+
+  const handleDerivationMetricDragStart = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, groupId: string, fromIndex: number) => {
+      setDerivationDragState({ groupId, fromIndex });
+      setDerivationDropState(null);
+      try {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData(
+          "text/plain",
+          JSON.stringify({ type: "derivation-metric", groupId, fromIndex }),
+        );
+      } catch {
+        // ignore dataTransfer errors
+      }
+    },
+    [],
+  );
+
+  const handleDerivationMetricDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, groupId: string, targetIndex: number) => {
+      if (!derivationDragState || derivationDragState.groupId !== groupId) {
+        return;
+      }
+      event.preventDefault();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const middleY = rect.top + rect.height / 2;
+      const position: "before" | "after" = event.clientY < middleY ? "before" : "after";
+      setDerivationDropState({ groupId, targetIndex, position });
+      event.dataTransfer.dropEffect = "move";
+    },
+    [derivationDragState],
+  );
+
+  const handleDerivationMetricDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>, groupId: string, targetIndex: number) => {
+      if (!derivationDragState || derivationDragState.groupId !== groupId) {
+        return;
+      }
+      event.preventDefault();
+
+      const fromIndex = derivationDragState.fromIndex;
+      const position =
+        derivationDropState &&
+        derivationDropState.groupId === groupId &&
+        derivationDropState.targetIndex === targetIndex
+          ? derivationDropState.position
+          : "before";
+
+      const rawInsertIndex = position === "before" ? targetIndex : targetIndex + 1;
+      const normalizedInsertIndex =
+        fromIndex < rawInsertIndex ? rawInsertIndex - 1 : rawInsertIndex;
+
+      setDerivationDragState(null);
+      setDerivationDropState(null);
+      handleReorderDerivationGroupMetrics(groupId, fromIndex, normalizedInsertIndex);
+    },
+    [derivationDragState, derivationDropState, handleReorderDerivationGroupMetrics],
+  );
+
+  const handleDerivationMetricDragEnd = useCallback(() => {
+    setDerivationDragState(null);
+    setDerivationDropState(null);
+  }, []);
 
   const handleSetDisplayDerivationGroup = useCallback((groupId: string) => {
     if (!groupId) {
@@ -3294,26 +4016,71 @@ export default function Home() {
 
   const handleRunDerivation = useCallback(
     (options: { groupId: string; kind: "moving_average" | "diff"; window?: number }) => {
-      sendMessageRef.current({
+      const derivedCaptureId =
+        options.kind === "moving_average"
+          ? `derive-${options.groupId}-moving_average-${options.window ?? 5}`
+          : `derive-${options.groupId}-diff`;
+      const requestId = `derive-run-${generateId()}`;
+      derivationOutputGroupByCaptureRef.current.set(derivedCaptureId, options.groupId);
+      markDerivationRunPending(
+        requestId,
+        derivedCaptureId,
+        `${options.groupId} -> ${options.kind}`,
+      );
+      const sent = sendMessageRef.current({
         type: "run_derivation",
         groupId: options.groupId,
         kind: options.kind,
         window: options.window,
+        request_id: requestId,
+      });
+      if (!sent) {
+        clearDerivationRunPendingByRequest(requestId);
+      }
+      pushUiEvent({
+        level: "info",
+        message: "Derivation run requested",
+        detail: `${options.kind} on ${options.groupId}`,
       });
     },
-    [],
+    [clearDerivationRunPendingByRequest, markDerivationRunPending, pushUiEvent],
   );
 
   const handleRunDerivationPlugin = useCallback(
     (options: { groupId: string; pluginId: string; outputCaptureId?: string }) => {
-      sendMessageRef.current({
+      const outputCaptureId =
+        options.outputCaptureId || `derive-${options.groupId}-${options.pluginId}`;
+      const requestId = `derive-plugin-${generateId()}`;
+      const group = derivationGroupsRef.current.find(
+        (entry) => entry.id === options.groupId,
+      );
+      const inputMetrics = group
+        ? getDerivationGroupInputMetrics(group).map(cloneMetric)
+        : [];
+      derivationOutputGroupByCaptureRef.current.set(outputCaptureId, options.groupId);
+      markDerivationRunPending(
+        requestId,
+        outputCaptureId,
+        `${options.groupId} -> ${options.pluginId}`,
+      );
+      const sent = sendMessageRef.current({
         type: "run_derivation_plugin",
         groupId: options.groupId,
         pluginId: options.pluginId,
-        outputCaptureId: options.outputCaptureId,
+        outputCaptureId,
+        metrics: inputMetrics,
+        request_id: requestId,
+      });
+      if (!sent) {
+        clearDerivationRunPendingByRequest(requestId);
+      }
+      pushUiEvent({
+        level: "info",
+        message: "Derivation plugin run requested",
+        detail: `${options.groupId} -> ${options.pluginId}`,
       });
     },
-    [],
+    [clearDerivationRunPendingByRequest, markDerivationRunPending, pushUiEvent],
   );
 
   const autoReplayDerivationsRef = useRef(new Set<string>());
@@ -3330,7 +4097,7 @@ export default function Home() {
       if (!pluginId) {
         return;
       }
-      const metrics = Array.isArray(group.metrics) ? group.metrics : [];
+      const metrics = getDerivationGroupInputMetrics(group);
       if (metrics.length === 0) {
         return;
       }
@@ -3389,6 +4156,74 @@ export default function Home() {
   }, [captureSeriesIdentity, fetchMetricSeriesBatch, selectedMetrics]);
 
   useEffect(() => {
+    if (captures.length === 0 || selectedMetrics.length === 0) {
+      return;
+    }
+    const now =
+      typeof performance !== "undefined" && typeof performance.now === "function"
+        ? performance.now()
+        : Date.now();
+
+    const metricsByCapture = new Map<string, SelectedMetric[]>();
+    selectedMetrics.forEach((metric) => {
+      const capture = captures.find((entry) => entry.id === metric.captureId);
+      if (!capture || !capture.isActive) {
+        return;
+      }
+      const list = metricsByCapture.get(metric.captureId);
+      if (list) {
+        list.push(metric);
+      } else {
+        metricsByCapture.set(metric.captureId, [metric]);
+      }
+    });
+
+    metricsByCapture.forEach((metrics, captureId) => {
+      const capture = captures.find((entry) => entry.id === captureId);
+      if (!capture || !capture.isActive || capture.tickCount <= 0) {
+        return;
+      }
+      if (capture.records.length > 0) {
+        return;
+      }
+
+      const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+      const source =
+        (typeof capture.source === "string" ? capture.source.trim() : "")
+        || (liveEntry?.source ? liveEntry.source.trim() : "");
+      if (!source) {
+        return;
+      }
+
+      const hasPending = metrics.some((metric) =>
+        pendingSeriesRef.current.has(buildSeriesKey(metric.captureId, metric.fullPath)),
+      );
+      if (hasPending) {
+        return;
+      }
+
+      const hasLoaded = metrics.some((metric) =>
+        loadedSeriesRef.current.has(buildSeriesKey(metric.captureId, metric.fullPath)),
+      );
+      if (hasLoaded) {
+        return;
+      }
+
+      const lastAttempt = staleSeriesRecoverAtRef.current.get(captureId) ?? 0;
+      if (now - lastAttempt < 1500) {
+        return;
+      }
+      staleSeriesRecoverAtRef.current.set(captureId, now);
+      pushUiEvent({
+        level: "info",
+        message: "Recovering capture series",
+        detail: captureId,
+      });
+      fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: false });
+    });
+  }, [captures, fetchMetricSeriesBatch, pushUiEvent, selectedMetrics]);
+
+  useEffect(() => {
     const prev = prevSelectedRef.current;
     const prevKeys = new Set(prev.map((metric) => buildSeriesKey(metric.captureId, metric.fullPath)));
     const nextKeys = new Set(selectedMetrics.map((metric) => buildSeriesKey(metric.captureId, metric.fullPath)));
@@ -3445,6 +4280,7 @@ export default function Home() {
         loadedSeriesRef.current.delete(key);
         pendingSeriesRef.current.delete(key);
         partialSeriesRef.current.delete(key);
+        pendingFullBackfillRef.current.delete(key);
         const remaining = remainingByCapture.get(metric.captureId);
         if (!remaining || remaining.length === 0) {
           clearCaptureRecords(metric.captureId);
@@ -3458,6 +4294,8 @@ export default function Home() {
   }, [clearCaptureRecords, fetchMetricSeriesBatch, removeMetricFromCaptures, selectedMetrics]);
 
   const handleClearCaptures = useCallback(() => {
+    clearAllPendingDerivationRuns();
+    selectedMetricsRef.current = [];
     setCaptures([]);
     setSelectedMetrics([]);
     captureStatsRef.current.clear();
@@ -3472,6 +4310,8 @@ export default function Home() {
     lastSeriesRefreshRef.current.clear();
     lastSeriesTickRef.current.clear();
     partialSeriesRef.current.clear();
+    pendingFullBackfillRef.current.clear();
+    derivationOutputGroupByCaptureRef.current.clear();
     if (tickFlushTimerRef.current !== null) {
       window.clearTimeout(tickFlushTimerRef.current);
       tickFlushTimerRef.current = null;
@@ -3490,7 +4330,7 @@ export default function Home() {
     setWindowStart(1);
     setWindowEnd(INITIAL_WINDOW_SIZE);
     setIsAutoScroll(true);
-  }, []);
+  }, [clearAllPendingDerivationRuns]);
 
   const handlePlay = useCallback(() => {
     setPlaybackState((prev) => ({
@@ -3830,6 +4670,13 @@ export default function Home() {
     [captures, activeMetrics],
   );
 
+  const recentUiEvents = useMemo(() => {
+    if (uiEvents.length === 0) {
+      return [];
+    }
+    return [...uiEvents].reverse();
+  }, [uiEvents]);
+
   const loadingEntries = useMemo(() => {
     const entries: Array<{ key: string; label: string; detail?: string }> = [];
 
@@ -3870,6 +4717,18 @@ export default function Home() {
         key: "pending_ticks",
         label: "Applying tick updates",
         detail: `${loadingProbe.pendingTicks} capture(s) pending`,
+      });
+    }
+
+    if (pendingDerivationRuns.length > 0) {
+      const first = pendingDerivationRuns[0];
+      entries.push({
+        key: "pending_derivations",
+        label: "Recalculating derivations",
+        detail:
+          pendingDerivationRuns.length === 1
+            ? first?.label ?? "1 run in progress"
+            : `${pendingDerivationRuns.length} run(s) in progress`,
       });
     }
 
@@ -3919,7 +4778,15 @@ export default function Home() {
     });
 
     return entries;
-  }, [captures, initialSyncReady, liveStreams, loadingProbe, streamActivityVersion, uploadMutation.isPending]);
+  }, [
+    captures,
+    initialSyncReady,
+    liveStreams,
+    loadingProbe,
+    pendingDerivationRuns,
+    streamActivityVersion,
+    uploadMutation.isPending,
+  ]);
 
   const isLoading = loadingEntries.length > 0;
 
@@ -4320,6 +5187,7 @@ export default function Home() {
     onDeleteDerivationGroup: handleDeleteDerivationGroup,
     onSetActiveDerivationGroup: handleSetActiveDerivationGroup,
     onUpdateDerivationGroup: handleUpdateDerivationGroup,
+    onReorderDerivationGroupMetrics: handleReorderDerivationGroupMetrics,
     onSetDisplayDerivationGroup: handleSetDisplayDerivationGroup,
     onClearCaptures: handleClearCaptures,
     onPlay: handlePlay,
@@ -4352,6 +5220,21 @@ export default function Home() {
     onDerivationPlugins: (plugins) => {
       setDerivationPluginsError(null);
       setDerivationPlugins(normalizeDerivationPlugins(plugins));
+    },
+    onUiNotice: ({ message, context }) => {
+      const detail =
+        context && Object.keys(context).length > 0
+          ? JSON.stringify(context)
+          : undefined;
+      pushUiEvent({ level: "info", message, detail });
+    },
+    onUiError: ({ error, context, requestId }) => {
+      clearDerivationRunPendingByRequest(requestId);
+      const detail =
+        context && Object.keys(context).length > 0
+          ? JSON.stringify(context)
+          : undefined;
+      pushUiEvent({ level: "error", message: error, detail });
     },
     onReconnect: handleWsReconnect,
     onStateSync: handleStateSync,
@@ -4414,7 +5297,12 @@ export default function Home() {
     setDerivationGroups((prev) =>
       prev.map((group) => ({
         ...group,
-        metrics: group.metrics.filter((metric) => selectedKeys.has(getAnalysisKey(metric))),
+        metrics: getDerivationGroupInputMetrics(group).filter((metric) =>
+          selectedKeys.has(getAnalysisKey(metric)),
+        ),
+        derivedMetrics: getDerivationGroupDerivedMetrics(group).filter((metric) =>
+          selectedKeys.has(getAnalysisKey(metric)),
+        ),
       })),
     );
   }, [getAnalysisKey, selectedMetrics]);
@@ -4427,10 +5315,11 @@ export default function Home() {
         if (group.id !== groupId) {
           return group;
         }
-        const exists = group.metrics.some((entry) => getAnalysisKey(entry) === key);
+        const inputMetrics = getDerivationGroupInputMetrics(group);
+        const exists = inputMetrics.some((entry) => getAnalysisKey(entry) === key);
         const nextMetrics = exists
-          ? group.metrics.filter((entry) => getAnalysisKey(entry) !== key)
-          : [...group.metrics, metric];
+          ? inputMetrics.filter((entry) => getAnalysisKey(entry) !== key)
+          : [...inputMetrics, metric];
         return { ...group, metrics: nextMetrics };
       }),
     );
@@ -4444,9 +5333,12 @@ export default function Home() {
           if (group.id !== groupId) {
             return group;
           }
+          const metricInputs = getDerivationGroupInputMetrics(group);
+          const metricDerived = getDerivationGroupDerivedMetrics(group);
           return {
             ...group,
-            metrics: group.metrics.filter((entry) => getAnalysisKey(entry) !== key),
+            metrics: metricInputs.filter((entry) => getAnalysisKey(entry) !== key),
+            derivedMetrics: metricDerived.filter((entry) => getAnalysisKey(entry) !== key),
           };
         }),
       );
@@ -5106,12 +5998,17 @@ export default function Home() {
                         const isDisplayed = group.id === resolvedDisplayDerivationGroupId;
                         const selectedPluginId =
                           typeof group.pluginId === "string" ? group.pluginId : "";
+                        const normalizedPluginId = selectedPluginId.trim();
                         const selectedPlugin = selectedPluginId
                           ? derivationPlugins.find((plugin) => plugin.id === selectedPluginId) ?? null
                           : null;
                         const canRunPlugin = Boolean(
                           selectedPluginId && selectedPlugin && selectedPlugin.valid,
                         );
+                        const inputMetricRows = getDerivationGroupInputMetrics(group).map(
+                          (metric, index) => ({ metric, index }),
+                        );
+                        const derivedMetricRows = getDerivationGroupDerivedMetrics(group);
                         return (
                           <div
                             key={group.id}
@@ -5236,12 +6133,92 @@ export default function Home() {
                               </div>
                             </div>
                             <div className="flex flex-col gap-1">
-                              {group.metrics.length === 0 && (
+                              {inputMetricRows.length === 0 && derivedMetricRows.length === 0 && (
                                 <div className="text-xs text-muted-foreground">
                                   No metrics yet.
                                 </div>
                               )}
-                              {group.metrics.map((metric) => {
+                              {inputMetricRows.length > 0 && (
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                                  Inputs
+                                </div>
+                              )}
+                              {inputMetricRows.map((row) => {
+                                const { metric, index } = row;
+                                const capture = captures.find(
+                                  (entry) => entry.id === metric.captureId,
+                                );
+                                const captureName = capture
+                                  ? getCaptureShortName(capture)
+                                  : metric.captureId;
+                                const isDraggingThis =
+                                  derivationDragState?.groupId === group.id
+                                  && derivationDragState?.fromIndex === index;
+                                const isDropTarget =
+                                  derivationDropState?.groupId === group.id
+                                  && derivationDropState?.targetIndex === index;
+                                const dropBefore = isDropTarget && derivationDropState?.position === "before";
+                                const dropAfter = isDropTarget && derivationDropState?.position === "after";
+                                return (
+                                  <div
+                                    key={`${group.id}-${getAnalysisKey(metric)}`}
+                                    className={`relative flex items-center gap-2 rounded-sm ${
+                                      isDraggingThis ? "opacity-60" : ""
+                                    }`}
+                                    draggable
+                                    onDragStart={(event) => {
+                                      event.stopPropagation();
+                                      handleDerivationMetricDragStart(event, group.id, index);
+                                    }}
+                                    onDragOver={(event) => {
+                                      event.stopPropagation();
+                                      handleDerivationMetricDragOver(event, group.id, index);
+                                    }}
+                                    onDrop={(event) => {
+                                      event.stopPropagation();
+                                      handleDerivationMetricDrop(event, group.id, index);
+                                    }}
+                                    onDragEnd={(event) => {
+                                      event.stopPropagation();
+                                      handleDerivationMetricDragEnd();
+                                    }}
+                                  >
+                                    {dropBefore && (
+                                      <span className="pointer-events-none absolute -top-0.5 left-0 right-0 h-px bg-foreground/70" />
+                                    )}
+                                    {dropAfter && (
+                                      <span className="pointer-events-none absolute -bottom-0.5 left-0 right-0 h-px bg-foreground/70" />
+                                    )}
+                                    <span className="text-muted-foreground/70 cursor-grab active:cursor-grabbing">
+                                      <GripVertical className="w-3 h-3" />
+                                    </span>
+                                    <span
+                                      className="h-2 w-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: metric.color }}
+                                    />
+                                    <span className="truncate flex-1">
+                                      {captureName}: {metric.label}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="text-muted-foreground hover:text-foreground"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleRemoveDerivationMetric(group.id, metric);
+                                      }}
+                                      aria-label={`Remove ${captureName}: ${metric.label} from ${group.name}`}
+                                    >
+                                      x
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                              {derivedMetricRows.length > 0 && (
+                                <div className="pt-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                                  Derived
+                                </div>
+                              )}
+                              {derivedMetricRows.map((metric) => {
                                 const capture = captures.find(
                                   (entry) => entry.id === metric.captureId,
                                 );
@@ -5251,7 +6228,7 @@ export default function Home() {
                                 return (
                                   <div
                                     key={`${group.id}-${getAnalysisKey(metric)}`}
-                                    className="flex items-center gap-2"
+                                    className="flex items-center gap-2 opacity-90"
                                   >
                                     <span
                                       className="h-2 w-2 rounded-full shrink-0"
@@ -5263,7 +6240,10 @@ export default function Home() {
                                     <button
                                       type="button"
                                       className="text-muted-foreground hover:text-foreground"
-                                      onClick={() => handleRemoveDerivationMetric(group.id, metric)}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleRemoveDerivationMetric(group.id, metric);
+                                      }}
                                       aria-label={`Remove ${captureName}: ${metric.label} from ${group.name}`}
                                     >
                                       x
@@ -5293,7 +6273,7 @@ export default function Home() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setSelectedMetrics([])}
+                  onClick={handleClearSelection}
                   className="gap-1.5"
                   data-testid="button-clear-selection"
                 >
@@ -5336,11 +6316,13 @@ export default function Home() {
                 <PopoverContent align="end" className="w-80 p-3">
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-medium">Loading</div>
-                    <div className="text-xs text-muted-foreground">
-                      {isLoading ? "In progress" : "None"}
+                    <div className="flex h-6 min-w-[4.5rem] items-center justify-end">
+                      <div className="text-right text-xs leading-none text-muted-foreground">
+                        {isLoading ? "In progress" : "None"}
+                      </div>
                     </div>
                   </div>
-                  <ScrollArea className="mt-3 max-h-72 pr-2">
+                  <ScrollArea className="mt-3 max-h-40 pr-2">
                     {loadingEntries.length === 0 ? (
                       <div className="text-xs text-muted-foreground">No active work.</div>
                     ) : (
@@ -5356,6 +6338,48 @@ export default function Home() {
                       </div>
                     )}
                   </ScrollArea>
+                  <div className="my-3 h-px bg-border/50" />
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium">Events</div>
+                    <div className="ml-auto flex h-6 items-center justify-end gap-1">
+                      <div className="text-right text-xs leading-none text-muted-foreground">
+                        {recentUiEvents.length > 0 ? recentUiEvents.length : "None"}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-auto px-0 text-right text-[11px]"
+                        onClick={() => setIsEventsVisible((prev) => !prev)}
+                        data-testid="button-toggle-events"
+                      >
+                        {isEventsVisible ? "Hide" : "Show"}
+                      </Button>
+                    </div>
+                  </div>
+                  {isEventsVisible ? (
+                    <div className="mt-2 max-h-56 overflow-y-auto pr-2">
+                      {recentUiEvents.length === 0 ? (
+                        <div className="text-xs text-muted-foreground">No recent events.</div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {recentUiEvents.map((event) => (
+                            <div key={event.id} className="text-xs">
+                              <div
+                                className={
+                                  event.level === "error" ? "text-destructive" : "text-foreground"
+                                }
+                              >
+                                {event.message}
+                              </div>
+                              {event.detail ? (
+                                <div className="text-muted-foreground break-all">{event.detail}</div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </PopoverContent>
               </Popover>
               <div className="h-6 w-px bg-border/60 mx-1" />

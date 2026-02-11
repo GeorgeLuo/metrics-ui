@@ -32,6 +32,11 @@ Current behavior:
 - If no derivation groups exist yet, selecting a metric creates a default group and adds the metric.
 - The active group is highlighted. Clicking anywhere on a group card selects it as active.
 - Each group includes a small "solo display" toggle. When enabled, the chart/HUD will display **only** metrics from that group.
+- Metrics inside a group can be reordered by drag-and-drop. Plugin inputs follow this order.
+- If a group has a plugin selected, reordering metrics automatically re-runs that derivation (debounced).
+- Derived output metrics from a group run are auto-added back into that same group.
+- Derived outputs are stored separately from input metrics, so plugin reruns keep using only the input order.
+- Group metrics are visually split into `Inputs` and `Derived` sections.
 - Group **ids** exist for WS/CLI control (and derivation plugins), but the browser UI only exposes the group **name**.
 
 ---
@@ -312,6 +317,7 @@ Capture streaming (push records over WS):
 - `delete_derivation_group`
 - `set_active_derivation_group`
 - `update_derivation_group`
+- `reorder_derivation_group_metrics`
 - `set_display_derivation_group`
 - `run_derivation`
 - `get_derivation_plugins`

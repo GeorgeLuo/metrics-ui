@@ -60,7 +60,15 @@ export interface SelectedMetric {
 export interface DerivationGroup {
   id: string;
   name: string;
+  /**
+   * Input metrics used by derivation systems.
+   */
   metrics: SelectedMetric[];
+  /**
+   * Metrics emitted by derivation outputs and associated with this group.
+   * Kept separate from inputs so reruns use stable input sets.
+   */
+  derivedMetrics?: SelectedMetric[];
   /**
    * Optional derivation plugin id selected for this group.
    * The plugin itself is stored/validated server-side.
@@ -426,6 +434,12 @@ export type ControlCommand =
   | ({ type: "delete_derivation_group"; groupId: string } & ControlRequestBase)
   | ({ type: "set_active_derivation_group"; groupId: string } & ControlRequestBase)
   | ({ type: "update_derivation_group"; groupId: string; newGroupId?: string; name?: string } & ControlRequestBase)
+  | ({
+      type: "reorder_derivation_group_metrics";
+      groupId: string;
+      fromIndex: number;
+      toIndex: number;
+    } & ControlRequestBase)
   | ({ type: "set_display_derivation_group"; groupId?: string } & ControlRequestBase)
   | ({
       type: "run_derivation";
@@ -545,6 +559,7 @@ export type ControlCommand =
       groupId: string;
       params?: unknown;
       outputCaptureId?: string;
+      metrics?: SelectedMetric[];
     } & ControlRequestBase);
 
 export interface ControlResponse {

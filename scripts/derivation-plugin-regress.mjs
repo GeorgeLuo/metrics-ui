@@ -38,12 +38,25 @@ async function fetchPluginSource(pluginId) {
   return payload;
 }
 
-function connectWs(role) {
+function connectWs(role, options = {}) {
+  const takeover = role === "frontend" ? Boolean(options.takeover) : false;
+  const instanceId =
+    role === "frontend"
+      ? typeof options.instanceId === "string" && options.instanceId.trim().length > 0
+        ? options.instanceId
+        : `regress-frontend-${Date.now()}`
+      : undefined;
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(UI_WS);
     const timeout = setTimeout(() => reject(new Error(`${role} ws connect timeout`)), 5000);
     ws.on("open", () => {
-      ws.send(JSON.stringify({ type: "register", role }));
+      ws.send(
+        JSON.stringify(
+          role === "frontend"
+            ? { type: "register", role, takeover, instanceId }
+            : { type: "register", role },
+        ),
+      );
     });
     ws.on("message", (data) => {
       try {
@@ -68,7 +81,8 @@ async function main() {
   const capturePath = path.join(repoRoot, "examples", "captures", "simple.jsonl");
   const captureId = "test";
   const groupId = "g1";
-  const outputCaptureId = `derive-test-${Date.now()}`;
+  const outputCaptureIdWithGroupState = `derive-test-${Date.now()}-state`;
+  const outputCaptureIdWithCommandMetrics = `derive-test-${Date.now()}-command`;
 
   await uploadPlugin(pluginPath);
   const sourcePayload = await fetchPluginSource("diff");
@@ -76,13 +90,19 @@ async function main() {
     throw new Error("Plugin source endpoint did not return expected contents.");
   }
 
-  const frontend = await connectWs("frontend");
+  const frontend = await connectWs("frontend", { takeover: true, instanceId: "derivation-regress" });
   const agent = await connectWs("agent");
 
-  const derived = {
-    captureId: outputCaptureId,
-    ticks: new Map(),
-    ended: false,
+  const derived = new Map();
+
+  const ensureDerivedState = (id) => {
+    const existing = derived.get(id);
+    if (existing) {
+      return existing;
+    }
+    const created = { ticks: new Map(), ended: false };
+    derived.set(id, created);
+    return created;
   };
 
   frontend.on("message", (data) => {
@@ -93,19 +113,15 @@ async function main() {
       return;
     }
 
-    if (
-      msg.type === "capture_append"
-      && derived.captureId
-      && msg.captureId === derived.captureId
-      && msg.frame
-      && typeof msg.frame.tick === "number"
-    ) {
+    if (msg.type === "capture_append" && msg.captureId && msg.frame && typeof msg.frame.tick === "number") {
+      const state = ensureDerivedState(msg.captureId);
       const tick = msg.frame.tick;
       const value = msg.frame.value?.diff ?? null;
-      derived.ticks.set(tick, value);
+      state.ticks.set(tick, value);
     }
-    if (msg.type === "capture_end" && derived.captureId && msg.captureId === derived.captureId) {
-      derived.ended = true;
+    if (msg.type === "capture_end" && msg.captureId) {
+      const state = ensureDerivedState(msg.captureId);
+      state.ended = true;
     }
   });
 
@@ -120,7 +136,35 @@ async function main() {
     }),
   );
 
-  // Publish a minimal state with a derivation group.
+  const metricsPayload = [
+    {
+      captureId,
+      path: ["0", "metrics", "a"],
+      fullPath: "0.metrics.a",
+      label: "a",
+      color: "#000000",
+    },
+    {
+      captureId,
+      path: ["0", "metrics", "b"],
+      fullPath: "0.metrics.b",
+      label: "b",
+      color: "#000000",
+    },
+  ];
+
+  agent.send(
+    JSON.stringify({
+      type: "run_derivation_plugin",
+      groupId,
+      pluginId: "diff",
+      outputCaptureId: outputCaptureIdWithCommandMetrics,
+      metrics: metricsPayload,
+      request_id: "run-command-metrics",
+    }),
+  );
+
+  // Publish a minimal state with a derivation group for the second run path.
   frontend.send(
     JSON.stringify({
       type: "state_update",
@@ -132,22 +176,7 @@ async function main() {
           {
             id: groupId,
             name: groupId,
-            metrics: [
-              {
-                captureId,
-                path: ["0", "metrics", "a"],
-                fullPath: "0.metrics.a",
-                label: "a",
-                color: "#000000",
-              },
-              {
-                captureId,
-                path: ["0", "metrics", "b"],
-                fullPath: "0.metrics.b",
-                label: "b",
-                color: "#000000",
-              },
-            ],
+            metrics: metricsPayload,
           },
         ],
         activeDerivationGroupId: groupId,
@@ -170,29 +199,36 @@ async function main() {
       type: "run_derivation_plugin",
       groupId,
       pluginId: "diff",
-      outputCaptureId,
-      request_id: "run-1",
+      outputCaptureId: outputCaptureIdWithGroupState,
+      request_id: "run-group-state",
     }),
   );
 
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
-    if (derived.ended) {
+    const commandMetricsDone = derived.get(outputCaptureIdWithCommandMetrics)?.ended === true;
+    const groupStateDone = derived.get(outputCaptureIdWithGroupState)?.ended === true;
+    if (commandMetricsDone && groupStateDone) {
       break;
     }
     await sleep(100);
   }
 
-  if (!derived.ended) {
-    throw new Error("Derived capture did not end within timeout.");
-  }
-
-  for (let tick = 1; tick <= 10; tick += 1) {
-    const value = derived.ticks.get(tick);
-    if (value !== tick) {
-      throw new Error(`Tick ${tick}: expected diff=${tick}, got ${value}`);
+  const assertCapture = (captureIdToCheck) => {
+    const state = derived.get(captureIdToCheck);
+    if (!state?.ended) {
+      throw new Error(`Derived capture did not end within timeout: ${captureIdToCheck}`);
     }
-  }
+    for (let tick = 1; tick <= 10; tick += 1) {
+      const value = state.ticks.get(tick);
+      if (value !== tick) {
+        throw new Error(`${captureIdToCheck} tick ${tick}: expected diff=${tick}, got ${value}`);
+      }
+    }
+  };
+
+  assertCapture(outputCaptureIdWithCommandMetrics);
+  assertCapture(outputCaptureIdWithGroupState);
 
   frontend.close();
   agent.close();
