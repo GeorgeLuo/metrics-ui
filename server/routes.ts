@@ -666,6 +666,7 @@ async function extractSeriesBatchFromSource(options: {
 
 const agentClients = new Set<WebSocket>();
 let frontendClient: WebSocket | null = null;
+let frontendInstanceId: string | null = null;
 const clientRoles = new Map<WebSocket, "frontend" | "agent">();
 const pendingClients = new Map<WebSocket, boolean>();
 const activeSockets = new Set<Socket>();
@@ -3517,19 +3518,52 @@ export async function registerRoutes(
       try {
         const message = JSON.parse(data.toString());
         
-        if (message.type === "register") {
-          pendingClients.delete(ws);
-          if (message.role === "frontend") {
-            const previous = frontendClient;
-            if (previous && previous !== ws && previous.readyState === WebSocket.OPEN) {
-              // Single-client assumption: replacing the frontend should close the old session.
-              try {
-                previous.close(1000, "frontend replaced");
-              } catch {
-                // ignore close errors
-              }
-            }
+	        if (message.type === "register") {
+	          pendingClients.delete(ws);
+	          if (message.role === "frontend") {
+	            const requestedTakeover = Boolean((message as { takeover?: unknown }).takeover);
+	            const instanceIdRaw = (message as { instanceId?: unknown }).instanceId;
+	            const instanceId =
+	              typeof instanceIdRaw === "string" ? instanceIdRaw.trim() : "";
+
+	            const previous = frontendClient;
+	            const previousInstanceId = frontendInstanceId;
+	            const hasPrevious =
+	              previous && previous !== ws && previous.readyState === WebSocket.OPEN;
+	            const sameInstance =
+	              Boolean(instanceId) && Boolean(previousInstanceId) && instanceId === previousInstanceId;
+
+	            if (hasPrevious) {
+	              if (!requestedTakeover && !sameInstance) {
+	                try {
+	                  ws.send(
+	                    JSON.stringify({
+	                      type: "error",
+	                      error:
+	                        "Frontend already connected. Retry with {type:'register', role:'frontend', takeover:true}.",
+	                    } as ControlResponse),
+	                  );
+	                } catch {
+	                  // ignore send errors
+	                }
+	                try {
+	                  ws.close(4000, "frontend already connected");
+	                } catch {
+	                  // ignore close errors
+	                }
+	                return;
+	              }
+
+	              // Single-client assumption: replacing the frontend should close the old session.
+	              try {
+	                previous.close(4001, "frontend replaced");
+	              } catch {
+	                // ignore close errors
+	              }
+	            }
+
 	            frontendClient = ws;
+	            frontendInstanceId = instanceId || null;
 	            clientRoles.set(ws, "frontend");
 	            console.log("[ws] Frontend registered");
 	            ws.send(JSON.stringify({ type: "ack", payload: "registered as frontend" }));
@@ -3894,23 +3928,25 @@ export async function registerRoutes(
       pendingClients.delete(ws);
       const role = clientRoles.get(ws);
       clientRoles.delete(ws);
-      if (role === "frontend") {
-        if (ws === frontendClient) {
-          frontendClient = null;
-        }
-        console.log("[ws] Frontend disconnected");
-        return;
-      }
+	      if (role === "frontend") {
+	        if (ws === frontendClient) {
+	          frontendClient = null;
+	          frontendInstanceId = null;
+	        }
+	        console.log("[ws] Frontend disconnected");
+	        return;
+	      }
       if (role === "agent") {
         agentClients.delete(ws);
         console.log("[ws] Agent disconnected, remaining:", agentClients.size);
         return;
       }
-      if (ws === frontendClient) {
-        frontendClient = null;
-        console.log("[ws] Frontend disconnected");
-        return;
-      }
+	      if (ws === frontendClient) {
+	        frontendClient = null;
+	        frontendInstanceId = null;
+	        console.log("[ws] Frontend disconnected");
+	        return;
+	      }
       agentClients.delete(ws);
       console.log("[ws] Agent disconnected, remaining:", agentClients.size);
     });

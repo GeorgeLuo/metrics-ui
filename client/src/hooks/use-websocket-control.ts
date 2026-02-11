@@ -28,6 +28,9 @@ import {
 
 type RestoreStateCommand = Extract<ControlCommand, { type: "restore_state" }>;
 
+const WS_CLOSE_FRONTEND_BUSY = 4000;
+const WS_CLOSE_FRONTEND_REPLACED = 4001;
+
 const RESPONSE_TYPES = new Set<ControlResponse["type"]>([
   "state_update",
   "captures_list",
@@ -240,6 +243,7 @@ export function useWebSocketControl({
   const reconnectTimeoutRef = useRef<number | null>(null);
   const isRegisteredRef = useRef(false);
   const isBootstrappedRef = useRef(false);
+  const reconnectDisabledRef = useRef(false);
   const outboundQueueRef = useRef<ControlCommand[]>([]);
   const autoSyncTimerRef = useRef<number | null>(null);
 
@@ -952,7 +956,38 @@ export function useWebSocketControl({
       ws.onopen = () => {
         console.log("[ws] Connected to control server, registering as frontend...");
         isRegisteredRef.current = false;
-        ws.send(JSON.stringify({ type: "register", role: "frontend" }));
+        if (reconnectDisabledRef.current) {
+          console.warn("[ws] Reconnect disabled, skipping registration.");
+          try {
+            ws.close();
+          } catch {
+            // ignore close errors
+          }
+          return;
+        }
+
+        let instanceId = "";
+        try {
+          const key = "metrics-ui-frontend-instance-id";
+          instanceId = window.localStorage.getItem(key) ?? "";
+          if (!instanceId.trim()) {
+            instanceId = `frontend-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+            window.localStorage.setItem(key, instanceId);
+          }
+        } catch {
+          // ignore storage errors
+        }
+
+        let takeover = false;
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const raw = (params.get("takeover") ?? "").trim().toLowerCase();
+          takeover = raw === "1" || raw === "true" || raw === "yes";
+        } catch {
+          // ignore URL parsing errors
+        }
+
+        ws.send(JSON.stringify({ type: "register", role: "frontend", instanceId, takeover }));
         onReconnect?.();
       };
 
@@ -1053,12 +1088,30 @@ export function useWebSocketControl({
         }
       };
 
-      ws.onclose = () => {
-        if (!isCleanedUp) {
-          isRegisteredRef.current = false;
-          console.log("[ws] Disconnected, reconnecting in 3s...");
-          reconnectTimeoutRef.current = window.setTimeout(connect, 3000);
+      ws.onclose = (event) => {
+        if (isCleanedUp) {
+          return;
         }
+        isRegisteredRef.current = false;
+
+        if (event.code === WS_CLOSE_FRONTEND_BUSY) {
+          reconnectDisabledRef.current = true;
+          console.warn(
+            "[ws] Another UI tab is already connected. Staying disconnected. (Use ?takeover=1 to take over.)",
+          );
+          return;
+        }
+        if (event.code === WS_CLOSE_FRONTEND_REPLACED) {
+          reconnectDisabledRef.current = true;
+          console.warn("[ws] This UI tab was replaced by another. Staying disconnected.");
+          return;
+        }
+        if (reconnectDisabledRef.current) {
+          return;
+        }
+
+        console.log("[ws] Disconnected, reconnecting in 3s...");
+        reconnectTimeoutRef.current = window.setTimeout(connect, 3000);
       };
 
       wsRef.current = ws;
