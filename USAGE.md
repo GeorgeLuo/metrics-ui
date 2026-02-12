@@ -33,12 +33,17 @@ Derivation groups are named collections of metrics you want to use as **inputs**
 Current behavior:
 - Clicking a metric in the HUD toggles it inside the **active** derivation group.
 - If no derivation groups exist yet, selecting a metric creates a default group and adds the metric.
+- The add-group `+` button opens a menu with:
+  - `New Group`: empty group (current behavior).
+  - `Deep Copy`: copies active group inputs and plugin, then re-runs that plugin for the new group to produce fresh derived outputs.
+  - `Shallow Copy`: copies active group inputs and derived outputs into the new group's `Inputs`, with plugin unset and no `Derived` rows.
 - The active group is highlighted. Clicking anywhere on a group card selects it as active.
 - Each group includes a small "solo display" toggle. When enabled, the chart/HUD will display **only** metrics from that group.
 - Metrics inside a group can be reordered by drag-and-drop. Plugin inputs follow this order.
 - If a group has a plugin selected, reordering metrics automatically re-runs that derivation (debounced).
 - Derived output metrics from a group run are auto-added back into that same group.
 - Derived outputs are stored separately from input metrics, so plugin reruns keep using only the input order.
+- Changing a group's plugin invalidates prior derived outputs for that group: stale derived captures are removed, derived metric rows are cleared, and a fresh run is required for the new plugin.
 - Group metrics are visually split into `Inputs` and `Derived` sections.
 - Derived metric labels are synced to `groupName.outputKey` in the HUD/chart.
 - Group **ids** exist for WS/CLI control (and derivation plugins), but the browser UI only exposes the group **name**.
