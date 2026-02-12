@@ -15,6 +15,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
@@ -622,6 +628,10 @@ export default function Home() {
     }
     return window.localStorage.getItem("metrics-ui-display-derivation-group") ?? "";
   });
+  const [focusedDerivationGroupNameId, setFocusedDerivationGroupNameId] = useState<string>("");
+  const [derivationGroupNameDrafts, setDerivationGroupNameDrafts] = useState<
+    Record<string, string>
+  >({});
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [memoryStatsSnapshot, setMemoryStatsSnapshot] = useState<MemoryStatsResponse | null>(null);
   const [memoryStatsAt, setMemoryStatsAt] = useState<number | null>(null);
@@ -1015,6 +1025,31 @@ export default function Home() {
       setDisplayDerivationGroupId(resolvedDisplayDerivationGroupId);
     }
   }, [displayDerivationGroupId, resolvedDisplayDerivationGroupId]);
+
+  useEffect(() => {
+    if (!focusedDerivationGroupNameId) {
+      return;
+    }
+    if (!derivationGroups.some((group) => group.id === focusedDerivationGroupNameId)) {
+      setFocusedDerivationGroupNameId("");
+    }
+  }, [derivationGroups, focusedDerivationGroupNameId]);
+
+  useEffect(() => {
+    setDerivationGroupNameDrafts((prev) => {
+      const validIds = new Set(derivationGroups.map((group) => group.id));
+      let changed = false;
+      const next: Record<string, string> = {};
+      for (const [id, value] of Object.entries(prev)) {
+        if (validIds.has(id)) {
+          next[id] = value;
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [derivationGroups]);
 
   const analysisMetrics = useMemo(() => {
     if (!resolvedActiveDerivationGroupId) {
@@ -3751,7 +3786,7 @@ export default function Home() {
       const name = options?.name?.trim() || id;
       const group: DerivationGroup = { id, name, metrics: [], derivedMetrics: [] };
       setDerivationGroups((prev) => {
-        const next = [...prev, group];
+        const next = [group, ...prev];
         derivationGroupsRef.current = next;
         return next;
       });
@@ -3929,12 +3964,22 @@ export default function Home() {
 
   const handleUpdateDerivationGroup = useCallback(
     (groupId: string, updates: { newGroupId?: string; name?: string; pluginId?: string }) => {
+      const currentGroup = derivationGroupsRef.current.find((group) => group.id === groupId);
+      if (!currentGroup) {
+        return;
+      }
       const desiredNewId = updates.newGroupId?.trim();
       const nextId = desiredNewId ? toUniqueGroupId(desiredNewId, groupId) : null;
       const nextName = updates.name?.trim();
       const wantsPluginUpdate = Object.prototype.hasOwnProperty.call(updates, "pluginId");
       const nextPluginIdRaw = typeof updates.pluginId === "string" ? updates.pluginId.trim() : "";
       const nextPluginId = nextPluginIdRaw.length > 0 ? nextPluginIdRaw : undefined;
+      const currentPluginId =
+        typeof currentGroup.pluginId === "string" ? currentGroup.pluginId.trim() : "";
+      const resolvedPluginId = wantsPluginUpdate
+        ? nextPluginIdRaw
+        : currentPluginId;
+      const shouldResetDerived = wantsPluginUpdate && resolvedPluginId !== currentPluginId;
 
       if (nextId && nextId !== groupId && activeDerivationGroupIdRef.current === groupId) {
         activeDerivationGroupIdRef.current = nextId;
@@ -3945,19 +3990,66 @@ export default function Home() {
         setDisplayDerivationGroupId(nextId);
       }
 
+      if (nextId && nextId !== groupId) {
+        for (const [captureId, mappedGroupId] of derivationOutputGroupByCaptureRef.current.entries()) {
+          if (mappedGroupId === groupId) {
+            derivationOutputGroupByCaptureRef.current.set(captureId, nextId);
+          }
+        }
+      }
+
+      if (shouldResetDerived) {
+        const derivedCaptureIds = new Set<string>();
+        for (const [captureId, mappedGroupId] of derivationOutputGroupByCaptureRef.current.entries()) {
+          if (mappedGroupId === groupId) {
+            derivedCaptureIds.add(captureId);
+          }
+        }
+        capturesRef.current.forEach((capture) => {
+          if (capture.id.startsWith(`derive-${groupId}-`)) {
+            derivedCaptureIds.add(capture.id);
+          }
+        });
+        if (currentPluginId) {
+          derivedCaptureIds.add(`derive-${groupId}-${currentPluginId}`);
+        }
+
+        for (const [timerKey, timerId] of derivationRerunTimersRef.current.entries()) {
+          if (!timerKey.startsWith(`${groupId}::`)) {
+            continue;
+          }
+          window.clearTimeout(timerId);
+          derivationRerunTimersRef.current.delete(timerKey);
+        }
+
+        for (const key of Array.from(autoReplayDerivationsRef.current)) {
+          if (key.startsWith(`${groupId}::`)) {
+            autoReplayDerivationsRef.current.delete(key);
+          }
+        }
+
+        if (derivedCaptureIds.size > 0) {
+          const removed = Array.from(derivedCaptureIds);
+          pushUiEvent({
+            level: "info",
+            message: "Removing outdated derived outputs",
+            detail: `${groupId}: ${removed.join(", ")}`,
+          });
+          removeCaptureIds(removed);
+        }
+      }
+
       setDerivationGroups((prev) =>
         prev.map((group) => {
           if (group.id !== groupId) {
             return group;
           }
-          const resolvedPluginId = wantsPluginUpdate ? nextPluginId : group.pluginId;
-          const shouldResetDerived =
-            wantsPluginUpdate && resolvedPluginId !== group.pluginId;
+          const nextGroupPluginId = wantsPluginUpdate ? nextPluginId : group.pluginId;
           return {
             ...group,
             id: nextId ?? group.id,
             name: nextName ?? group.name,
-            pluginId: resolvedPluginId,
+            pluginId: nextGroupPluginId,
             derivedMetrics: shouldResetDerived
               ? []
               : getDerivationGroupDerivedMetrics(group),
@@ -3965,7 +4057,7 @@ export default function Home() {
         }),
       );
     },
-    [toUniqueGroupId],
+    [pushUiEvent, removeCaptureIds, toUniqueGroupId],
   );
 
   const scheduleDerivationRecompute = useCallback((groupId: string, pluginId: string) => {
@@ -4228,6 +4320,81 @@ export default function Home() {
     [clearDerivationRunPendingByRequest, markDerivationRunPending, pushUiEvent],
   );
 
+  const handleCreateDerivationGroupFromActive = useCallback(
+    (mode: "new" | "deep-copy" | "shallow-copy") => {
+      if (mode === "new") {
+        handleCreateDerivationGroup();
+        return;
+      }
+
+      const source =
+        derivationGroupsRef.current.find(
+          (group) => group.id === activeDerivationGroupIdRef.current,
+        ) ?? derivationGroupsRef.current[0];
+
+      if (!source) {
+        handleCreateDerivationGroup();
+        return;
+      }
+
+      const suffix = mode === "deep-copy" ? "deep-copy" : "copy";
+      const desiredId = `${source.id}-${suffix}`;
+      const id = toUniqueGroupId(desiredId);
+
+      const baseName =
+        mode === "deep-copy" ? `${source.name} deep copy` : `${source.name} copy`;
+      const existingNames = new Set(
+        derivationGroupsRef.current
+          .map((group) => group.name.trim().toLowerCase())
+          .filter((name) => name.length > 0),
+      );
+      let name = baseName;
+      if (existingNames.has(name.toLowerCase())) {
+        let counter = 2;
+        while (existingNames.has(`${baseName} ${counter}`.toLowerCase())) {
+          counter += 1;
+        }
+        name = `${baseName} ${counter}`;
+      }
+
+      const copiedInputs = uniqueMetrics(
+        getDerivationGroupInputMetrics(source).map(cloneMetric),
+      );
+      const copiedDerived = uniqueMetrics(
+        getDerivationGroupDerivedMetrics(source).map(cloneMetric),
+      );
+      const copiedPluginId =
+        typeof source.pluginId === "string" && source.pluginId.trim().length > 0
+          ? source.pluginId.trim()
+          : undefined;
+
+      const nextGroup: DerivationGroup = {
+        id,
+        name,
+        metrics:
+          mode === "shallow-copy"
+            ? uniqueMetrics([...copiedInputs, ...copiedDerived])
+            : copiedInputs,
+        derivedMetrics: [],
+        pluginId: mode === "deep-copy" ? copiedPluginId : undefined,
+      };
+
+      setDerivationGroups((prev) => {
+        const next = [nextGroup, ...prev];
+        derivationGroupsRef.current = next;
+        return next;
+      });
+      activeDerivationGroupIdRef.current = id;
+      setActiveDerivationGroupId(id);
+
+      if (mode === "deep-copy" && copiedPluginId && copiedInputs.length > 0) {
+        const outputCaptureId = `derive-${id}-${copiedPluginId}`;
+        handleRunDerivationPlugin({ groupId: id, pluginId: copiedPluginId, outputCaptureId });
+      }
+    },
+    [handleCreateDerivationGroup, handleRunDerivationPlugin, toUniqueGroupId],
+  );
+
   const autoReplayDerivationsRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -4246,9 +4413,13 @@ export default function Home() {
       if (metrics.length === 0) {
         return;
       }
+      const persistedDerivedMetrics = getDerivationGroupDerivedMetrics(group);
+      if (persistedDerivedMetrics.length === 0) {
+        return;
+      }
       const knownDerivedCaptureIds = Array.from(
         new Set(
-          getDerivationGroupDerivedMetrics(group)
+          persistedDerivedMetrics
             .map((metric) => metric.captureId)
             .filter((captureId) => typeof captureId === "string" && captureId.length > 0),
         ),
@@ -6307,16 +6478,45 @@ export default function Home() {
                       <span className="text-xs text-muted-foreground">
                         {derivationGroups.length} groups
                       </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => handleCreateDerivationGroup()}
-                        data-testid="button-derivation-group-create"
-                        aria-label="New group"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            data-testid="button-derivation-group-create"
+                            aria-label="Create derivation group"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-44"
+                          data-testid="menu-derivation-group-create"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => handleCreateDerivationGroupFromActive("new")}
+                            data-testid="menu-item-derivation-group-new"
+                          >
+                            New Group
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={derivationGroups.length === 0}
+                            onClick={() => handleCreateDerivationGroupFromActive("deep-copy")}
+                            data-testid="menu-item-derivation-group-deep-copy"
+                          >
+                            Deep Copy
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={derivationGroups.length === 0}
+                            onClick={() => handleCreateDerivationGroupFromActive("shallow-copy")}
+                            data-testid="menu-item-derivation-group-shallow-copy"
+                          >
+                            Shallow Copy
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                     {derivationGroups.length === 0 && (
                       <div className="px-2 text-xs text-muted-foreground">
@@ -6361,13 +6561,42 @@ export default function Home() {
                           >
                             <div className="flex items-center gap-2">
                               <Input
-                                key={`${group.id}-${group.name}`}
-                                defaultValue={group.name}
+                                value={derivationGroupNameDrafts[group.id] ?? group.name}
+                                onChange={(event) => {
+                                  const nextValue = event.target.value;
+                                  setDerivationGroupNameDrafts((prev) => {
+                                    if (prev[group.id] === nextValue) {
+                                      return prev;
+                                    }
+                                    return { ...prev, [group.id]: nextValue };
+                                  });
+                                }}
+                                onFocus={() => {
+                                  setFocusedDerivationGroupNameId(group.id);
+                                  setDerivationGroupNameDrafts((prev) => {
+                                    if (typeof prev[group.id] === "string") {
+                                      return prev;
+                                    }
+                                    return { ...prev, [group.id]: group.name };
+                                  });
+                                }}
                                 onBlur={(event) => {
-                                  const nextName = event.target.value.trim();
+                                  const rawValue =
+                                    derivationGroupNameDrafts[group.id] ?? event.target.value;
+                                  const nextName = rawValue.trim();
                                   if (nextName && nextName !== group.name) {
                                     handleUpdateDerivationGroup(group.id, { name: nextName });
                                   }
+                                  setFocusedDerivationGroupNameId((prev) =>
+                                    prev === group.id ? "" : prev,
+                                  );
+                                  setDerivationGroupNameDrafts((prev) => {
+                                    if (!(group.id in prev)) {
+                                      return prev;
+                                    }
+                                    const { [group.id]: _removed, ...rest } = prev;
+                                    return rest;
+                                  });
                                 }}
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") {
@@ -6463,6 +6692,14 @@ export default function Home() {
                                 />
                               </div>
                             </div>
+                            {focusedDerivationGroupNameId === group.id && (
+                              <div
+                                className="rounded-sm border border-border/50 bg-muted/20 px-2 py-1 text-xs font-mono text-foreground break-all"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                {derivationGroupNameDrafts[group.id] ?? group.name}
+                              </div>
+                            )}
                             <div className="flex flex-col gap-1">
                               {inputMetricRows.length === 0 && derivedMetricRows.length === 0 && (
                                 <div className="text-xs text-muted-foreground">
