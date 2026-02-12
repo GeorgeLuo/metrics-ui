@@ -136,6 +136,13 @@
     @apply border-border;
   }
 
+  /* Intentionally suppress focus ring/outline visuals across the dashboard. */
+  *:focus,
+  *:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
   html,
   body,
   #root {
