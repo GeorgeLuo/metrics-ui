@@ -1325,6 +1325,7 @@ type DerivationJob = {
 };
 
 const derivationJobs = new Map<string, DerivationJob>();
+const activeDerivationOutputJobs = new Map<string, string>();
 
 type DerivationPluginOutput = { key: string; label?: string };
 type DerivationPluginManifest = {
@@ -1708,12 +1709,19 @@ class MovingAverageSystem extends System {
 }
 
 function getCaptureSourceForId(captureId: string): string {
-  return (
+  const source = (
     captureSources.get(captureId) ??
     captureMetadata.get(captureId)?.source ??
     liveStreamStates.get(captureId)?.source ??
     ""
   );
+  if (source.trim()) {
+    return source;
+  }
+  if (derivedCaptureStores.has(captureId)) {
+    return buildDerivedSource(captureId);
+  }
+  return "";
 }
 
 function getDerivationGroup(groupId: string): DerivationGroup | null {
@@ -1773,6 +1781,212 @@ function resolveDerivationInputMetrics(command: ControlCommand, groupId: string)
     return groupMetrics;
   }
   return normalizeSelectedMetrics((command as { metrics?: unknown }).metrics);
+}
+
+function createDefaultVisualizationState(): VisualizationState {
+  return {
+    captures: [],
+    selectedMetrics: [],
+    analysisMetrics: [],
+    derivationGroups: [],
+    activeDerivationGroupId: "",
+    displayDerivationGroupId: "",
+    playback: { isPlaying: true, currentTick: 1, speed: 1, totalTicks: 0 },
+    windowSize: 50,
+    windowStart: 1,
+    windowEnd: 50,
+    autoScroll: true,
+    isFullscreen: false,
+    annotations: [],
+    subtitles: [],
+  };
+}
+
+function ensureLastVisualizationState(): VisualizationState {
+  if (!lastVisualizationState) {
+    if (persistedDashboardState) {
+      lastVisualizationState = buildVisualizationStateFromPersistedState(persistedDashboardState);
+      lastVisualizationStateAt = persistedDashboardStateAt ?? new Date().toISOString();
+    } else {
+      lastVisualizationState = createDefaultVisualizationState();
+      lastVisualizationStateAt = new Date().toISOString();
+    }
+  }
+  return lastVisualizationState;
+}
+
+function metricFromCommand(command: ControlCommand): SelectedMetric | null {
+  const captureId =
+    typeof (command as { captureId?: unknown }).captureId === "string"
+      ? (command as { captureId: string }).captureId
+      : "";
+  const pathRaw = (command as { path?: unknown }).path;
+  const path = Array.isArray(pathRaw) && pathRaw.every((part) => typeof part === "string")
+    ? [...(pathRaw as string[])]
+    : null;
+  if (!captureId || !path || path.length === 0) {
+    return null;
+  }
+  return {
+    captureId,
+    path,
+    fullPath: path.join("."),
+    label: path[path.length - 1] ?? path.join("."),
+    color: "#94A3B8",
+  };
+}
+
+function applyAgentCommandToLastVisualizationState(command: ControlCommand): boolean {
+  if (
+    command.type !== "create_derivation_group" &&
+    command.type !== "delete_derivation_group" &&
+    command.type !== "set_active_derivation_group" &&
+    command.type !== "update_derivation_group" &&
+    command.type !== "reorder_derivation_group_metrics" &&
+    command.type !== "select_analysis_metric" &&
+    command.type !== "deselect_analysis_metric" &&
+    command.type !== "clear_analysis_metrics"
+  ) {
+    return false;
+  }
+
+  const state = ensureLastVisualizationState();
+  let changed = false;
+
+  if (command.type === "create_derivation_group") {
+    const requestedId =
+      typeof command.groupId === "string" && command.groupId.trim() ? command.groupId.trim() : "";
+    const groupId = requestedId || `group-${Date.now().toString(36)}`;
+    const existing = state.derivationGroups.find((group) => group.id === groupId);
+    if (!existing) {
+      const name =
+        typeof command.name === "string" && command.name.trim() ? command.name.trim() : groupId;
+      state.derivationGroups.unshift({ id: groupId, name, metrics: [], derivedMetrics: [] });
+      changed = true;
+    }
+    if (state.activeDerivationGroupId !== groupId) {
+      state.activeDerivationGroupId = groupId;
+      changed = true;
+    }
+  } else if (command.type === "delete_derivation_group") {
+    const before = state.derivationGroups.length;
+    state.derivationGroups = state.derivationGroups.filter((group) => group.id !== command.groupId);
+    if (state.derivationGroups.length !== before) {
+      changed = true;
+    }
+    if (state.activeDerivationGroupId === command.groupId) {
+      state.activeDerivationGroupId = state.derivationGroups[0]?.id ?? "";
+      changed = true;
+    }
+    if (state.displayDerivationGroupId === command.groupId) {
+      state.displayDerivationGroupId = "";
+      changed = true;
+    }
+  } else if (command.type === "set_active_derivation_group") {
+    if (state.activeDerivationGroupId !== command.groupId) {
+      state.activeDerivationGroupId = command.groupId;
+      changed = true;
+    }
+  } else if (command.type === "update_derivation_group") {
+    const group = state.derivationGroups.find((entry) => entry.id === command.groupId);
+    if (group) {
+      if (typeof command.name === "string" && command.name.trim() && group.name !== command.name.trim()) {
+        group.name = command.name.trim();
+        changed = true;
+      }
+      if (typeof command.pluginId === "string" && group.pluginId !== command.pluginId) {
+        group.pluginId = command.pluginId;
+        changed = true;
+      }
+      if (
+        typeof command.newGroupId === "string" &&
+        command.newGroupId.trim() &&
+        command.newGroupId.trim() !== group.id
+      ) {
+        const oldId = group.id;
+        group.id = command.newGroupId.trim();
+        if (state.activeDerivationGroupId === oldId) {
+          state.activeDerivationGroupId = group.id;
+        }
+        if (state.displayDerivationGroupId === oldId) {
+          state.displayDerivationGroupId = group.id;
+        }
+        changed = true;
+      }
+    }
+  } else if (command.type === "reorder_derivation_group_metrics") {
+    const group = state.derivationGroups.find((entry) => entry.id === command.groupId);
+    if (group && group.metrics.length > 1) {
+      const from = Math.max(0, Math.min(group.metrics.length - 1, command.fromIndex));
+      const to = Math.max(0, Math.min(group.metrics.length - 1, command.toIndex));
+      if (from !== to) {
+        const next = [...group.metrics];
+        const [moved] = next.splice(from, 1);
+        if (moved) {
+          next.splice(to, 0, moved);
+          group.metrics = next;
+          changed = true;
+        }
+      }
+    }
+  } else if (command.type === "select_analysis_metric") {
+    const metric = metricFromCommand(command);
+    if (metric) {
+      const key = `${metric.captureId}::${metric.fullPath}`;
+      if (!state.analysisMetrics.some((entry) => `${entry.captureId}::${entry.fullPath}` === key)) {
+        state.analysisMetrics = [metric, ...state.analysisMetrics];
+        changed = true;
+      }
+      const activeGroup = state.derivationGroups.find((entry) => entry.id === state.activeDerivationGroupId);
+      if (activeGroup) {
+        if (!activeGroup.metrics.some((entry) => `${entry.captureId}::${entry.fullPath}` === key)) {
+          activeGroup.metrics = [metric, ...activeGroup.metrics];
+          changed = true;
+        }
+      }
+    }
+  } else if (command.type === "deselect_analysis_metric") {
+    const key = `${command.captureId}::${command.fullPath}`;
+    const before = state.analysisMetrics.length;
+    state.analysisMetrics = state.analysisMetrics.filter(
+      (entry) => `${entry.captureId}::${entry.fullPath}` !== key,
+    );
+    if (state.analysisMetrics.length !== before) {
+      changed = true;
+    }
+    state.derivationGroups = state.derivationGroups.map((group) => {
+      const nextMetrics = group.metrics.filter((entry) => `${entry.captureId}::${entry.fullPath}` !== key);
+      if (nextMetrics.length !== group.metrics.length) {
+        changed = true;
+        return { ...group, metrics: nextMetrics };
+      }
+      return group;
+    });
+  } else if (command.type === "clear_analysis_metrics") {
+    if (state.analysisMetrics.length > 0) {
+      state.analysisMetrics = [];
+      changed = true;
+    }
+    const activeGroup = state.derivationGroups.find((entry) => entry.id === state.activeDerivationGroupId);
+    if (activeGroup && activeGroup.metrics.length > 0) {
+      activeGroup.metrics = [];
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    lastVisualizationStateAt = new Date().toISOString();
+    try {
+      const extracted = extractPersistableDashboardState(state);
+      const nextJson = JSON.stringify(extracted);
+      if (nextJson !== persistedDashboardStateJson) {
+        schedulePersistedDashboardStateSave(extracted);
+      }
+    } catch (error) {
+      console.warn("[persist] Failed to schedule dashboard state save from command mirror:", error);
+    }
+  }
+  return changed;
 }
 
 async function streamMetricValuesFromSource(options: {
@@ -1952,6 +2166,134 @@ function buildDerivationOutputComponentsFromKeys(outputKeys: string[]) {
   return componentsFromFrame(dummyFrame);
 }
 
+type DerivedOutputHealth = {
+  key: string;
+  valueCount: number;
+  numericCount: number;
+  nullishCount: number;
+  firstTick: number | null;
+  lastTick: number | null;
+};
+
+function collectDerivedOutputHealth(
+  captureId: string,
+  outputKeys: string[],
+): { recordCount: number; outputs: DerivedOutputHealth[] } {
+  const records = getDerivedCaptureRecords(captureId);
+  const outputs = outputKeys.map((key) => ({
+    key,
+    valueCount: 0,
+    numericCount: 0,
+    nullishCount: 0,
+    firstTick: null as number | null,
+    lastTick: null as number | null,
+  }));
+  const byKey = new Map(outputs.map((entry) => [entry.key, entry]));
+  records.forEach((record) => {
+    const tick = Number(record.tick);
+    const entities = record.entities;
+    if (!entities || typeof entities !== "object") {
+      return;
+    }
+    const seenInTick = new Set<string>();
+    Object.values(entities).forEach((entityValue) => {
+      if (!entityValue || typeof entityValue !== "object" || Array.isArray(entityValue)) {
+        return;
+      }
+      const derivations = (entityValue as Record<string, unknown>).derivations;
+      if (!derivations || typeof derivations !== "object" || Array.isArray(derivations)) {
+        return;
+      }
+      outputKeys.forEach((key) => {
+        if (seenInTick.has(key) || !Object.prototype.hasOwnProperty.call(derivations, key)) {
+          return;
+        }
+        const stats = byKey.get(key);
+        if (!stats) {
+          return;
+        }
+        seenInTick.add(key);
+        const value = (derivations as Record<string, unknown>)[key];
+        stats.valueCount += 1;
+        if (isFiniteNumber(value)) {
+          stats.numericCount += 1;
+        } else {
+          stats.nullishCount += 1;
+        }
+        if (Number.isFinite(tick)) {
+          if (stats.firstTick === null || tick < stats.firstTick) {
+            stats.firstTick = tick;
+          }
+          if (stats.lastTick === null || tick > stats.lastTick) {
+            stats.lastTick = tick;
+          }
+        }
+      });
+    });
+  });
+  return {
+    recordCount: records.length,
+    outputs,
+  };
+}
+
+function selectHealthyDerivedOutputs(options: {
+  captureId: string;
+  outputKeys: string[];
+  groupId: string;
+  requestId?: string;
+  jobId: string;
+  runLabel: string;
+}) {
+  const { captureId, outputKeys, groupId, requestId, jobId, runLabel } = options;
+  const health = collectDerivedOutputHealth(captureId, outputKeys);
+  const selectedKeys = health.outputs
+    .filter((entry) => entry.numericCount > 0)
+    .map((entry) => entry.key);
+  const skippedKeys = health.outputs
+    .filter((entry) => entry.numericCount === 0)
+    .map((entry) => entry.key);
+
+  selectedKeys.forEach((key) => {
+    sendToFrontend({
+      type: "select_metric",
+      captureId,
+      path: ["0", "derivations", key],
+      groupId,
+    });
+  });
+
+  const context = {
+    jobId,
+    groupId,
+    outputCaptureId: captureId,
+    selectedOutputs: selectedKeys,
+    skippedOutputs: skippedKeys,
+    outputHealth: health.outputs,
+    recordCount: health.recordCount,
+  };
+
+  if (selectedKeys.length === 0) {
+    sendToFrontend({
+      type: "ui_error",
+      error: `${runLabel} produced no numeric outputs. Output metrics were not auto-selected.`,
+      request_id: requestId,
+      payload: { context },
+    } as ControlResponse);
+  } else if (skippedKeys.length > 0) {
+    sendToFrontend({
+      type: "ui_notice",
+      payload: {
+        message: `${runLabel} skipped non-numeric outputs.`,
+        context,
+      },
+      request_id: requestId,
+    } as ControlResponse);
+  }
+
+  return { health, selectedKeys, skippedKeys };
+}
+
 async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) {
   const kind = (command as { kind?: unknown }).kind;
   const groupId = String((command as { groupId?: unknown }).groupId ?? "");
@@ -2022,16 +2364,34 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
     controller,
   };
   derivationJobs.set(jobId, job);
+  activeDerivationOutputJobs.set(derivedCaptureId, jobId);
 
-  // Initialize the derived capture and ensure outputs are selectable immediately.
-  sendToFrontend({ type: "capture_init", captureId: derivedCaptureId, filename: `${derivedCaptureId}.jsonl`, reset: true });
-  updateCaptureComponents(derivedCaptureId, buildDerivationOutputComponents(outputKey));
-  sendToFrontend({
-    type: "select_metric",
-    captureId: derivedCaptureId,
-    path: ["0", "derivations", outputKey],
-    groupId,
-  });
+  const isActiveOutputJob = () =>
+    activeDerivationOutputJobs.get(derivedCaptureId) === jobId && !controller.signal.aborted;
+  const sendDerivedCaptureAppend = (frame: CaptureAppendFrame) => {
+    if (!isActiveOutputJob()) {
+      return;
+    }
+    sendCaptureAppend(derivedCaptureId, frame);
+  };
+  const sendDerivedCaptureEnd = () => {
+    if (activeDerivationOutputJobs.get(derivedCaptureId) !== jobId) {
+      return;
+    }
+    sendCaptureEnd(derivedCaptureId);
+    activeDerivationOutputJobs.delete(derivedCaptureId);
+  };
+
+  try {
+    // Initialize the derived capture and ensure outputs are selectable immediately.
+    sendToFrontend({
+      type: "capture_init",
+      captureId: derivedCaptureId,
+      filename: `${derivedCaptureId}.jsonl`,
+      source: buildDerivedSource(derivedCaptureId),
+      reset: true,
+    });
+    updateCaptureComponents(derivedCaptureId, buildDerivationOutputComponents(outputKey));
 
   const selectedInputs =
     kind === "moving_average"
@@ -2075,7 +2435,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
       components.addComponent(root, rightType, right);
       systems.runCycle();
       const diff = components.getComponent(root, outType)?.payload ?? null;
-      sendCaptureAppend(derivedCaptureId, {
+      sendDerivedCaptureAppend({
         tick,
         entityId,
         componentId,
@@ -2138,7 +2498,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
     for (let tick = 1; tick <= tickEnd; tick += 1) {
       if (controller.signal.aborted) {
         job.status = "stopped";
-        sendCaptureEnd(derivedCaptureId);
+        sendDerivedCaptureEnd();
         return;
       }
       if (emitted.has(tick)) {
@@ -2176,7 +2536,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
           components.addComponent(root, inType, null);
           systems.runCycle();
           const ma = components.getComponent(root, outType)?.payload ?? null;
-          sendCaptureAppend(derivedCaptureId, {
+          sendDerivedCaptureAppend({
             tick: gapTick,
             entityId,
             componentId,
@@ -2188,7 +2548,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
         components.addComponent(root, inType, value);
         systems.runCycle();
         const ma = components.getComponent(root, outType)?.payload ?? null;
-        sendCaptureAppend(derivedCaptureId, {
+        sendDerivedCaptureAppend({
           tick,
           entityId,
           componentId,
@@ -2199,17 +2559,45 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
     });
   }
 
-  sendCaptureEnd(derivedCaptureId);
-  job.status = "completed";
+    const selection = selectHealthyDerivedOutputs({
+      captureId: derivedCaptureId,
+      outputKeys: [outputKey],
+      groupId,
+      requestId: command.request_id,
+      jobId,
+      runLabel: "Derivation",
+    });
 
-  ws.send(JSON.stringify({
-    type: "ui_notice",
-    payload: {
-      message: "Derivation complete",
-      context: { jobId, kind, groupId, outputCaptureId: derivedCaptureId },
-    },
-    request_id: command.request_id,
-  } as ControlResponse));
+    sendDerivedCaptureEnd();
+    job.status = "completed";
+
+    ws.send(JSON.stringify({
+      type: "ui_notice",
+      payload: {
+        message: "Derivation complete",
+        context: {
+          jobId,
+          kind,
+          groupId,
+          outputCaptureId: derivedCaptureId,
+          selectedOutputs: selection.selectedKeys,
+          skippedOutputs: selection.skippedKeys,
+          outputHealth: selection.health.outputs,
+        },
+      },
+      request_id: command.request_id,
+    } as ControlResponse));
+  } catch (error) {
+    if (job.status === "running") {
+      job.status = controller.signal.aborted ? "stopped" : "failed";
+      job.error = error instanceof Error ? error.message : "Derivation run failed.";
+    }
+    throw error;
+  } finally {
+    if (activeDerivationOutputJobs.get(derivedCaptureId) === jobId) {
+      activeDerivationOutputJobs.delete(derivedCaptureId);
+    }
+  }
 }
 
 function toUniqueCaptureId(base: string) {
@@ -2316,26 +2704,42 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
     controller,
   };
   derivationJobs.set(jobId, job);
+  activeDerivationOutputJobs.set(derivedCaptureId, jobId);
 
-  initializeDerivedOutputCapture(derivedCaptureId);
+  const isActiveOutputJob = () =>
+    activeDerivationOutputJobs.get(derivedCaptureId) === jobId && !controller.signal.aborted;
+  const sendDerivedCaptureAppend = (frame: CaptureAppendFrame) => {
+    if (!isActiveOutputJob()) {
+      return;
+    }
+    sendCaptureAppend(derivedCaptureId, frame);
+  };
+  const sendDerivedCaptureEnd = () => {
+    if (activeDerivationOutputJobs.get(derivedCaptureId) !== jobId) {
+      return;
+    }
+    sendCaptureEnd(derivedCaptureId);
+    activeDerivationOutputJobs.delete(derivedCaptureId);
+  };
 
-  // Keep group metadata in sync for agent/CLI-triggered runs too.
-  sendToFrontend({
-    type: "update_derivation_group",
-    groupId,
-    pluginId,
-  });
+  try {
+    initializeDerivedOutputCapture(derivedCaptureId);
 
-  sendToFrontend({ type: "capture_init", captureId: derivedCaptureId, filename: `${derivedCaptureId}.jsonl`, reset: true });
-  updateCaptureComponents(derivedCaptureId, buildDerivationOutputComponentsFromKeys(outputKeys));
-  outputKeys.forEach((key) => {
+    // Keep group metadata in sync for agent/CLI-triggered runs too.
     sendToFrontend({
-      type: "select_metric",
-      captureId: derivedCaptureId,
-      path: ["0", "derivations", key],
+      type: "update_derivation_group",
       groupId,
+      pluginId,
     });
-  });
+
+    sendToFrontend({
+      type: "capture_init",
+      captureId: derivedCaptureId,
+      filename: `${derivedCaptureId}.jsonl`,
+      source: buildDerivedSource(derivedCaptureId),
+      reset: true,
+    });
+    updateCaptureComponents(derivedCaptureId, buildDerivationOutputComponentsFromKeys(outputKeys));
 
   const entities = new EntityManager();
   const components = new ComponentManager();
@@ -2411,7 +2815,7 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
       const payload = components.getComponent(root, outputsMap[key]!)?.payload ?? null;
       outValue[key] = payload === null || isFiniteNumber(payload) ? payload : null;
     });
-    sendCaptureAppend(derivedCaptureId, {
+    sendDerivedCaptureAppend({
       tick,
       entityId: "0",
       componentId: "derivations",
@@ -2438,6 +2842,7 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
   const EMIT_BATCH_DELAY_MS = 12;
   let ticksSinceYield = 0;
   let emitInProgress = false;
+  let emitPending = false;
 
   const hasReadyTick = () => {
     if (startTick === null || nextTick === null) {
@@ -2449,33 +2854,44 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
 
   const tryEmit = async () => {
     if (emitInProgress) {
+      emitPending = true;
       return;
     }
     emitInProgress = true;
     try {
-      while (nextTick !== null) {
-        if (controller.signal.aborted) {
-          return;
+      do {
+        emitPending = false;
+        while (nextTick !== null) {
+          if (controller.signal.aborted) {
+            return;
+          }
+          const entry = tickBuffer.get(nextTick);
+          if (!entry || entry.count < totalInputs) {
+            break;
+          }
+          const values = entry.values.map((value) => (value === UNSET ? null : value)) as Array<number | null>;
+          tickBuffer.delete(nextTick);
+          runTick(nextTick, values);
+          nextTick += 1;
+          ticksSinceYield += 1;
+          if (ticksSinceYield >= EMIT_BATCH_SIZE) {
+            ticksSinceYield = 0;
+            await yieldToEventLoop(EMIT_BATCH_DELAY_MS);
+          }
         }
-        const entry = tickBuffer.get(nextTick);
-        if (!entry || entry.count < totalInputs) {
-          return;
-        }
-        const values = entry.values.map((value) => (value === UNSET ? null : value)) as Array<number | null>;
-        tickBuffer.delete(nextTick);
-        runTick(nextTick, values);
-        nextTick += 1;
-        ticksSinceYield += 1;
-        if (ticksSinceYield >= EMIT_BATCH_SIZE) {
-          ticksSinceYield = 0;
-          await yieldToEventLoop(EMIT_BATCH_DELAY_MS);
-        }
-      }
+      } while (emitPending);
     } finally {
       emitInProgress = false;
-      if (hasReadyTick()) {
-        void tryEmit();
-      }
+    }
+  };
+
+  const drainEmitter = async () => {
+    while (emitInProgress) {
+      await yieldToEventLoop(EMIT_BATCH_DELAY_MS);
+    }
+    await tryEmit();
+    while (emitInProgress) {
+      await yieldToEventLoop(EMIT_BATCH_DELAY_MS);
     }
   };
 
@@ -2519,7 +2935,7 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
   });
 
   await Promise.all(streamPromises);
-  await tryEmit();
+  await drainEmitter();
 
   const tickEnd = Array.from(byCapture.keys()).reduce((acc, captureId) => {
     const last = captureLastTicks.get(captureId) ?? liveStreamStates.get(captureId)?.lastTick ?? null;
@@ -2534,7 +2950,7 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
   for (let tick = nextTick; tick <= tickEnd; tick += 1) {
     if (controller.signal.aborted) {
       job.status = "stopped";
-      sendCaptureEnd(derivedCaptureId);
+      sendDerivedCaptureEnd();
       return;
     }
     const entry = tickBuffer.get(tick);
@@ -2549,19 +2965,47 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
     }
   }
 
-  sendCaptureEnd(derivedCaptureId);
-  job.status = "completed";
+    const selection = selectHealthyDerivedOutputs({
+      captureId: derivedCaptureId,
+      outputKeys,
+      groupId,
+      requestId: command.request_id,
+      jobId,
+      runLabel: "Derivation plugin",
+    });
 
-  ws.send(
-    JSON.stringify({
-      type: "ui_notice",
-      payload: {
-        message: "Derivation plugin complete",
-        context: { jobId, pluginId, groupId, outputCaptureId: derivedCaptureId },
-      },
-      request_id: command.request_id,
-    } as ControlResponse),
-  );
+    sendDerivedCaptureEnd();
+    job.status = "completed";
+
+    ws.send(
+      JSON.stringify({
+        type: "ui_notice",
+        payload: {
+          message: "Derivation plugin complete",
+          context: {
+            jobId,
+            pluginId,
+            groupId,
+            outputCaptureId: derivedCaptureId,
+            selectedOutputs: selection.selectedKeys,
+            skippedOutputs: selection.skippedKeys,
+            outputHealth: selection.health.outputs,
+          },
+        },
+        request_id: command.request_id,
+      } as ControlResponse),
+    );
+  } catch (error) {
+    if (job.status === "running") {
+      job.status = controller.signal.aborted ? "stopped" : "failed";
+      job.error = error instanceof Error ? error.message : "Derivation plugin run failed.";
+    }
+    throw error;
+  } finally {
+    if (activeDerivationOutputJobs.get(derivedCaptureId) === jobId) {
+      activeDerivationOutputJobs.delete(derivedCaptureId);
+    }
+  }
 }
 type CachedFrame = {
   frame: CaptureRecord;
@@ -3697,6 +4141,7 @@ function startLiveStream({
     throw new Error("Live stream already running for captureId.");
   }
   captureEnded.delete(captureId);
+  resetFrameCache(captureId);
   const controller = new AbortController();
   const state: LiveStreamState = {
     captureId,
@@ -4053,6 +4498,7 @@ export async function registerRoutes(
 
         const command = message as ControlCommand;
         const captureId = "captureId" in command ? String(command.captureId ?? "") : "";
+        applyAgentCommandToLastVisualizationState(command);
         if (command.type === "get_derivation_plugins") {
           ws.send(
             JSON.stringify({
@@ -4633,11 +5079,10 @@ export async function registerRoutes(
       const cacheStats = captureFrameCacheStats.get(captureId);
       const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
       const preferCache = req.body?.preferCache !== false;
-      // For restore/startup UX we allow sampled cache for both live and file-backed captures,
-      // then let the client request a full backfill (preferCache=false) as needed.
-      const allowSampledCache = true;
-      const usedCache =
-        cachedFrames.length > 0 && preferCache && (allowSampledCache || !isSampled);
+      const isLiveActive = liveStreamStates.has(captureId);
+      // Keep live streams cache-first even when cache is temporarily empty so the client can
+      // progressively render instead of blocking on a full source scan.
+      const usedCache = preferCache && (cachedFrames.length > 0 || isLiveActive);
       const result =
         usedCache
           ? extractSeriesFromFrames(cachedFrames, path)
@@ -4656,7 +5101,7 @@ export async function registerRoutes(
         tickCount: result.tickCount,
         numericCount: result.numericCount,
         lastTick: result.lastTick,
-        partial: usedCache && isSampled,
+        partial: usedCache && (isSampled || isLiveActive || cachedFrames.length === 0),
       });
     } catch (error) {
       console.error("Series load error:", error);
@@ -4688,11 +5133,10 @@ export async function registerRoutes(
       const cacheStats = captureFrameCacheStats.get(captureId);
       const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
       const preferCache = req.body?.preferCache !== false;
-      // For restore/startup UX we allow sampled cache for both live and file-backed captures,
-      // then let the client request a full backfill (preferCache=false) as needed.
-      const allowSampledCache = true;
-      const usedCache =
-        cachedFrames.length > 0 && preferCache && (allowSampledCache || !isSampled);
+      const isLiveActive = liveStreamStates.has(captureId);
+      // Keep live streams cache-first even when cache is temporarily empty so the client can
+      // progressively render instead of blocking on a full source scan.
+      const usedCache = preferCache && (cachedFrames.length > 0 || isLiveActive);
       const results =
         usedCache
           ? extractSeriesFromFramesBatch(cachedFrames, paths)
@@ -4711,7 +5155,7 @@ export async function registerRoutes(
           tickCount: result.tickCount,
           numericCount: result.numericCount,
           lastTick: result.lastTick,
-          partial: usedCache && isSampled,
+          partial: usedCache && (isSampled || isLiveActive || cachedFrames.length === 0),
         };
       });
 

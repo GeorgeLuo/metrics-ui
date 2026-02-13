@@ -320,10 +320,6 @@ function resolveDerivedGroupIdForCapture(
   groups: DerivationGroup[],
   outputGroupByCapture?: Map<string, string>,
 ): string {
-  if (!captureId.startsWith("derive-")) {
-    return "";
-  }
-
   const mappedGroupId = outputGroupByCapture?.get(captureId) ?? "";
   if (mappedGroupId && groups.some((group) => group.id === mappedGroupId)) {
     return mappedGroupId;
@@ -1467,6 +1463,12 @@ export default function Home() {
         return;
       }
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+      const isLiveActive = Boolean(
+        liveEntry
+        && liveEntry.status !== "idle"
+        && liveEntry.status !== "completed"
+        && liveEntry.source.trim().length > 0,
+      );
       const hasLiveSource = Boolean(liveEntry && liveEntry.source.trim().length > 0);
       const capture = capturesRef.current.find((entry) => entry.id === captureId);
       const hasCaptureSource = Boolean(capture && typeof capture.source === "string" && capture.source.trim().length > 0);
@@ -1544,13 +1546,15 @@ export default function Home() {
         });
 
         if (metricsNeedingBackfill.length > 0 && options?.preferCache !== false) {
-          const backfillMetrics = [...metricsNeedingBackfill];
-          window.setTimeout(() => {
-            void fetchMetricSeriesBatch(captureId, backfillMetrics, {
-              force: true,
-              preferCache: false,
-            });
-          }, 0);
+          if (!isLiveActive) {
+            const backfillMetrics = [...metricsNeedingBackfill];
+            window.setTimeout(() => {
+              void fetchMetricSeriesBatch(captureId, backfillMetrics, {
+                force: true,
+                preferCache: false,
+              });
+            }, 0);
+          }
         }
       } catch (error) {
         console.error("[series] Batch fetch error:", error);
@@ -1754,7 +1758,13 @@ export default function Home() {
         if (!capture || !capture.isActive) {
           return;
         }
-        const lastTick = lastSeriesTickRef.current.get(captureId) ?? 0;
+        let lastTick = lastSeriesTickRef.current.get(captureId) ?? 0;
+        if (capture.tickCount < lastTick) {
+          // Stream restart/reset: drop stale tick cursor so series refresh resumes progressively.
+          lastTick = 0;
+          lastSeriesTickRef.current.set(captureId, 0);
+          lastSeriesRefreshRef.current.delete(captureId);
+        }
         if (capture.tickCount <= lastTick) {
           return;
         }
@@ -3100,7 +3110,9 @@ export default function Home() {
         });
       }
 
-      if (!shouldFetch) {
+      if (!shouldFetch || shouldClear) {
+        // For reset/init, wait for post-reset ticks so fetches align with the new stream state.
+        // Immediate fetch here can race with reset and leave loadedSeries marked while records are empty.
         return;
       }
       const selectedForCapture = selectedMetricsRef.current.filter(
@@ -3234,7 +3246,18 @@ export default function Home() {
           continue;
         }
         const metricsForCapture = metricsByCapture.get(captureId) ?? [];
-        const isDerivedCapture = captureId.startsWith("derive-");
+        const existingIndex = indexById.get(captureId);
+        const existingCapture =
+          existingIndex !== undefined
+            ? next[existingIndex]
+            : null;
+        const derivedBySource = isDerivedCaptureSource(existingCapture?.source ?? "");
+        const derivedByFrameShape = frames.some(
+          (frame) =>
+            typeof (frame as { componentId?: unknown }).componentId === "string" &&
+            (frame as { componentId: string }).componentId === "derivations",
+        );
+        const isDerivedCapture = captureId.startsWith("derive-") || derivedBySource || derivedByFrameShape;
         const shouldAppend = metricsForCapture.length > 0 || isDerivedCapture;
         const newRecords: CaptureRecord[] = [];
         let lastTick: number | null = null;
@@ -3266,11 +3289,17 @@ export default function Home() {
           newRecords.push(compactedFrame);
         });
 
-        const existingIndex = indexById.get(captureId);
         const nextTickCount = lastTick ?? 0;
         if (existingIndex === undefined) {
           const fallbackName = `${captureId}.jsonl`;
-          const createdRecords = shouldAppend ? newRecords : [];
+          const createdRecords =
+            shouldAppend && isDerivedCapture
+              ? Array.from(
+                  new Map(newRecords.map((record) => [record.tick, record])).values(),
+                ).sort((a, b) => a.tick - b.tick)
+              : shouldAppend
+                ? newRecords
+                : [];
           const newCapture: CaptureSession = {
             id: captureId,
             filename: fallbackName,
@@ -3296,13 +3325,32 @@ export default function Home() {
         let updatedRecords = existing.records;
         const stats = captureStatsRef.current.get(captureId) ?? createEmptyCaptureStats();
         if (shouldAppend && newRecords.length > 0) {
-          updatedRecords = existing.records.concat(newRecords);
-          newRecords.forEach((record) => appendRecordStats(stats, record));
+          if (isDerivedCapture) {
+            const byTick = new Map<number, CaptureRecord>();
+            existing.records.forEach((record) => {
+              byTick.set(record.tick, record);
+            });
+            newRecords.forEach((record) => {
+              byTick.set(record.tick, record);
+            });
+            updatedRecords = Array.from(byTick.values()).sort((a, b) => a.tick - b.tick);
+            const recalculated = createEmptyCaptureStats();
+            updatedRecords.forEach((record) => appendRecordStats(recalculated, record));
+            recalculated.tickCount = Math.max(recalculated.tickCount, updatedTickCount);
+            recalculated.componentNodes = countComponentNodes(existing.components);
+            captureStatsRef.current.set(captureId, recalculated);
+          } else {
+            updatedRecords = existing.records.concat(newRecords);
+            newRecords.forEach((record) => appendRecordStats(stats, record));
+            stats.tickCount = Math.max(stats.tickCount, updatedTickCount);
+            stats.componentNodes = countComponentNodes(existing.components);
+            captureStatsRef.current.set(captureId, stats);
+          }
         } else {
           stats.tickCount = Math.max(stats.tickCount, updatedTickCount);
+          stats.componentNodes = countComponentNodes(existing.components);
+          captureStatsRef.current.set(captureId, stats);
         }
-        stats.componentNodes = countComponentNodes(existing.components);
-        captureStatsRef.current.set(captureId, stats);
 
         next[existingIndex] = {
           ...existing,
@@ -3528,6 +3576,9 @@ export default function Home() {
     const fullPath = path.join(".");
     const baseLabel = path[path.length - 1];
     const key = `${captureId}::${fullPath}`;
+    const selectedCapture = capturesRef.current.find((entry) => entry.id === captureId);
+    const isDerivedCapture =
+      captureId.startsWith("derive-") || isDerivedCaptureSource(selectedCapture?.source ?? "");
     const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
     if (liveEntry && liveEntry.status !== "idle" && !liveEntry.source.trim()) {
       streamModeRef.current.set(captureId, "full");
@@ -3563,7 +3614,7 @@ export default function Home() {
         }
         const colorIndex = Math.abs(hash) % METRIC_COLORS.length;
         const label =
-          targetGroup && captureId.startsWith("derive-")
+          targetGroup && isDerivedCapture
             ? buildDerivedMetricLabel(targetGroup.name, { path, label: baseLabel })
             : baseLabel;
         return {
@@ -3575,7 +3626,7 @@ export default function Home() {
         };
       })();
 
-    if (targetGroup && captureId.startsWith("derive-")) {
+    if (targetGroup && isDerivedCapture) {
       const expectedLabel = buildDerivedMetricLabel(targetGroup.name, selectedMetric);
       if (selectedMetric.label !== expectedLabel) {
         selectedMetric = { ...selectedMetric, label: expectedLabel };
@@ -3596,7 +3647,7 @@ export default function Home() {
       if (existingIndex >= 0) {
         const found = prev[existingIndex]!;
         let nextMetric = found;
-        if (targetGroup && captureId.startsWith("derive-")) {
+        if (targetGroup && isDerivedCapture) {
           const expectedLabel = buildDerivedMetricLabel(targetGroup.name, found);
           if (found.label !== expectedLabel) {
             nextMetric = { ...found, label: expectedLabel };
@@ -4543,7 +4594,7 @@ export default function Home() {
         message: "Recovering capture series",
         detail: captureId,
       });
-      fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: false });
+      fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: true });
     });
   }, [captures, fetchMetricSeriesBatch, pushUiEvent, selectedMetrics]);
 
