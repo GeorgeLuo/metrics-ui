@@ -271,6 +271,10 @@ function getDerivationGroupDisplayMetrics(group: DerivationGroup): SelectedMetri
   ]);
 }
 
+function normalizeMetricAxis(axis: unknown): "y2" | undefined {
+  return axis === "y2" ? "y2" : undefined;
+}
+
 function isSelectedMetricLike(metric: unknown): metric is SelectedMetric {
   if (!metric || typeof metric !== "object") {
     return false;
@@ -281,7 +285,8 @@ function isSelectedMetricLike(metric: unknown): metric is SelectedMetric {
     Array.isArray(value.path) &&
     typeof value.fullPath === "string" &&
     typeof value.label === "string" &&
-    typeof value.color === "string"
+    typeof value.color === "string" &&
+    (value.axis === undefined || value.axis === "y1" || value.axis === "y2")
   );
 }
 
@@ -289,7 +294,20 @@ function normalizeMetricList(metrics: unknown): SelectedMetric[] {
   if (!Array.isArray(metrics)) {
     return [];
   }
-  return uniqueMetrics(metrics.filter((entry) => isSelectedMetricLike(entry)));
+  const normalized = metrics
+    .filter((entry) => isSelectedMetricLike(entry))
+    .map((entry) => {
+      const value = entry as SelectedMetric;
+      return {
+        captureId: value.captureId,
+        path: Array.isArray(value.path) ? [...value.path] : [],
+        fullPath: value.fullPath,
+        label: value.label,
+        color: value.color,
+        axis: normalizeMetricAxis(value.axis),
+      } satisfies SelectedMetric;
+    });
+  return uniqueMetrics(normalized);
 }
 
 function cloneMetric(metric: SelectedMetric): SelectedMetric {
@@ -299,6 +317,7 @@ function cloneMetric(metric: SelectedMetric): SelectedMetric {
     fullPath: metric.fullPath,
     label: metric.label,
     color: metric.color,
+    axis: normalizeMetricAxis(metric.axis),
   };
 }
 
@@ -381,6 +400,13 @@ function normalizeDerivationGroups(raw: unknown): DerivationGroup[] {
           inputMetrics.push(metric);
         }
       });
+    }
+
+    // Keep input/output sets disjoint. If a metric is already tracked as a derived
+    // output, it should not also be treated as an input for the same group.
+    const derivedMetricKeys = new Set(outputMetrics.map((metric) => getMetricKey(metric)));
+    if (derivedMetricKeys.size > 0) {
+      inputMetrics = inputMetrics.filter((metric) => !derivedMetricKeys.has(getMetricKey(metric)));
     }
 
     groups.push({
@@ -573,18 +599,7 @@ export default function Home() {
     }
     try {
       const parsed = JSON.parse(stored);
-      if (!Array.isArray(parsed)) {
-        return [];
-      }
-      return parsed.filter(
-        (metric) =>
-          metric &&
-          typeof metric.captureId === "string" &&
-          Array.isArray(metric.path) &&
-          typeof metric.fullPath === "string" &&
-          typeof metric.label === "string" &&
-          typeof metric.color === "string",
-      ) as SelectedMetric[];
+      return normalizeMetricList(parsed);
     } catch {
       return [];
     }
@@ -731,6 +746,7 @@ export default function Home() {
   const liveStreamsRef = useRef(liveStreams);
   const selectedMetricsRef = useRef(selectedMetrics);
   const derivationGroupsRef = useRef(derivationGroups);
+  const derivationPluginsRef = useRef(derivationPlugins);
   const activeDerivationGroupIdRef = useRef(activeDerivationGroupId);
   const displayDerivationGroupIdRef = useRef(displayDerivationGroupId);
   const liveMetaRef = useRef(new Map<string, LiveStreamMeta>());
@@ -1076,15 +1092,34 @@ export default function Home() {
     );
   }, [captures, displayGroupMetrics, resolvedDisplayDerivationGroupId]);
 
+  const selectedMetricAxisByKey = useMemo(() => {
+    const map = new Map<string, "y2">();
+    selectedMetrics.forEach((metric) => {
+      if (metric.axis === "y2") {
+        map.set(getMetricKey(metric), "y2");
+      }
+    });
+    return map;
+  }, [selectedMetrics]);
+
   const displayMetrics = useMemo(() => {
+    const applyAxisAssignment = (metric: SelectedMetric): SelectedMetric => {
+      const assignedAxis = selectedMetricAxisByKey.get(getMetricKey(metric));
+      if (assignedAxis === "y2" && metric.axis !== "y2") {
+        return { ...metric, axis: "y2" };
+      }
+      return metric;
+    };
+
     if (!resolvedDisplayDerivationGroupId || !displayGroupHasActiveCaptures) {
-      return selectedMetrics;
+      return selectedMetrics.map(applyAxisAssignment);
     }
-    return displayGroupMetrics ?? [];
+    return (displayGroupMetrics ?? []).map(applyAxisAssignment);
   }, [
     displayGroupHasActiveCaptures,
     displayGroupMetrics,
     resolvedDisplayDerivationGroupId,
+    selectedMetricAxisByKey,
     selectedMetrics,
   ]);
 
@@ -1695,6 +1730,10 @@ export default function Home() {
   useEffect(() => {
     derivationGroupsRef.current = derivationGroups;
   }, [derivationGroups]);
+
+  useEffect(() => {
+    derivationPluginsRef.current = derivationPlugins;
+  }, [derivationPlugins]);
 
   useEffect(() => {
     activeDerivationGroupIdRef.current = activeDerivationGroupId;
@@ -3255,7 +3294,7 @@ export default function Home() {
         const derivedByFrameShape = frames.some(
           (frame) =>
             typeof (frame as { componentId?: unknown }).componentId === "string" &&
-            (frame as { componentId: string }).componentId === "derivations",
+            (frame as { componentId?: string }).componentId === "derivations",
         );
         const isDerivedCapture = captureId.startsWith("derive-") || derivedBySource || derivedByFrameShape;
         const shouldAppend = metricsForCapture.length > 0 || isDerivedCapture;
@@ -3694,6 +3733,68 @@ export default function Home() {
       );
     }
   }, []);
+
+  const handleToggleMetricAxis = useCallback((metric: SelectedMetric) => {
+    const metricKey = getMetricKey(metric);
+    const toggleAxis = (entry: SelectedMetric): SelectedMetric => {
+      if (getMetricKey(entry) !== metricKey) {
+        return entry;
+      }
+      if (entry.axis === "y2") {
+        const { axis: _axis, ...rest } = entry;
+        return rest;
+      }
+      return { ...entry, axis: "y2" };
+    };
+
+    setSelectedMetrics((prev) => {
+      const next = prev.map(toggleAxis);
+      selectedMetricsRef.current = next;
+      return next;
+    });
+    setDerivationGroups((prev) =>
+      prev.map((group) => ({
+        ...group,
+        metrics: getDerivationGroupInputMetrics(group).map(toggleAxis),
+        derivedMetrics: getDerivationGroupDerivedMetrics(group).map(toggleAxis),
+      })),
+    );
+  }, []);
+
+  const handleSetMetricAxis = useCallback(
+    (captureId: string, fullPath: string, axis: "y1" | "y2") => {
+      const applyAxis = (entry: SelectedMetric): SelectedMetric => {
+        if (entry.captureId !== captureId || entry.fullPath !== fullPath) {
+          return entry;
+        }
+        if (axis === "y2") {
+          if (entry.axis === "y2") {
+            return entry;
+          }
+          return { ...entry, axis: "y2" };
+        }
+        if (entry.axis === "y2") {
+          const { axis: _axis, ...rest } = entry;
+          return rest;
+        }
+        return entry;
+      };
+
+      setSelectedMetrics((prev) => {
+        const next = prev.map(applyAxis);
+        selectedMetricsRef.current = next;
+        return next;
+      });
+      setDerivationGroups((prev) =>
+        prev.map((group) => ({
+          ...group,
+          metrics: getDerivationGroupInputMetrics(group).map(applyAxis),
+          derivedMetrics: getDerivationGroupDerivedMetrics(group).map(applyAxis),
+        })),
+      );
+    },
+    [],
+  );
 
   const handleDeselectMetric = useCallback((captureId: string, fullPath: string) => {
     setSelectedMetrics((prev) => {
@@ -4342,9 +4443,40 @@ export default function Home() {
       const group = derivationGroupsRef.current.find(
         (entry) => entry.id === options.groupId,
       );
-      const inputMetrics = group
-        ? getDerivationGroupInputMetrics(group).map(cloneMetric)
-        : [];
+      if (!group) {
+        pushUiEvent({
+          level: "error",
+          message: `Derivation group not found: ${options.groupId}`,
+        });
+        return;
+      }
+      let inputMetrics = uniqueMetrics(getDerivationGroupInputMetrics(group).map(cloneMetric));
+      const plugin = derivationPluginsRef.current.find(
+        (entry) => entry.id === options.pluginId,
+      );
+      if (plugin) {
+        const minInputs = Number.isInteger(plugin.minInputs) ? plugin.minInputs : 1;
+        const maxInputs =
+          Number.isInteger(plugin.maxInputs) && (plugin.maxInputs as number) >= minInputs
+            ? (plugin.maxInputs as number)
+            : null;
+        if (maxInputs !== null && inputMetrics.length > maxInputs) {
+          inputMetrics = inputMetrics.slice(0, maxInputs);
+          pushUiEvent({
+            level: "info",
+            message: "Trimmed derivation inputs",
+            detail: `${options.groupId} -> ${options.pluginId} (${maxInputs} max)`,
+          });
+        }
+        if (inputMetrics.length < minInputs) {
+          pushUiEvent({
+            level: "error",
+            message: `Plugin ${options.pluginId} requires at least ${minInputs} input metrics`,
+            detail: `${options.groupId} has ${inputMetrics.length}`,
+          });
+          return;
+        }
+      }
       derivationOutputGroupByCaptureRef.current.set(outputCaptureId, options.groupId);
       markDerivationRunPending(
         requestId,
@@ -5040,6 +5172,12 @@ export default function Home() {
     [displayMetrics, captures],
   );
 
+  const isMetricOnSecondaryAxis = useCallback(
+    (metric: SelectedMetric) =>
+      metric.axis === "y2" || selectedMetricAxisByKey.has(getMetricKey(metric)),
+    [selectedMetricAxisByKey],
+  );
+
   const { data: chartData, coverage: metricCoverage } = useMemo(
     () => extractDataPoints(captures, activeMetrics),
     [captures, activeMetrics],
@@ -5553,6 +5691,7 @@ export default function Home() {
     onToggleCapture: handleToggleCapture,
     onRemoveCapture: handleRemoveCapture,
     onSelectMetric: handleSelectMetric,
+    onSetMetricAxis: handleSetMetricAxis,
     onDeselectMetric: handleDeselectMetric,
     onClearSelection: handleClearSelection,
     onSelectAnalysisMetric: handleSelectAnalysisMetric,
@@ -7061,6 +7200,8 @@ export default function Home() {
                 isVisible={isHudVisible}
                 analysisKeys={analysisKeys}
                 onToggleAnalysisMetric={handleToggleAnalysisMetric}
+                onToggleMetricAxis={handleToggleMetricAxis}
+                isMetricOnSecondaryAxis={isMetricOnSecondaryAxis}
                 onDeselectMetric={handleDeselectMetric}
                 onHoverMetric={setHighlightedMetricKey}
                 highlightedMetricKey={highlightedMetricKey}
