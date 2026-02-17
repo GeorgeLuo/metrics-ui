@@ -4364,6 +4364,13 @@ function startLiveStream({
     [{ captureId, source, filename, pollIntervalMs }],
     { replace: false },
   );
+  // Keep browser-side live source state aligned with server-initiated starts (CLI/verifier),
+  // so subsequent source syncs don't treat these captures as unknown and prune them.
+  sendToFrontend({
+    type: "set_live_source",
+    source,
+    captureId,
+  });
   captureStreamModes.set(captureId, "lite");
   liveStreamStates.set(captureId, state);
   captureComponentState.set(captureId, { components: [], sentCount: 0 });
@@ -5473,7 +5480,7 @@ export async function registerRoutes(
     });
   });
 
-  app.post("/api/live/start", (req, res) => {
+  app.post("/api/live/start", async (req, res) => {
     try {
       const source = typeof req.body?.source === "string"
         ? req.body.source
@@ -5497,6 +5504,13 @@ export async function registerRoutes(
       }
       if (!Number.isFinite(pollIntervalMs) || pollIntervalMs <= 0) {
         return res.status(400).json({ error: "Invalid pollIntervalMs value." });
+      }
+      const sourceCheck = await probeCaptureSource(source.trim(), new AbortController().signal);
+      if (!sourceCheck.ok) {
+        return res.status(400).json({
+          error: sourceCheck.error || "Capture source is not reachable.",
+          source: source.trim(),
+        });
       }
       if (liveStreamStates.has(captureId)) {
         return res.status(409).json({ error: "Live stream already running for captureId." });
