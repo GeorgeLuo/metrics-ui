@@ -20,6 +20,8 @@ interface MetricsHUDProps {
   highlightedMetricKey?: string | null;
   analysisKeys?: Set<string>;
   onToggleAnalysisMetric?: (metric: SelectedMetric) => void;
+  onToggleMetricAxis?: (metric: SelectedMetric) => void;
+  isMetricOnSecondaryAxis?: (metric: SelectedMetric) => boolean;
   onDeselectMetric?: (captureId: string, fullPath: string) => void;
   onHoverMetric?: (metricKey: string | null) => void;
 }
@@ -33,6 +35,8 @@ export function MetricsHUD({
   highlightedMetricKey,
   analysisKeys,
   onToggleAnalysisMetric,
+  onToggleMetricAxis,
+  isMetricOnSecondaryAxis,
   onDeselectMetric,
   onHoverMetric,
 }: MetricsHUDProps) {
@@ -136,6 +140,7 @@ export function MetricsHUD({
           const isHighlighted = highlightedMetricKey === dataKey;
           const analysisKey = `${metric.captureId}::${metric.fullPath}`;
           const isAnalysisSelected = analysisKeys?.has(analysisKey) ?? false;
+          const isSecondaryAxis = isMetricOnSecondaryAxis?.(metric) ?? metric.axis === "y2";
 
           return (
             <div
@@ -158,6 +163,25 @@ export function MetricsHUD({
               <span className="font-mono text-xs font-medium" data-testid={`hud-value-${metric.captureId}-${metric.fullPath}`}>
                 {displayValue}
               </span>
+              {onToggleMetricAxis && (
+                <button
+                  type="button"
+                  className={cn(
+                    "text-[10px] font-mono px-1",
+                    isSecondaryAxis
+                      ? "text-foreground bg-muted/70"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleMetricAxis(metric);
+                  }}
+                  aria-label={`Toggle secondary axis for ${captureName}: ${metric.label}`}
+                  title={`Toggle secondary axis for ${captureName}: ${metric.label}`}
+                >
+                  Y2
+                </button>
+              )}
               {onDeselectMetric && (
                 <button
                   type="button"

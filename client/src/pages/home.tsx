@@ -519,6 +519,36 @@ const formatBytes = (bytes: number | null | undefined): string => {
   return `${value.toFixed(precision)} ${units[unitIndex]}`;
 };
 
+const MIN_Y_DOMAIN_SPAN = 1e-6;
+
+function formatDomainNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "0";
+  }
+  const abs = Math.abs(value);
+  if (abs >= 1000) {
+    return value.toFixed(0);
+  }
+  if (abs >= 100) {
+    return value.toFixed(1);
+  }
+  if (abs >= 1) {
+    return value.toFixed(2);
+  }
+  return value.toFixed(4);
+}
+
+function sanitizeDomain(domain: [number, number]): [number, number] {
+  let [min, max] = domain;
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return [0, 100];
+  }
+  if (max <= min) {
+    max = min + MIN_Y_DOMAIN_SPAN;
+  }
+  return [min, max];
+}
+
 function extractDataPoints(
   captures: CaptureSession[],
   selectedMetrics: SelectedMetric[]
@@ -702,8 +732,17 @@ export default function Home() {
   const [windowStart, setWindowStart] = useState(1);
   const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
   const [isWindowed, setIsWindowed] = useState(false);
+  const [resetViewVersion, setResetViewVersion] = useState(0);
   const [windowStartInput, setWindowStartInput] = useState(String(windowStart));
   const [windowEndInput, setWindowEndInput] = useState(String(windowEnd));
+  const [manualYPrimaryDomain, setManualYPrimaryDomain] = useState<[number, number] | null>(null);
+  const [manualYSecondaryDomain, setManualYSecondaryDomain] = useState<[number, number] | null>(null);
+  const [resolvedYPrimaryDomain, setResolvedYPrimaryDomain] = useState<[number, number]>([0, 100]);
+  const [resolvedYSecondaryDomain, setResolvedYSecondaryDomain] = useState<[number, number]>([0, 100]);
+  const [yPrimaryMinInput, setYPrimaryMinInput] = useState("0");
+  const [yPrimaryMaxInput, setYPrimaryMaxInput] = useState("100");
+  const [ySecondaryMinInput, setYSecondaryMinInput] = useState("0");
+  const [ySecondaryMaxInput, setYSecondaryMaxInput] = useState("100");
   const [viewport, setViewport] = useState<VisualizationState["viewport"]>({
     width: 0,
     height: 0,
@@ -773,6 +812,10 @@ export default function Home() {
   const lastSeriesTickRef = useRef(new Map<string, number>());
   const windowStartEditingRef = useRef(false);
   const windowEndEditingRef = useRef(false);
+  const yPrimaryMinEditingRef = useRef(false);
+  const yPrimaryMaxEditingRef = useRef(false);
+  const ySecondaryMinEditingRef = useRef(false);
+  const ySecondaryMaxEditingRef = useRef(false);
   const sidebarHeaderRef = useRef<HTMLDivElement | null>(null);
   const baselineHeapRef = useRef<number | null>(null);
   const componentUpdateSamplesRef = useRef<number[]>([]);
@@ -808,6 +851,8 @@ export default function Home() {
   );
   const pendingDerivationRequestsByCaptureRef = useRef(new Map<string, Set<string>>());
   const staleSeriesRecoverAtRef = useRef(new Map<string, number>());
+  const staleSeriesRecoverErrorAtRef = useRef(new Map<string, number>());
+  const sourceRepairAttemptAtRef = useRef(new Map<string, number>());
 
   const pushUiEvent = useCallback((event: Omit<UiEvent, "id" | "timestamp">) => {
     setUiEvents((prev) => {
@@ -1340,6 +1385,9 @@ export default function Home() {
 
   useEffect(() => {
     const activeIds = new Set(captures.map((capture) => capture.id));
+    const isActiveCaptureId = (captureId: string) => activeIds.has(captureId);
+    let prunedPendingDerivations = false;
+
     selectionHandlersRef.current.forEach((_handler, id) => {
       if (!activeIds.has(id)) {
         selectionHandlersRef.current.delete(id);
@@ -1350,7 +1398,138 @@ export default function Home() {
         staleSeriesRecoverAtRef.current.delete(id);
       }
     });
-  }, [captures]);
+    staleSeriesRecoverErrorAtRef.current.forEach((_value, id) => {
+      if (!activeIds.has(id)) {
+        staleSeriesRecoverErrorAtRef.current.delete(id);
+      }
+    });
+
+    pendingAppendsRef.current.forEach((_records, id) => {
+      if (!isActiveCaptureId(id)) {
+        pendingAppendsRef.current.delete(id);
+      }
+    });
+    pendingTicksRef.current.forEach((_tick, id) => {
+      if (!isActiveCaptureId(id)) {
+        pendingTicksRef.current.delete(id);
+      }
+    });
+    captureStatsRef.current.forEach((_stats, id) => {
+      if (!isActiveCaptureId(id)) {
+        captureStatsRef.current.delete(id);
+      }
+    });
+    lastSeriesRefreshRef.current.forEach((_value, id) => {
+      if (!isActiveCaptureId(id)) {
+        lastSeriesRefreshRef.current.delete(id);
+      }
+    });
+    lastSeriesTickRef.current.forEach((_value, id) => {
+      if (!isActiveCaptureId(id)) {
+        lastSeriesTickRef.current.delete(id);
+      }
+    });
+    activeCaptureIdsRef.current.forEach((id) => {
+      if (!isActiveCaptureId(id)) {
+        activeCaptureIdsRef.current.delete(id);
+      }
+    });
+    endedCapturesRef.current.forEach((id) => {
+      if (!isActiveCaptureId(id)) {
+        endedCapturesRef.current.delete(id);
+      }
+    });
+    streamingCapturesRef.current.forEach((id) => {
+      if (!isActiveCaptureId(id)) {
+        streamingCapturesRef.current.delete(id);
+      }
+    });
+    streamLastActivityAtRef.current.forEach((_value, id) => {
+      if (!isActiveCaptureId(id)) {
+        streamLastActivityAtRef.current.delete(id);
+      }
+    });
+    streamIdleTimersRef.current.forEach((timerId, id) => {
+      if (!isActiveCaptureId(id)) {
+        if (typeof window !== "undefined") {
+          window.clearTimeout(timerId);
+        }
+        streamIdleTimersRef.current.delete(id);
+      }
+    });
+    liveErrorEventsRef.current.forEach((_value, id) => {
+      if (!isActiveCaptureId(id)) {
+        liveErrorEventsRef.current.delete(id);
+      }
+    });
+    streamModeRef.current.forEach((_mode, id) => {
+      if (!isActiveCaptureId(id)) {
+        streamModeRef.current.delete(id);
+      }
+    });
+    liveMetaRef.current.forEach((_meta, id) => {
+      if (!isActiveCaptureId(id)) {
+        liveMetaRef.current.delete(id);
+      }
+    });
+    componentUpdateLastAppliedRef.current.forEach((_value, id) => {
+      if (!isActiveCaptureId(id)) {
+        componentUpdateLastAppliedRef.current.delete(id);
+      }
+    });
+    pendingComponentUpdatesRef.current.forEach((_nodes, id) => {
+      if (!isActiveCaptureId(id)) {
+        pendingComponentUpdatesRef.current.delete(id);
+      }
+    });
+    componentUpdateTimersRef.current.forEach((timerId, id) => {
+      if (!isActiveCaptureId(id)) {
+        if (typeof window !== "undefined") {
+          window.clearTimeout(timerId);
+        }
+        componentUpdateTimersRef.current.delete(id);
+      }
+    });
+    derivationOutputGroupByCaptureRef.current.forEach((_groupId, captureId) => {
+      if (!isActiveCaptureId(captureId)) {
+        derivationOutputGroupByCaptureRef.current.delete(captureId);
+      }
+    });
+    pendingDerivationRequestsByCaptureRef.current.forEach((requestIds, captureId) => {
+      if (!isActiveCaptureId(captureId)) {
+        requestIds.forEach((requestId) => {
+          pendingDerivationByRequestRef.current.delete(requestId);
+          prunedPendingDerivations = true;
+        });
+        pendingDerivationRequestsByCaptureRef.current.delete(captureId);
+      }
+    });
+    pendingDerivationByRequestRef.current.forEach((entry, requestId) => {
+      if (!isActiveCaptureId(entry.outputCaptureId)) {
+        pendingDerivationByRequestRef.current.delete(requestId);
+        prunedPendingDerivations = true;
+      }
+    });
+
+    const seriesKeys = new Set<string>();
+    pendingSeriesRef.current.forEach((key) => seriesKeys.add(key));
+    loadedSeriesRef.current.forEach((key) => seriesKeys.add(key));
+    partialSeriesRef.current.forEach((key) => seriesKeys.add(key));
+    pendingFullBackfillRef.current.forEach((key) => seriesKeys.add(key));
+    seriesKeys.forEach((key) => {
+      const captureId = key.includes("::") ? key.split("::")[0]! : "";
+      if (!captureId || !isActiveCaptureId(captureId)) {
+        pendingSeriesRef.current.delete(key);
+        loadedSeriesRef.current.delete(key);
+        partialSeriesRef.current.delete(key);
+        pendingFullBackfillRef.current.delete(key);
+      }
+    });
+
+    if (prunedPendingDerivations) {
+      syncPendingDerivationRuns();
+    }
+  }, [captures, syncPendingDerivationRuns]);
 
   const ingestCapturePayload = useCallback(
     (data: {
@@ -1507,15 +1686,9 @@ export default function Home() {
       const hasLiveSource = Boolean(liveEntry && liveEntry.source.trim().length > 0);
       const capture = capturesRef.current.find((entry) => entry.id === captureId);
       const hasCaptureSource = Boolean(capture && typeof capture.source === "string" && capture.source.trim().length > 0);
-      if (!hasCaptureSource && !hasLiveSource) {
+      if (!hasCaptureSource && !hasLiveSource && capture && capture.records.length > 0) {
         // Push-only capture: rely on capture_append frames for chart data.
         return;
-      }
-      if (hasLiveSource) {
-        const hasTicks = Boolean(capture && capture.tickCount > 0);
-        if (!hasTicks) {
-          return;
-        }
       }
       if (!options?.force && liveEntry && liveEntry.status !== "idle" && liveEntry.status !== "completed") {
         return;
@@ -1591,8 +1764,40 @@ export default function Home() {
             }, 0);
           }
         }
+        sourceRepairAttemptAtRef.current.delete(captureId);
       } catch (error) {
         console.error("[series] Batch fetch error:", error);
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.toLowerCase().includes("capture source not found")) {
+          const sourceFromCapture =
+            capturesRef.current.find((entry) => entry.id === captureId)?.source?.trim() ?? "";
+          const sourceFromLive =
+            liveStreamsRef.current.find((entry) => entry.id === captureId)?.source?.trim() ?? "";
+          const source = sourceFromCapture || sourceFromLive;
+          if (source) {
+            const now = Date.now();
+            const lastAttempt = sourceRepairAttemptAtRef.current.get(captureId) ?? 0;
+            if (now - lastAttempt >= 1000) {
+              sourceRepairAttemptAtRef.current.set(captureId, now);
+              sendMessageRef.current({
+                type: "sync_capture_sources",
+                sources: [{ captureId, source }],
+                replace: false,
+              });
+              pushUiEvent({
+                level: "info",
+                message: "Capture source missing on server; repairing source mapping",
+                detail: captureId,
+              });
+              window.setTimeout(() => {
+                void fetchMetricSeriesBatch(captureId, metricsToFetch, {
+                  force: true,
+                  preferCache: options?.preferCache,
+                });
+              }, 200);
+            }
+          }
+        }
         metricsToFetch.forEach((metric) => {
           const key = buildSeriesKey(metric.captureId, metric.fullPath);
           pendingFullBackfillRef.current.delete(key);
@@ -1603,7 +1808,7 @@ export default function Home() {
         });
       }
     },
-    [mergeSeriesIntoCaptures],
+    [mergeSeriesIntoCaptures, pushUiEvent],
   );
 
   const uploadMutation = useMutation({
@@ -1754,6 +1959,24 @@ export default function Home() {
       setWindowEndInput(String(windowEnd));
     }
   }, [windowEnd]);
+
+  useEffect(() => {
+    if (!yPrimaryMinEditingRef.current) {
+      setYPrimaryMinInput(formatDomainNumber(resolvedYPrimaryDomain[0]));
+    }
+    if (!yPrimaryMaxEditingRef.current) {
+      setYPrimaryMaxInput(formatDomainNumber(resolvedYPrimaryDomain[1]));
+    }
+  }, [resolvedYPrimaryDomain]);
+
+  useEffect(() => {
+    if (!ySecondaryMinEditingRef.current) {
+      setYSecondaryMinInput(formatDomainNumber(resolvedYSecondaryDomain[0]));
+    }
+    if (!ySecondaryMaxEditingRef.current) {
+      setYSecondaryMaxInput(formatDomainNumber(resolvedYSecondaryDomain[1]));
+    }
+  }, [resolvedYSecondaryDomain]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -2737,6 +2960,27 @@ export default function Home() {
   }, [attemptConnect]);
 
   useEffect(() => {
+    if (liveStreams.length === 0) {
+      return;
+    }
+    setCaptures((prev) => {
+      let changed = false;
+      const next = prev.map((capture) => {
+        if (typeof capture.source === "string" && capture.source.trim().length > 0) {
+          return capture;
+        }
+        const liveSource = liveStreams.find((entry) => entry.id === capture.id)?.source?.trim() ?? "";
+        if (!liveSource) {
+          return capture;
+        }
+        changed = true;
+        return { ...capture, source: liveSource };
+      });
+      return changed ? next : prev;
+    });
+  }, [liveStreams]);
+
+  useEffect(() => {
     if (sourceMode !== "live" || !initialSyncReady) {
       return;
     }
@@ -2777,6 +3021,10 @@ export default function Home() {
         syncCaptures.forEach((entry) => {
           const captureId = entry.captureId;
           const lastTick = entry.lastTick;
+          const liveSource = liveStreamsRef.current
+            .find((liveEntry) => liveEntry.id === captureId)
+            ?.source
+            ?.trim();
           if (typeof captureId !== "string" || !captureId) {
             return;
           }
@@ -2794,6 +3042,7 @@ export default function Home() {
               records: [],
               components: [],
               isActive: true,
+              source: liveSource || undefined,
             };
             next.push(newCapture);
             indexById.set(captureId, next.length - 1);
@@ -2805,11 +3054,15 @@ export default function Home() {
           }
           const existing = next[existingIndex];
           if (existing.tickCount >= lastTick) {
+            if (!existing.source && liveSource) {
+              next[existingIndex] = { ...existing, source: liveSource };
+            }
             return;
           }
           next[existingIndex] = {
             ...existing,
             tickCount: lastTick,
+            source: existing.source ?? liveSource ?? undefined,
           };
           const stats = captureStatsRef.current.get(captureId);
           if (stats) {
@@ -2877,6 +3130,24 @@ export default function Home() {
       }
       if (typeof state.windowEnd === "number") {
         setWindowEnd(Math.max(1, Math.floor(state.windowEnd)));
+      }
+      if (Array.isArray(state.yPrimaryDomain) && state.yPrimaryDomain.length === 2) {
+        const min = Number(state.yPrimaryDomain[0]);
+        const max = Number(state.yPrimaryDomain[1]);
+        if (Number.isFinite(min) && Number.isFinite(max) && max > min) {
+          setManualYPrimaryDomain([min, max]);
+        }
+      } else if (state.yPrimaryDomain === null) {
+        setManualYPrimaryDomain(null);
+      }
+      if (Array.isArray(state.ySecondaryDomain) && state.ySecondaryDomain.length === 2) {
+        const min = Number(state.ySecondaryDomain[0]);
+        const max = Number(state.ySecondaryDomain[1]);
+        if (Number.isFinite(min) && Number.isFinite(max) && max > min) {
+          setManualYSecondaryDomain([min, max]);
+        }
+      } else if (state.ySecondaryDomain === null) {
+        setManualYSecondaryDomain(null);
       }
       if (Array.isArray(state.annotations)) {
         setAnnotations(state.annotations);
@@ -3512,11 +3783,14 @@ export default function Home() {
       const selectedForCapture = selectedMetricsRef.current.filter(
         (metric) => metric.captureId === captureId,
       );
-      const pending = selectedForCapture.filter((metric) => {
-        const key = buildSeriesKey(metric.captureId, metric.fullPath);
-        return !loadedSeriesRef.current.has(key) || partialSeriesRef.current.has(key);
-      });
-      fetchMetricSeriesBatch(captureId, pending, { force: true, preferCache: false });
+      if (selectedForCapture.length > 0) {
+        // Always force a full-source backfill at capture end. Cache-first partial fetches can mark a
+        // series as loaded before full records are available, leaving "completed + empty records".
+        fetchMetricSeriesBatch(captureId, selectedForCapture, {
+          force: true,
+          preferCache: false,
+        });
+      }
     },
     [
       clearDerivationRunPendingByCapture,
@@ -3588,6 +3862,7 @@ export default function Home() {
     lastSeriesRefreshRef.current.delete(captureId);
     lastSeriesTickRef.current.delete(captureId);
     staleSeriesRecoverAtRef.current.delete(captureId);
+    staleSeriesRecoverErrorAtRef.current.delete(captureId);
     partialSeriesRef.current.forEach((key) => {
       if (key.startsWith(`${captureId}::`)) {
         partialSeriesRef.current.delete(key);
@@ -3981,6 +4256,7 @@ export default function Home() {
         lastSeriesRefreshRef.current.delete(captureId);
         lastSeriesTickRef.current.delete(captureId);
         staleSeriesRecoverAtRef.current.delete(captureId);
+        staleSeriesRecoverErrorAtRef.current.delete(captureId);
         derivationOutputGroupByCaptureRef.current.delete(captureId);
         handleRemoveLiveStream(captureId);
         sendMessageRef.current({ type: "remove_capture", captureId });
@@ -4632,6 +4908,9 @@ export default function Home() {
       return `${capture.id}:${capture.isActive ? 1 : 0}:${source}`;
     })
     .join("|");
+  const liveSeriesIdentity = liveStreams
+    .map((entry) => `${entry.id}:${entry.status}:${entry.source.trim()}`)
+    .join("|");
 
   useEffect(() => {
     if (captures.length === 0 || selectedMetrics.length === 0) {
@@ -4660,7 +4939,7 @@ export default function Home() {
     metricsByCapture.forEach((metrics, captureId) => {
       fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: true });
     });
-  }, [captureSeriesIdentity, fetchMetricSeriesBatch, selectedMetrics]);
+  }, [captureSeriesIdentity, fetchMetricSeriesBatch, liveSeriesIdentity, selectedMetrics]);
 
   useEffect(() => {
     if (captures.length === 0 || selectedMetrics.length === 0) {
@@ -4691,10 +4970,13 @@ export default function Home() {
         return;
       }
       if (capture.records.length > 0) {
+        staleSeriesRecoverErrorAtRef.current.delete(captureId);
         return;
       }
 
       const liveEntry = liveStreamsRef.current.find((entry) => entry.id === captureId);
+      const isCompletedCapture =
+        liveEntry?.status === "completed" || endedCapturesRef.current.has(captureId);
       const source =
         (typeof capture.source === "string" ? capture.source.trim() : "")
         || (liveEntry?.source ? liveEntry.source.trim() : "");
@@ -4709,10 +4991,11 @@ export default function Home() {
         return;
       }
 
-      const hasLoaded = metrics.some((metric) =>
-        loadedSeriesRef.current.has(buildSeriesKey(metric.captureId, metric.fullPath)),
-      );
-      if (hasLoaded) {
+      const fullyLoaded = metrics.every((metric) => {
+        const key = buildSeriesKey(metric.captureId, metric.fullPath);
+        return loadedSeriesRef.current.has(key) && !partialSeriesRef.current.has(key);
+      });
+      if (!isCompletedCapture && fullyLoaded) {
         return;
       }
 
@@ -4721,14 +5004,32 @@ export default function Home() {
         return;
       }
       staleSeriesRecoverAtRef.current.set(captureId, now);
+
+      if (isCompletedCapture) {
+        const lastError = staleSeriesRecoverErrorAtRef.current.get(captureId) ?? 0;
+        if (now - lastError >= 5000) {
+          staleSeriesRecoverErrorAtRef.current.set(captureId, now);
+          pushUiEvent({
+            level: "error",
+            message: "Capture completed without resolved metric records",
+            detail: captureId,
+          });
+        }
+      }
+
       pushUiEvent({
         level: "info",
-        message: "Recovering capture series",
+        message: isCompletedCapture
+          ? "Recovering capture series (full backfill)"
+          : "Recovering capture series",
         detail: captureId,
       });
-      fetchMetricSeriesBatch(captureId, metrics, { force: true, preferCache: true });
+      fetchMetricSeriesBatch(captureId, metrics, {
+        force: true,
+        preferCache: !isCompletedCapture,
+      });
     });
-  }, [captures, fetchMetricSeriesBatch, pushUiEvent, selectedMetrics]);
+  }, [captures, fetchMetricSeriesBatch, liveSeriesIdentity, pushUiEvent, selectedMetrics]);
 
   useEffect(() => {
     const prev = prevSelectedRef.current;
@@ -4816,6 +5117,8 @@ export default function Home() {
     pendingTicksRef.current.clear();
     lastSeriesRefreshRef.current.clear();
     lastSeriesTickRef.current.clear();
+    staleSeriesRecoverAtRef.current.clear();
+    staleSeriesRecoverErrorAtRef.current.clear();
     partialSeriesRef.current.clear();
     pendingFullBackfillRef.current.clear();
     derivationOutputGroupByCaptureRef.current.clear();
@@ -4986,10 +5289,99 @@ export default function Home() {
     [handleWindowEndChange, windowEnd],
   );
 
+  const handleChartDomainChange = useCallback(
+    (domain: { yPrimary: [number, number]; ySecondary: [number, number] }) => {
+      const nextPrimary = sanitizeDomain(domain.yPrimary);
+      const nextSecondary = sanitizeDomain(domain.ySecondary);
+      setResolvedYPrimaryDomain((prev) =>
+        prev[0] === nextPrimary[0] && prev[1] === nextPrimary[1] ? prev : nextPrimary,
+      );
+      setResolvedYSecondaryDomain((prev) =>
+        prev[0] === nextSecondary[0] && prev[1] === nextSecondary[1] ? prev : nextSecondary,
+      );
+    },
+    [],
+  );
+
+  const commitYPrimaryBoundary = useCallback(
+    (boundary: "min" | "max", rawValue: string) => {
+      const parsed = Number(rawValue);
+      const source = sanitizeDomain(manualYPrimaryDomain ?? resolvedYPrimaryDomain);
+      if (!Number.isFinite(parsed)) {
+        if (boundary === "min") {
+          setYPrimaryMinInput(formatDomainNumber(source[0]));
+        } else {
+          setYPrimaryMaxInput(formatDomainNumber(source[1]));
+        }
+        return;
+      }
+      let [nextMin, nextMax] = source;
+      if (boundary === "min") {
+        nextMin = parsed;
+        if (nextMin >= nextMax) {
+          nextMin = nextMax - MIN_Y_DOMAIN_SPAN;
+        }
+      } else {
+        nextMax = parsed;
+        if (nextMax <= nextMin) {
+          nextMax = nextMin + MIN_Y_DOMAIN_SPAN;
+        }
+      }
+      setManualYPrimaryDomain([nextMin, nextMax]);
+    },
+    [manualYPrimaryDomain, resolvedYPrimaryDomain],
+  );
+
+  const commitYSecondaryBoundary = useCallback(
+    (boundary: "min" | "max", rawValue: string) => {
+      const parsed = Number(rawValue);
+      const source = sanitizeDomain(manualYSecondaryDomain ?? resolvedYSecondaryDomain);
+      if (!Number.isFinite(parsed)) {
+        if (boundary === "min") {
+          setYSecondaryMinInput(formatDomainNumber(source[0]));
+        } else {
+          setYSecondaryMaxInput(formatDomainNumber(source[1]));
+        }
+        return;
+      }
+      let [nextMin, nextMax] = source;
+      if (boundary === "min") {
+        nextMin = parsed;
+        if (nextMin >= nextMax) {
+          nextMin = nextMax - MIN_Y_DOMAIN_SPAN;
+        }
+      } else {
+        nextMax = parsed;
+        if (nextMax <= nextMin) {
+          nextMax = nextMin + MIN_Y_DOMAIN_SPAN;
+        }
+      }
+      setManualYSecondaryDomain([nextMin, nextMax]);
+    },
+    [manualYSecondaryDomain, resolvedYSecondaryDomain],
+  );
+
+  const handleYPrimaryRangeChange = useCallback((min: number, max: number) => {
+    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+      return;
+    }
+    setManualYPrimaryDomain([min, max]);
+  }, []);
+
+  const handleYSecondaryRangeChange = useCallback((min: number, max: number) => {
+    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+      return;
+    }
+    setManualYSecondaryDomain([min, max]);
+  }, []);
+
   const handleResetWindow = useCallback(() => {
     const end = Math.max(1, playbackState.totalTicks || playbackState.currentTick);
     setIsAutoScroll(true);
     setIsWindowed(false);
+    setManualYPrimaryDomain(null);
+    setManualYSecondaryDomain(null);
+    setResetViewVersion((prev) => prev + 1);
     setPlaybackState((prev) => ({
       ...prev,
       isPlaying: true,
@@ -5171,6 +5563,18 @@ export default function Home() {
       ),
     [displayMetrics, captures],
   );
+
+  const hasSecondaryAxis = useMemo(
+    () => activeMetrics.some((metric) => metric.axis === "y2"),
+    [activeMetrics],
+  );
+
+  useEffect(() => {
+    if (hasSecondaryAxis) {
+      return;
+    }
+    setManualYSecondaryDomain(null);
+  }, [hasSecondaryAxis]);
 
   const isMetricOnSecondaryAxis = useCallback(
     (metric: SelectedMetric) =>
@@ -5679,6 +6083,8 @@ export default function Home() {
     windowSize,
     windowStart,
     windowEnd,
+    yPrimaryDomain: manualYPrimaryDomain,
+    ySecondaryDomain: manualYSecondaryDomain,
     autoScroll: isAutoScroll,
     isWindowed,
     isFullscreen,
@@ -5713,6 +6119,8 @@ export default function Home() {
     onWindowStartChange: handleWindowStartChange,
     onWindowEndChange: handleWindowEndChange,
     onWindowRangeChange: handleWindowRangeChange,
+    onYPrimaryRangeChange: handleYPrimaryRangeChange,
+    onYSecondaryRangeChange: handleYSecondaryRangeChange,
     onAutoScrollChange: handleAutoScrollChange,
     onSetFullscreen: handleSetFullscreen,
     onLiveStart: startLiveStream,
@@ -6179,7 +6587,7 @@ export default function Home() {
                                         <span>Stream {index + 1}</span>
                                         <button
                                           type="button"
-                                          onClick={() => handleRemoveLiveStream(entry.id)}
+                                          onClick={() => removeCaptureIds([entry.id])}
                                           data-testid={`button-live-remove-${entry.id}`}
                                           aria-label={`Remove live stream ${index + 1}`}
                                           className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
@@ -6352,7 +6760,7 @@ export default function Home() {
                   </SidebarGroupContent>
                 </SidebarGroup>
                 <SidebarGroup>
-                  <SidebarGroupLabel>Playback</SidebarGroupLabel>
+                  <SidebarGroupLabel>View</SidebarGroupLabel>
                   <SidebarGroupContent>
                     <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
                       <div className="flex items-center justify-between">
@@ -6415,6 +6823,112 @@ export default function Home() {
                           />
                         </div>
                       </div>
+                      <div className="flex items-center justify-between">
+                        <span>Y</span>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            value={yPrimaryMinInput}
+                            onFocus={() => {
+                              yPrimaryMinEditingRef.current = true;
+                            }}
+                            onChange={(event) => setYPrimaryMinInput(event.target.value)}
+                            onBlur={(event) => {
+                              yPrimaryMinEditingRef.current = false;
+                              commitYPrimaryBoundary("min", event.target.value);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                yPrimaryMinEditingRef.current = false;
+                                commitYPrimaryBoundary("min", (event.target as HTMLInputElement).value);
+                                (event.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            style={{ width: `${Math.max(yPrimaryMinInput.length, 1)}ch` }}
+                            aria-label="Primary axis minimum"
+                          />
+                          <span className="text-muted-foreground">–</span>
+                          <Input
+                            type="number"
+                            value={yPrimaryMaxInput}
+                            onFocus={() => {
+                              yPrimaryMaxEditingRef.current = true;
+                            }}
+                            onChange={(event) => setYPrimaryMaxInput(event.target.value)}
+                            onBlur={(event) => {
+                              yPrimaryMaxEditingRef.current = false;
+                              commitYPrimaryBoundary("max", event.target.value);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                yPrimaryMaxEditingRef.current = false;
+                                commitYPrimaryBoundary("max", (event.target as HTMLInputElement).value);
+                                (event.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            style={{ width: `${Math.max(yPrimaryMaxInput.length, 1)}ch` }}
+                            aria-label="Primary axis maximum"
+                          />
+                        </div>
+                      </div>
+                      {hasSecondaryAxis ? (
+                        <div className="flex items-center justify-between">
+                          <span>Y2</span>
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              value={ySecondaryMinInput}
+                              onFocus={() => {
+                                ySecondaryMinEditingRef.current = true;
+                              }}
+                              onChange={(event) => setYSecondaryMinInput(event.target.value)}
+                              onBlur={(event) => {
+                                ySecondaryMinEditingRef.current = false;
+                                commitYSecondaryBoundary("min", event.target.value);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  ySecondaryMinEditingRef.current = false;
+                                  commitYSecondaryBoundary("min", (event.target as HTMLInputElement).value);
+                                  (event.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              style={{ width: `${Math.max(ySecondaryMinInput.length, 1)}ch` }}
+                              aria-label="Secondary axis minimum"
+                            />
+                            <span className="text-muted-foreground">–</span>
+                            <Input
+                              type="number"
+                              value={ySecondaryMaxInput}
+                              onFocus={() => {
+                                ySecondaryMaxEditingRef.current = true;
+                              }}
+                              onChange={(event) => setYSecondaryMaxInput(event.target.value)}
+                              onBlur={(event) => {
+                                ySecondaryMaxEditingRef.current = false;
+                                commitYSecondaryBoundary("max", event.target.value);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  ySecondaryMaxEditingRef.current = false;
+                                  commitYSecondaryBoundary("max", (event.target as HTMLInputElement).value);
+                                  (event.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              style={{ width: `${Math.max(ySecondaryMaxInput.length, 1)}ch` }}
+                              aria-label="Secondary axis maximum"
+                            />
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="flex items-center justify-between">
                         <span>Auto-scroll</span>
                         <span className="font-mono text-foreground">
@@ -7170,11 +7684,17 @@ export default function Home() {
                 currentTick={playbackState.currentTick}
                 windowStart={windowStart}
                 windowEnd={windowEnd}
+                resetViewVersion={resetViewVersion}
                 isAutoScroll={isAutoScroll}
                 annotations={annotations}
                 subtitles={subtitles}
                 captures={captures}
                 highlightedMetricKey={highlightedMetricKey}
+                yPrimaryDomain={manualYPrimaryDomain}
+                ySecondaryDomain={hasSecondaryAxis ? manualYSecondaryDomain : null}
+                onYPrimaryDomainChange={setManualYPrimaryDomain}
+                onYSecondaryDomainChange={setManualYSecondaryDomain}
+                onDomainChange={handleChartDomainChange}
                 onWindowRangeChange={handleWindowRangeChange}
                 onSizeChange={(size) => {
                   setViewport((prev) => {

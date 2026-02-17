@@ -750,6 +750,8 @@ const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "set_window_start",
   "set_window_end",
   "set_window_range",
+  "set_y_range",
+  "set_y2_range",
   "set_auto_scroll",
   "add_annotation",
   "remove_annotation",
@@ -843,6 +845,8 @@ type PersistableDashboardState = Partial<
     | "windowSize"
     | "windowStart"
     | "windowEnd"
+    | "yPrimaryDomain"
+    | "ySecondaryDomain"
     | "autoScroll"
     | "annotations"
     | "subtitles"
@@ -873,6 +877,22 @@ function buildVisualizationStateFromPersistedState(
   const windowStart = typeof state.windowStart === "number" ? state.windowStart : 1;
   const windowEnd =
     typeof state.windowEnd === "number" ? state.windowEnd : Math.max(windowStart, windowSize);
+  const yPrimaryDomain =
+    Array.isArray(state.yPrimaryDomain) &&
+    state.yPrimaryDomain.length === 2 &&
+    Number.isFinite(Number(state.yPrimaryDomain[0])) &&
+    Number.isFinite(Number(state.yPrimaryDomain[1])) &&
+    Number(state.yPrimaryDomain[1]) > Number(state.yPrimaryDomain[0])
+      ? [Number(state.yPrimaryDomain[0]), Number(state.yPrimaryDomain[1])] as [number, number]
+      : null;
+  const ySecondaryDomain =
+    Array.isArray(state.ySecondaryDomain) &&
+    state.ySecondaryDomain.length === 2 &&
+    Number.isFinite(Number(state.ySecondaryDomain[0])) &&
+    Number.isFinite(Number(state.ySecondaryDomain[1])) &&
+    Number(state.ySecondaryDomain[1]) > Number(state.ySecondaryDomain[0])
+      ? [Number(state.ySecondaryDomain[0]), Number(state.ySecondaryDomain[1])] as [number, number]
+      : null;
 
   return {
     captures: [],
@@ -887,6 +907,8 @@ function buildVisualizationStateFromPersistedState(
     windowSize,
     windowStart,
     windowEnd,
+    yPrimaryDomain,
+    ySecondaryDomain,
     autoScroll: typeof state.autoScroll === "boolean" ? state.autoScroll : true,
     isFullscreen: false,
     annotations: Array.isArray(state.annotations) ? state.annotations : [],
@@ -999,6 +1021,34 @@ function extractPersistableDashboardState(payload: VisualizationState): Persista
   }
   if (typeof payload.windowEnd === "number") {
     state.windowEnd = payload.windowEnd;
+  }
+  if (payload.yPrimaryDomain === null) {
+    state.yPrimaryDomain = null;
+  } else if (
+    Array.isArray(payload.yPrimaryDomain) &&
+    payload.yPrimaryDomain.length === 2 &&
+    Number.isFinite(Number(payload.yPrimaryDomain[0])) &&
+    Number.isFinite(Number(payload.yPrimaryDomain[1])) &&
+    Number(payload.yPrimaryDomain[1]) > Number(payload.yPrimaryDomain[0])
+  ) {
+    state.yPrimaryDomain = [
+      Number(payload.yPrimaryDomain[0]),
+      Number(payload.yPrimaryDomain[1]),
+    ];
+  }
+  if (payload.ySecondaryDomain === null) {
+    state.ySecondaryDomain = null;
+  } else if (
+    Array.isArray(payload.ySecondaryDomain) &&
+    payload.ySecondaryDomain.length === 2 &&
+    Number.isFinite(Number(payload.ySecondaryDomain[0])) &&
+    Number.isFinite(Number(payload.ySecondaryDomain[1])) &&
+    Number(payload.ySecondaryDomain[1]) > Number(payload.ySecondaryDomain[0])
+  ) {
+    state.ySecondaryDomain = [
+      Number(payload.ySecondaryDomain[0]),
+      Number(payload.ySecondaryDomain[1]),
+    ];
   }
   if (typeof payload.autoScroll === "boolean") {
     state.autoScroll = payload.autoScroll;
@@ -1795,6 +1845,8 @@ function createDefaultVisualizationState(): VisualizationState {
     windowSize: 50,
     windowStart: 1,
     windowEnd: 50,
+    yPrimaryDomain: null,
+    ySecondaryDomain: null,
     autoScroll: true,
     isFullscreen: false,
     annotations: [],
@@ -1843,7 +1895,13 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
     command.type !== "set_active_derivation_group" &&
     command.type !== "update_derivation_group" &&
     command.type !== "reorder_derivation_group_metrics" &&
+    command.type !== "select_metric" &&
+    command.type !== "deselect_metric" &&
+    command.type !== "clear_selection" &&
     command.type !== "select_analysis_metric" &&
+    command.type !== "set_metric_axis" &&
+    command.type !== "set_y_range" &&
+    command.type !== "set_y2_range" &&
     command.type !== "deselect_analysis_metric" &&
     command.type !== "clear_analysis_metrics"
   ) {
@@ -1943,6 +2001,84 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
           activeGroup.metrics = [metric, ...activeGroup.metrics];
           changed = true;
         }
+      }
+    }
+  } else if (command.type === "select_metric") {
+    const metric = metricFromCommand(command);
+    if (metric) {
+      const key = `${metric.captureId}::${metric.fullPath}`;
+      if (!state.selectedMetrics.some((entry) => `${entry.captureId}::${entry.fullPath}` === key)) {
+        state.selectedMetrics = [metric, ...state.selectedMetrics];
+        changed = true;
+      }
+    }
+  } else if (command.type === "deselect_metric") {
+    const key = `${command.captureId}::${command.fullPath}`;
+    const before = state.selectedMetrics.length;
+    state.selectedMetrics = state.selectedMetrics.filter(
+      (entry) => `${entry.captureId}::${entry.fullPath}` !== key,
+    );
+    if (state.selectedMetrics.length !== before) {
+      changed = true;
+    }
+  } else if (command.type === "clear_selection") {
+    if (state.selectedMetrics.length > 0) {
+      state.selectedMetrics = [];
+      changed = true;
+    }
+  } else if (command.type === "set_metric_axis") {
+    const fullPath =
+      typeof command.fullPath === "string" && command.fullPath.trim().length > 0
+        ? command.fullPath.trim()
+        : Array.isArray(command.path) && command.path.length > 0
+          ? command.path.join(".")
+          : "";
+    if (fullPath) {
+      const applyAxis = (metric: SelectedMetric): SelectedMetric => {
+        if (metric.captureId !== command.captureId || metric.fullPath !== fullPath) {
+          return metric;
+        }
+        if (command.axis === "y2") {
+          if (metric.axis === "y2") {
+            return metric;
+          }
+          changed = true;
+          return { ...metric, axis: "y2" };
+        }
+        if (metric.axis === "y2") {
+          changed = true;
+          const { axis: _axis, ...rest } = metric;
+          return rest;
+        }
+        return metric;
+      };
+
+      state.selectedMetrics = state.selectedMetrics.map(applyAxis);
+      state.analysisMetrics = state.analysisMetrics.map(applyAxis);
+      state.derivationGroups = state.derivationGroups.map((group) => ({
+        ...group,
+        metrics: group.metrics.map(applyAxis),
+        derivedMetrics: (group.derivedMetrics ?? []).map(applyAxis),
+      }));
+    }
+  } else if (command.type === "set_y_range") {
+    const min = Number(command.min);
+    const max = Number(command.max);
+    if (Number.isFinite(min) && Number.isFinite(max) && max > min) {
+      const current = state.yPrimaryDomain;
+      if (!current || current[0] !== min || current[1] !== max) {
+        state.yPrimaryDomain = [min, max];
+        changed = true;
+      }
+    }
+  } else if (command.type === "set_y2_range") {
+    const min = Number(command.min);
+    const max = Number(command.max);
+    if (Number.isFinite(min) && Number.isFinite(max) && max > min) {
+      const current = state.ySecondaryDomain;
+      if (!current || current[0] !== min || current[1] !== max) {
+        state.ySecondaryDomain = [min, max];
+        changed = true;
       }
     }
   } else if (command.type === "deselect_analysis_metric") {
@@ -2312,9 +2448,6 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
   if (!groupId.trim()) {
     throw new Error("groupId is required.");
   }
-  if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
-    throw new Error("Frontend not connected.");
-  }
 
   const metrics = resolveDerivationInputMetrics(command, groupId);
   if (metrics.length === 0) {
@@ -2640,9 +2773,6 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
   }
   if (!groupId) {
     throw new Error("groupId is required.");
-  }
-  if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
-    throw new Error("Frontend not connected.");
   }
 
   const pluginRecord = derivationPlugins.get(pluginId);
@@ -3890,6 +4020,7 @@ async function pollLiveCapture(state: LiveStreamState) {
   let appendedFrames = 0;
   let readBytes = 0;
   let recoverableIdle = false;
+  let remainingLineBudget = LIVE_MAX_LINES_PER_POLL;
 
   try {
     const trimmed = state.source.trim();
@@ -3917,8 +4048,28 @@ async function pollLiveCapture(state: LiveStreamState) {
       }
     };
 
+    // If a previous poll hit the max-line budget, `partialLine` can contain complete lines that
+    // still need to be emitted even when the file has no new bytes.
+    if (state.partialLine.includes("\n") && remainingLineBudget > 0) {
+      const bufferedResult = await consumeLineStream({
+        readable: Readable.from([state.partialLine], { encoding: "utf-8" }),
+        signal: state.controller.signal,
+        maxLines: remainingLineBudget,
+        onLine: (line) => {
+          state.lineOffset += 1;
+          onLine(line);
+        },
+      });
+      state.partialLine = bufferedResult.remainder;
+      remainingLineBudget = Math.max(0, remainingLineBudget - bufferedResult.lineCount);
+    }
+
     const isRemote = trimmed.startsWith("http://") || trimmed.startsWith("https://");
     if (isRemote) {
+      if (remainingLineBudget <= 0) {
+        state.lastError = null;
+        return;
+      }
       const wantsRange = state.byteOffset > 0;
       const headers: Record<string, string> = {};
       if (wantsRange) {
@@ -3949,7 +4100,7 @@ async function pollLiveCapture(state: LiveStreamState) {
         response,
         initialRemainder: usedRange ? state.partialLine : "",
         signal: state.controller.signal,
-        maxLines: LIVE_MAX_LINES_PER_POLL,
+        maxLines: remainingLineBudget,
         onLine: (line) => {
           state.lineOffset += 1;
           onLine(line);
@@ -3986,13 +4137,13 @@ async function pollLiveCapture(state: LiveStreamState) {
           reset: true,
         });
       }
-      if (stat.size > startOffset) {
+      if (stat.size > startOffset && remainingLineBudget > 0) {
         const result = await streamLinesFromFile({
           filePath,
           startOffset,
           initialRemainder: didReset ? "" : state.partialLine,
           signal: state.controller.signal,
-          maxLines: LIVE_MAX_LINES_PER_POLL,
+          maxLines: remainingLineBudget,
           onLine: (line) => {
             state.lineOffset += 1;
             onLine(line);
@@ -4091,12 +4242,50 @@ function captureNeedsBootstrap(captureId: string) {
   return true;
 }
 
-function ensurePersistedCaptureSourcesRunning() {
+function extractActiveCaptureIdsFromState(
+  state:
+    | VisualizationState
+    | Partial<VisualizationState>
+    | { captures?: Array<{ id?: unknown; isActive?: unknown }> }
+    | null
+    | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  if (!state || !Array.isArray(state.captures)) {
+    return ids;
+  }
+  for (const entry of state.captures) {
+    if (
+      entry &&
+      typeof entry === "object" &&
+      typeof (entry as { id?: unknown }).id === "string" &&
+      Boolean((entry as { isActive?: unknown }).isActive)
+    ) {
+      ids.add((entry as { id: string }).id);
+    }
+  }
+  return ids;
+}
+
+function stopLiveStreamsOutsideActiveSet(activeCaptureIds: Set<string>) {
+  for (const captureId of Array.from(liveStreamStates.keys())) {
+    if (!activeCaptureIds.has(captureId)) {
+      stopLiveStream(captureId);
+    }
+  }
+}
+
+function ensurePersistedCaptureSourcesRunning(options?: { captureIds?: Set<string> }) {
   if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
     return;
   }
+  const allowedCaptureIds = options?.captureIds;
+  const filterToActive = Boolean(allowedCaptureIds);
   for (const entry of persistedCaptureSources.values()) {
     if (!entry.captureId || !entry.source.trim()) {
+      continue;
+    }
+    if (filterToActive && !allowedCaptureIds?.has(entry.captureId)) {
       continue;
     }
     if (isDerivedSource(entry.source)) {
@@ -4142,6 +4331,15 @@ function startLiveStream({
   }
   captureEnded.delete(captureId);
   resetFrameCache(captureId);
+  const initCommand: ControlCommand = {
+    type: "capture_init",
+    captureId,
+    filename,
+    reset: true,
+  };
+  if (!sendToFrontend(initCommand)) {
+    bufferCaptureFrame(initCommand);
+  }
   const controller = new AbortController();
   const state: LiveStreamState = {
     captureId,
@@ -4160,9 +4358,6 @@ function startLiveStream({
     isPolling: false,
     idleSince: null,
   };
-  if (!sendToFrontend({ type: "capture_init", captureId, filename, reset: true })) {
-    throw new Error("Frontend not connected.");
-  }
   captureSources.set(captureId, source);
   captureMetadata.set(captureId, { filename, source });
   syncPersistedCaptureSources(
@@ -4350,7 +4545,10 @@ export async function registerRoutes(
 	              }
 	              sendToFrontend(restoreCommand);
 	            }
-	            ensurePersistedCaptureSourcesRunning();
+	            const activeCaptureIds = extractActiveCaptureIdsFromState(persistedDashboardState);
+	            if (activeCaptureIds.size > 0) {
+	              ensurePersistedCaptureSourcesRunning({ captureIds: activeCaptureIds });
+	            }
 	            flushQueuedCommands();
 	          } else {
             agentClients.add(ws);
@@ -4378,6 +4576,13 @@ export async function registerRoutes(
             if (payload && typeof payload === "object") {
               lastVisualizationState = payload as VisualizationState;
               lastVisualizationStateAt = new Date().toISOString();
+              const activeCaptureIds = extractActiveCaptureIdsFromState(lastVisualizationState);
+              // Do not stop streams on generic UI state updates. During reconnect/rehydration the
+              // frontend can briefly report an empty or partial capture list, which can terminate
+              // in-flight ingestion and leave captures in a partial "completed" state.
+              if (activeCaptureIds.size > 0) {
+                ensurePersistedCaptureSourcesRunning({ captureIds: activeCaptureIds });
+              }
               try {
                 const extracted = extractPersistableDashboardState(lastVisualizationState);
                 const nextJson = JSON.stringify(extracted);
@@ -5246,6 +5451,28 @@ export async function registerRoutes(
     res.json({ captures, pendingIds });
   });
 
+  app.get("/api/debug/state", (_req, res) => {
+    const stateSource =
+      lastVisualizationState && typeof lastVisualizationState === "object"
+        ? "live"
+        : persistedDashboardState && typeof persistedDashboardState === "object"
+          ? "persisted"
+          : "empty";
+    const state =
+      stateSource === "live"
+        ? lastVisualizationState
+        : stateSource === "persisted"
+          ? buildVisualizationStateFromPersistedState(persistedDashboardState as PersistableDashboardState)
+          : buildVisualizationStateFromPersistedState({});
+    res.json({
+      frontendConnected: Boolean(frontendClient && frontendClient.readyState === WebSocket.OPEN),
+      stateSource,
+      lastVisualizationStateAt,
+      persistedDashboardStateAt,
+      state,
+    });
+  });
+
   app.post("/api/live/start", (req, res) => {
     try {
       const source = typeof req.body?.source === "string"
@@ -5270,9 +5497,6 @@ export async function registerRoutes(
       }
       if (!Number.isFinite(pollIntervalMs) || pollIntervalMs <= 0) {
         return res.status(400).json({ error: "Invalid pollIntervalMs value." });
-      }
-      if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
-        return res.status(409).json({ error: "Frontend not connected." });
       }
       if (liveStreamStates.has(captureId)) {
         return res.status(409).json({ error: "Live stream already running for captureId." });

@@ -203,6 +203,7 @@ Anything the browser can do can be driven over WebSocket. The server relays agen
 ### Windowing + Auto-Scroll Semantics
 
 - `set_window_start`, `set_window_end`, `set_window_size`, and `set_window_range` **pause playback** and **disable auto-scroll**.
+- `set_y_range` and `set_y2_range` set manual Y/Y2 min/max display domains.
 - `set_auto_scroll true` anchors the **left edge** of the window and expands the right edge as ticks advance.
 - `play` re-enables auto-scroll if it was off (using the current `windowEnd` as the starting point).
 
@@ -337,6 +338,7 @@ Capture streaming (push records over WS):
 - `toggle_capture`
 - `remove_capture`
 - `select_metric`
+- `set_metric_axis`
 - `deselect_metric`
 - `clear_selection`
 - `select_analysis_metric`
@@ -361,6 +363,8 @@ Capture streaming (push records over WS):
 - `set_window_start`
 - `set_window_end`
 - `set_window_range`
+- `set_y_range`
+- `set_y2_range`
 - `set_auto_scroll`
 - `set_fullscreen`
 - `add_annotation`

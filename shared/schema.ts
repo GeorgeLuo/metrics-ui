@@ -55,6 +55,7 @@ export interface SelectedMetric {
   fullPath: string;
   label: string;
   color: string;
+  axis?: "y1" | "y2";
 }
 
 export interface DerivationGroup {
@@ -161,6 +162,8 @@ export interface DisplaySnapshot {
   windowSize: number;
   windowStart: number;
   windowEnd: number;
+  yPrimaryDomain?: [number, number] | null;
+  ySecondaryDomain?: [number, number] | null;
   autoScroll: boolean;
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
@@ -416,6 +419,8 @@ export type ControlCommand =
         | "windowSize"
         | "windowStart"
         | "windowEnd"
+        | "yPrimaryDomain"
+        | "ySecondaryDomain"
         | "autoScroll"
         | "annotations"
         | "subtitles"
@@ -429,6 +434,13 @@ export type ControlCommand =
       captureId: string;
       path: string[];
       groupId?: string;
+    } & ControlRequestBase)
+  | ({
+      type: "set_metric_axis";
+      captureId: string;
+      fullPath?: string;
+      path?: string[];
+      axis: "y1" | "y2";
     } & ControlRequestBase)
   | ({ type: "deselect_metric"; captureId: string; fullPath: string } & ControlRequestBase)
   | ({ type: "clear_selection" } & ControlRequestBase)
@@ -472,6 +484,8 @@ export type ControlCommand =
   | ({ type: "set_window_start"; windowStart: number } & ControlRequestBase)
   | ({ type: "set_window_end"; windowEnd: number } & ControlRequestBase)
   | ({ type: "set_window_range"; windowStart: number; windowEnd: number } & ControlRequestBase)
+  | ({ type: "set_y_range"; min: number; max: number } & ControlRequestBase)
+  | ({ type: "set_y2_range"; min: number; max: number } & ControlRequestBase)
   | ({ type: "set_auto_scroll"; enabled: boolean } & ControlRequestBase)
   | ({ type: "set_fullscreen"; enabled: boolean } & ControlRequestBase)
   | ({ type: "set_stream_mode"; captureId: string; mode: "lite" | "full" } & ControlRequestBase)

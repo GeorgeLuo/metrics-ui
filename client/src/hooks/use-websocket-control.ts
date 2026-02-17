@@ -76,6 +76,8 @@ interface UseWebSocketControlProps {
   windowSize: number;
   windowStart: number;
   windowEnd: number;
+  yPrimaryDomain?: [number, number] | null;
+  ySecondaryDomain?: [number, number] | null;
   autoScroll: boolean;
   isWindowed: boolean;
   isFullscreen: boolean;
@@ -87,6 +89,8 @@ interface UseWebSocketControlProps {
   onWindowStartChange: (windowStart: number) => void;
   onWindowEndChange: (windowEnd: number) => void;
   onWindowRangeChange: (windowStart: number, windowEnd: number) => void;
+  onYPrimaryRangeChange: (min: number, max: number) => void;
+  onYSecondaryRangeChange: (min: number, max: number) => void;
   onAutoScrollChange: (enabled: boolean) => void;
   onSetFullscreen: (enabled: boolean) => void;
   onSourceModeChange: (mode: "file" | "live") => void;
@@ -94,6 +98,7 @@ interface UseWebSocketControlProps {
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
+  onSetMetricAxis: (captureId: string, fullPath: string, axis: "y1" | "y2") => void;
   onDeselectMetric: (captureId: string, fullPath: string) => void;
   onClearSelection: () => void;
   onSelectAnalysisMetric: (captureId: string, path: string[]) => boolean;
@@ -214,6 +219,8 @@ export function useWebSocketControl({
   windowSize,
   windowStart,
   windowEnd,
+  yPrimaryDomain,
+  ySecondaryDomain,
   autoScroll,
   isWindowed,
   isFullscreen,
@@ -226,6 +233,7 @@ export function useWebSocketControl({
   onToggleCapture,
   onRemoveCapture,
   onSelectMetric,
+  onSetMetricAxis,
   onDeselectMetric,
   onClearSelection,
   onSelectAnalysisMetric,
@@ -247,6 +255,8 @@ export function useWebSocketControl({
   onWindowStartChange,
   onWindowEndChange,
   onWindowRangeChange,
+  onYPrimaryRangeChange,
+  onYSecondaryRangeChange,
   onAutoScrollChange,
   onSetFullscreen,
   onLiveStart,
@@ -319,6 +329,8 @@ export function useWebSocketControl({
         windowSize,
         windowStart,
         windowEnd,
+        yPrimaryDomain: yPrimaryDomain ?? null,
+        ySecondaryDomain: ySecondaryDomain ?? null,
         autoScroll,
         isFullscreen,
         viewport,
@@ -331,7 +343,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, autoScroll, isFullscreen, viewport, annotations, subtitles]);
+  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, yPrimaryDomain, ySecondaryDomain, autoScroll, isFullscreen, viewport, annotations, subtitles]);
 
   const sendStateRef = useRef(sendState);
 
@@ -356,6 +368,8 @@ export function useWebSocketControl({
     const hasMeaningfulState =
       selectedMetrics.length > 0 ||
       derivationGroups.length > 0 ||
+      (Array.isArray(yPrimaryDomain) && yPrimaryDomain.length === 2) ||
+      (Array.isArray(ySecondaryDomain) && ySecondaryDomain.length === 2) ||
       annotations.length > 0 ||
       subtitles.length > 0;
 
@@ -393,6 +407,8 @@ export function useWebSocketControl({
     windowSize,
     windowStart,
     windowEnd,
+    yPrimaryDomain,
+    ySecondaryDomain,
     autoScroll,
     isFullscreen,
     annotations,
@@ -516,6 +532,24 @@ export function useWebSocketControl({
         }
         sendAck(requestId, command.type);
         break;
+      case "set_metric_axis": {
+        const fullPath =
+          typeof command.fullPath === "string" && command.fullPath.trim().length > 0
+            ? command.fullPath.trim()
+            : Array.isArray(command.path) && command.path.length > 0
+              ? command.path.join(".")
+              : "";
+        if (!fullPath) {
+          sendError(requestId, "set_metric_axis requires --full-path or --path.", {
+            captureId: command.captureId,
+            axis: command.axis,
+          });
+          break;
+        }
+        onSetMetricAxis(command.captureId, fullPath, command.axis);
+        sendAck(requestId, command.type);
+        break;
+      }
       case "deselect_metric":
         onDeselectMetric(command.captureId, command.fullPath);
         sendAck(requestId, command.type);
@@ -612,6 +646,34 @@ export function useWebSocketControl({
         onWindowRangeChange(command.windowStart, command.windowEnd);
         sendAck(requestId, command.type);
         break;
+      case "set_y_range": {
+        const min = Number(command.min);
+        const max = Number(command.max);
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+          sendError(requestId, "set_y_range requires numeric --min and --max with max > min.", {
+            min: command.min,
+            max: command.max,
+          });
+          break;
+        }
+        onYPrimaryRangeChange(min, max);
+        sendAck(requestId, command.type);
+        break;
+      }
+      case "set_y2_range": {
+        const min = Number(command.min);
+        const max = Number(command.max);
+        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+          sendError(requestId, "set_y2_range requires numeric --min and --max with max > min.", {
+            min: command.min,
+            max: command.max,
+          });
+          break;
+        }
+        onYSecondaryRangeChange(min, max);
+        sendAck(requestId, command.type);
+        break;
+      }
       case "set_auto_scroll":
         onAutoScrollChange(command.enabled);
         sendAck(requestId, command.type);
@@ -994,6 +1056,8 @@ export function useWebSocketControl({
     onWindowStartChange,
     onWindowEndChange,
     onWindowRangeChange,
+    onYPrimaryRangeChange,
+    onYSecondaryRangeChange,
     onAutoScrollChange,
     onSetFullscreen,
     onLiveStart,
@@ -1121,7 +1185,10 @@ export function useWebSocketControl({
                     JSON.stringify({
                       type: "sync_capture_sources",
                       sources,
-                      replace: true,
+                      // Merge local sources into server state instead of replacing. Replacing can
+                      // drop valid server-side sources during reconnect and leave captures in a
+                      // "stable but no data" state until a manual live-start is triggered.
+                      replace: false,
                     } satisfies ControlCommand),
                   );
                 }
