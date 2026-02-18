@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect, useDeferredValue } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { FileUpload } from "@/components/file-upload";
 import { ComponentTree } from "@/components/component-tree";
@@ -5090,6 +5090,7 @@ export default function Home() {
     () => extractDataPoints(captures, activeMetrics),
     [captures, activeMetrics],
   );
+  const deferredMetricCoverage = useDeferredValue(metricCoverage);
 
   const recentUiEvents = useMemo(() => {
     if (uiEvents.length === 0) {
@@ -6260,9 +6261,10 @@ export default function Home() {
                                       captureId={capture.id}
                                       components={capture.components}
                                       selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
-                                      metricCoverage={metricCoverage[capture.id]}
+                                      metricCoverage={deferredMetricCoverage[capture.id]}
                                       onSelectionChange={getSelectionHandler(capture.id)}
                                       colorOffset={captures.findIndex((c) => c.id === capture.id)}
+                                      isVisible={isSelectionOpen && isCaptureSelectionOpen}
                                     />
                                   </CollapsibleContent>
                                 </div>
