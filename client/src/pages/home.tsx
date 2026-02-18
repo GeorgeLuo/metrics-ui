@@ -287,6 +287,7 @@ export default function Home() {
   const [memoryStatsSnapshot, setMemoryStatsSnapshot] = useState<MemoryStatsResponse | null>(null);
   const [memoryStatsAt, setMemoryStatsAt] = useState<number | null>(null);
   const [isSelectionOpen, setIsSelectionOpen] = useState(true);
+  const [selectionCaptureOpenById, setSelectionCaptureOpenById] = useState<Record<string, boolean>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<"file" | "live">(() => {
     return readStorageString(DASHBOARD_STORAGE_KEYS.sourceMode) === "live"
@@ -620,6 +621,22 @@ export default function Home() {
   }, [refreshDerivationPlugins]);
 
   const activeCaptures = useMemo(() => captures.filter((capture) => capture.isActive), [captures]);
+
+  useEffect(() => {
+    const activeIds = new Set(activeCaptures.map((capture) => capture.id));
+    setSelectionCaptureOpenById((prev) => {
+      let changed = false;
+      const next: Record<string, boolean> = {};
+      Object.entries(prev).forEach(([captureId, isOpen]) => {
+        if (activeIds.has(captureId)) {
+          next[captureId] = isOpen;
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [activeCaptures]);
   const maxTotalTicks = activeCaptures.length > 0 
     ? Math.max(...activeCaptures.map(c => c.tickCount)) 
     : 0;
@@ -5679,8 +5696,9 @@ export default function Home() {
   }, []);
 
   const getCaptureShortName = (capture: CaptureSession): string => {
-    const name = capture.filename.replace('.jsonl', '');
-    return name.length > 12 ? name.substring(0, 12) + '...' : name;
+    const name = capture.filename.replace(".jsonl", "");
+    const MAX_NAME_CHARS = 40;
+    return name.length > MAX_NAME_CHARS ? `${name.substring(0, MAX_NAME_CHARS)}...` : name;
   };
 
   const toggleSidebarMode = useCallback(() => {
@@ -6208,21 +6226,49 @@ export default function Home() {
                               No active captures
                             </div>
                           )}
-                          {activeCaptures.map((capture) => (
-                            <div key={capture.id} className="flex flex-col gap-1">
-                              <div className="px-2 text-[11px] text-muted-foreground uppercase tracking-wide">
-                                {getCaptureShortName(capture)}
-                              </div>
-                              <ComponentTree
-                                captureId={capture.id}
-                                components={capture.components}
-                                selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
-                                metricCoverage={metricCoverage[capture.id]}
-                                onSelectionChange={getSelectionHandler(capture.id)}
-                                colorOffset={captures.findIndex(c => c.id === capture.id)}
-                              />
-                            </div>
-                          ))}
+                          {activeCaptures.map((capture) => {
+                            const isCaptureSelectionOpen =
+                              selectionCaptureOpenById[capture.id] ?? true;
+                            return (
+                              <Collapsible
+                                key={capture.id}
+                                open={isCaptureSelectionOpen}
+                                onOpenChange={(open) =>
+                                  setSelectionCaptureOpenById((prev) => {
+                                    if ((prev[capture.id] ?? true) === open) {
+                                      return prev;
+                                    }
+                                    return { ...prev, [capture.id]: open };
+                                  })
+                                }
+                              >
+                                <div className="flex flex-col gap-1">
+                                  <CollapsibleTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="group flex w-full items-center px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                                      aria-label={`Toggle metric tree for ${capture.id}`}
+                                      data-testid={`button-toggle-selection-capture-${capture.id}`}
+                                    >
+                                      <span className="truncate text-left" title={capture.filename}>
+                                        {getCaptureShortName(capture)}
+                                      </span>
+                                    </button>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+                                    <ComponentTree
+                                      captureId={capture.id}
+                                      components={capture.components}
+                                      selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
+                                      metricCoverage={metricCoverage[capture.id]}
+                                      onSelectionChange={getSelectionHandler(capture.id)}
+                                      colorOffset={captures.findIndex((c) => c.id === capture.id)}
+                                    />
+                                  </CollapsibleContent>
+                                </div>
+                              </Collapsible>
+                            );
+                          })}
                         </div>
                       </SidebarGroupContent>
                     </CollapsibleContent>
