@@ -28,7 +28,8 @@ There are two transport lanes:
 - `captureStreamModes`: captureId → `"lite"` or `"full"`.
 - `captureLastTicks`: captureId → latest tick observed.
 - `captureComponentState`: captureId → component tree + last-sent node count.
-- `captureEnded`: set of captureIds that have emitted `capture_end` (used to replay end-state on reconnect).
+- `captureEnded`: map of `captureId -> { reason, detail?, endedAt }` for captures that emitted `capture_end`
+  (used to replay end-state on reconnect and explain why a stream ended).
 - **Frame cache** (per captureId):
   - `captureFrameSamples` + `captureFrameTail` store sampled frames and recent tail.
   - Dynamic sampling based on a shared 2GB budget.
@@ -47,7 +48,7 @@ There are two transport lanes:
    - Emits:
      - `capture_append` (full frames) if stream mode is `"full"` **or** no source,
      - otherwise `capture_append` with empty entities (lite tick) and buffers recent frames.
-   - Stops after inactivity threshold.
+  - Continues polling even with no-growth/idle periods (no auto-timeout).
 
 3. `stopLiveStream`:
    - Aborts controller, stops timer, sends `capture_end`.
@@ -101,7 +102,8 @@ The UI uses `partial` to decide whether to refetch later (e.g., after live strea
   are sent to the frontend as the stream progresses.
 - If the frontend is disconnected, capture events are buffered in `pendingCaptureBuffers`.
 - `state_sync` is sent on reconnect to announce known capture IDs + last ticks.
-- On reconnect, the server also replays `capture_end` for any `captureId` tracked in `captureEnded`,
+- On reconnect, the server also replays `capture_end` (including reason/detail when available)
+  for any `captureId` tracked in `captureEnded`,
   so a normal refresh can reach a stable state without heuristic "still streaming" assumptions.
 
 Queued commands are held in `queuedAgentCommands` and flushed once a frontend reconnects.
@@ -201,7 +203,8 @@ Derivation groups are named collections of metrics intended as inputs for downst
 - `simeval ui memory-stats` → heap + record/memory estimates.
 - `simeval ui check` → discrepancies: null ticks, missing ticks, duplicates.
 - `simeval ui debug` → full UI state/refs snapshot for agent inspection.
-- `GET /api/debug/captures` → server-side cache + live state per capture (includes `ended: true|false`).
+- `GET /api/debug/captures` → server-side cache + live state per capture (includes end reason/timestamp).
+- `GET /api/live/status` → active streams plus ended stream metadata (`reason`, `detail`, `endedAt`).
 
 ## Architectural Optimization Ideas (Single-Client, Ephemeral)
 

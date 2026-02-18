@@ -351,12 +351,16 @@ export function handleInteractionCommand(
       context.onCaptureTick(command.captureId, command.tick);
       return true;
     case "capture_end":
-      context.onCaptureEnd(command.captureId);
+      context.onCaptureEnd(command.captureId, command.reason, command.detail);
       context.sendMessage({
         type: "ui_notice",
         payload: {
           message: "Capture ended",
-          context: { captureId: command.captureId },
+          context: {
+            captureId: command.captureId,
+            reason: typeof command.reason === "string" ? command.reason : "unspecified",
+            detail: typeof command.detail === "string" ? command.detail : undefined,
+          },
         },
       });
       context.sendAck(requestId, command.type);

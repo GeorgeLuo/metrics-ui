@@ -5,6 +5,7 @@ import { ComponentTree } from "@/components/component-tree";
 import { PlaybackControls } from "@/components/playback-controls";
 import { MetricsChart } from "@/components/metrics-chart";
 import { MetricsHUD } from "@/components/metrics-hud";
+import { FloatingElement } from "@/components/floating-element";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -456,6 +457,9 @@ export default function Home() {
     lastDurationMs: null as number | null,
   });
   const endedCapturesRef = useRef(new Set<string>());
+  const endedCaptureReasonsRef = useRef(
+    new Map<string, { reason: string; detail?: string; at: string }>(),
+  );
   const liveErrorEventsRef = useRef(new Map<string, string>());
   const sendMessageRef = useRef<(message: ControlResponse | ControlCommand) => boolean>(() => false);
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
@@ -981,6 +985,9 @@ export default function Home() {
         selectionHandlers: selectionHandlersRef.current.size,
         prevSelectedCount: prevSelectedRef.current.length,
         endedCaptures: Array.from(endedCapturesRef.current),
+        endedCaptureReasons: Array.from(endedCaptureReasonsRef.current.entries()).map(
+          ([captureId, info]) => ({ captureId, ...info }),
+        ),
       },
       localStorage: localStorageSnapshot,
     };
@@ -1074,6 +1081,7 @@ export default function Home() {
     endedCapturesRef.current.forEach((id) => {
       if (!isActiveCaptureId(id)) {
         endedCapturesRef.current.delete(id);
+        endedCaptureReasonsRef.current.delete(id);
       }
     });
     pruneStreamingActivity(activeIds);
@@ -1374,15 +1382,14 @@ export default function Home() {
         });
 
         if (metricsNeedingBackfill.length > 0 && options?.preferCache !== false) {
-          if (!isLiveActive) {
-            const backfillMetrics = [...metricsNeedingBackfill];
-            window.setTimeout(() => {
-              void fetchMetricSeriesBatch(captureId, backfillMetrics, {
-                force: true,
-                preferCache: false,
-              });
-            }, 0);
-          }
+          const backfillMetrics = [...metricsNeedingBackfill];
+          const backfillDelayMs = isLiveActive ? 200 : 0;
+          window.setTimeout(() => {
+            void fetchMetricSeriesBatch(captureId, backfillMetrics, {
+              force: true,
+              preferCache: false,
+            });
+          }, backfillDelayMs);
         }
         sourceRepairAttemptAtRef.current.delete(captureId);
       } catch (error) {
@@ -1898,6 +1905,7 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
+    let statusInterval: number | null = null;
 
     const fetchStatus = async () => {
       try {
@@ -1962,9 +1970,18 @@ export default function Home() {
       }
     };
 
-    fetchStatus();
+    void fetchStatus();
+    if (sourceMode === "live") {
+      statusInterval = window.setInterval(() => {
+        void fetchStatus();
+      }, 2000);
+    }
+
     return () => {
       cancelled = true;
+      if (statusInterval !== null) {
+        window.clearInterval(statusInterval);
+      }
     };
   }, [sourceMode]);
 
@@ -2851,6 +2868,7 @@ export default function Home() {
 
       // A new capture init means this capture is active again (even if it previously ended).
       endedCapturesRef.current.delete(captureId);
+      endedCaptureReasonsRef.current.delete(captureId);
       stopStreamingIndicator(captureId);
 
       setCaptures((prev) => {
@@ -3294,8 +3312,13 @@ export default function Home() {
   }, [captures, flushPendingTicks, noteStreamingActivity]);
 
   const handleCaptureEnd = useCallback(
-    (captureId: string) => {
+    (captureId: string, reason?: string, detail?: string) => {
       endedCapturesRef.current.add(captureId);
+      endedCaptureReasonsRef.current.set(captureId, {
+        reason: typeof reason === "string" && reason.trim().length > 0 ? reason.trim() : "unspecified",
+        detail: typeof detail === "string" && detail.trim().length > 0 ? detail.trim() : undefined,
+        at: new Date().toISOString(),
+      });
       clearDerivationRunPendingByCapture(captureId);
       stopStreamingIndicator(captureId);
       clearLiveRetry(captureId);
@@ -3372,6 +3395,7 @@ export default function Home() {
   const handleRemoveCapture = useCallback((captureId: string) => {
     clearDerivationRunPendingByCapture(captureId);
     endedCapturesRef.current.delete(captureId);
+    endedCaptureReasonsRef.current.delete(captureId);
     stopStreamingIndicator(captureId);
     setCaptures(prev => prev.filter(c => c.id !== captureId));
     setSelectedMetrics((prev) => {
@@ -3783,6 +3807,7 @@ export default function Home() {
       ids.forEach((captureId) => {
         clearDerivationRunPendingByCapture(captureId);
         endedCapturesRef.current.delete(captureId);
+        endedCaptureReasonsRef.current.delete(captureId);
         stopStreamingIndicator(captureId);
         captureStatsRef.current.delete(captureId);
         activeCaptureIdsRef.current.delete(captureId);
@@ -4642,6 +4667,7 @@ export default function Home() {
     setSelectedMetrics([]);
     captureStatsRef.current.clear();
     endedCapturesRef.current.clear();
+    endedCaptureReasonsRef.current.clear();
     clearStreamingActivity();
     activeCaptureIdsRef.current.clear();
     pendingTicksRef.current.clear();
@@ -5093,6 +5119,15 @@ export default function Home() {
       ),
     [displayMetrics, captures],
   );
+
+  const activeDerivationGroupName = useMemo(() => {
+    const active = derivationGroups.find((group) => group.id === resolvedActiveDerivationGroupId);
+    if (!active || typeof active.name !== "string") {
+      return "active derivation group";
+    }
+    const trimmed = active.name.trim();
+    return trimmed.length > 0 ? trimmed : "active derivation group";
+  }, [derivationGroups, resolvedActiveDerivationGroupId]);
 
   const hasSecondaryAxis = useMemo(
     () => activeMetrics.some((metric) => metric.axis === "y2"),
@@ -6081,9 +6116,13 @@ export default function Home() {
                             }}
                             className="w-full"
                           >
-                            <TabsList className="grid w-full grid-cols-2">
-                              <TabsTrigger value="file">File</TabsTrigger>
-                              <TabsTrigger value="live">Live</TabsTrigger>
+                            <TabsList className="grid h-9 w-full grid-cols-2">
+                              <TabsTrigger value="file" className="text-xs">
+                                File
+                              </TabsTrigger>
+                              <TabsTrigger value="live" className="text-xs">
+                                Live
+                              </TabsTrigger>
                             </TabsList>
                             <TabsContent value="file" className="mt-3">
                               <FileUpload
@@ -6177,15 +6216,23 @@ export default function Home() {
                                       </div>
                                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                                         <span>{statusLabel}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleLiveRefresh(entry.id)}
-                                          disabled={!entry.source.trim() || isConnected || isConnecting}
-                                          data-testid={`button-live-refresh-${entry.id}`}
-                                          aria-label={`Refresh live source ${index + 1}`}
-                                          className="h-3 w-3 shrink-0 p-0 leading-none rounded-full bg-blue-500/50 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                        >
-                                        </button>
+                                        {isConnected ? (
+                                          <span
+                                            data-testid={`live-connected-light-${entry.id}`}
+                                            aria-label={`Live stream connected ${index + 1}`}
+                                            className="h-3 w-3 shrink-0 rounded-full bg-blue-500/80 [animation:pulse_2.4s_ease-in-out_infinite]"
+                                          />
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleLiveRefresh(entry.id)}
+                                            disabled={!entry.source.trim() || isConnecting}
+                                            data-testid={`button-live-refresh-${entry.id}`}
+                                            aria-label={`Refresh live source ${index + 1}`}
+                                            className="h-3 w-3 shrink-0 p-0 leading-none rounded-full bg-blue-500/50 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                          >
+                                          </button>
+                                        )}
                                       </div>
                                       {entry.error && (
                                         <div className="text-xs text-destructive">{entry.error}</div>
@@ -7303,6 +7350,7 @@ export default function Home() {
                 currentTick={playbackState.currentTick}
                 captures={captures}
                 isVisible={isHudVisible}
+                activeDerivationGroupName={activeDerivationGroupName}
                 analysisKeys={analysisKeys}
                 onToggleAnalysisMetric={handleToggleAnalysisMetric}
                 onToggleMetricAxis={handleToggleMetricAxis}
@@ -7329,6 +7377,7 @@ export default function Home() {
               />
             </div>
           </main>
+          <FloatingElement />
         </div>
       </div>
     </SidebarProvider>

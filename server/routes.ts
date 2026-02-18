@@ -124,8 +124,6 @@ const derivationPluginUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_DERIVATION_PLUGIN_SIZE_BYTES },
 });
-const LIVE_INACTIVITY_MIN_MS = 15000;
-const LIVE_INACTIVITY_MULTIPLIER = 5;
 const LIVE_RETRYABLE_FILE_ERRORS = new Set(["ENOENT", "ENOTDIR", "EACCES", "EPERM", "EBUSY"]);
 
 type UploadIndexEntry = {
@@ -486,6 +484,14 @@ type PendingCapture = {
   components?: ComponentNode[];
   frames: CaptureAppendFrame[];
   ended: boolean;
+  endReason?: string;
+  endDetail?: string;
+};
+
+type CaptureEndState = {
+  reason: string;
+  detail?: string;
+  endedAt: string;
 };
 
 const pendingCaptureBuffers = new Map<string, PendingCapture>();
@@ -505,7 +511,6 @@ interface LiveStreamState {
   partialLine: string;
   lastError: string | null;
   isPolling: boolean;
-  idleSince: number | null;
 }
 
 const liveStreamStates = new Map<string, LiveStreamState>();
@@ -514,7 +519,7 @@ const captureMetadata = new Map<string, { filename?: string; source?: string }>(
 const captureStreamModes = new Map<string, "lite" | "full">();
 const liteFrameBuffers = new Map<string, CaptureAppendFrame[]>();
 const captureLastTicks = new Map<string, number>();
-const captureEnded = new Set<string>();
+const captureEnded = new Map<string, CaptureEndState>();
 const derivedCaptureStores = new Map<
   string,
   {
@@ -2206,7 +2211,7 @@ async function runDerivationFromCommand(command: ControlCommand, ws: WebSocket) 
     if (activeDerivationOutputJobs.get(derivedCaptureId) !== jobId) {
       return;
     }
-    sendCaptureEnd(derivedCaptureId);
+    sendCaptureEnd(derivedCaptureId, "derivation_complete");
     activeDerivationOutputJobs.delete(derivedCaptureId);
   };
 
@@ -2543,7 +2548,7 @@ async function runDerivationPluginFromCommand(command: ControlCommand, ws: WebSo
     if (activeDerivationOutputJobs.get(derivedCaptureId) !== jobId) {
       return;
     }
-    sendCaptureEnd(derivedCaptureId);
+    sendCaptureEnd(derivedCaptureId, "derivation_complete");
     activeDerivationOutputJobs.delete(derivedCaptureId);
   };
 
@@ -3175,9 +3180,26 @@ function shouldStreamFrames(captureId: string) {
   return !source;
 }
 
-function sendCaptureEnd(captureId: string) {
-  captureEnded.add(captureId);
-  const command: ControlCommand = { type: "capture_end", captureId };
+function getCaptureEndState(captureId: string): CaptureEndState | undefined {
+  return captureEnded.get(captureId);
+}
+
+function sendCaptureEnd(captureId: string, reason?: string, detail?: string) {
+  const normalizedReason =
+    typeof reason === "string" && reason.trim().length > 0 ? reason.trim() : "unspecified";
+  const normalizedDetail =
+    typeof detail === "string" && detail.trim().length > 0 ? detail.trim() : undefined;
+  captureEnded.set(captureId, {
+    reason: normalizedReason,
+    detail: normalizedDetail,
+    endedAt: new Date().toISOString(),
+  });
+  const command: ControlCommand = {
+    type: "capture_end",
+    captureId,
+    reason: normalizedReason,
+    detail: normalizedDetail,
+  };
   if (!sendToFrontend(command)) {
     bufferCaptureFrame(command);
   }
@@ -3243,13 +3265,17 @@ async function streamCaptureFromSource(captureId: string, source: string) {
         onLine,
       });
     }
-    sendCaptureEnd(captureId);
+    sendCaptureEnd(captureId, "stream_complete");
   } catch (error) {
     if (controller.signal.aborted && (error as Error).name === "AbortError") {
       return;
     }
     console.error("[upload] stream error:", error);
-    sendCaptureEnd(captureId);
+    sendCaptureEnd(
+      captureId,
+      "stream_error",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 
@@ -3293,7 +3319,7 @@ function removeCaptureState(captureId: string, options?: { persist?: boolean }) 
   liteFrameBuffers.delete(captureId);
   removeDerivedCaptureStore(captureId);
   resetFrameCache(captureId);
-  stopLiveStream(captureId);
+  stopLiveStream(captureId, "capture_removed");
   captureEnded.delete(captureId);
 }
 
@@ -3416,7 +3442,12 @@ function flushPendingCaptures() {
     }
     if (pending.ended) {
       frontendClient.send(
-        JSON.stringify({ type: "capture_end", captureId: pending.captureId }),
+        JSON.stringify({
+          type: "capture_end",
+          captureId: pending.captureId,
+          reason: pending.endReason,
+          detail: pending.endDetail,
+        }),
       );
     }
   }
@@ -3477,8 +3508,14 @@ function sendKnownCaptures(options: { excludeIds?: Set<string> } = {}) {
     // Capture completion is session-based in the browser (it only knows a capture finished after
     // seeing a capture_end). On refresh/reconnect, replay capture_end for captures that already
     // ended so the UI can show a stable state.
-    if (captureEnded.has(captureId) && !liveStreamStates.has(captureId)) {
-      sendToFrontend({ type: "capture_end", captureId });
+    const endedState = getCaptureEndState(captureId);
+    if (endedState && !liveStreamStates.has(captureId)) {
+      sendToFrontend({
+        type: "capture_end",
+        captureId,
+        reason: endedState.reason,
+        detail: endedState.detail,
+      });
     }
   }
 }
@@ -3520,7 +3557,19 @@ function bufferCaptureFrame(command: ControlCommand) {
 
   if (command.type === "capture_end") {
     pending.ended = true;
-    captureEnded.add(captureId);
+    pending.endReason =
+      typeof command.reason === "string" && command.reason.trim().length > 0
+        ? command.reason.trim()
+        : "unspecified";
+    pending.endDetail =
+      typeof command.detail === "string" && command.detail.trim().length > 0
+        ? command.detail.trim()
+        : undefined;
+    captureEnded.set(captureId, {
+      reason: pending.endReason,
+      detail: pending.endDetail,
+      endedAt: new Date().toISOString(),
+    });
     return;
   }
 
@@ -3865,26 +3914,7 @@ async function pollLiveCapture(state: LiveStreamState) {
     }
   } finally {
     state.isPolling = false;
-    const now = Date.now();
     const hasActivity = appendedFrames > 0 || readBytes > 0;
-    if (recoverableIdle) {
-      state.idleSince = null;
-    } else if (hasActivity) {
-      state.idleSince = null;
-    } else if (state.idleSince === null) {
-      state.idleSince = now;
-    }
-
-    if (!recoverableIdle && state.idleSince !== null) {
-      const inactivityLimitMs = Math.max(
-        LIVE_INACTIVITY_MIN_MS,
-        state.pollIntervalMs * LIVE_INACTIVITY_MULTIPLIER,
-      );
-      if (now - state.idleSince >= inactivityLimitMs) {
-        stopLiveStream(state.captureId);
-        return;
-      }
-    }
 
     if (liveStreamStates.get(state.captureId) === state) {
       const nextDelayMs =
@@ -3967,7 +3997,7 @@ function extractActiveCaptureIdsFromState(
 function stopLiveStreamsOutsideActiveSet(activeCaptureIds: Set<string>) {
   for (const captureId of Array.from(liveStreamStates.keys())) {
     if (!activeCaptureIds.has(captureId)) {
-      stopLiveStream(captureId);
+      stopLiveStream(captureId, "inactive_capture_set");
     }
   }
 }
@@ -4054,7 +4084,6 @@ function startLiveStream({
     partialLine: "",
     lastError: null,
     isPolling: false,
-    idleSince: null,
   };
   captureSources.set(captureId, source);
   captureMetadata.set(captureId, { filename, source });
@@ -4080,7 +4109,7 @@ function startLiveStream({
   return state;
 }
 
-function stopLiveStream(captureId: string) {
+function stopLiveStream(captureId: string, reason?: string, detail?: string) {
   const state = liveStreamStates.get(captureId);
   if (!state) {
     return null;
@@ -4090,17 +4119,17 @@ function stopLiveStream(captureId: string) {
     clearTimeout(state.timer);
   }
   liveStreamStates.delete(captureId);
-  sendCaptureEnd(state.captureId);
+  sendCaptureEnd(state.captureId, reason ?? "live_stop", detail);
   if (state.frameCount === 0 && isCaptureEmpty(state.captureId)) {
     removeCaptureState(state.captureId);
   }
   return state;
 }
 
-function stopAllLiveStreams() {
+function stopAllLiveStreams(reason?: string, detail?: string) {
   const stopped: LiveStreamState[] = [];
   for (const captureId of Array.from(liveStreamStates.keys())) {
-    const state = stopLiveStream(captureId);
+    const state = stopLiveStream(captureId, reason, detail);
     if (state) {
       stopped.push(state);
     }
@@ -4136,7 +4165,7 @@ export async function registerRoutes(
       return;
     }
     shuttingDown = true;
-    stopAllLiveStreams();
+    stopAllLiveStreams("server_shutdown", reason);
 
     const shutdown = () => {
       for (const client of wss.clients) {
@@ -4533,6 +4562,21 @@ export async function registerRoutes(
           const rawComponents = componentsFromFrame(command.frame);
           updateCaptureComponents(captureId, rawComponents);
         }
+        if (command.type === "capture_end" && captureId) {
+          const reason =
+            typeof command.reason === "string" && command.reason.trim().length > 0
+              ? command.reason.trim()
+              : "agent_capture_end";
+          const detail =
+            typeof command.detail === "string" && command.detail.trim().length > 0
+              ? command.detail.trim()
+              : undefined;
+          captureEnded.set(captureId, {
+            reason,
+            detail,
+            endedAt: new Date().toISOString(),
+          });
+        }
         if (command.type === "set_stream_mode" && captureId) {
           const mode = command.mode === "full" ? "full" : "lite";
           captureStreamModes.set(captureId, mode);
@@ -4713,6 +4757,13 @@ export async function registerRoutes(
   registerLiveDebugRoutes({
     app,
     liveStreamStates,
+    buildEndedCaptures: () =>
+      Array.from(captureEnded.entries()).map(([captureId, info]) => ({
+        captureId,
+        reason: info.reason,
+        detail: info.detail ?? null,
+        endedAt: info.endedAt,
+      })),
     buildDebugCaptures: () => {
       const ids = new Set<string>();
       for (const captureId of captureMetadata.keys()) {
@@ -4750,6 +4801,9 @@ export async function registerRoutes(
         captureId,
         lastTick: captureLastTicks.get(captureId) ?? null,
         ended: captureEnded.has(captureId),
+        endedReason: getCaptureEndState(captureId)?.reason ?? null,
+        endedDetail: getCaptureEndState(captureId)?.detail ?? null,
+        endedAt: getCaptureEndState(captureId)?.endedAt ?? null,
         hasMetadata: captureMetadata.has(captureId),
         hasSource: captureSources.has(captureId),
         hasComponents: captureComponentState.has(captureId),

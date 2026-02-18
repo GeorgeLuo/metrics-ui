@@ -543,7 +543,12 @@ export type ControlCommand =
   | ({ type: "capture_components"; captureId: string; components: ComponentNode[] } & ControlRequestBase)
   | ({ type: "capture_append"; captureId: string; frame: CaptureAppendFrame } & ControlRequestBase)
   | ({ type: "capture_tick"; captureId: string; tick: number } & ControlRequestBase)
-  | ({ type: "capture_end"; captureId: string } & ControlRequestBase)
+  | ({
+      type: "capture_end";
+      captureId: string;
+      reason?: string;
+      detail?: string;
+    } & ControlRequestBase)
   | ({
       type: "get_display_snapshot";
       captureId?: string;

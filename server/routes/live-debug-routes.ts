@@ -11,9 +11,17 @@ type LiveStreamRouteState = {
   startedAt: string;
 };
 
+type EndedCaptureState = {
+  captureId: string;
+  reason: string;
+  detail: string | null;
+  endedAt: string;
+};
+
 type RegisterLiveDebugRoutesOptions = {
   app: Express;
   liveStreamStates: Map<string, LiveStreamRouteState>;
+  buildEndedCaptures: () => EndedCaptureState[];
   buildDebugCaptures: () => { captures: unknown[]; pendingIds: string[] };
   buildDebugState: () => {
     frontendConnected: boolean;
@@ -33,8 +41,8 @@ type RegisterLiveDebugRoutesOptions = {
     captureId: string;
     filename: string;
   }) => LiveStreamRouteState;
-  stopLiveStream: (captureId: string) => LiveStreamRouteState | null;
-  stopAllLiveStreams: () => LiveStreamRouteState[];
+  stopLiveStream: (captureId: string, reason?: string, detail?: string) => LiveStreamRouteState | null;
+  stopAllLiveStreams: (reason?: string, detail?: string) => LiveStreamRouteState[];
   scheduleShutdown: (source: "signal" | "socket" | "api") => void;
   isShuttingDown: () => boolean;
 };
@@ -42,6 +50,7 @@ type RegisterLiveDebugRoutesOptions = {
 export function registerLiveDebugRoutes({
   app,
   liveStreamStates,
+  buildEndedCaptures,
   buildDebugCaptures,
   buildDebugState,
   probeCaptureSource,
@@ -63,13 +72,15 @@ export function registerLiveDebugRoutes({
       lastError: state.lastError,
       startedAt: state.startedAt,
     }));
+    const ended = buildEndedCaptures();
     if (streams.length === 0) {
-      return res.json({ running: false, streams: [] });
+      return res.json({ running: false, streams: [], ended });
     }
     const response: Record<string, unknown> = {
       running: true,
       streams,
       count: streams.length,
+      ended,
     };
     if (streams.length === 1) {
       Object.assign(response, streams[0]);
@@ -145,7 +156,7 @@ export function registerLiveDebugRoutes({
   app.post("/api/live/stop", (req, res) => {
     const captureId = typeof req.body?.captureId === "string" ? req.body.captureId : null;
     if (captureId) {
-      const stopped = stopLiveStream(captureId);
+      const stopped = stopLiveStream(captureId, "live_stop_manual");
       const running = liveStreamStates.size > 0;
       return res.json({
         success: true,
@@ -156,7 +167,7 @@ export function registerLiveDebugRoutes({
       });
     }
 
-    const stopped = stopAllLiveStreams();
+    const stopped = stopAllLiveStreams("live_stop_manual");
     const running = liveStreamStates.size > 0;
     return res.json({
       success: true,

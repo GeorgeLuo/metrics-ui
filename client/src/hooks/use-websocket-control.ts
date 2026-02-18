@@ -92,7 +92,7 @@ interface UseWebSocketControlProps {
   onCaptureComponents: (captureId: string, components: ComponentNode[]) => void;
   onCaptureAppend: (captureId: string, frame: CaptureSession["records"][number]) => void;
   onCaptureTick: (captureId: string, tick: number) => void;
-  onCaptureEnd: (captureId: string) => void;
+  onCaptureEnd: (captureId: string, reason?: string, detail?: string) => void;
   onAddAnnotation: (annotation: Annotation) => void;
   onRemoveAnnotation: (options: { id?: string; tick?: number }) => void;
   onClearAnnotations: () => void;

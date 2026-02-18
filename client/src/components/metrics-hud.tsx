@@ -14,6 +14,7 @@ interface MetricsHUDProps {
   currentTick: number;
   captures: CaptureSession[];
   isVisible: boolean;
+  activeDerivationGroupName?: string;
   highlightedMetricKey?: string | null;
   analysisKeys?: Set<string>;
   onToggleAnalysisMetric?: (metric: SelectedMetric) => void;
@@ -29,6 +30,7 @@ export function MetricsHUD({
   currentTick,
   captures,
   isVisible,
+  activeDerivationGroupName,
   highlightedMetricKey,
   analysisKeys,
   onToggleAnalysisMetric,
@@ -138,6 +140,13 @@ export function MetricsHUD({
           const analysisKey = `${metric.captureId}::${metric.fullPath}`;
           const isAnalysisSelected = analysisKeys?.has(analysisKey) ?? false;
           const isSecondaryAxis = isMetricOnSecondaryAxis?.(metric) ?? metric.axis === "y2";
+          const groupName =
+            typeof activeDerivationGroupName === "string" && activeDerivationGroupName.trim().length > 0
+              ? activeDerivationGroupName.trim()
+              : "active derivation group";
+          const rowHint = isAnalysisSelected
+            ? `Click to remove this metric from ${groupName}.`
+            : `Click to add this metric to ${groupName}.`;
 
           return (
             <div
@@ -149,6 +158,7 @@ export function MetricsHUD({
               )}
               onMouseEnter={() => onHoverMetric?.(dataKey)}
               onClick={() => onToggleAnalysisMetric?.(metric)}
+              data-hint={rowHint}
             >
               <div
                 className="w-2 h-2 rounded-full shrink-0"
