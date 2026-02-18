@@ -291,4 +291,46 @@ test("buildRenderDebug summarizes window state", () => {
     firstTick: 2,
     lastTick: 2,
   });
+  assert.ok(debug.domains);
+  assert.equal(debug.domains?.hasSecondaryAxis, false);
+  assert.equal(debug.domains?.primaryMetricCount, 2);
+  assert.equal(debug.domains?.secondaryMetricCount, 0);
+  assert.equal(debug.domains?.yPrimaryManual, null);
+  assert.equal(debug.domains?.ySecondaryManual, null);
+});
+
+test("buildRenderDebug domain preview includes axis info for negative values", () => {
+  const negativeCapture: CaptureSession = {
+    id: "neg-cap",
+    filename: "neg-cap.jsonl",
+    fileSize: 0,
+    tickCount: 3,
+    records: [
+      { tick: 1, entities: { "0": { derivations: { diff: -12 } } } },
+      { tick: 2, entities: { "0": { derivations: { diff: -3 } } } },
+      { tick: 3, entities: { "0": { derivations: { diff: 4 } } } },
+    ],
+    components: [],
+    isActive: true,
+  };
+  const negativeMetric: SelectedMetric = {
+    captureId: "neg-cap",
+    path: ["0", "derivations", "diff"],
+    fullPath: "0.derivations.diff",
+    label: "diff",
+    color: "#fff",
+  };
+
+  const debug = buildRenderDebug({
+    captures: [negativeCapture],
+    selectedMetrics: [negativeMetric],
+    playback: { isPlaying: false, currentTick: 3, speed: 1, totalTicks: 3 },
+    windowSize: 3,
+    autoScroll: true,
+  });
+
+  assert.ok(debug.domains);
+  assert.equal(debug.domains?.hasSecondaryAxis, false);
+  assert.equal(debug.domains?.primaryMetricCount, 1);
+  assert.ok((debug.domains?.yPrimaryAuto[0] ?? 0) < 0);
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 
 const PANEL_WIDTH_PX = 280;
 const HEADER_RIGHT_MARGIN_PX = 16;
@@ -132,35 +132,29 @@ export function FloatingElement() {
 
   return (
     <div
-      className="fixed z-[80] select-none"
+      className="fixed z-40 select-none"
       style={{
         left: position.x,
         top: position.y,
       }}
       data-testid="floating-element"
     >
-      <div className="w-[280px] rounded-md border border-border/60 bg-background/85 px-2 py-1.5 shadow-sm backdrop-blur-sm">
-        <div className="flex items-center justify-between gap-2">
+      <div
+        className="w-[280px] rounded-md border border-border/60 bg-background/85 px-2 py-1.5 shadow-sm backdrop-blur-sm cursor-pointer"
+        onClick={() => setIsCollapsed((prev) => !prev)}
+      >
+        <div className="flex items-center gap-2">
           <button
             type="button"
             className="flex items-center gap-1 text-xs text-muted-foreground cursor-grab active:cursor-grabbing"
             onPointerDown={handlePointerDown}
+            onClick={(event) => event.stopPropagation()}
             aria-label="Drag hint panel"
             style={{ cursor: isDragging ? "grabbing" : "grab" }}
             data-hint-ignore="true"
           >
             <GripVertical className="h-3 w-3" />
             <span>Hints</span>
-          </button>
-          <button
-            type="button"
-            className="rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
-            onClick={() => setIsCollapsed((prev) => !prev)}
-            aria-label={isCollapsed ? "Expand hint panel" : "Collapse hint panel"}
-            data-testid="button-floating-toggle"
-            data-hint-ignore="true"
-          >
-            {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
         </div>
         <div

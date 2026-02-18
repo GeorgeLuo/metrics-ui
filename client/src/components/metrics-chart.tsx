@@ -462,7 +462,7 @@ export function MetricsChart({
       if (!isFinite(yMax)) yMax = 100;
 
       const yPadding = (yMax - yMin) * 0.1 || 10;
-      return [Math.max(0, yMin - yPadding), yMax + yPadding] as [number, number];
+      return [yMin - yPadding, yMax + yPadding] as [number, number];
     };
 
     if (data.length === 0) {

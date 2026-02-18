@@ -474,6 +474,8 @@ export function buildRenderDebug({
   windowStart,
   windowEnd,
   autoScroll,
+  yPrimaryDomain,
+  ySecondaryDomain,
   captureId,
 }: {
   captures: CaptureSession[];
@@ -483,6 +485,8 @@ export function buildRenderDebug({
   windowStart?: number;
   windowEnd?: number;
   autoScroll: boolean;
+  yPrimaryDomain?: [number, number] | null;
+  ySecondaryDomain?: [number, number] | null;
   captureId?: string;
 }): RenderDebugResponse {
   const { start, end } = buildWindowRange({
@@ -492,16 +496,72 @@ export function buildRenderDebug({
     windowEnd,
   });
 
+  const capturesById = new Map(captures.map((capture) => [capture.id, capture]));
+  const windowRecordsByCapture = new Map(
+    captures.map((capture) => [
+      capture.id,
+      capture.records.filter((record) => record.tick >= start && record.tick <= end),
+    ]),
+  );
+
   const activeCaptures = captures.filter((capture) => capture.isActive);
   const activeCaptureIds = new Set(activeCaptures.map((capture) => capture.id));
   const selectedMetricCounts = selectedMetrics.reduce((acc, metric) => {
     acc.set(metric.captureId, (acc.get(metric.captureId) ?? 0) + 1);
     return acc;
   }, new Map<string, number>());
+
+  const buildYAxisDomain = (metricsForAxis: SelectedMetric[]): [number, number] => {
+    if (metricsForAxis.length === 0) {
+      return [0, 100];
+    }
+    let yMin = Infinity;
+    let yMax = -Infinity;
+    metricsForAxis.forEach((metric) => {
+      const windowRecords = windowRecordsByCapture.get(metric.captureId) ?? [];
+      windowRecords.forEach((record) => {
+        const value = getNumericValueAtPath(record, metric.path);
+        if (typeof value === "number" && !Number.isNaN(value)) {
+          yMin = Math.min(yMin, value);
+          yMax = Math.max(yMax, value);
+        }
+      });
+    });
+
+    if (!Number.isFinite(yMin)) yMin = 0;
+    if (!Number.isFinite(yMax)) yMax = 100;
+
+    const yPadding = (yMax - yMin) * 0.1 || 10;
+    return [yMin - yPadding, yMax + yPadding];
+  };
+  const isValidDomain = (
+    candidate: [number, number] | null | undefined,
+  ): candidate is [number, number] => {
+    if (!candidate) {
+      return false;
+    }
+    const [min, max] = candidate;
+    return Number.isFinite(min) && Number.isFinite(max) && max > min;
+  };
+
+  const hasSecondaryAxis = selectedMetrics.some((metric) => metric.axis === "y2");
+  const primaryMetrics = selectedMetrics.filter((metric) => metric.axis !== "y2");
+  const secondaryMetrics = selectedMetrics.filter((metric) => metric.axis === "y2");
+  const autoPrimaryDomain = buildYAxisDomain(primaryMetrics);
+  const autoSecondaryDomain = hasSecondaryAxis
+    ? buildYAxisDomain(secondaryMetrics)
+    : autoPrimaryDomain;
+  const effectivePrimaryDomain = isValidDomain(yPrimaryDomain)
+    ? yPrimaryDomain
+    : autoPrimaryDomain;
+  const effectiveSecondaryDomain = hasSecondaryAxis
+    ? (isValidDomain(ySecondaryDomain) ? ySecondaryDomain : autoSecondaryDomain)
+    : effectivePrimaryDomain;
+
   const metrics = selectedMetrics.map((metric) => {
-    const capture = captures.find((item) => item.id === metric.captureId);
+    const capture = capturesById.get(metric.captureId);
     const records = capture?.records ?? [];
-    const windowRecords = records.filter((record) => record.tick >= start && record.tick <= end);
+    const windowRecords = windowRecordsByCapture.get(metric.captureId) ?? [];
     let numericCount = 0;
     let firstTick: number | null = null;
     let lastTick: number | null = null;
@@ -569,6 +629,17 @@ export function buildRenderDebug({
     captures: captureSummaries,
     selectedMetrics,
     metrics,
+    domains: {
+      yPrimaryAuto: autoPrimaryDomain,
+      ySecondaryAuto: autoSecondaryDomain,
+      yPrimaryEffective: effectivePrimaryDomain,
+      ySecondaryEffective: effectiveSecondaryDomain,
+      yPrimaryManual: isValidDomain(yPrimaryDomain) ? yPrimaryDomain : null,
+      ySecondaryManual: isValidDomain(ySecondaryDomain) ? ySecondaryDomain : null,
+      hasSecondaryAxis,
+      primaryMetricCount: primaryMetrics.length,
+      secondaryMetricCount: secondaryMetrics.length,
+    },
     windowPoints: windowTicks.size,
   };
 }

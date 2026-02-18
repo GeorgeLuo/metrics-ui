@@ -126,6 +126,8 @@ export function handleQueryCommand(
         windowStart: command.windowStart ?? context.windowStart,
         windowEnd: command.windowEnd ?? context.windowEnd,
         autoScroll: context.autoScroll,
+        yPrimaryDomain: context.yPrimaryDomain,
+        ySecondaryDomain: context.ySecondaryDomain,
         captureId: command.captureId,
       });
       context.sendMessage({

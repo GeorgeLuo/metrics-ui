@@ -42,6 +42,8 @@ export interface WsCommandDispatchContext {
   windowSize: number;
   windowStart: number;
   windowEnd: number;
+  yPrimaryDomain?: [number, number] | null;
+  ySecondaryDomain?: [number, number] | null;
   autoScroll: boolean;
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];

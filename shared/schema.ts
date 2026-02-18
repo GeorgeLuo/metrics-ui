@@ -218,6 +218,17 @@ export interface RenderDebugResponse {
     firstTick: number | null;
     lastTick: number | null;
   }>;
+  domains?: {
+    yPrimaryAuto: [number, number];
+    ySecondaryAuto: [number, number];
+    yPrimaryEffective: [number, number];
+    ySecondaryEffective: [number, number];
+    yPrimaryManual: [number, number] | null;
+    ySecondaryManual: [number, number] | null;
+    hasSecondaryAxis: boolean;
+    primaryMetricCount: number;
+    secondaryMetricCount: number;
+  };
   windowPoints: number;
 }
 

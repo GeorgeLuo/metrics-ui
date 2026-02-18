@@ -35,6 +35,8 @@ import {
   Activity,
   X,
   FileText,
+  Copy,
+  Check,
   Plus,
   BookOpen,
   ChevronDown,
@@ -265,6 +267,36 @@ function isInlineFieldBlank(value: string): boolean {
   return value.trim().length === 0;
 }
 
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (
+    typeof navigator !== "undefined"
+    && navigator.clipboard
+    && typeof navigator.clipboard.writeText === "function"
+  ) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  if (typeof document === "undefined") {
+    throw new Error("Clipboard is unavailable in this environment.");
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "absolute";
+  textarea.style.left = "-9999px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+  const success = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  if (!success) {
+    throw new Error("Clipboard copy command failed.");
+  }
+}
+
 export default function Home() {
   const [captures, setCaptures] = useState<CaptureSession[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>(() => {
@@ -282,6 +314,8 @@ export default function Home() {
     useState<DerivationPluginSourceResponse | null>(null);
   const [derivationPluginSourceLoading, setDerivationPluginSourceLoading] = useState(false);
   const [derivationPluginSourceError, setDerivationPluginSourceError] = useState<string | null>(null);
+  const [isDerivationPluginSourceCopied, setIsDerivationPluginSourceCopied] = useState(false);
+  const derivationPluginCopyResetTimerRef = useRef<number | null>(null);
   const derivationPluginFileRef = useRef<HTMLInputElement | null>(null);
   const [activeDerivationGroupId, setActiveDerivationGroupId] = useState<string>(() => {
     return readStorageString(DASHBOARD_STORAGE_KEYS.activeDerivationGroupId) ?? "";
@@ -1521,6 +1555,11 @@ export default function Home() {
   );
 
   const handleViewDerivationPluginSource = useCallback(async (pluginId: string) => {
+    if (derivationPluginCopyResetTimerRef.current !== null) {
+      window.clearTimeout(derivationPluginCopyResetTimerRef.current);
+      derivationPluginCopyResetTimerRef.current = null;
+    }
+    setIsDerivationPluginSourceCopied(false);
     setDerivationPluginSourceError(null);
     setDerivationPluginSourceLoading(true);
     setIsDerivationPluginSourceOpen(true);
@@ -1545,6 +1584,43 @@ export default function Home() {
     } finally {
       setDerivationPluginSourceLoading(false);
     }
+  }, []);
+
+  const handleCopyDerivationPluginSource = useCallback(async () => {
+    if (!derivationPluginSource?.source) {
+      return;
+    }
+    try {
+      await copyTextToClipboard(derivationPluginSource.source);
+      setIsDerivationPluginSourceCopied(true);
+      pushUiEvent({
+        level: "info",
+        message: "Plugin source copied",
+        detail: derivationPluginSource.pluginId,
+      });
+      if (derivationPluginCopyResetTimerRef.current !== null) {
+        window.clearTimeout(derivationPluginCopyResetTimerRef.current);
+      }
+      derivationPluginCopyResetTimerRef.current = window.setTimeout(() => {
+        setIsDerivationPluginSourceCopied(false);
+        derivationPluginCopyResetTimerRef.current = null;
+      }, 1500);
+    } catch (error) {
+      pushUiEvent({
+        level: "error",
+        message: "Failed to copy plugin source",
+        detail: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [derivationPluginSource, pushUiEvent]);
+
+  useEffect(() => {
+    return () => {
+      if (derivationPluginCopyResetTimerRef.current !== null) {
+        window.clearTimeout(derivationPluginCopyResetTimerRef.current);
+        derivationPluginCopyResetTimerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -5961,16 +6037,18 @@ export default function Home() {
         onOpenChange={(open) => {
           setIsDerivationPluginSourceOpen(open);
           if (!open) {
+            if (derivationPluginCopyResetTimerRef.current !== null) {
+              window.clearTimeout(derivationPluginCopyResetTimerRef.current);
+              derivationPluginCopyResetTimerRef.current = null;
+            }
+            setIsDerivationPluginSourceCopied(false);
             setDerivationPluginSource(null);
             setDerivationPluginSourceError(null);
             setDerivationPluginSourceLoading(false);
           }
         }}
       >
-        <DialogContent className="max-w-3xl h-[80vh] flex flex-col gap-3">
-          <DialogHeader>
-            <DialogTitle className="text-sm">Derivation System Source</DialogTitle>
-          </DialogHeader>
+        <DialogContent hideClose className="max-w-3xl h-[80vh] flex flex-col gap-3">
           {derivationPluginSourceLoading && (
             <div className="text-xs text-muted-foreground">Loading source...</div>
           )}
@@ -5988,11 +6066,34 @@ export default function Home() {
                   {derivationPluginSource.truncated ? " (truncated)" : ""}
                 </span>
               </div>
-              <ScrollArea className="flex-1 rounded-md border border-border/50 bg-muted/20">
-                <pre className="p-3 text-[11px] leading-relaxed font-mono text-foreground whitespace-pre overflow-x-auto">
-                  {derivationPluginSource.source}
-                </pre>
-              </ScrollArea>
+              <div className="relative flex-1 min-h-0 rounded-md border border-border/50 bg-muted/20 overflow-hidden group/plugin-source">
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-end p-1">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={handleCopyDerivationPluginSource}
+                    className="pointer-events-auto h-6 w-6 rounded-sm border border-border/50 bg-background/85 text-muted-foreground opacity-0 transition-opacity hover:bg-background group-hover/plugin-source:opacity-100 focus-visible:opacity-100"
+                    data-hint={
+                      isDerivationPluginSourceCopied
+                        ? "Plugin source copied"
+                        : "Copy plugin source to clipboard"
+                    }
+                    aria-label="Copy plugin source to clipboard"
+                  >
+                    {isDerivationPluginSourceCopied ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+                <ScrollArea className="h-full">
+                  <pre className="p-3 text-[11px] leading-relaxed font-mono text-foreground whitespace-pre overflow-x-auto">
+                    {derivationPluginSource.source}
+                  </pre>
+                </ScrollArea>
+              </div>
             </div>
           )}
         </DialogContent>
