@@ -63,7 +63,6 @@ import type {
   MemoryStatsResponse,
   VisualizationState,
 } from "@shared/schema";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useWebSocketControl } from "@/hooks/use-websocket-control";
 import { useStreamingActivityTracker } from "@/hooks/dashboard/use-streaming-activity";
 import { compactRecord } from "@shared/compact";
@@ -132,6 +131,12 @@ const PERF_SAMPLE_MAX = 200;
 const EVENT_LOOP_INTERVAL_MS = 100;
 const COMPONENT_UPDATE_THROTTLE_MS = 250;
 const STREAM_IDLE_MS = 1500;
+const INLINE_EDIT_BASE_CLASS =
+  "h-auto p-0 text-xs md:text-xs font-mono text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0";
+const INLINE_EDIT_TEXT_CLASS = `${INLINE_EDIT_BASE_CLASS} text-left`;
+const INLINE_EDIT_NUMERIC_CLASS =
+  `${INLINE_EDIT_BASE_CLASS} text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`;
+const INLINE_EDIT_EMPTY_CLASS = "rounded-sm bg-muted/40 px-1";
 
 const METRIC_COLORS = [
   "#E4572E",
@@ -255,6 +260,10 @@ function computeSampleStats(samples: number[]) {
   };
 }
 
+function isInlineFieldBlank(value: string): boolean {
+  return value.trim().length === 0;
+}
+
 export default function Home() {
   const [captures, setCaptures] = useState<CaptureSession[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>(() => {
@@ -322,6 +331,7 @@ export default function Home() {
 
     return [];
   });
+  const [livePollInputDrafts, setLivePollInputDrafts] = useState<Record<string, string>>({});
 
   const [playbackState, setPlaybackState] = useState<PlaybackState>({
     isPlaying: true,
@@ -621,6 +631,22 @@ export default function Home() {
   }, [refreshDerivationPlugins]);
 
   const activeCaptures = useMemo(() => captures.filter((capture) => capture.isActive), [captures]);
+
+  useEffect(() => {
+    const liveIds = new Set(liveStreams.map((entry) => entry.id));
+    setLivePollInputDrafts((prev) => {
+      let changed = false;
+      const next: Record<string, string> = {};
+      Object.entries(prev).forEach(([captureId, value]) => {
+        if (liveIds.has(captureId)) {
+          next[captureId] = value;
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [liveStreams]);
 
   useEffect(() => {
     const activeIds = new Set(activeCaptures.map((capture) => capture.id));
@@ -6075,6 +6101,10 @@ export default function Home() {
                                   const isConnecting = entry.status === "connecting";
                                   const isRetrying = entry.status === "retrying";
                                   const isCompleted = entry.status === "completed";
+                                  const sourceBlank = isInlineFieldBlank(entry.source);
+                                  const pollDraft = livePollInputDrafts[entry.id];
+                                  const pollInputValue = pollDraft ?? String(entry.pollSeconds);
+                                  const pollBlank = isInlineFieldBlank(pollInputValue);
                                   const statusLabel = isConnected
                                     ? `Connected (${entry.id})`
                                     : isConnecting
@@ -6092,59 +6122,71 @@ export default function Home() {
                                     >
                                       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                                         <span>Stream {index + 1}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => removeCaptureIds([entry.id])}
-                                          data-testid={`button-live-remove-${entry.id}`}
-                                          aria-label={`Remove live stream ${index + 1}`}
-                                          className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
-                                        >
-                                        </button>
+                                        <div className="flex items-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => removeCaptureIds([entry.id])}
+                                            data-testid={`button-live-remove-${entry.id}`}
+                                            aria-label={`Remove live stream ${index + 1}`}
+                                            className="h-3 w-3 shrink-0 p-0 leading-none rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
+                                          >
+                                          </button>
+                                        </div>
                                       </div>
                                       <Input
-                                        placeholder="Capture file URL or path"
                                         value={entry.source}
                                         onChange={(event) => {
                                           handleLiveSourceInput(entry.id, event.target.value);
                                         }}
-                                        className="h-8 px-2 py-1 text-xs"
+                                        className={`${INLINE_EDIT_TEXT_CLASS} w-full ${sourceBlank ? INLINE_EDIT_EMPTY_CLASS : ""}`}
                                         aria-label={`Capture file source ${index + 1}`}
                                       />
-                                      <Input
-                                        type="number"
-                                        min={0.5}
-                                        step={0.5}
-                                        placeholder="Poll interval (seconds)"
-                                        value={String(entry.pollSeconds)}
-                                        onChange={(event) => {
-                                          const parsed = Number(event.target.value);
-                                          if (Number.isFinite(parsed) && parsed > 0) {
-                                            handleLivePollChange(entry.id, parsed);
-                                          }
-                                        }}
-                                        className="h-8 px-2 py-1 text-xs"
-                                        disabled={isConnected || isConnecting}
-                                        aria-label={`Poll interval seconds ${index + 1}`}
-                                      />
+                                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                        <span>polling (s)</span>
+                                        <Input
+                                          type="number"
+                                          min={0.5}
+                                          step={0.5}
+                                          value={pollInputValue}
+                                          onChange={(event) => {
+                                            const raw = event.target.value;
+                                            setLivePollInputDrafts((prev) => ({
+                                              ...prev,
+                                              [entry.id]: raw,
+                                            }));
+                                            const parsed = Number(raw);
+                                            if (Number.isFinite(parsed) && parsed > 0) {
+                                              handleLivePollChange(entry.id, parsed);
+                                            }
+                                          }}
+                                          onBlur={() => {
+                                            setLivePollInputDrafts((prev) => {
+                                              if (!(entry.id in prev)) {
+                                                return prev;
+                                              }
+                                              const next = { ...prev };
+                                              delete next[entry.id];
+                                              return next;
+                                            });
+                                          }}
+                                          className={`${INLINE_EDIT_NUMERIC_CLASS} ${pollBlank ? INLINE_EDIT_EMPTY_CLASS : ""}`}
+                                          style={{ width: `${Math.max(pollInputValue.length, 1)}ch` }}
+                                          disabled={isConnected || isConnecting}
+                                          aria-label={`Poll interval seconds ${index + 1}`}
+                                        />
+                                      </div>
                                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                                         <span>{statusLabel}</span>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6"
+                                        <button
+                                          type="button"
                                           onClick={() => handleLiveRefresh(entry.id)}
                                           disabled={!entry.source.trim() || isConnected || isConnecting}
                                           data-testid={`button-live-refresh-${entry.id}`}
                                           aria-label={`Refresh live source ${index + 1}`}
+                                          className="h-3 w-3 shrink-0 p-0 leading-none rounded-full bg-blue-500/50 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                                         >
-                                          <RefreshCw className="w-3 h-3" />
-                                        </Button>
+                                        </button>
                                       </div>
-                                      {entry.pollSeconds > 0 && (
-                                        <div className="text-[11px] text-muted-foreground">
-                                          Polling every {entry.pollSeconds.toLocaleString()}s
-                                        </div>
-                                      )}
                                       {entry.error && (
                                         <div className="text-xs text-destructive">{entry.error}</div>
                                       )}
@@ -6178,10 +6220,17 @@ export default function Home() {
                           className="flex items-center gap-2 py-1.5 text-sm"
                           data-testid={`capture-item-${capture.id}`}
                         >
-                          <Checkbox
-                            checked={capture.isActive}
-                            onCheckedChange={() => handleToggleCapture(capture.id)}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCapture(capture.id)}
                             data-testid={`checkbox-capture-${capture.id}`}
+                            aria-label={`${capture.isActive ? "Disable" : "Enable"} capture ${capture.id}`}
+                            aria-pressed={capture.isActive}
+                            className={`h-3 w-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${
+                              capture.isActive
+                                ? "bg-yellow-400/90 hover:bg-yellow-400"
+                                : "bg-yellow-400/20 hover:bg-yellow-400/30"
+                            }`}
                           />
                           <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
                           <span className="truncate flex-1 text-xs" title={capture.filename}>
@@ -6328,7 +6377,7 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className={INLINE_EDIT_NUMERIC_CLASS}
                             style={{ width: `${Math.max(windowStartInput.length, 1)}ch` }}
                             aria-label="Window start tick"
                           />
@@ -6353,7 +6402,7 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className={INLINE_EDIT_NUMERIC_CLASS}
                             style={{ width: `${Math.max(windowEndInput.length, 1)}ch` }}
                             aria-label="Window end tick"
                           />
@@ -6381,7 +6430,7 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className={INLINE_EDIT_NUMERIC_CLASS}
                             style={{ width: `${Math.max(yPrimaryMinInput.length, 1)}ch` }}
                             aria-label="Primary axis minimum"
                           />
@@ -6405,7 +6454,7 @@ export default function Home() {
                                 (event.target as HTMLInputElement).blur();
                               }
                             }}
-                            className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className={INLINE_EDIT_NUMERIC_CLASS}
                             style={{ width: `${Math.max(yPrimaryMaxInput.length, 1)}ch` }}
                             aria-label="Primary axis maximum"
                           />
@@ -6434,7 +6483,7 @@ export default function Home() {
                                   (event.target as HTMLInputElement).blur();
                                 }
                               }}
-                              className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className={INLINE_EDIT_NUMERIC_CLASS}
                               style={{ width: `${Math.max(ySecondaryMinInput.length, 1)}ch` }}
                               aria-label="Secondary axis minimum"
                             />
@@ -6458,7 +6507,7 @@ export default function Home() {
                                   (event.target as HTMLInputElement).blur();
                                 }
                               }}
-                              className="h-auto p-0 text-xs md:text-xs font-mono text-right text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className={INLINE_EDIT_NUMERIC_CLASS}
                               style={{ width: `${Math.max(ySecondaryMaxInput.length, 1)}ch` }}
                               aria-label="Secondary axis maximum"
                             />
