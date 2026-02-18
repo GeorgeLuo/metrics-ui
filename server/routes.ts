@@ -28,9 +28,28 @@ import * as path from "path";
 import * as os from "os";
 import { fileURLToPath, pathToFileURL } from "url";
 import { Readable } from "stream";
-import { ReadableStream } from "stream/web";
 import crypto from "crypto";
 import { createRequire } from "module";
+import {
+  applyParsedCaptureRecord,
+  consumeLineStream,
+  createAbortError,
+  extractSeriesFromFrames,
+  extractSeriesFromFramesBatch,
+  getValueAtPath,
+  mergeEntities,
+  normalizePathInput,
+  streamLinesFromFile,
+  streamLinesFromResponse,
+  type CaptureRecord,
+  yieldToEventLoop,
+} from "./stream-utils";
+import {
+  registerDocsAndDerivationRoutes,
+  type DerivationPluginRouteRecord,
+} from "./routes/docs-derivation-routes";
+import { registerSourceSeriesRoutes } from "./routes/source-series-routes";
+import { registerLiveDebugRoutes } from "./routes/live-debug-routes";
 
 const UPLOAD_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui", "uploads");
 const UPLOAD_INDEX_FILE = path.join(UPLOAD_ROOT, "index.json");
@@ -109,11 +128,6 @@ const LIVE_INACTIVITY_MIN_MS = 15000;
 const LIVE_INACTIVITY_MULTIPLIER = 5;
 const LIVE_RETRYABLE_FILE_ERRORS = new Set(["ENOENT", "ENOTDIR", "EACCES", "EPERM", "EBUSY"]);
 
-type CaptureRecord = {
-  tick: number;
-  entities: Record<string, Record<string, unknown>>;
-};
-
 type UploadIndexEntry = {
   path: string;
   size: number;
@@ -151,235 +165,6 @@ function hashFile(filePath: string): Promise<string> {
     stream.on("data", (chunk) => hash.update(chunk));
     stream.on("error", reject);
     stream.on("end", () => resolve(hash.digest("hex")));
-  });
-}
-
-
-function mergeEntities(
-  target: Record<string, Record<string, unknown>>,
-  source: Record<string, Record<string, unknown>>,
-) {
-  Object.entries(source).forEach(([entityId, components]) => {
-    if (!target[entityId]) {
-      target[entityId] = {};
-    }
-    Object.entries(components).forEach(([componentId, componentValue]) => {
-      target[entityId][componentId] = componentValue;
-    });
-  });
-}
-
-function applyParsedCaptureRecord(
-  parsed: Record<string, unknown>,
-  frames: Map<number, CaptureRecord>,
-  components: ComponentNode[],
-) {
-  if (
-    Number.isFinite(parsed.tick) &&
-    parsed.entities &&
-    typeof parsed.entities === "object" &&
-    !Array.isArray(parsed.entities)
-  ) {
-    const rawComponents = buildComponentTreeFromEntities(parsed.entities as Record<string, unknown>);
-    const nextComponents = mergeComponentTrees(components, rawComponents);
-    const entities = compactEntities(
-      parsed.entities as Record<string, Record<string, unknown>>,
-      DEFAULT_MAX_NUMERIC_DEPTH,
-    );
-    const frame = frames.get(parsed.tick as number) ?? { tick: parsed.tick as number, entities: {} };
-    mergeEntities(frame.entities, entities);
-    frames.set(parsed.tick as number, frame);
-    return nextComponents;
-  }
-
-  if (
-    Number.isFinite(parsed.tick) &&
-    typeof parsed.entityId === "string" &&
-    typeof parsed.componentId === "string"
-  ) {
-    const rawEntities: Record<string, Record<string, unknown>> = {
-      [parsed.entityId]: {
-        [parsed.componentId]: parsed.value,
-      },
-    };
-    const rawComponents = buildComponentTreeFromEntities(rawEntities);
-    const nextComponents = mergeComponentTrees(components, rawComponents);
-    const compactedValue = compactValue(parsed.value, 1, DEFAULT_MAX_NUMERIC_DEPTH);
-    if (compactedValue === undefined) {
-      return nextComponents;
-    }
-    const frame = frames.get(parsed.tick as number) ?? { tick: parsed.tick as number, entities: {} };
-    if (!frame.entities[parsed.entityId]) {
-      frame.entities[parsed.entityId] = {};
-    }
-    frame.entities[parsed.entityId][parsed.componentId] = compactedValue;
-    frames.set(parsed.tick as number, frame);
-    return nextComponents;
-  }
-
-  return components;
-}
-
-function parseJSONL(content: string): { records: CaptureRecord[]; components: ComponentNode[] } {
-  const lines = content.trim().split("\n");
-  const frames = new Map<number, CaptureRecord>();
-  let components: ComponentNode[] = [];
-
-  for (const line of lines) {
-    if (!line.trim()) {
-      continue;
-    }
-    try {
-      const parsed = JSON.parse(line);
-      if (!parsed || typeof parsed !== "object") {
-        continue;
-      }
-      components = applyParsedCaptureRecord(parsed as Record<string, unknown>, frames, components);
-    } catch (e) {
-      console.error("Failed to parse line:", e);
-    }
-  }
-
-  return {
-    records: Array.from(frames.values()).sort((a, b) => a.tick - b.tick),
-    components,
-  };
-}
-
-type LineConsumerResult = {
-  bytesRead: number;
-  lineCount: number;
-  remainder: string;
-};
-
-function yieldToEventLoop(delayMs = 0): Promise<void> {
-  const normalizedDelay = Number.isFinite(delayMs) ? Math.max(0, Math.floor(delayMs)) : 0;
-  return new Promise((resolve) => setTimeout(resolve, normalizedDelay));
-}
-
-function createAbortError() {
-  const error = new Error("AbortError");
-  error.name = "AbortError";
-  return error;
-}
-
-async function consumeLineStream(options: {
-  readable: Readable;
-  initialRemainder?: string;
-  signal?: AbortSignal;
-  onLine: (line: string) => void;
-  maxLines?: number;
-  yieldEveryLines?: number;
-}): Promise<LineConsumerResult> {
-  const { readable, signal, onLine } = options;
-  let remainder = options.initialRemainder ?? "";
-  let bytesRead = 0;
-  let lineCount = 0;
-  const maxLines = Number.isFinite(options.maxLines) ? Math.max(1, options.maxLines as number) : null;
-  const yieldEveryLines =
-    Number.isInteger(options.yieldEveryLines) && (options.yieldEveryLines as number) > 0
-      ? (options.yieldEveryLines as number)
-      : 0;
-  const abortHandler = () => {
-    readable.destroy(createAbortError());
-  };
-
-  if (signal) {
-    if (signal.aborted) {
-      abortHandler();
-    } else {
-      signal.addEventListener("abort", abortHandler, { once: true });
-    }
-  }
-
-  try {
-    outer: for await (const chunk of readable) {
-      const chunkText = typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf-8");
-      bytesRead += Buffer.byteLength(chunkText, "utf-8");
-      const combined = remainder + chunkText;
-      const parts = combined.split("\n");
-      const trailingRemainder = parts.pop() ?? "";
-      remainder = trailingRemainder;
-      for (let index = 0; index < parts.length; index += 1) {
-        const part = parts[index];
-        lineCount += 1;
-        onLine(part);
-        if (yieldEveryLines > 0 && lineCount % yieldEveryLines === 0) {
-          await yieldToEventLoop();
-        }
-        if (maxLines && lineCount >= maxLines) {
-          const remaining = parts.slice(index + 1).join("\n");
-          if (remaining) {
-            remainder = `${remaining}\n${trailingRemainder}`;
-          } else {
-            remainder = trailingRemainder;
-          }
-          readable.destroy();
-          break outer;
-        }
-      }
-    }
-  } finally {
-    if (signal) {
-      signal.removeEventListener("abort", abortHandler);
-    }
-  }
-
-  return { bytesRead, lineCount, remainder };
-}
-
-async function streamLinesFromFile(options: {
-  filePath: string;
-  startOffset: number;
-  initialRemainder?: string;
-  signal?: AbortSignal;
-  onLine: (line: string) => void;
-  maxLines?: number;
-  yieldEveryLines?: number;
-}): Promise<LineConsumerResult> {
-  const stream = fs.createReadStream(options.filePath, {
-    start: options.startOffset,
-    encoding: "utf-8",
-  });
-  return consumeLineStream({
-    readable: stream,
-    initialRemainder: options.initialRemainder,
-    signal: options.signal,
-    onLine: options.onLine,
-    maxLines: options.maxLines,
-    yieldEveryLines: options.yieldEveryLines,
-  });
-}
-
-async function streamLinesFromResponse(options: {
-  response: Response;
-  initialRemainder?: string;
-  signal?: AbortSignal;
-  onLine: (line: string) => void;
-  maxLines?: number;
-  yieldEveryLines?: number;
-}): Promise<LineConsumerResult> {
-  if (!options.response.body) {
-    const text = await options.response.text();
-    const readable = Readable.from([text], { encoding: "utf-8" });
-    return consumeLineStream({
-      readable,
-      initialRemainder: options.initialRemainder,
-      signal: options.signal,
-      onLine: options.onLine,
-      maxLines: options.maxLines,
-      yieldEveryLines: options.yieldEveryLines,
-    });
-  }
-
-  const readable = Readable.fromWeb(options.response.body as unknown as ReadableStream<Uint8Array>);
-  return consumeLineStream({
-    readable,
-    initialRemainder: options.initialRemainder,
-    signal: options.signal,
-    onLine: options.onLine,
-    maxLines: options.maxLines,
-    yieldEveryLines: options.yieldEveryLines,
   });
 }
 
@@ -442,90 +227,6 @@ async function parseJSONLFromSource(source: string, signal: AbortSignal) {
     components,
     sizeBytes,
   };
-}
-
-function normalizePathInput(pathInput: unknown): string[] | null {
-  if (Array.isArray(pathInput)) {
-    const filtered = pathInput.filter((item) => typeof item === "string") as string[];
-    return filtered.length > 0 ? filtered : null;
-  }
-  if (typeof pathInput === "string" && pathInput.trim().startsWith("[")) {
-    try {
-      const parsed = JSON.parse(pathInput);
-      if (Array.isArray(parsed)) {
-        const filtered = parsed.filter((item) => typeof item === "string") as string[];
-        return filtered.length > 0 ? filtered : null;
-      }
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-function getValueAtPath(source: unknown, path: string[]): unknown {
-  let current: unknown = source;
-  for (const part of path) {
-    if (current && typeof current === "object" && part in current) {
-      current = (current as Record<string, unknown>)[part];
-    } else {
-      return undefined;
-    }
-  }
-  return current;
-}
-
-function extractSeriesFromFrames(frames: CaptureRecord[], path: string[]) {
-  const pointsByTick = new Map<number, number | null>();
-  frames.forEach((frame) => {
-    if (!frame || typeof frame.tick !== "number") {
-      return;
-    }
-    const rawValue = getValueAtPath(frame.entities, path);
-    const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
-    pointsByTick.set(frame.tick, value);
-  });
-
-  const points = Array.from(pointsByTick.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([tickValue, value]) => ({ tick: tickValue, value }));
-
-  const numericCount = points.reduce(
-    (total, point) => total + (typeof point.value === "number" ? 1 : 0),
-    0,
-  );
-  const lastTick = points.length > 0 ? points[points.length - 1].tick : null;
-  return { points, numericCount, lastTick, tickCount: points.length };
-}
-
-function extractSeriesFromFramesBatch(frames: CaptureRecord[], paths: string[][]) {
-  const pointsByTickList = paths.map(() => new Map<number, number | null>());
-  frames.forEach((frame) => {
-    if (!frame || typeof frame.tick !== "number") {
-      return;
-    }
-    const entities = frame.entities;
-    if (!entities || typeof entities !== "object" || Array.isArray(entities)) {
-      return;
-    }
-    paths.forEach((path, index) => {
-      const rawValue = getValueAtPath(entities, path);
-      const value = typeof rawValue === "number" && Number.isFinite(rawValue) ? rawValue : null;
-      pointsByTickList[index].set(frame.tick, value);
-    });
-  });
-
-  return pointsByTickList.map((pointsByTick) => {
-    const points = Array.from(pointsByTick.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([tickValue, value]) => ({ tick: tickValue, value }));
-    const numericCount = points.reduce(
-      (total, point) => total + (typeof point.value === "number" ? 1 : 0),
-      0,
-    );
-    const lastTick = points.length > 0 ? points[points.length - 1].tick : null;
-    return { points, numericCount, lastTick, tickCount: points.length };
-  });
 }
 
 async function extractSeriesFromSource(options: {
@@ -832,6 +533,7 @@ type PersistedCaptureSource = {
 };
 
 const persistedCaptureSources = new Map<string, PersistedCaptureSource>();
+const removedCaptureTombstones = new Set<string>();
 
 type PersistableDashboardState = Partial<
   Pick<
@@ -1188,6 +890,11 @@ function syncPersistedCaptureSources(
     if (!captureId || !source.trim()) {
       continue;
     }
+    // Prevent stale source sync payloads from resurrecting captures that were explicitly removed.
+    // A deliberate restart path (live-start/capture-init) clears this tombstone.
+    if (removedCaptureTombstones.has(captureId)) {
+      continue;
+    }
     if (isDerivedSource(source)) {
       continue;
     }
@@ -1393,19 +1100,7 @@ type DerivationPluginManifest = {
   }) => unknown;
 };
 
-type DerivationPluginRecord = {
-  id: string;
-  name: string;
-  description?: string;
-  minInputs: number;
-  maxInputs: number | null;
-  outputs: DerivationPluginOutput[];
-  filePath: string;
-  hash: string;
-  uploadedAt: string;
-  valid: boolean;
-  error: string | null;
-};
+type DerivationPluginRecord = DerivationPluginRouteRecord;
 
 const derivationPlugins = new Map<string, DerivationPluginRecord>();
 
@@ -3560,6 +3255,7 @@ async function streamCaptureFromSource(captureId: string, source: string) {
 
 function clearCaptureState() {
   clearPersistedCaptureSources();
+  removedCaptureTombstones.clear();
   pendingCaptureBuffers.clear();
   captureComponentState.clear();
   captureSources.clear();
@@ -3583,6 +3279,7 @@ function removeCaptureState(captureId: string, options?: { persist?: boolean }) 
   if (!captureId) {
     return;
   }
+  removedCaptureTombstones.add(captureId);
   const persist = options?.persist !== false;
   if (persist) {
     removePersistedCaptureSource(captureId);
@@ -4326,6 +4023,7 @@ function startLiveStream({
   filename: string;
   pollIntervalMs: number;
 }) {
+  removedCaptureTombstones.delete(captureId);
   if (liveStreamStates.has(captureId)) {
     throw new Error("Live stream already running for captureId.");
   }
@@ -4812,6 +4510,7 @@ export async function registerRoutes(
           removeCaptureState(captureId);
         }
         if (command.type === "capture_init" && captureId) {
+          removedCaptureTombstones.delete(captureId);
           captureEnded.delete(captureId);
           captureComponentState.set(captureId, { components: [], sentCount: 0 });
           captureStreamModes.set(captureId, "lite");
@@ -4978,597 +4677,124 @@ export async function registerRoutes(
       ? __filename
       : fileURLToPath(import.meta.url);
   const resolvedDirname = path.dirname(resolvedFilename);
-  
-  function findUsageMd(): string | null {
-    const possiblePaths = [
-      path.resolve(resolvedDirname, "USAGE.md"),
-      path.resolve(resolvedDirname, "..", "USAGE.md"),
-      path.join(process.cwd(), "USAGE.md"),
-    ];
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) return p;
-    }
-    return null;
-  }
+  registerDocsAndDerivationRoutes({
+    app,
+    resolvedDirname,
+    derivationPluginRoot: DERIVATION_PLUGIN_ROOT,
+    derivationPlugins,
+    derivationPluginUpload: derivationPluginUpload.single("file"),
+    loadDerivationPluginFromFile,
+    saveDerivationPluginIndex,
+    sendToFrontend,
+  });
 
-  app.get('/api/docs', (_req, res) => {
-    try {
-      const usageMdPath = findUsageMd();
-      if (usageMdPath) {
-        const content = fs.readFileSync(usageMdPath, 'utf-8');
-        res.json({ content });
-      } else {
-        res.status(404).json({ error: 'Documentation file not found' });
+  registerSourceSeriesRoutes({
+    app,
+    uploadMiddleware: upload.single("file"),
+    hashFile,
+    loadUploadIndex,
+    saveUploadIndex,
+    registerCaptureSource,
+    streamCaptureFromSource,
+    parseJSONLFromSource,
+    inferFilename,
+    probeCaptureSource,
+    normalizePathInput,
+    captureSources,
+    liveStreamStates,
+    getCachedFramesForSeries,
+    captureFrameCacheStats,
+    extractSeriesFromFrames,
+    extractSeriesFromSource,
+    extractSeriesFromFramesBatch,
+    extractSeriesBatchFromSource,
+  });
+
+  registerLiveDebugRoutes({
+    app,
+    liveStreamStates,
+    buildDebugCaptures: () => {
+      const ids = new Set<string>();
+      for (const captureId of captureMetadata.keys()) {
+        ids.add(captureId);
       }
-    } catch (error) {
-      console.error('Failed to read USAGE.md:', error);
-      res.status(500).json({ error: 'Documentation not available' });
-    }
-  });
-
-  app.get('/USAGE.md', (_req, res) => {
-    try {
-      const usageMdPath = findUsageMd();
-      if (usageMdPath) {
-        const content = fs.readFileSync(usageMdPath, 'utf-8');
-        res.type('text/markdown').send(content);
-      } else {
-        res.status(404).send('Documentation file not found');
+      for (const captureId of captureSources.keys()) {
+        ids.add(captureId);
       }
-    } catch (error) {
-      console.error('Failed to read USAGE.md:', error);
-      res.status(500).send('Documentation not available');
-    }
-  });
-
-  app.get("/api/derivations/plugins", (_req, res) => {
-    const plugins = Array.from(derivationPlugins.values()).sort((a, b) =>
-      b.uploadedAt.localeCompare(a.uploadedAt),
-    );
-    return res.json({ plugins });
-  });
-
-  app.get("/api/derivations/plugins/:pluginId/source", (req, res) => {
-    const pluginId = typeof req.params?.pluginId === "string" ? req.params.pluginId : "";
-    if (!pluginId) {
-      return res.status(400).json({ error: "pluginId is required." });
-    }
-
-    const record = derivationPlugins.get(pluginId);
-    if (!record) {
-      return res.status(404).json({ error: "Plugin not found." });
-    }
-
-    const resolvedRoot = path.resolve(DERIVATION_PLUGIN_ROOT);
-    const resolvedPath = path.resolve(record.filePath);
-    if (!resolvedPath.startsWith(resolvedRoot + path.sep)) {
-      return res.status(400).json({ error: "Invalid plugin path." });
-    }
-
-    if (!fs.existsSync(resolvedPath)) {
-      return res.status(404).json({ error: "Plugin source file missing." });
-    }
-
-    // Avoid accidentally loading huge files into memory; truncation is explicit in the response.
-    const MAX_SOURCE_BYTES = 512 * 1024;
-    const buffer = fs.readFileSync(resolvedPath);
-    const truncated = buffer.length > MAX_SOURCE_BYTES;
-    const source = truncated ? buffer.subarray(0, MAX_SOURCE_BYTES).toString("utf-8") : buffer.toString("utf-8");
-
-    return res.json({
-      pluginId: record.id,
-      name: record.name,
-      filename: path.basename(record.filePath),
-      bytes: buffer.length,
-      truncated,
-      source,
-    });
-  });
-
-  app.post(
-    "/api/derivations/plugins/upload",
-    derivationPluginUpload.single("file"),
-    async (req, res) => {
-      try {
-        if (!req.file || !req.file.buffer) {
-          return res.status(400).json({ error: "No plugin file uploaded." });
-        }
-        const buffer: Buffer = req.file.buffer as Buffer;
-        const hash = crypto.createHash("sha256").update(buffer).digest("hex");
-        fs.mkdirSync(DERIVATION_PLUGIN_ROOT, { recursive: true });
-        const filePath = path.join(DERIVATION_PLUGIN_ROOT, `${hash}.mjs`);
-        const existed = fs.existsSync(filePath);
-        if (!existed) {
-          fs.writeFileSync(filePath, buffer);
-        }
-
-        const loaded = await loadDerivationPluginFromFile(filePath);
-        const uploadedAt = new Date().toISOString();
-        if (!loaded.record.valid || !loaded.manifest) {
-          if (!existed) {
-            try {
-              fs.unlinkSync(filePath);
-            } catch (error) {
-              console.warn("[derivations] Failed to cleanup invalid plugin file:", error);
-            }
+      for (const captureId of captureComponentState.keys()) {
+        ids.add(captureId);
+      }
+      for (const captureId of captureLastTicks.keys()) {
+        ids.add(captureId);
+      }
+      for (const captureId of liveStreamStates.keys()) {
+        ids.add(captureId);
+      }
+      const pendingIds = Array.from(pendingCaptureBuffers.keys());
+      const captures = Array.from(ids).map((captureId) => ({
+        source: captureSources.get(captureId) ?? captureMetadata.get(captureId)?.source ?? null,
+        sourceKind: (() => {
+          const source = captureSources.get(captureId) ?? captureMetadata.get(captureId)?.source ?? "";
+          if (!source) {
+            return "none";
           }
-          return res.status(400).json({
-            error: loaded.record.error ?? "Derivation plugin failed validation.",
-            plugin: {
-              ...loaded.record,
-              filePath,
-              hash,
-              uploadedAt,
-            },
-          });
-        }
-        const record: DerivationPluginRecord = {
-          ...loaded.record,
-          filePath,
-          hash,
-          uploadedAt,
-        };
-        derivationPlugins.set(record.id, record);
-        saveDerivationPluginIndex(Array.from(derivationPlugins.values()));
-
-        const plugins = Array.from(derivationPlugins.values()).sort((a, b) =>
-          b.uploadedAt.localeCompare(a.uploadedAt),
-        );
-        sendToFrontend({ type: "derivation_plugins", payload: { plugins } } as ControlResponse);
-        return res.json({ success: true, plugin: record, plugins });
-      } catch (error) {
-        console.error("[derivations] Plugin upload error:", error);
-        return res.status(500).json({ error: "Failed to upload derivation plugin." });
-      }
+          if (isDerivedSource(source)) {
+            return "derived";
+          }
+          const trimmed = source.trim();
+          if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return "http";
+          }
+          return "file";
+        })(),
+        captureId,
+        lastTick: captureLastTicks.get(captureId) ?? null,
+        ended: captureEnded.has(captureId),
+        hasMetadata: captureMetadata.has(captureId),
+        hasSource: captureSources.has(captureId),
+        hasComponents: captureComponentState.has(captureId),
+        hasLive: liveStreamStates.has(captureId),
+        streamMode: captureStreamModes.get(captureId) ?? "lite",
+        cachedFrames:
+          (captureFrameSamples.get(captureId)?.length ?? 0) +
+          (captureFrameTail.get(captureId)?.length ?? 0),
+        cacheBytes:
+          (captureFrameSampleBytes.get(captureId) ?? 0) +
+          (captureFrameTailBytes.get(captureId) ?? 0),
+        cacheDisabled: captureFrameCacheDisabled.has(captureId),
+        derivedStoreTicks: derivedCaptureStores.get(captureId)?.frames.size ?? 0,
+        derivedStoreFrames: derivedCaptureStores.get(captureId)?.lineCount ?? 0,
+      }));
+      return { captures, pendingIds };
     },
-  );
-
-  app.delete("/api/derivations/plugins/:pluginId", (req, res) => {
-    const pluginId = typeof req.params?.pluginId === "string" ? req.params.pluginId : "";
-    if (!pluginId) {
-      return res.status(400).json({ error: "pluginId is required." });
-    }
-    const record = derivationPlugins.get(pluginId);
-    if (!record) {
-      return res.status(404).json({ error: "Plugin not found." });
-    }
-    derivationPlugins.delete(pluginId);
-    saveDerivationPluginIndex(Array.from(derivationPlugins.values()));
-
-    const stillReferenced = Array.from(derivationPlugins.values()).some(
-      (entry) => entry.filePath === record.filePath,
-    );
-    if (!stillReferenced) {
-      try {
-        if (fs.existsSync(record.filePath)) {
-          fs.unlinkSync(record.filePath);
-        }
-      } catch (error) {
-        console.warn("[derivations] Failed to delete plugin file:", error);
-      }
-    }
-
-    const plugins = Array.from(derivationPlugins.values()).sort((a, b) =>
-      b.uploadedAt.localeCompare(a.uploadedAt),
-    );
-    sendToFrontend({ type: "derivation_plugins", payload: { plugins } } as ControlResponse);
-    return res.json({ success: true, pluginId });
-  });
-
-  app.post('/api/upload', upload.single('file'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-      }
-
-      const captureId = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const filename = req.file.originalname || path.basename(req.file.path);
-      const filePath = req.file.path;
-      const size = req.file.size;
-
-      let sourcePath = filePath;
-      let deduped = false;
-      try {
-        const hash = await hashFile(filePath);
-        const index = loadUploadIndex();
-        const existing = index[hash];
-        if (existing?.path && fs.existsSync(existing.path)) {
-          if (existing.path !== filePath) {
-            fs.unlinkSync(filePath);
-          }
-          sourcePath = existing.path;
-          deduped = true;
-        } else {
-          index[hash] = {
-            path: filePath,
-            size,
-            filename,
-            createdAt: new Date().toISOString(),
-          };
-          saveUploadIndex(index);
-        }
-      } catch (error) {
-        console.warn("[upload] Failed to hash file for dedupe:", error);
-      }
-
-      registerCaptureSource({
-        source: sourcePath,
-        captureId,
-        filename,
-      });
-      streamCaptureFromSource(captureId, sourcePath).catch((error) => {
-        console.error("[upload] stream error:", error);
-      });
-
-      res.json({
-        success: true,
-        streaming: true,
-        captureId,
-        filename,
-        size,
-        deduped,
-      });
-    } catch (error) {
-      console.error('Upload error:', error);
-      res.status(500).json({ error: 'Failed to process file' });
-    }
-  });
-
-  app.post("/api/source/check", async (req, res) => {
-    const source = typeof req.body?.source === "string" ? req.body.source.trim() : "";
-    if (!source) {
-      return res.status(400).json({ ok: false, error: "Capture file source is required." });
-    }
-
-    const result = await probeCaptureSource(source, new AbortController().signal);
-    return res.json({ ...result, source });
-  });
-
-  app.post("/api/source/load", async (req, res) => {
-    try {
-      const source = typeof req.body?.source === "string" ? req.body.source.trim() : "";
-      if (!source) {
-        return res.status(400).json({ error: "Capture file source is required." });
-      }
-
-      const parsed = await parseJSONLFromSource(source, new AbortController().signal);
-      const { records, components } = parsed;
-
-      if (records.length === 0) {
-        return res.status(400).json({ error: "No valid records found in file" });
-      }
-
-      const tickCount = records.length;
-      const entityIdSet = new Set<string>();
-      const componentIdSet = new Set<string>();
-      records.forEach((record) => {
-        Object.entries(record.entities).forEach(([entityId, components]) => {
-          entityIdSet.add(entityId);
-          if (components && typeof components === "object") {
-            Object.keys(components).forEach((componentId) => {
-              componentIdSet.add(componentId);
-            });
-          }
-        });
-      });
-      const entityIds = [...entityIdSet];
-      const componentIds = [...componentIdSet];
-
-      res.json({
-        success: true,
-        filename: inferFilename(source),
-        size: parsed.sizeBytes,
-        tickCount,
-        records,
-        components,
-        entityIds,
-        componentIds,
-      });
-    } catch (error) {
-      console.error("Source load error:", error);
-      res.status(500).json({ error: "Failed to load capture source." });
-    }
-  });
-
-  app.post("/api/series", async (req, res) => {
-    try {
-      const captureId = typeof req.body?.captureId === "string" ? req.body.captureId : "";
-      if (!captureId.trim()) {
-        return res.status(400).json({ error: "captureId is required." });
-      }
-      const path = normalizePathInput(req.body?.path);
-      if (!path) {
-        return res.status(400).json({ error: "path must be a JSON array of strings." });
-      }
-
-      const source =
-        captureSources.get(captureId) ?? liveStreamStates.get(captureId)?.source ?? "";
-      if (!source) {
-        return res.status(404).json({ error: "Capture source not found for captureId." });
-      }
-
-      const cachedFrames = getCachedFramesForSeries(captureId);
-      const cacheStats = captureFrameCacheStats.get(captureId);
-      const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
-      const preferCache = req.body?.preferCache !== false;
-      const isLiveActive = liveStreamStates.has(captureId);
-      // Keep live streams cache-first even when cache is temporarily empty so the client can
-      // progressively render instead of blocking on a full source scan.
-      const usedCache = preferCache && (cachedFrames.length > 0 || isLiveActive);
-      const result =
-        usedCache
-          ? extractSeriesFromFrames(cachedFrames, path)
-          : await extractSeriesFromSource({
-              source,
-              path,
-              signal: new AbortController().signal,
-            });
-
-      return res.json({
-        success: true,
-        captureId,
-        path,
-        fullPath: path.join("."),
-        points: result.points,
-        tickCount: result.tickCount,
-        numericCount: result.numericCount,
-        lastTick: result.lastTick,
-        partial: usedCache && (isSampled || isLiveActive || cachedFrames.length === 0),
-      });
-    } catch (error) {
-      console.error("Series load error:", error);
-      return res.status(500).json({ error: "Failed to load series." });
-    }
-  });
-
-  app.post("/api/series/batch", async (req, res) => {
-    try {
-      const captureId = typeof req.body?.captureId === "string" ? req.body.captureId : "";
-      if (!captureId.trim()) {
-        return res.status(400).json({ error: "captureId is required." });
-      }
-      const rawPaths = Array.isArray(req.body?.paths) ? req.body.paths : [];
-      const paths = rawPaths
-        .map((path: unknown) => normalizePathInput(path))
-        .filter((path: string[] | null): path is string[] => Array.isArray(path));
-      if (paths.length === 0) {
-        return res.status(400).json({ error: "paths must be an array of JSON string arrays." });
-      }
-
-      const source =
-        captureSources.get(captureId) ?? liveStreamStates.get(captureId)?.source ?? "";
-      if (!source) {
-        return res.status(404).json({ error: "Capture source not found for captureId." });
-      }
-
-      const cachedFrames = getCachedFramesForSeries(captureId);
-      const cacheStats = captureFrameCacheStats.get(captureId);
-      const isSampled = cacheStats ? cacheStats.sampleEvery > 1 : false;
-      const preferCache = req.body?.preferCache !== false;
-      const isLiveActive = liveStreamStates.has(captureId);
-      // Keep live streams cache-first even when cache is temporarily empty so the client can
-      // progressively render instead of blocking on a full source scan.
-      const usedCache = preferCache && (cachedFrames.length > 0 || isLiveActive);
-      const results =
-        usedCache
-          ? extractSeriesFromFramesBatch(cachedFrames, paths)
-          : await extractSeriesBatchFromSource({
-              source,
-              paths,
-              signal: new AbortController().signal,
-            });
-
-      const series = paths.map((path: string[], index: number) => {
-        const result = results[index] ?? { points: [], numericCount: 0, lastTick: null, tickCount: 0 };
-        return {
-          path,
-          fullPath: path.join("."),
-          points: result.points,
-          tickCount: result.tickCount,
-          numericCount: result.numericCount,
-          lastTick: result.lastTick,
-          partial: usedCache && (isSampled || isLiveActive || cachedFrames.length === 0),
-        };
-      });
-
-      return res.json({ success: true, captureId, series });
-    } catch (error) {
-      console.error("Series batch load error:", error);
-      return res.status(500).json({ error: "Failed to load series batch." });
-    }
-  });
-
-  app.get("/api/live/status", (_req, res) => {
-    const streams = Array.from(liveStreamStates.values()).map((state) => ({
-      captureId: state.captureId,
-      source: state.source,
-      pollIntervalMs: state.pollIntervalMs,
-      frameCount: state.frameCount,
-      lastTick: state.lastTick,
-      lineOffset: state.lineOffset,
-      lastError: state.lastError,
-      startedAt: state.startedAt,
-    }));
-    if (streams.length === 0) {
-      return res.json({ running: false, streams: [] });
-    }
-    const response: Record<string, unknown> = {
-      running: true,
-      streams,
-      count: streams.length,
-    };
-    if (streams.length === 1) {
-      Object.assign(response, streams[0]);
-    }
-    return res.json(response);
-  });
-
-  app.get("/api/debug/captures", (_req, res) => {
-    const ids = new Set<string>();
-    for (const captureId of captureMetadata.keys()) {
-      ids.add(captureId);
-    }
-    for (const captureId of captureSources.keys()) {
-      ids.add(captureId);
-    }
-    for (const captureId of captureComponentState.keys()) {
-      ids.add(captureId);
-    }
-    for (const captureId of captureLastTicks.keys()) {
-      ids.add(captureId);
-    }
-    for (const captureId of liveStreamStates.keys()) {
-      ids.add(captureId);
-    }
-    const pendingIds = Array.from(pendingCaptureBuffers.keys());
-    const captures = Array.from(ids).map((captureId) => ({
-      source: captureSources.get(captureId) ?? captureMetadata.get(captureId)?.source ?? null,
-      sourceKind: (() => {
-        const source = captureSources.get(captureId) ?? captureMetadata.get(captureId)?.source ?? "";
-        if (!source) {
-          return "none";
-        }
-        if (isDerivedSource(source)) {
-          return "derived";
-        }
-        const trimmed = source.trim();
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-          return "http";
-        }
-        return "file";
-      })(),
-      captureId,
-      lastTick: captureLastTicks.get(captureId) ?? null,
-      ended: captureEnded.has(captureId),
-      hasMetadata: captureMetadata.has(captureId),
-      hasSource: captureSources.has(captureId),
-      hasComponents: captureComponentState.has(captureId),
-      hasLive: liveStreamStates.has(captureId),
-      streamMode: captureStreamModes.get(captureId) ?? "lite",
-      cachedFrames:
-        (captureFrameSamples.get(captureId)?.length ?? 0) +
-        (captureFrameTail.get(captureId)?.length ?? 0),
-      cacheBytes:
-        (captureFrameSampleBytes.get(captureId) ?? 0) +
-        (captureFrameTailBytes.get(captureId) ?? 0),
-      cacheDisabled: captureFrameCacheDisabled.has(captureId),
-      derivedStoreTicks: derivedCaptureStores.get(captureId)?.frames.size ?? 0,
-      derivedStoreFrames: derivedCaptureStores.get(captureId)?.lineCount ?? 0,
-    }));
-    res.json({ captures, pendingIds });
-  });
-
-  app.get("/api/debug/state", (_req, res) => {
-    const stateSource =
-      lastVisualizationState && typeof lastVisualizationState === "object"
-        ? "live"
-        : persistedDashboardState && typeof persistedDashboardState === "object"
-          ? "persisted"
-          : "empty";
-    const state =
-      stateSource === "live"
-        ? lastVisualizationState
-        : stateSource === "persisted"
-          ? buildVisualizationStateFromPersistedState(persistedDashboardState as PersistableDashboardState)
-          : buildVisualizationStateFromPersistedState({});
-    res.json({
-      frontendConnected: Boolean(frontendClient && frontendClient.readyState === WebSocket.OPEN),
-      stateSource,
-      lastVisualizationStateAt,
-      persistedDashboardStateAt,
-      state,
-    });
-  });
-
-  app.post("/api/live/start", async (req, res) => {
-    try {
-      const source = typeof req.body?.source === "string"
-        ? req.body.source
-        : typeof req.body?.file === "string"
-          ? req.body.file
-          : typeof req.body?.endpoint === "string"
-            ? req.body.endpoint
-            : "";
-      const pollIntervalMs = Number(req.body?.pollIntervalMs ?? req.body?.pollInterval ?? 2000);
-      let captureId =
-        typeof req.body?.captureId === "string"
-          ? req.body.captureId
-          : `live-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const filename =
-        typeof req.body?.filename === "string"
-          ? req.body.filename
-          : inferFilename(source);
-
-      if (!source.trim()) {
-        return res.status(400).json({ error: "Capture file source is required." });
-      }
-      if (!Number.isFinite(pollIntervalMs) || pollIntervalMs <= 0) {
-        return res.status(400).json({ error: "Invalid pollIntervalMs value." });
-      }
-      const sourceCheck = await probeCaptureSource(source.trim(), new AbortController().signal);
-      if (!sourceCheck.ok) {
-        return res.status(400).json({
-          error: sourceCheck.error || "Capture source is not reachable.",
-          source: source.trim(),
-        });
-      }
-      if (liveStreamStates.has(captureId)) {
-        return res.status(409).json({ error: "Live stream already running for captureId." });
-      }
-
-      while (liveStreamStates.has(captureId)) {
-        captureId = `live-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      }
-
-      const state = startLiveStream({
-        source: source.trim(),
-        pollIntervalMs,
-        captureId,
-        filename,
-      });
-
-      return res.json({
-        success: true,
-        captureId: state.captureId,
-        source: state.source,
-        pollIntervalMs: state.pollIntervalMs,
-      });
-    } catch (error) {
-      console.error("Live start error:", error);
-      return res.status(500).json({ error: "Failed to start live stream." });
-    }
-  });
-
-  app.post("/api/live/stop", (req, res) => {
-    const captureId =
-      typeof req.body?.captureId === "string" ? req.body.captureId : null;
-    if (captureId) {
-      const stopped = stopLiveStream(captureId);
-      const running = liveStreamStates.size > 0;
-      return res.json({
-        success: true,
-        running,
-        captureId: stopped?.captureId ?? null,
-        stopped: stopped ? [stopped.captureId] : [],
-        notFound: stopped ? [] : [captureId],
-      });
-    }
-
-    const stopped = stopAllLiveStreams();
-    const running = liveStreamStates.size > 0;
-    return res.json({
-      success: true,
-      running,
-      captureId: stopped[0]?.captureId ?? null,
-      stopped: stopped.map((state) => state.captureId),
-    });
-  });
-
-  app.post("/api/shutdown", (_req, res) => {
-    res.status(shuttingDown ? 202 : 200).json({ success: true, shuttingDown: true });
-    if (!shuttingDown) {
-      scheduleShutdown("api");
-    }
+    buildDebugState: () => {
+      const stateSource =
+        lastVisualizationState && typeof lastVisualizationState === "object"
+          ? "live"
+          : persistedDashboardState && typeof persistedDashboardState === "object"
+            ? "persisted"
+            : "empty";
+      const state =
+        stateSource === "live"
+          ? lastVisualizationState
+          : stateSource === "persisted"
+            ? buildVisualizationStateFromPersistedState(persistedDashboardState as PersistableDashboardState)
+            : buildVisualizationStateFromPersistedState({});
+      return {
+        frontendConnected: Boolean(frontendClient && frontendClient.readyState === WebSocket.OPEN),
+        stateSource,
+        lastVisualizationStateAt,
+        persistedDashboardStateAt,
+        state,
+      };
+    },
+    probeCaptureSource,
+    inferFilename,
+    startLiveStream,
+    stopLiveStream,
+    stopAllLiveStreams,
+    scheduleShutdown,
+    isShuttingDown: () => shuttingDown,
   });
 
   return httpServer;

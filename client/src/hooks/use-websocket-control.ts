@@ -12,58 +12,16 @@ import type {
   SubtitleOverlay,
   MemoryStatsResponse,
   UiDebugResponse,
-  CaptureAppendFrame,
-  CaptureRecord,
-  CaptureRecordLine,
 } from "@shared/schema";
+import { RESPONSE_TYPES, QUEUED_COMMAND_TYPES, WS_CLOSE_FRONTEND_BUSY, WS_CLOSE_FRONTEND_REPLACED } from "@/hooks/ws/constants";
+import { dispatchWsCommand } from "@/hooks/ws/command-dispatch";
 import {
-  buildCapabilitiesPayload,
-  buildComponentsList,
-  buildDisplaySnapshot,
-  buildMetricCoverage,
-  buildRenderTable,
-  buildRenderDebug,
-  buildSeriesWindow,
-} from "@shared/protocol-utils";
+  buildCaptureSourceSyncCommand,
+  hasMeaningfulLocalDashboardState,
+  readCaptureSourcesForSync,
+} from "@/hooks/ws/bootstrap";
 
 type RestoreStateCommand = Extract<ControlCommand, { type: "restore_state" }>;
-
-const WS_CLOSE_FRONTEND_BUSY = 4000;
-const WS_CLOSE_FRONTEND_REPLACED = 4001;
-
-const RESPONSE_TYPES = new Set<ControlResponse["type"]>([
-  "state_update",
-  "captures_list",
-  "error",
-  "ack",
-  "capabilities",
-  "derivation_plugins",
-  "display_snapshot",
-  "series_window",
-  "components_list",
-  "render_table",
-  "render_debug",
-  "ui_debug",
-  "ui_notice",
-  "ui_error",
-  "memory_stats",
-  "metric_coverage",
-]);
-
-const QUEUED_COMMAND_TYPES = new Set<ControlCommand["type"]>([
-  // Critical for correctness: ensures server-side persisted capture sources are updated even if the
-  // WS is temporarily disconnected when the user removes a capture.
-  "remove_capture",
-  "clear_captures",
-]);
-
-function isDerivedSourceString(value: unknown): boolean {
-  if (typeof value !== "string") {
-    return false;
-  }
-  const trimmed = value.trim().toLowerCase();
-  return trimmed.startsWith("derive://") || trimmed.startsWith("derive:/");
-}
 
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
@@ -158,55 +116,6 @@ interface UseWebSocketControlProps {
   onConnectionUnlock?: () => void;
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-function normalizeCaptureAppendFrame(frame: CaptureAppendFrame): CaptureRecord | null {
-  if (!frame || typeof frame !== "object") {
-    return null;
-  }
-
-  const maybe = frame as CaptureRecord & CaptureRecordLine;
-  if (!isFiniteNumber(maybe.tick)) {
-    return null;
-  }
-
-  if (
-    maybe.entities &&
-    typeof maybe.entities === "object" &&
-    !Array.isArray(maybe.entities)
-  ) {
-    return {
-      tick: maybe.tick,
-      entities: maybe.entities as Record<string, Record<string, unknown>>,
-    };
-  }
-
-  if (typeof maybe.entityId === "string" && typeof maybe.componentId === "string") {
-    return {
-      tick: maybe.tick,
-      entities: {
-        [maybe.entityId]: {
-          [maybe.componentId]: maybe.value,
-        },
-      },
-    };
-  }
-
-  return null;
-}
-
-function isBenignAbortErrorMessage(message: string): boolean {
-  const normalized = message.trim().toLowerCase();
-  return (
-    normalized === "aborterror" ||
-    normalized === "aborted" ||
-    normalized.includes("aborterror") ||
-    normalized.includes("operation was aborted") ||
-    normalized.includes("request was aborted")
-  );
-}
 
 export function useWebSocketControl({
   captures,
@@ -453,600 +362,115 @@ export function useWebSocketControl({
     return captures.find((capture) => capture.isActive) ?? captures[0];
   }, [captures, selectedMetrics]);
 
-  const handleCommand = useCallback((command: ControlCommand | ControlResponse) => {
-    const requestId = "request_id" in command ? command.request_id : undefined;
+  const markBootstrapped = useCallback(() => {
+    isBootstrappedRef.current = true;
+  }, []);
 
-    switch (command.type) {
-      case "hello": {
-        sendMessage({
-          type: "capabilities",
-          request_id: requestId,
-          payload: buildCapabilitiesPayload(),
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "get_state":
-        sendState(requestId);
-        sendAck(requestId, command.type);
-        break;
-      case "list_captures":
-        sendState(requestId);
-        sendAck(requestId, command.type);
-        break;
-      case "restore_state":
-        onRestoreState?.(command);
-        isBootstrappedRef.current = true;
-        sendAck(requestId, command.type);
-        break;
-      case "toggle_capture":
-        onToggleCapture(command.captureId);
-        sendAck(requestId, command.type);
-        break;
-      case "remove_capture":
-        onRemoveCapture(command.captureId);
-        sendAck(requestId, command.type);
-        break;
-      case "select_metric":
-        onSelectMetric(command.captureId, command.path, command.groupId);
-        {
-          const fullPath = command.path.join(".");
-          const label = command.path[command.path.length - 1] ?? fullPath;
-          const coverage = buildMetricCoverage({
-            captures,
-            metrics: [
-              {
-                captureId: command.captureId,
-                path: command.path,
-                fullPath,
-                label,
-                color: "auto",
-              },
-            ],
-            captureId: command.captureId,
-          });
-          const summary = coverage[0];
-          if (summary) {
-            sendMessage({
-              type: "metric_coverage",
-              request_id: requestId,
-              payload: {
-                captureId: command.captureId,
-                metrics: [summary],
-              },
-            });
-            if (summary.total > 0 && summary.numericCount === 0) {
-              sendError(requestId, "Selected metric has no numeric values.", {
-                captureId: command.captureId,
-                path: command.path,
-                fullPath,
-              });
-            }
-          } else {
-            sendError(requestId, "Unable to summarize selected metric.", {
-              captureId: command.captureId,
-              path: command.path,
-              fullPath,
-            });
-          }
-        }
-        sendAck(requestId, command.type);
-        break;
-      case "set_metric_axis": {
-        const fullPath =
-          typeof command.fullPath === "string" && command.fullPath.trim().length > 0
-            ? command.fullPath.trim()
-            : Array.isArray(command.path) && command.path.length > 0
-              ? command.path.join(".")
-              : "";
-        if (!fullPath) {
-          sendError(requestId, "set_metric_axis requires --full-path or --path.", {
-            captureId: command.captureId,
-            axis: command.axis,
-          });
-          break;
-        }
-        onSetMetricAxis(command.captureId, fullPath, command.axis);
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "deselect_metric":
-        onDeselectMetric(command.captureId, command.fullPath);
-        sendAck(requestId, command.type);
-        break;
-      case "clear_selection":
-        onClearSelection();
-        sendAck(requestId, command.type);
-        break;
-      case "select_analysis_metric":
-        // Treated as "add to derivation group". The UI will ensure the metric exists in the HUD selection.
-        onSelectAnalysisMetric(command.captureId, command.path);
-        sendAck(requestId, command.type);
-        break;
-      case "deselect_analysis_metric":
-        onDeselectAnalysisMetric(command.captureId, command.fullPath);
-        sendAck(requestId, command.type);
-        break;
-      case "clear_analysis_metrics":
-        onClearAnalysisMetrics();
-        sendAck(requestId, command.type);
-        break;
-      case "create_derivation_group":
-        onCreateDerivationGroup({ groupId: command.groupId, name: command.name });
-        sendAck(requestId, command.type);
-        break;
-      case "delete_derivation_group":
-        onDeleteDerivationGroup(command.groupId);
-        sendAck(requestId, command.type);
-        break;
-      case "set_active_derivation_group":
-        onSetActiveDerivationGroup(command.groupId);
-        sendAck(requestId, command.type);
-        break;
-      case "update_derivation_group":
-        onUpdateDerivationGroup(command.groupId, {
-          newGroupId: command.newGroupId,
-          name: command.name,
-          pluginId: command.pluginId,
-        });
-        sendAck(requestId, command.type);
-        break;
-      case "reorder_derivation_group_metrics":
-        onReorderDerivationGroupMetrics(command.groupId, command.fromIndex, command.toIndex);
-        sendAck(requestId, command.type);
-        break;
-      case "set_display_derivation_group":
-        onSetDisplayDerivationGroup(command.groupId ? String(command.groupId) : "");
-        sendAck(requestId, command.type);
-        break;
-      case "clear_captures":
-        onClearCaptures();
-        sendAck(requestId, command.type);
-        break;
-      case "play":
-        onPlay();
-        sendAck(requestId, command.type);
-        break;
-      case "pause":
-        onPause();
-        sendAck(requestId, command.type);
-        break;
-      case "stop":
-        onStop();
-        sendAck(requestId, command.type);
-        break;
-      case "seek":
-        if (isWindowed) {
-          sendError(
-            requestId,
-            "Seek disabled while a window range is set. Reset the window to re-enable seeking.",
-          );
-          break;
-        }
-        onSeek(command.tick);
-        sendAck(requestId, command.type);
-        break;
-      case "set_speed":
-        onSpeedChange(command.speed);
-        sendAck(requestId, command.type);
-        break;
-      case "set_window_size":
-        onWindowSizeChange(command.windowSize);
-        sendAck(requestId, command.type);
-        break;
-      case "set_window_start":
-        onWindowStartChange(command.windowStart);
-        sendAck(requestId, command.type);
-        break;
-      case "set_window_end":
-        onWindowEndChange(command.windowEnd);
-        sendAck(requestId, command.type);
-        break;
-      case "set_window_range":
-        onWindowRangeChange(command.windowStart, command.windowEnd);
-        sendAck(requestId, command.type);
-        break;
-      case "set_y_range": {
-        const min = Number(command.min);
-        const max = Number(command.max);
-        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
-          sendError(requestId, "set_y_range requires numeric --min and --max with max > min.", {
-            min: command.min,
-            max: command.max,
-          });
-          break;
-        }
-        onYPrimaryRangeChange(min, max);
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "set_y2_range": {
-        const min = Number(command.min);
-        const max = Number(command.max);
-        if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
-          sendError(requestId, "set_y2_range requires numeric --min and --max with max > min.", {
-            min: command.min,
-            max: command.max,
-          });
-          break;
-        }
-        onYSecondaryRangeChange(min, max);
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "set_auto_scroll":
-        onAutoScrollChange(command.enabled);
-        sendAck(requestId, command.type);
-        break;
-      case "set_fullscreen":
-        onSetFullscreen(command.enabled);
-        sendAck(requestId, command.type);
-        break;
-      case "add_annotation":
-        onAddAnnotation({
-          id: command.id ?? "",
-          tick: command.tick,
-          label: command.label,
-          color: command.color,
-        });
-        sendAck(requestId, command.type);
-        break;
-      case "remove_annotation":
-        onRemoveAnnotation({ id: command.id, tick: command.tick });
-        sendAck(requestId, command.type);
-        break;
-      case "clear_annotations":
-        onClearAnnotations();
-        sendAck(requestId, command.type);
-        break;
-      case "jump_annotation":
-        onJumpAnnotation(command.direction);
-        sendAck(requestId, command.type);
-        break;
-      case "add_subtitle":
-        onAddSubtitle({
-          id: command.id ?? "",
-          startTick: command.startTick,
-          endTick: command.endTick,
-          text: command.text,
-          color: command.color,
-        });
-        sendAck(requestId, command.type);
-        break;
-      case "remove_subtitle":
-        onRemoveSubtitle({
-          id: command.id,
-          startTick: command.startTick,
-          endTick: command.endTick,
-          text: command.text,
-        });
-        sendAck(requestId, command.type);
-        break;
-      case "clear_subtitles":
-        onClearSubtitles();
-        sendAck(requestId, command.type);
-        break;
-      case "set_source_mode":
-        onSourceModeChange(command.mode);
-        sendAck(requestId, command.type);
-        break;
-      case "set_live_source":
-        onLiveSourceChange(command.source, command.captureId);
-        sendAck(requestId, command.type);
-        break;
-      case "state_sync": {
-        const captures = Array.isArray(command.captures) ? command.captures : [];
-        onStateSync?.(captures);
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "live_start": {
-        onLiveStart({
-          source: command.source,
-          pollIntervalMs: command.pollIntervalMs,
-          captureId: command.captureId,
-          filename: command.filename,
-        })
-          .then(() => sendAck(requestId, command.type))
-          .catch((error) => {
-            sendError(
-              requestId,
-              error instanceof Error ? error.message : "Failed to start live stream.",
-              { source: command.source, pollIntervalMs: command.pollIntervalMs },
-            );
-          });
-        break;
-      }
-      case "live_stop": {
-        onLiveStop({ captureId: command.captureId })
-          .then(() => sendAck(requestId, command.type))
-          .catch((error) => {
-            sendError(
-              requestId,
-              error instanceof Error ? error.message : "Failed to stop live stream.",
-            );
-          });
-        break;
-      }
-      case "capture_init":
-        onCaptureInit(command.captureId, command.filename, { reset: command.reset, source: command.source });
-        sendMessage({
-          type: "ui_notice",
-          payload: {
-            message: "Capture initialized",
-            context: { captureId: command.captureId, filename: command.filename },
-          },
-        });
-        sendAck(requestId, command.type);
-        break;
-      case "capture_components":
-        onCaptureComponents(command.captureId, command.components);
-        sendAck(requestId, command.type);
-        break;
-      case "capture_append":
-        {
-          const normalized = normalizeCaptureAppendFrame(command.frame);
-          if (!normalized) {
-            sendError(
-              requestId,
-              "Invalid capture_append frame. Expected {tick, entities} or {tick, entityId, componentId, value}.",
-              { captureId: command.captureId },
-            );
-            break;
-          }
-          onCaptureAppend(command.captureId, normalized);
-        }
-        break;
-      case "capture_tick":
-        onCaptureTick(command.captureId, command.tick);
-        break;
-      case "capture_end":
-        onCaptureEnd(command.captureId);
-        sendMessage({
-          type: "ui_notice",
-          payload: {
-            message: "Capture ended",
-            context: { captureId: command.captureId },
-          },
-        });
-        sendAck(requestId, command.type);
-        break;
-      case "get_display_snapshot": {
-        const snapshot = buildDisplaySnapshot({
-          captures,
-          selectedMetrics,
-          playback: playbackState,
-          windowSize: command.windowSize ?? windowSize,
-          windowStart: command.windowStart ?? windowStart,
-          windowEnd: command.windowEnd ?? windowEnd,
-          autoScroll,
-          annotations,
-          subtitles,
-          captureId: command.captureId,
-        });
-        sendMessage({
-          type: "display_snapshot",
-          request_id: requestId,
-          payload: snapshot,
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "get_series_window": {
-        const capture = captures.find((item) => item.id === command.captureId);
-        if (!capture) {
-          sendError(requestId, `Capture not found: ${command.captureId}`, {
-            captureId: command.captureId,
-          });
-          break;
-        }
-        const series = buildSeriesWindow({
-          records: capture.records,
-          path: command.path,
-          currentTick: playbackState.currentTick,
-          windowSize: command.windowSize ?? windowSize,
-          windowStart: command.windowStart ?? windowStart,
-          windowEnd: command.windowEnd ?? windowEnd,
-          captureId: capture.id,
-        });
-        sendMessage({
-          type: "series_window",
-          request_id: requestId,
-          payload: series,
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "query_components": {
-        const capture = resolveCapture(command.captureId);
-        if (!capture) {
-          sendError(requestId, "No capture available for component query.", {
-            captureId: command.captureId ?? null,
-          });
-          break;
-        }
-        const list = buildComponentsList({
-          components: capture.components,
-          captureId: capture.id,
-          search: command.search,
-          limit: command.limit,
-        });
-        sendMessage({
-          type: "components_list",
-          request_id: requestId,
-          payload: list,
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "get_render_table": {
-        const capture = resolveCapture(command.captureId);
-        if (!capture) {
-          sendError(requestId, "No capture available for render table.", {
-            captureId: command.captureId ?? null,
-          });
-          break;
-        }
-        const metrics = selectedMetrics.filter(
-          (metric) => metric.captureId === capture.id,
-        );
-        if (metrics.length === 0) {
-          sendError(requestId, "No selected metrics for render table.", {
-            captureId: capture.id,
-          });
-          break;
-        }
-        const table = buildRenderTable({
-          records: capture.records,
-          metrics,
-          currentTick: playbackState.currentTick,
-          windowSize: command.windowSize ?? windowSize,
-          windowStart: command.windowStart ?? windowStart,
-          windowEnd: command.windowEnd ?? windowEnd,
-          captureId: capture.id,
-        });
-        sendMessage({
-          type: "render_table",
-          request_id: requestId,
-          payload: table,
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "get_render_debug": {
-        const debug = buildRenderDebug({
-          captures,
-          selectedMetrics,
-          playback: playbackState,
-          windowSize: command.windowSize ?? windowSize,
-          windowStart: command.windowStart ?? windowStart,
-          windowEnd: command.windowEnd ?? windowEnd,
-          autoScroll,
-          captureId: command.captureId,
-        });
-        sendMessage({
-          type: "render_debug",
-          request_id: requestId,
-          payload: debug,
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "get_ui_debug": {
-        if (!getUiDebug) {
-          sendError(requestId, "UI debug not available.");
-          break;
-        }
-        const debug = getUiDebug();
-        sendMessage({
-          type: "ui_debug",
-          request_id: requestId,
-          payload: debug,
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "get_memory_stats": {
-        const stats = getMemoryStats();
-        sendMessage({
-          type: "memory_stats",
-          request_id: requestId,
-          payload: stats,
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "get_metric_coverage": {
-        const targetCaptureId = command.captureId;
-        const metrics = targetCaptureId
-          ? selectedMetrics.filter((metric) => metric.captureId === targetCaptureId)
-          : selectedMetrics;
-        if (metrics.length === 0) {
-          sendError(requestId, "No selected metrics to summarize.", {
-            captureId: targetCaptureId ?? null,
-          });
-          break;
-        }
-        const coverage = buildMetricCoverage({
-          captures,
-          metrics,
-          captureId: targetCaptureId,
-        });
-        sendMessage({
-          type: "metric_coverage",
-          request_id: requestId,
-          payload: {
-            captureId: targetCaptureId ?? null,
-            metrics: coverage,
-          },
-        });
-        sendAck(requestId, command.type);
-        break;
-      }
-      case "derivation_plugins": {
-        const payload = (command as ControlResponse).payload as { plugins?: unknown } | undefined;
-        const pluginsRaw = payload?.plugins;
-        const plugins = Array.isArray(pluginsRaw) ? pluginsRaw : [];
-        onDerivationPlugins?.(plugins);
-        break;
-      }
-      case "ui_notice": {
-        const payload = (command as ControlResponse).payload as
-          | { message?: unknown; context?: unknown }
-          | undefined;
-        const message =
-          typeof payload?.message === "string" && payload.message.trim().length > 0
-            ? payload.message.trim()
-            : "Notice";
-        const context =
-          payload?.context && typeof payload.context === "object" && !Array.isArray(payload.context)
-            ? (payload.context as Record<string, unknown>)
-            : undefined;
-        onUiNotice?.({ message, context, requestId });
-        break;
-      }
-      case "ui_error": {
-        const payload = (command as ControlResponse).payload as
-          | { context?: unknown }
-          | undefined;
-        const context =
-          payload?.context && typeof payload.context === "object" && !Array.isArray(payload.context)
-            ? (payload.context as Record<string, unknown>)
-            : undefined;
-        const errorMessage =
-          typeof (command as ControlResponse).error === "string" &&
-          (command as ControlResponse).error!.trim().length > 0
-            ? (command as ControlResponse).error!.trim()
-            : "UI error";
-        if (isBenignAbortErrorMessage(errorMessage)) {
-          break;
-        }
-        onUiError?.({ error: errorMessage, context, requestId });
-        break;
-      }
-      case "error": {
-        const errorMessage =
-          typeof (command as ControlResponse).error === "string" &&
-          (command as ControlResponse).error!.trim().length > 0
-            ? (command as ControlResponse).error!.trim()
-            : "Server error";
-        if (isBenignAbortErrorMessage(errorMessage)) {
-          break;
-        }
-        onUiError?.({ error: errorMessage, requestId });
-        break;
-      }
-    }
+  const handleCommand = useCallback((command: ControlCommand | ControlResponse) => {
+    dispatchWsCommand(command, {
+      sendMessage,
+      sendAck,
+      sendError,
+      sendState,
+      markBootstrapped,
+      resolveCapture,
+      captures,
+      selectedMetrics,
+      playbackState,
+      windowSize,
+      windowStart,
+      windowEnd,
+      autoScroll,
+      annotations,
+      subtitles,
+      isWindowed,
+      onRestoreState,
+      onToggleCapture,
+      onRemoveCapture,
+      onSelectMetric,
+      onSetMetricAxis,
+      onDeselectMetric,
+      onClearSelection,
+      onSelectAnalysisMetric,
+      onDeselectAnalysisMetric,
+      onClearAnalysisMetrics,
+      onCreateDerivationGroup,
+      onDeleteDerivationGroup,
+      onSetActiveDerivationGroup,
+      onUpdateDerivationGroup,
+      onReorderDerivationGroupMetrics,
+      onSetDisplayDerivationGroup,
+      onClearCaptures,
+      onPlay,
+      onPause,
+      onStop,
+      onSeek,
+      onSpeedChange,
+      onWindowSizeChange,
+      onWindowStartChange,
+      onWindowEndChange,
+      onWindowRangeChange,
+      onYPrimaryRangeChange,
+      onYSecondaryRangeChange,
+      onAutoScrollChange,
+      onSetFullscreen,
+      onSourceModeChange,
+      onLiveSourceChange,
+      onLiveStart,
+      onLiveStop,
+      onCaptureInit,
+      onCaptureComponents,
+      onCaptureAppend,
+      onCaptureTick,
+      onCaptureEnd,
+      onAddAnnotation,
+      onRemoveAnnotation,
+      onClearAnnotations,
+      onJumpAnnotation,
+      onAddSubtitle,
+      onRemoveSubtitle,
+      onClearSubtitles,
+      getMemoryStats,
+      getUiDebug,
+      onStateSync,
+      onDerivationPlugins,
+      onUiNotice,
+      onUiError,
+    });
   }, [
-    sendState,
     sendMessage,
     sendAck,
     sendError,
+    sendState,
+    markBootstrapped,
     resolveCapture,
+    captures,
+    selectedMetrics,
+    playbackState,
+    windowSize,
+    windowStart,
+    windowEnd,
+    autoScroll,
+    annotations,
+    subtitles,
+    isWindowed,
+    onRestoreState,
     onToggleCapture,
+    onRemoveCapture,
     onSelectMetric,
+    onSetMetricAxis,
     onDeselectMetric,
     onClearSelection,
+    onSelectAnalysisMetric,
+    onDeselectAnalysisMetric,
+    onClearAnalysisMetrics,
+    onCreateDerivationGroup,
+    onDeleteDerivationGroup,
+    onSetActiveDerivationGroup,
+    onUpdateDerivationGroup,
+    onReorderDerivationGroupMetrics,
+    onSetDisplayDerivationGroup,
+    onClearCaptures,
     onPlay,
     onPause,
     onStop,
@@ -1060,11 +484,14 @@ export function useWebSocketControl({
     onYSecondaryRangeChange,
     onAutoScrollChange,
     onSetFullscreen,
+    onSourceModeChange,
+    onLiveSourceChange,
     onLiveStart,
     onLiveStop,
     onCaptureInit,
     onCaptureComponents,
     onCaptureAppend,
+    onCaptureTick,
     onCaptureEnd,
     onAddAnnotation,
     onRemoveAnnotation,
@@ -1074,19 +501,11 @@ export function useWebSocketControl({
     onRemoveSubtitle,
     onClearSubtitles,
     getMemoryStats,
-    buildMetricCoverage,
+    getUiDebug,
+    onStateSync,
     onDerivationPlugins,
     onUiNotice,
     onUiError,
-    captures,
-    selectedMetrics,
-    playbackState,
-    windowSize,
-    windowStart,
-    windowEnd,
-    autoScroll,
-    annotations,
-    subtitles,
   ]);
 
   const handleCommandRef = useRef(handleCommand);
@@ -1154,64 +573,19 @@ export function useWebSocketControl({
               reconnectDisabledRef.current = false;
               onConnectionUnlock?.();
               try {
-                const stored = window.localStorage.getItem("metrics-ui-live-streams");
-                const parsed = stored ? JSON.parse(stored) : [];
-                const list = Array.isArray(parsed) ? parsed : [];
-                const sources: Array<{
-                  captureId: string;
-                  source: string;
-                  pollIntervalMs?: number;
-                }> = [];
-                list.forEach((entry) => {
-                  const captureId =
-                    typeof entry?.captureId === "string"
-                      ? entry.captureId
-                      : typeof entry?.id === "string"
-                        ? entry.id
-                        : "";
-                  const source = typeof entry?.source === "string" ? entry.source : "";
-                  const pollSecondsRaw = Number(entry?.pollSeconds);
-                  const pollIntervalMs =
-                    Number.isFinite(pollSecondsRaw) && pollSecondsRaw > 0
-                      ? Math.round(pollSecondsRaw * 1000)
-                      : undefined;
-                  if (!captureId || !source.trim() || isDerivedSourceString(source)) {
-                    return;
-                  }
-                  sources.push({ captureId, source, pollIntervalMs });
-                });
-                if (sources.length > 0) {
-                  ws.send(
-                    JSON.stringify({
-                      type: "sync_capture_sources",
-                      sources,
-                      // Merge local sources into server state instead of replacing. Replacing can
-                      // drop valid server-side sources during reconnect and leave captures in a
-                      // "stable but no data" state until a manual live-start is triggered.
-                      replace: false,
-                    } satisfies ControlCommand),
-                  );
+                const sources = readCaptureSourcesForSync();
+                const syncCommand = buildCaptureSourceSyncCommand(sources);
+                if (syncCommand) {
+                  ws.send(JSON.stringify(syncCommand));
                 }
               } catch (error) {
                 console.warn("[ws] Failed to sync capture sources from localStorage:", error);
               }
 
-              // Only push initial state when we have meaningful localStorage-driven state. A brand
-              // new browser session should not overwrite server-side state; it will receive a
-              // restore_state command instead.
               try {
-                const storedSelected = window.localStorage.getItem("metrics-ui-selected-metrics");
-                const selected = storedSelected ? JSON.parse(storedSelected) : [];
-                const storedGroups = window.localStorage.getItem("metrics-ui-derivation-groups");
-                const groups = storedGroups ? JSON.parse(storedGroups) : [];
-                const hasLocalState =
-                  (Array.isArray(selected) && selected.length > 0) ||
-                  (Array.isArray(groups) && groups.length > 0);
-
+                const hasLocalState = hasMeaningfulLocalDashboardState();
                 isBootstrappedRef.current = hasLocalState;
                 if (hasLocalState) {
-                  // Ensure the server has the latest state after a refresh/reconnect so agent-side
-                  // derivation runs (which read derivationGroups from lastVisualizationState) work.
                   sendStateRef.current("initial_state_sync");
                 }
               } catch (error) {
@@ -1236,7 +610,7 @@ export function useWebSocketControl({
             }
             return;
           }
-          handleCommandRef.current(message as ControlCommand);
+          handleCommandRef.current(message as ControlCommand | ControlResponse);
         } catch (e) {
           console.error("[ws] Failed to parse message:", e);
         }

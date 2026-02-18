@@ -626,6 +626,8 @@ export interface VisualizationState {
   windowSize: number;
   windowStart: number;
   windowEnd: number;
+  yPrimaryDomain?: [number, number] | null;
+  ySecondaryDomain?: [number, number] | null;
   autoScroll: boolean;
   isFullscreen: boolean;
   viewport?: {

@@ -2,10 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { GripVertical } from "lucide-react";
 import type { SelectedMetric, DataPoint, CaptureSession } from "@shared/schema";
 import { cn } from "@/lib/utils";
-
-function sanitizeKey(key: string): string {
-  return key.replace(/\./g, "_");
-}
+import { sanitizeMetricPathKey } from "@/lib/dashboard/metric-utils";
 
 const HUD_MAX_VISIBLE_ROWS = 10;
 const HUD_ROW_AREA_MAX_HEIGHT_PX = 300;
@@ -84,7 +81,7 @@ export function MetricsHUD({
   const shouldScrollRows = selectedMetrics.length > HUD_MAX_VISIBLE_ROWS;
 
   const getDataKey = (metric: SelectedMetric): string => {
-    return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
+    return `${metric.captureId}_${sanitizeMetricPathKey(metric.fullPath)}`;
   };
 
   const getCaptureFilename = (captureId: string): string => {

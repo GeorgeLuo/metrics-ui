@@ -19,10 +19,7 @@ import type {
   CaptureSession,
 } from "@shared/schema";
 import { cn } from "@/lib/utils";
-
-function sanitizeKey(key: string): string {
-  return key.replace(/\./g, "_");
-}
+import { sanitizeMetricPathKey } from "@/lib/dashboard/metric-utils";
 
 interface MetricsChartProps {
   data: DataPoint[];
@@ -212,7 +209,7 @@ const ChartLines = memo(function ChartLines({
     return null;
   }
   const getDataKey = (metric: SelectedMetric): string => {
-    return `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
+    return `${metric.captureId}_${sanitizeMetricPathKey(metric.fullPath)}`;
   };
   const primaryTickFormatter = useMemo(
     () => createAxisTickFormatter(domain.yPrimary),
@@ -451,7 +448,8 @@ export function MetricsChart({
 
       visibleData.forEach((point) => {
         metrics.forEach((metric) => {
-          const dataKey = `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
+          const dataKey = `${metric.captureId}_${sanitizeMetricPathKey(metric.fullPath)}`;
+          
           const val = point[dataKey];
           if (typeof val === "number" && !isNaN(val)) {
             yMin = Math.min(yMin, val);
@@ -1300,7 +1298,7 @@ export function MetricsChart({
     const startPoint = tickMap.get(startTick);
     const endPoint = tickMap.get(endTick);
     const metrics = selectedMetrics.map((metric) => {
-      const dataKey = `${metric.captureId}_${sanitizeKey(metric.fullPath)}`;
+      const dataKey = `${metric.captureId}_${sanitizeMetricPathKey(metric.fullPath)}`;
       const startValue = startPoint?.[dataKey];
       const endValue = endPoint?.[dataKey];
       return {

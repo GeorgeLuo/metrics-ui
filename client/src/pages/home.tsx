@@ -65,9 +65,9 @@ import type {
 } from "@shared/schema";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useWebSocketControl } from "@/hooks/use-websocket-control";
+import { useStreamingActivityTracker } from "@/hooks/dashboard/use-streaming-activity";
 import { compactRecord } from "@shared/compact";
 import {
-  buildComponentTreeFromEntities,
   mergeComponentTrees,
 } from "@shared/component-tree";
 import {
@@ -79,6 +79,48 @@ import {
   readPerformanceMemory,
   type CaptureStats,
 } from "@/lib/memory-stats";
+import {
+  buildSeriesKey,
+  cloneMetric,
+  getMetricIdentityKey as getMetricKey,
+  normalizeMetricList,
+  sanitizeMetricPathKey as sanitizeKey,
+  uniqueMetrics,
+} from "@/lib/dashboard/metric-utils";
+import {
+  buildDerivedMetricLabel,
+  getDerivationGroupDerivedMetrics,
+  getDerivationGroupDisplayMetrics,
+  getDerivationGroupInputMetrics,
+  normalizeDerivationGroups,
+  resolveDerivedGroupIdForCapture,
+} from "@/lib/dashboard/derivation-utils";
+import {
+  buildEntitiesForMetrics,
+  deleteValueAtPath,
+  setValueAtPath,
+} from "@/lib/dashboard/entity-path-utils";
+import {
+  extractDataPoints,
+  parseComponentTree,
+  type MetricCoverageByCapture,
+} from "@/lib/dashboard/chart-data";
+import {
+  DEFAULT_BYTES_PER_POINT,
+  DEFAULT_BYTES_PER_PROP,
+  formatBytes,
+  formatDomainNumber,
+  MIN_Y_DOMAIN_SPAN,
+  sanitizeDomain,
+} from "@/lib/dashboard/number-format";
+import { isDerivedCaptureSource } from "@/lib/dashboard/source-utils";
+import {
+  DASHBOARD_STORAGE_KEYS,
+  readStorageJson,
+  readStorageString,
+  writeStorageJson,
+  writeStorageString,
+} from "@/lib/dashboard/storage";
 
 const INITIAL_WINDOW_SIZE = 50;
 const DEFAULT_POLL_SECONDS = 2;
@@ -122,14 +164,6 @@ interface LiveStreamMeta {
   retryTimer: number | null;
   retrySource: string | null;
   completed: boolean;
-}
-
-function isDerivedCaptureSource(value: unknown): boolean {
-  if (typeof value !== "string") {
-    return false;
-  }
-  const trimmed = value.trim().toLowerCase();
-  return trimmed.startsWith("derive://") || trimmed.startsWith("derive:/");
 }
 
 interface LiveStatusStream {
@@ -221,433 +255,15 @@ function computeSampleStats(samples: number[]) {
   };
 }
 
-function parseComponentTree(records: CaptureRecord[]): ComponentNode[] {
-  if (records.length === 0) return [];
-
-  const firstRecord =
-    records.find((record) => record.entities && Object.keys(record.entities).length > 0) ??
-    records[0];
-  if (!firstRecord) {
-    return [];
-  }
-
-  return buildComponentTreeFromEntities(firstRecord.entities || {});
-}
-
-function sanitizeKey(key: string): string {
-  return key.replace(/\./g, "_");
-}
-
-function getMetricKey(metric: Pick<SelectedMetric, "captureId" | "fullPath">): string {
-  return `${metric.captureId}::${metric.fullPath}`;
-}
-
-function uniqueMetrics(metrics: SelectedMetric[]): SelectedMetric[] {
-  const seen = new Set<string>();
-  const result: SelectedMetric[] = [];
-  metrics.forEach((metric) => {
-    const key = getMetricKey(metric);
-    if (seen.has(key)) {
-      return;
-    }
-    seen.add(key);
-    result.push(metric);
-  });
-  return result;
-}
-
-function getDerivationGroupInputMetrics(group: DerivationGroup): SelectedMetric[] {
-  return Array.isArray(group.metrics) ? group.metrics : [];
-}
-
-function getDerivationGroupDerivedMetrics(group: DerivationGroup): SelectedMetric[] {
-  return Array.isArray(group.derivedMetrics) ? group.derivedMetrics : [];
-}
-
-function getDerivationGroupDisplayMetrics(group: DerivationGroup): SelectedMetric[] {
-  return uniqueMetrics([
-    ...getDerivationGroupInputMetrics(group),
-    ...getDerivationGroupDerivedMetrics(group),
-  ]);
-}
-
-function normalizeMetricAxis(axis: unknown): "y2" | undefined {
-  return axis === "y2" ? "y2" : undefined;
-}
-
-function isSelectedMetricLike(metric: unknown): metric is SelectedMetric {
-  if (!metric || typeof metric !== "object") {
-    return false;
-  }
-  const value = metric as Record<string, unknown>;
-  return (
-    typeof value.captureId === "string" &&
-    Array.isArray(value.path) &&
-    typeof value.fullPath === "string" &&
-    typeof value.label === "string" &&
-    typeof value.color === "string" &&
-    (value.axis === undefined || value.axis === "y1" || value.axis === "y2")
-  );
-}
-
-function normalizeMetricList(metrics: unknown): SelectedMetric[] {
-  if (!Array.isArray(metrics)) {
-    return [];
-  }
-  const normalized = metrics
-    .filter((entry) => isSelectedMetricLike(entry))
-    .map((entry) => {
-      const value = entry as SelectedMetric;
-      return {
-        captureId: value.captureId,
-        path: Array.isArray(value.path) ? [...value.path] : [],
-        fullPath: value.fullPath,
-        label: value.label,
-        color: value.color,
-        axis: normalizeMetricAxis(value.axis),
-      } satisfies SelectedMetric;
-    });
-  return uniqueMetrics(normalized);
-}
-
-function cloneMetric(metric: SelectedMetric): SelectedMetric {
-  return {
-    captureId: metric.captureId,
-    path: [...metric.path],
-    fullPath: metric.fullPath,
-    label: metric.label,
-    color: metric.color,
-    axis: normalizeMetricAxis(metric.axis),
-  };
-}
-
-function metricOutputKey(metric: Pick<SelectedMetric, "path" | "label">): string {
-  const fromPath = metric.path[metric.path.length - 1];
-  if (typeof fromPath === "string" && fromPath.trim().length > 0) {
-    return fromPath;
-  }
-  return metric.label;
-}
-
-function buildDerivedMetricLabel(groupName: string, metric: Pick<SelectedMetric, "path" | "label">): string {
-  const baseName = groupName.trim().length > 0 ? groupName.trim() : "Derivation";
-  return `${baseName}.${metricOutputKey(metric)}`;
-}
-
-function resolveDerivedGroupIdForCapture(
-  captureId: string,
-  groups: DerivationGroup[],
-  outputGroupByCapture?: Map<string, string>,
-): string {
-  const mappedGroupId = outputGroupByCapture?.get(captureId) ?? "";
-  if (mappedGroupId && groups.some((group) => group.id === mappedGroupId)) {
-    return mappedGroupId;
-  }
-
-  for (const group of groups) {
-    const pluginId = typeof group.pluginId === "string" ? group.pluginId.trim() : "";
-    if (pluginId) {
-      const baseCaptureId = `derive-${group.id}-${pluginId}`;
-      if (captureId === baseCaptureId || captureId.startsWith(`${baseCaptureId}-`)) {
-        return group.id;
-      }
-    }
-    const hasDerivedMetricFromCapture = getDerivationGroupDerivedMetrics(group).some(
-      (metric) => metric.captureId === captureId,
-    );
-    if (hasDerivedMetricFromCapture) {
-      return group.id;
-    }
-  }
-
-  return "";
-}
-
-function normalizeDerivationGroups(raw: unknown): DerivationGroup[] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-  const groups: DerivationGroup[] = [];
-  raw.forEach((entry) => {
-    if (!entry || typeof entry !== "object") {
-      return;
-    }
-    const candidate = entry as Record<string, unknown>;
-    const id = typeof candidate.id === "string" ? candidate.id : "";
-    if (!id) {
-      return;
-    }
-    const name = typeof candidate.name === "string" ? candidate.name : id;
-    const pluginId = typeof candidate.pluginId === "string" ? candidate.pluginId : undefined;
-    const normalizedPluginId = pluginId?.trim() ?? "";
-    const metrics = normalizeMetricList(candidate.metrics);
-    const derivedMetrics = normalizeMetricList(candidate.derivedMetrics);
-
-    let inputMetrics = metrics;
-    let outputMetrics = derivedMetrics;
-    // Backward compatibility with legacy state where derived metrics were stored in metrics[].
-    if (outputMetrics.length === 0 && normalizedPluginId.length > 0) {
-      const derivedPrefix = `derive-${id}-${normalizedPluginId}`;
-      inputMetrics = [];
-      outputMetrics = [];
-      metrics.forEach((metric) => {
-        if (
-          metric.captureId === derivedPrefix ||
-          metric.captureId.startsWith(`${derivedPrefix}-`)
-        ) {
-          outputMetrics.push(metric);
-        } else {
-          inputMetrics.push(metric);
-        }
-      });
-    }
-
-    // Keep input/output sets disjoint. If a metric is already tracked as a derived
-    // output, it should not also be treated as an input for the same group.
-    const derivedMetricKeys = new Set(outputMetrics.map((metric) => getMetricKey(metric)));
-    if (derivedMetricKeys.size > 0) {
-      inputMetrics = inputMetrics.filter((metric) => !derivedMetricKeys.has(getMetricKey(metric)));
-    }
-
-    groups.push({
-      id,
-      name,
-      metrics: uniqueMetrics(inputMetrics),
-      derivedMetrics: uniqueMetrics(outputMetrics),
-      pluginId: normalizedPluginId.length > 0 ? normalizedPluginId : undefined,
-    });
-  });
-  return groups;
-}
-
-function buildSeriesKey(captureId: string, fullPath: string): string {
-  return `${captureId}::${fullPath}`;
-}
-
-function getValueAtPath(source: Record<string, unknown>, path: string[]): unknown {
-  let current: unknown = source;
-  for (const part of path) {
-    if (current && typeof current === "object" && part in current) {
-      current = (current as Record<string, unknown>)[part];
-    } else {
-      return undefined;
-    }
-  }
-  return current;
-}
-
-function setValueAtPath(target: Record<string, unknown>, path: string[], value: unknown) {
-  let current: Record<string, unknown> = target;
-  path.forEach((part, index) => {
-    if (index === path.length - 1) {
-      current[part] = value;
-      return;
-    }
-    const existing = current[part];
-    if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
-      current[part] = {};
-    }
-    current = current[part] as Record<string, unknown>;
-  });
-}
-
-function buildEntitiesForMetrics(
-  entities: Record<string, unknown>,
-  metrics: SelectedMetric[],
-): Record<string, Record<string, unknown>> {
-  const result: Record<string, unknown> = {};
-  metrics.forEach((metric) => {
-    const value = getValueAtPath(entities, metric.path);
-    if (value === undefined) {
-      return;
-    }
-    setValueAtPath(result, metric.path, value);
-  });
-  return result as Record<string, Record<string, unknown>>;
-}
-
-function deleteValueAtPath(target: Record<string, unknown>, path: string[]) {
-  if (path.length === 0) {
-    return;
-  }
-  const parents: Array<{ node: Record<string, unknown>; key: string }> = [];
-  let current: Record<string, unknown> = target;
-  for (let index = 0; index < path.length - 1; index += 1) {
-    const part = path[index];
-    const next = current[part];
-    if (!next || typeof next !== "object" || Array.isArray(next)) {
-      return;
-    }
-    parents.push({ node: current, key: part });
-    current = next as Record<string, unknown>;
-  }
-  delete current[path[path.length - 1]];
-  for (let i = parents.length - 1; i >= 0; i -= 1) {
-    const { node, key } = parents[i];
-    const value = node[key];
-    if (value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0) {
-      delete node[key];
-    } else {
-      break;
-    }
-  }
-}
-
-interface MetricCoverageEntry {
-  numericCount: number;
-  total: number;
-  lastTick: number | null;
-}
-
-type MetricCoverageByCapture = Record<string, Record<string, MetricCoverageEntry>>;
-
-const DEFAULT_BYTES_PER_PROP = 24;
-const DEFAULT_BYTES_PER_POINT = 16;
-
-const formatBytes = (bytes: number | null | undefined): string => {
-  if (!Number.isFinite(bytes ?? NaN)) {
-    return "—";
-  }
-  let value = bytes as number;
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  const precision = value >= 100 ? 0 : value >= 10 ? 1 : 2;
-  return `${value.toFixed(precision)} ${units[unitIndex]}`;
-};
-
-const MIN_Y_DOMAIN_SPAN = 1e-6;
-
-function formatDomainNumber(value: number): string {
-  if (!Number.isFinite(value)) {
-    return "0";
-  }
-  const abs = Math.abs(value);
-  if (abs >= 1000) {
-    return value.toFixed(0);
-  }
-  if (abs >= 100) {
-    return value.toFixed(1);
-  }
-  if (abs >= 1) {
-    return value.toFixed(2);
-  }
-  return value.toFixed(4);
-}
-
-function sanitizeDomain(domain: [number, number]): [number, number] {
-  let [min, max] = domain;
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    return [0, 100];
-  }
-  if (max <= min) {
-    max = min + MIN_Y_DOMAIN_SPAN;
-  }
-  return [min, max];
-}
-
-function extractDataPoints(
-  captures: CaptureSession[],
-  selectedMetrics: SelectedMetric[]
-): { data: DataPoint[]; coverage: MetricCoverageByCapture } {
-  const tickMap = new Map<number, DataPoint>();
-  const coverage: MetricCoverageByCapture = {};
-
-  const activeCaptures = captures.filter(c => c.isActive);
-  
-  activeCaptures.forEach(capture => {
-    const captureMetrics = selectedMetrics.filter(m => m.captureId === capture.id);
-    if (captureMetrics.length === 0) {
-      return;
-    }
-    if (!coverage[capture.id]) {
-      coverage[capture.id] = {};
-    }
-    const captureCoverage = coverage[capture.id];
-    const totalFrames = capture.records.length;
-    captureMetrics.forEach(metric => {
-      captureCoverage[metric.fullPath] = {
-        numericCount: 0,
-        total: totalFrames,
-        lastTick: null,
-      };
-    });
-    
-    capture.records.forEach(record => {
-      if (!tickMap.has(record.tick)) {
-        tickMap.set(record.tick, { tick: record.tick });
-      }
-      
-      const point = tickMap.get(record.tick)!;
-      
-      captureMetrics.forEach(metric => {
-        const pathParts = metric.path;
-        let value: unknown = record.entities;
-
-        for (const part of pathParts) {
-          if (value && typeof value === "object" && part in value) {
-            value = (value as Record<string, unknown>)[part];
-          } else {
-            value = null;
-            break;
-          }
-        }
-
-        const dataKey = `${capture.id}_${sanitizeKey(metric.fullPath)}`;
-        if (typeof value === "number") {
-          point[dataKey] = value;
-          const metricCoverage = captureCoverage[metric.fullPath];
-          if (metricCoverage) {
-            metricCoverage.numericCount += 1;
-            metricCoverage.lastTick = record.tick;
-          }
-        } else {
-          point[dataKey] = null;
-        }
-      });
-    });
-  });
-
-  return {
-    data: Array.from(tickMap.values()).sort((a, b) => a.tick - b.tick),
-    coverage,
-  };
-}
-
 export default function Home() {
   const [captures, setCaptures] = useState<CaptureSession[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>(() => {
-    if (typeof window === "undefined") {
-      return [];
-    }
-    const stored = window.localStorage.getItem("metrics-ui-selected-metrics");
-    if (!stored) {
-      return [];
-    }
-    try {
-      const parsed = JSON.parse(stored);
-      return normalizeMetricList(parsed);
-    } catch {
-      return [];
-    }
+    const parsed = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.selectedMetrics);
+    return normalizeMetricList(parsed);
   });
   const [derivationGroups, setDerivationGroups] = useState<DerivationGroup[]>(() => {
-    if (typeof window === "undefined") {
-      return [];
-    }
-    const stored = window.localStorage.getItem("metrics-ui-derivation-groups");
-    if (!stored) {
-      return [];
-    }
-    try {
-      const parsed = JSON.parse(stored);
-      return normalizeDerivationGroups(parsed);
-    } catch {
-      return [];
-    }
+    const parsed = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.derivationGroups);
+    return normalizeDerivationGroups(parsed);
   });
   const [derivationPlugins, setDerivationPlugins] = useState<DerivationPluginRecord[]>([]);
   const [derivationPluginsError, setDerivationPluginsError] = useState<string | null>(null);
@@ -658,16 +274,10 @@ export default function Home() {
   const [derivationPluginSourceError, setDerivationPluginSourceError] = useState<string | null>(null);
   const derivationPluginFileRef = useRef<HTMLInputElement | null>(null);
   const [activeDerivationGroupId, setActiveDerivationGroupId] = useState<string>(() => {
-    if (typeof window === "undefined") {
-      return "";
-    }
-    return window.localStorage.getItem("metrics-ui-active-derivation-group") ?? "";
+    return readStorageString(DASHBOARD_STORAGE_KEYS.activeDerivationGroupId) ?? "";
   });
   const [displayDerivationGroupId, setDisplayDerivationGroupId] = useState<string>(() => {
-    if (typeof window === "undefined") {
-      return "";
-    }
-    return window.localStorage.getItem("metrics-ui-display-derivation-group") ?? "";
+    return readStorageString(DASHBOARD_STORAGE_KEYS.displayDerivationGroupId) ?? "";
   });
   const [focusedDerivationGroupNameId, setFocusedDerivationGroupNameId] = useState<string>("");
   const [derivationGroupNameDrafts, setDerivationGroupNameDrafts] = useState<
@@ -679,42 +289,33 @@ export default function Home() {
   const [isSelectionOpen, setIsSelectionOpen] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [sourceMode, setSourceMode] = useState<"file" | "live">(() => {
-    if (typeof window === "undefined") {
-      return "file";
-    }
-    return window.localStorage.getItem("metrics-ui-source-mode") === "live"
+    return readStorageString(DASHBOARD_STORAGE_KEYS.sourceMode) === "live"
       ? "live"
       : "file";
   });
   const [liveStreams, setLiveStreams] = useState<LiveStreamEntry[]>(() => {
-    if (typeof window === "undefined") {
-      return [];
-    }
+    const parsed = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.liveStreams);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const hydrated = parsed
+        .map((entry) => ({
+          id: typeof (entry as { id?: unknown })?.id === "string"
+            ? ((entry as { id: string }).id)
+            : generateId(),
+          source: typeof (entry as { source?: unknown })?.source === "string"
+            ? ((entry as { source: string }).source)
+            : "",
+          pollSeconds:
+            Number.isFinite(Number((entry as { pollSeconds?: unknown })?.pollSeconds))
+            && Number((entry as { pollSeconds?: unknown }).pollSeconds) > 0
+              ? Number((entry as { pollSeconds: unknown }).pollSeconds)
+              : DEFAULT_POLL_SECONDS,
+          status: "idle" as LiveStreamStatus,
+          error: null,
+        }))
+        .filter((entry) => entry.source.trim().length > 0);
 
-    const stored = window.localStorage.getItem("metrics-ui-live-streams");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const hydrated = parsed
-            .map((entry) => ({
-              id: typeof entry?.id === "string" ? entry.id : generateId(),
-              source: typeof entry?.source === "string" ? entry.source : "",
-              pollSeconds:
-                Number.isFinite(Number(entry?.pollSeconds)) && Number(entry?.pollSeconds) > 0
-                  ? Number(entry.pollSeconds)
-                  : DEFAULT_POLL_SECONDS,
-              status: "idle" as LiveStreamStatus,
-              error: null,
-            }))
-            .filter((entry) => entry.source.trim().length > 0);
-
-          if (hydrated.length > 0) {
-            return hydrated;
-          }
-        }
-      } catch {
-        // ignore invalid stored state
+      if (hydrated.length > 0) {
+        return hydrated;
       }
     }
 
@@ -773,12 +374,20 @@ export default function Home() {
   >([]);
   const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
   const [isEventsVisible, setIsEventsVisible] = useState(false);
-  const [streamActivityVersion, setStreamActivityVersion] = useState(0);
   const [connectionLock, setConnectionLock] = useState<ConnectionLockState>(null);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
   const [docsContent, setDocsContent] = useState<string>("");
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState<string | null>(null);
+
+  const {
+    streamActivityVersion,
+    noteStreamingActivity,
+    stopStreamingIndicator,
+    pruneStreamingActivity,
+    clearStreamingActivity,
+    getStreamingCaptureIds,
+  } = useStreamingActivityTracker({ idleMs: STREAM_IDLE_MS });
 
   const playbackRef = useRef<number | null>(null);
   const capturesRef = useRef(captures);
@@ -836,9 +445,6 @@ export default function Home() {
     lastDurationMs: null as number | null,
   });
   const endedCapturesRef = useRef(new Set<string>());
-  const streamingCapturesRef = useRef(new Set<string>());
-  const streamLastActivityAtRef = useRef(new Map<string, number>());
-  const streamIdleTimersRef = useRef(new Map<string, number>());
   const liveErrorEventsRef = useRef(new Map<string, string>());
   const sendMessageRef = useRef<(message: ControlResponse | ControlCommand) => boolean>(() => false);
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
@@ -1181,26 +787,14 @@ export default function Home() {
       if (typeof window === "undefined") {
         return undefined;
       }
-      const safeParse = (value: string | null) => {
-        if (!value) return null;
-        try {
-          return JSON.parse(value);
-        } catch {
-          return value;
-        }
-      };
       return {
-        selectedMetrics: safeParse(window.localStorage.getItem("metrics-ui-selected-metrics")),
-        derivationGroups: safeParse(window.localStorage.getItem("metrics-ui-derivation-groups")),
-        activeDerivationGroupId: safeParse(
-          window.localStorage.getItem("metrics-ui-active-derivation-group"),
-        ),
-        displayDerivationGroupId: safeParse(
-          window.localStorage.getItem("metrics-ui-display-derivation-group"),
-        ),
-        liveStreams: safeParse(window.localStorage.getItem("metrics-ui-live-streams")),
-        sourceMode: safeParse(window.localStorage.getItem("metrics-ui-source-mode")),
-        theme: window.localStorage.getItem("theme"),
+        selectedMetrics: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.selectedMetrics),
+        derivationGroups: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.derivationGroups),
+        activeDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.activeDerivationGroupId),
+        displayDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.displayDerivationGroupId),
+        liveStreams: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.liveStreams),
+        sourceMode: readStorageString(DASHBOARD_STORAGE_KEYS.sourceMode),
+        theme: readStorageString("theme"),
       };
     })();
 
@@ -1439,24 +1033,7 @@ export default function Home() {
         endedCapturesRef.current.delete(id);
       }
     });
-    streamingCapturesRef.current.forEach((id) => {
-      if (!isActiveCaptureId(id)) {
-        streamingCapturesRef.current.delete(id);
-      }
-    });
-    streamLastActivityAtRef.current.forEach((_value, id) => {
-      if (!isActiveCaptureId(id)) {
-        streamLastActivityAtRef.current.delete(id);
-      }
-    });
-    streamIdleTimersRef.current.forEach((timerId, id) => {
-      if (!isActiveCaptureId(id)) {
-        if (typeof window !== "undefined") {
-          window.clearTimeout(timerId);
-        }
-        streamIdleTimersRef.current.delete(id);
-      }
-    });
+    pruneStreamingActivity(activeIds);
     liveErrorEventsRef.current.forEach((_value, id) => {
       if (!isActiveCaptureId(id)) {
         liveErrorEventsRef.current.delete(id);
@@ -1529,7 +1106,7 @@ export default function Home() {
     if (prunedPendingDerivations) {
       syncPendingDerivationRuns();
     }
-  }, [captures, syncPendingDerivationRuns]);
+  }, [captures, pruneStreamingActivity, syncPendingDerivationRuns]);
 
   const ingestCapturePayload = useCallback(
     (data: {
@@ -2083,41 +1660,23 @@ export default function Home() {
   }, [captures, selectedMetrics]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(
-      "metrics-ui-selected-metrics",
-      JSON.stringify(selectedMetrics),
-    );
+    writeStorageJson(DASHBOARD_STORAGE_KEYS.selectedMetrics, selectedMetrics);
   }, [selectedMetrics]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(
-      "metrics-ui-derivation-groups",
-      JSON.stringify(derivationGroups),
-    );
+    writeStorageJson(DASHBOARD_STORAGE_KEYS.derivationGroups, derivationGroups);
   }, [derivationGroups]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(
-      "metrics-ui-active-derivation-group",
+    writeStorageString(
+      DASHBOARD_STORAGE_KEYS.activeDerivationGroupId,
       activeDerivationGroupId,
     );
   }, [activeDerivationGroupId]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(
-      "metrics-ui-display-derivation-group",
+    writeStorageString(
+      DASHBOARD_STORAGE_KEYS.displayDerivationGroupId,
       displayDerivationGroupId,
     );
   }, [displayDerivationGroupId]);
@@ -2129,9 +1688,6 @@ export default function Home() {
   }, [sidebarMode]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
     const payload = liveStreams
       .filter(
         (entry) =>
@@ -2143,14 +1699,11 @@ export default function Home() {
         pollSeconds: entry.pollSeconds,
         completed: entry.status === "completed",
       }));
-    window.localStorage.setItem("metrics-ui-live-streams", JSON.stringify(payload));
+    writeStorageJson(DASHBOARD_STORAGE_KEYS.liveStreams, payload);
   }, [liveStreams]);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem("metrics-ui-source-mode", sourceMode);
+    writeStorageString(DASHBOARD_STORAGE_KEYS.sourceMode, sourceMode);
   }, [sourceMode]);
 
   const getLiveMeta = useCallback((id: string) => {
@@ -3232,68 +2785,6 @@ export default function Home() {
     stopLiveStream,
     updateLiveStream,
   ]);
-
-  const stopStreamingIndicator = useCallback((captureId: string) => {
-    if (!captureId) {
-      return;
-    }
-    const timer = streamIdleTimersRef.current.get(captureId);
-    if (timer !== undefined) {
-      window.clearTimeout(timer);
-      streamIdleTimersRef.current.delete(captureId);
-    }
-    streamLastActivityAtRef.current.delete(captureId);
-    if (streamingCapturesRef.current.delete(captureId)) {
-      setStreamActivityVersion((v) => v + 1);
-    }
-  }, []);
-
-  const noteStreamingActivity = useCallback((captureId: string) => {
-    if (!captureId) {
-      return;
-    }
-    streamLastActivityAtRef.current.set(captureId, Date.now());
-
-    if (!streamingCapturesRef.current.has(captureId)) {
-      streamingCapturesRef.current.add(captureId);
-      setStreamActivityVersion((v) => v + 1);
-    }
-
-    if (streamIdleTimersRef.current.has(captureId)) {
-      return;
-    }
-
-    const scheduleIdleCheck = () => {
-      const last = streamLastActivityAtRef.current.get(captureId) ?? 0;
-      const elapsed = Date.now() - last;
-      const delay = Math.max(0, STREAM_IDLE_MS - elapsed);
-      const timer = window.setTimeout(() => {
-        streamIdleTimersRef.current.delete(captureId);
-        const nextLast = streamLastActivityAtRef.current.get(captureId) ?? 0;
-        const nextElapsed = Date.now() - nextLast;
-        if (nextElapsed >= STREAM_IDLE_MS) {
-          streamLastActivityAtRef.current.delete(captureId);
-          if (streamingCapturesRef.current.delete(captureId)) {
-            setStreamActivityVersion((v) => v + 1);
-          }
-          return;
-        }
-        scheduleIdleCheck();
-      }, delay);
-      streamIdleTimersRef.current.set(captureId, timer);
-    };
-
-    scheduleIdleCheck();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      streamIdleTimersRef.current.forEach((timer) => {
-        window.clearTimeout(timer);
-      });
-      streamIdleTimersRef.current.clear();
-    };
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -5108,11 +4599,7 @@ export default function Home() {
     setSelectedMetrics([]);
     captureStatsRef.current.clear();
     endedCapturesRef.current.clear();
-    streamingCapturesRef.current.clear();
-    streamLastActivityAtRef.current.clear();
-    streamIdleTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-    streamIdleTimersRef.current.clear();
-    setStreamActivityVersion((v) => v + 1);
+    clearStreamingActivity();
     activeCaptureIdsRef.current.clear();
     pendingTicksRef.current.clear();
     lastSeriesRefreshRef.current.clear();
@@ -5140,7 +4627,7 @@ export default function Home() {
     setWindowStart(1);
     setWindowEnd(INITIAL_WINDOW_SIZE);
     setIsAutoScroll(true);
-  }, [clearAllPendingDerivationRuns]);
+  }, [clearAllPendingDerivationRuns, clearStreamingActivity]);
 
   const handlePlay = useCallback(() => {
     setPlaybackState((prev) => ({
@@ -5676,7 +5163,7 @@ export default function Home() {
         .filter((entry) => entry.status !== "idle" && entry.status !== "completed")
         .map((entry) => entry.id),
     );
-    Array.from(streamingCapturesRef.current).forEach((captureId) => {
+    getStreamingCaptureIds().forEach((captureId) => {
       if (liveStreamingIds.has(captureId)) {
         return;
       }
@@ -5702,6 +5189,7 @@ export default function Home() {
     loadingProbe,
     pendingDerivationRuns,
     streamActivityVersion,
+    getStreamingCaptureIds,
     uploadMutation.isPending,
   ]);
 
