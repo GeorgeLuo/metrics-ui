@@ -105,6 +105,7 @@ const CHART_MARGIN = { top: 5, right: 30, left: 20, bottom: 5 };
 const Y_AXIS_WIDTH = 60;
 const X_AXIS_HEIGHT = 30;
 const AXIS_ZOOM_SENSITIVITY = 0.01;
+const WHEEL_X_ZOOM_SENSITIVITY = 0.002;
 const MIN_DOMAIN_SPAN = 1e-6;
 const AXIS_TICK_STYLE = { style: { userSelect: "none" as const } };
 
@@ -1040,6 +1041,96 @@ export function MetricsChart({
     }
   }, []);
 
+  const handleChartWheel = useCallback(
+    (event: React.WheelEvent) => {
+      if (!onWindowRangeChange || !chartContainerRef.current || data.length === 0) {
+        return;
+      }
+      if (axisDragStateRef.current || selectionStateRef.current) {
+        return;
+      }
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-annotation-panel]")) {
+        return;
+      }
+      const deltaY = Number(event.deltaY);
+      if (!Number.isFinite(deltaY) || deltaY === 0) {
+        return;
+      }
+      const bounds = getPlotBounds();
+      if (!bounds) {
+        return;
+      }
+      const rect = chartContainerRef.current.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const localY = event.clientY - rect.top;
+      if (
+        localX < bounds.plotLeft
+        || localX > bounds.plotRight
+        || localY < bounds.plotTop
+        || localY > bounds.plotBottom
+      ) {
+        return;
+      }
+      const anchorTick = getTickFromX(localX);
+      if (anchorTick === null) {
+        return;
+      }
+
+      const allTicks = data
+        .map((point) => point.tick)
+        .filter((tick) => Number.isFinite(tick));
+      if (allTicks.length === 0) {
+        return;
+      }
+      const globalMinTick = Math.min(...allTicks);
+      const globalMaxTick = Math.max(...allTicks);
+      if (!Number.isFinite(globalMinTick) || !Number.isFinite(globalMaxTick) || globalMaxTick <= globalMinTick) {
+        return;
+      }
+
+      const currentStart = Math.max(globalMinTick, Math.min(windowStart, windowEnd));
+      const currentEnd = Math.min(globalMaxTick, Math.max(windowStart, windowEnd));
+      if (currentEnd <= currentStart) {
+        return;
+      }
+
+      event.preventDefault();
+      const zoomFactor = Math.exp(deltaY * WHEEL_X_ZOOM_SENSITIVITY);
+      const currentSpan = Math.max(1, currentEnd - currentStart + 1);
+      const minimumSideSpan = Math.max(1, currentSpan * 0.05);
+      const sideToStart = Math.max(anchorTick - currentStart, minimumSideSpan);
+      const sideToEnd = Math.max(currentEnd - anchorTick, minimumSideSpan);
+
+      let nextStart = anchorTick - sideToStart * zoomFactor;
+      let nextEnd = anchorTick + sideToEnd * zoomFactor;
+      if (!Number.isFinite(nextStart) || !Number.isFinite(nextEnd) || nextEnd <= nextStart) {
+        return;
+      }
+      if (nextEnd - nextStart < 1) {
+        const mid = (nextStart + nextEnd) / 2;
+        nextStart = mid - 0.5;
+        nextEnd = mid + 0.5;
+      }
+
+      if (nextStart < globalMinTick) {
+        const shift = globalMinTick - nextStart;
+        nextStart += shift;
+        nextEnd += shift;
+      }
+      if (nextEnd > globalMaxTick) {
+        const shift = nextEnd - globalMaxTick;
+        nextStart -= shift;
+        nextEnd -= shift;
+      }
+      nextStart = Math.max(globalMinTick, nextStart);
+      nextEnd = Math.min(globalMaxTick, nextEnd);
+
+      onWindowRangeChange(Math.floor(nextStart), Math.ceil(nextEnd));
+    },
+    [data, getPlotBounds, getTickFromX, onWindowRangeChange, windowEnd, windowStart],
+  );
+
   useEffect(() => {
     if (!isSelecting) {
       return;
@@ -1382,6 +1473,7 @@ export function MetricsChart({
           onMouseDown={handleChartMouseDown}
           onClick={handleChartClick}
           onDoubleClick={handleChartDoubleClick}
+          onWheel={handleChartWheel}
           onMouseMove={handleChartMouseMove}
           onMouseLeave={handleChartMouseLeave}
         >

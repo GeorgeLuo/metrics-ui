@@ -6067,7 +6067,7 @@ export default function Home() {
                 </span>
               </div>
               <div className="relative flex-1 min-h-0 rounded-md border border-border/50 bg-muted/20 overflow-hidden group/plugin-source">
-                <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-end p-1">
+                <div className="pointer-events-none absolute top-1 right-1 left-auto z-20">
                   <Button
                     type="button"
                     size="icon"
