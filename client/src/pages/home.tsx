@@ -2015,6 +2015,10 @@ export default function Home() {
             if (!captureId) {
               return;
             }
+            const lastError =
+              typeof stream?.lastError === "string" && stream.lastError.trim().length > 0
+                ? stream.lastError
+                : null;
             const pollSeconds = Number(stream?.pollIntervalMs)
               ? Math.max(0.5, Number(stream.pollIntervalMs) / 1000)
               : DEFAULT_POLL_SECONDS;
@@ -2022,8 +2026,8 @@ export default function Home() {
               id: captureId,
               source: typeof stream?.source === "string" ? stream.source : "",
               pollSeconds,
-              status: "connected",
-              error: typeof stream?.lastError === "string" ? stream.lastError : null,
+              status: lastError ? "retrying" : "connected",
+              error: lastError,
             };
             const existingIndex = indexById.get(captureId);
             if (existingIndex === undefined) {
@@ -2034,7 +2038,7 @@ export default function Home() {
               ...next[existingIndex],
               source: updated.source,
               pollSeconds: updated.pollSeconds,
-              status: "connected",
+              status: updated.status,
               error: updated.error,
             };
           });
