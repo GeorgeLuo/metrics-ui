@@ -246,7 +246,7 @@ function resolveHintFromTarget(target: EventTarget | null): string {
   return GENERIC_HINTS.interactive;
 }
 
-export function FloatingElement() {
+export function HintingPanel() {
   const [hint, setHint] = useState(DEFAULT_HINT);
   const lastHintRef = useRef(DEFAULT_HINT);
 
@@ -276,7 +276,7 @@ export function FloatingElement() {
   }, []);
 
   return (
-    <div className="select-none border-t border-border/60" data-testid="floating-element">
+    <div className="select-none border-t border-border/60" data-testid="hinting-panel">
       <div className="bg-transparent px-2" style={{ height: `${HINT_CONTAINER_HEIGHT_PX}px` }}>
         <div className="h-full px-2">
           <div

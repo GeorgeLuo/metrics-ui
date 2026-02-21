@@ -5,7 +5,7 @@ import { ComponentTree } from "@/components/component-tree";
 import { PlaybackControls } from "@/components/playback-controls";
 import { MetricsChart } from "@/components/metrics-chart";
 import { MetricsHUD } from "@/components/metrics-hud";
-import { FloatingElement } from "@/components/floating-element";
+import { HintingPanel } from "@/components/hinting-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7271,7 +7271,7 @@ export default function Home() {
               </>
             </div>
             </div>
-            <FloatingElement />
+            <HintingPanel />
           </SidebarContent>
         </Sidebar>
 
