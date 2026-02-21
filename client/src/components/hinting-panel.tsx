@@ -72,11 +72,11 @@ function isLikelyInteractive(element: HTMLElement): boolean {
   return element.tabIndex >= 0;
 }
 
-const HINT_CONTAINER_HEIGHT_PX = 32;
-const HINT_LINE_HEIGHT_PX = 13;
-const HINT_LINES = 2;
+const HINT_CONTAINER_HEIGHT_PX = 22;
+const HINT_LINE_HEIGHT_PX = 14;
+const HINT_LINES = 1;
 const HINT_BOTTOM_PAD_PX = 1;
-const DEFAULT_HEADSPACE_PX = 7;
+const DEFAULT_HEADSPACE_PX = 9;
 const HINT_TEXT_BOX_HEIGHT_PX = HINT_LINE_HEIGHT_PX * HINT_LINES + HINT_BOTTOM_PAD_PX;
 const MAX_HEADSPACE_PX = Math.max(0, HINT_CONTAINER_HEIGHT_PX - HINT_TEXT_BOX_HEIGHT_PX);
 const HINT_HEADSPACE_PX = Math.min(DEFAULT_HEADSPACE_PX, MAX_HEADSPACE_PX);
@@ -280,13 +280,13 @@ export function HintingPanel() {
       <div className="bg-transparent px-2" style={{ height: `${HINT_CONTAINER_HEIGHT_PX}px` }}>
         <div className="h-full px-2">
           <div
-            className="h-full min-w-0 flex items-start text-[13px] text-foreground/90"
+            className="h-full min-w-0 flex items-start text-[13px] text-foreground/75"
             data-hint-ignore="true"
             title={hint}
             style={{ paddingTop: `${HINT_HEADSPACE_PX}px` }}
           >
             <span
-              className="block flex-1 min-w-0 overflow-hidden break-words"
+              className="block flex-1 min-w-0 overflow-hidden break-words italic"
               style={{
                 lineHeight: `${HINT_LINE_HEIGHT_PX}px`,
                 maxHeight: `${HINT_TEXT_BOX_HEIGHT_PX}px`,
