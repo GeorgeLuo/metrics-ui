@@ -556,9 +556,16 @@ export function useWebSocketControl({
 
         let takeover = false;
         try {
+          const isMiniPlayer = window.location.pathname.startsWith("/mini");
+          // Mini player windows should behave like a pop-out that takes control.
+          takeover = isMiniPlayer;
           const params = new URLSearchParams(window.location.search);
           const raw = (params.get("takeover") ?? "").trim().toLowerCase();
-          takeover = raw === "1" || raw === "true" || raw === "yes";
+          if (raw === "1" || raw === "true" || raw === "yes") {
+            takeover = true;
+          } else if (raw === "0" || raw === "false" || raw === "no") {
+            takeover = false;
+          }
         } catch {
           // ignore URL parsing errors
         }

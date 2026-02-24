@@ -231,6 +231,8 @@ type ConnectionLockState = {
   closeReason: string;
 } | null;
 
+const MINI_PLAYER_CLOSED_MESSAGE = "metrics-ui-mini-player-closed";
+
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
 }
@@ -297,7 +299,11 @@ async function copyTextToClipboard(text: string): Promise<void> {
   }
 }
 
-export default function Home() {
+interface HomeProps {
+  miniMode?: boolean;
+}
+
+export default function Home({ miniMode = false }: HomeProps = {}) {
   const [captures, setCaptures] = useState<CaptureSession[]>([]);
   const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetric[]>(() => {
     const parsed = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.selectedMetrics);
@@ -420,6 +426,8 @@ export default function Home() {
   >([]);
   const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
   const [isEventsVisible, setIsEventsVisible] = useState(false);
+  const miniPopupRef = useRef<Window | null>(null);
+  const miniPopupPollRef = useRef<number | null>(null);
   const [connectionLock, setConnectionLock] = useState<ConnectionLockState>(null);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
   const [docsContent, setDocsContent] = useState<string>("");
@@ -5867,6 +5875,122 @@ export default function Home() {
     window.location.reload();
   }, []);
 
+  const clearMiniPopupWatcher = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (miniPopupPollRef.current !== null) {
+      window.clearInterval(miniPopupPollRef.current);
+      miniPopupPollRef.current = null;
+    }
+    miniPopupRef.current = null;
+  }, []);
+
+  const reclaimBaseWindowControl = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (window.location.pathname.startsWith("/mini")) {
+      return;
+    }
+    try {
+      const url = new URL(window.location.href);
+      url.pathname = "/";
+      url.searchParams.set("takeover", "1");
+      window.location.assign(url.toString());
+    } catch {
+      window.location.assign("/?takeover=1");
+    }
+  }, []);
+
+  const handleOpenMiniPlayer = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    let miniUrl = "/mini";
+    try {
+      const url = new URL(window.location.origin);
+      url.pathname = "/mini";
+      url.searchParams.set("takeover", "1");
+      miniUrl = url.toString();
+    } catch {
+      miniUrl = "/mini?takeover=1";
+    }
+    clearMiniPopupWatcher();
+    const popup = window.open(
+      miniUrl,
+      "metrics-ui-mini-player",
+      "popup=yes,width=720,height=420,resizable=yes,scrollbars=no",
+    );
+    if (!popup) {
+      window.location.assign(miniUrl);
+    } else {
+      miniPopupRef.current = popup;
+      miniPopupPollRef.current = window.setInterval(() => {
+        const trackedPopup = miniPopupRef.current;
+        if (!trackedPopup || trackedPopup.closed) {
+          clearMiniPopupWatcher();
+          reclaimBaseWindowControl();
+        }
+      }, 750);
+      try {
+        popup.focus();
+      } catch {
+        // ignore focus errors
+      }
+    }
+  }, [clearMiniPopupWatcher, reclaimBaseWindowControl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    return () => {
+      if (miniPopupPollRef.current !== null) {
+        window.clearInterval(miniPopupPollRef.current);
+        miniPopupPollRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || miniMode) {
+      return;
+    }
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      const payload = event.data as { type?: unknown } | null;
+      if (!payload || payload.type !== MINI_PLAYER_CLOSED_MESSAGE) {
+        return;
+      }
+      clearMiniPopupWatcher();
+      reclaimBaseWindowControl();
+    };
+    window.addEventListener("message", handleMessage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [miniMode, clearMiniPopupWatcher, reclaimBaseWindowControl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !miniMode) {
+      return;
+    }
+    const notifyOpener = () => {
+      try {
+        window.opener?.postMessage({ type: MINI_PLAYER_CLOSED_MESSAGE }, window.location.origin);
+      } catch {
+        // ignore cross-window messaging errors
+      }
+    };
+    window.addEventListener("beforeunload", notifyOpener);
+    return () => {
+      window.removeEventListener("beforeunload", notifyOpener);
+    };
+  }, [miniMode]);
+
   useLayoutEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -6033,6 +6157,113 @@ export default function Home() {
         setDocsLoading(false);
       });
   }, [docsContent.length, docsLoading]);
+
+  if (miniMode) {
+    return (
+      <>
+        {connectionLock ? (
+          <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-sm flex items-center justify-center p-6">
+            <div className="w-full max-w-lg rounded-md border border-border/60 bg-card/95 shadow-xl p-4 flex flex-col gap-3">
+              <div className="text-sm font-medium tracking-tight text-foreground">
+                Dashboard access locked
+              </div>
+              <div className="text-xs text-muted-foreground leading-relaxed">
+                {connectionLock.message}
+              </div>
+              <div className="text-[11px] text-muted-foreground font-mono">
+                close code: {connectionLock.closeCode}
+                {connectionLock.closeReason ? ` | reason: ${connectionLock.closeReason}` : ""}
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleTakeoverDashboard}
+                  data-testid="button-dashboard-lock-takeover"
+                >
+                  Take over this session
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRetryConnection}
+                  data-testid="button-dashboard-lock-retry"
+                >
+                  Retry
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        <div className="h-screen w-full bg-background overflow-hidden">
+          <div className="group/mini relative h-full w-full">
+            <div className="h-full w-full">
+              <MetricsChart
+                data={chartData}
+                selectedMetrics={activeMetrics}
+                currentTick={playbackState.currentTick}
+                windowStart={windowStart}
+                windowEnd={windowEnd}
+                resetViewVersion={resetViewVersion}
+                isAutoScroll={isAutoScroll}
+                annotations={annotations}
+                subtitles={subtitles}
+                captures={captures}
+                highlightedMetricKey={highlightedMetricKey}
+                yPrimaryDomain={manualYPrimaryDomain}
+                ySecondaryDomain={hasSecondaryAxis ? manualYSecondaryDomain : null}
+                onYPrimaryDomainChange={setManualYPrimaryDomain}
+                onYSecondaryDomainChange={setManualYSecondaryDomain}
+                onDomainChange={handleChartDomainChange}
+                onWindowRangeChange={handleWindowRangeChange}
+                onSizeChange={(size) => {
+                  setViewport((prev) => {
+                    const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };
+                    if (base.chartWidth === size.width && base.chartHeight === size.height) {
+                      return base;
+                    }
+                    return {
+                      ...base,
+                      chartWidth: size.width,
+                      chartHeight: size.height,
+                    };
+                  });
+                }}
+                onAddAnnotation={handleAddAnnotation}
+                onRemoveAnnotation={handleRemoveAnnotation}
+              />
+            </div>
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-150 ease-linear group-hover/mini:opacity-100 group-hover/mini:pointer-events-auto group-focus-within/mini:opacity-100 group-focus-within/mini:pointer-events-auto"
+              data-testid="mini-player-overlay"
+            >
+              <div className="px-2 pb-2 pt-10 bg-gradient-to-t from-background/60 via-background/20 to-transparent">
+                <div className="pointer-events-auto">
+                  <PlaybackControls
+                    playbackState={playbackState}
+                    onPlay={handlePlay}
+                    onPause={handlePause}
+                    onStop={handleStop}
+                    onSeek={handleSeek}
+                    onSpeedChange={handleSpeedChange}
+                    onStepForward={handleStepForward}
+                    onStepBackward={handleStepBackward}
+                    currentTime=""
+                    disabled={captures.length === 0}
+                    seekDisabled={isWindowed}
+                  />
+                  <div className="pt-1 text-[10px] text-foreground/60 text-right" data-testid="mini-loading-status">
+                    {isLoading ? `Loading ${loadingEntries.length}` : "Stable"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
@@ -7403,6 +7634,15 @@ export default function Home() {
                 title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               >
                 {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleOpenMiniPlayer}
+                data-testid="button-mini-popout"
+                title="Pop out mini player"
+              >
+                <ExternalLink className="w-4 h-4" />
               </Button>
               <Button
                 variant="ghost"

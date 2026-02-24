@@ -8,10 +8,19 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import DocsPage from "@/pages/docs";
 
+function MainHome() {
+  return <Home />;
+}
+
+function MiniHome() {
+  return <Home miniMode />;
+}
+
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={MainHome} />
+      <Route path="/mini" component={MiniHome} />
       <Route path="/docs" component={DocsPage} />
       <Route component={NotFound} />
     </Switch>
