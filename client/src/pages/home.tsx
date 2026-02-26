@@ -5,6 +5,8 @@ import { ComponentTree } from "@/components/component-tree";
 import { PlaybackControls } from "@/components/playback-controls";
 import { MetricsChart } from "@/components/metrics-chart";
 import { MetricsHUD } from "@/components/metrics-hud";
+import { FloatingFrame } from "@/components/floating-frame";
+import { PopoutProjection } from "@/components/popout-projection";
 import { HintingPanel } from "@/components/hinting-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -231,8 +233,6 @@ type ConnectionLockState = {
   closeReason: string;
 } | null;
 
-const MINI_PLAYER_CLOSED_MESSAGE = "metrics-ui-mini-player-closed";
-
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
 }
@@ -426,8 +426,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   >([]);
   const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
   const [isEventsVisible, setIsEventsVisible] = useState(false);
-  const miniPopupRef = useRef<Window | null>(null);
-  const miniPopupPollRef = useRef<number | null>(null);
+  const [isMiniProjectionOpen, setIsMiniProjectionOpen] = useState(false);
   const [connectionLock, setConnectionLock] = useState<ConnectionLockState>(null);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
   const [docsContent, setDocsContent] = useState<string>("");
@@ -5875,121 +5874,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     window.location.reload();
   }, []);
 
-  const clearMiniPopupWatcher = useCallback(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (miniPopupPollRef.current !== null) {
-      window.clearInterval(miniPopupPollRef.current);
-      miniPopupPollRef.current = null;
-    }
-    miniPopupRef.current = null;
-  }, []);
-
-  const reclaimBaseWindowControl = useCallback(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    if (window.location.pathname.startsWith("/mini")) {
-      return;
-    }
-    try {
-      const url = new URL(window.location.href);
-      url.pathname = "/";
-      url.searchParams.set("takeover", "1");
-      window.location.assign(url.toString());
-    } catch {
-      window.location.assign("/?takeover=1");
-    }
-  }, []);
-
   const handleOpenMiniPlayer = useCallback(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    let miniUrl = "/mini";
-    try {
-      const url = new URL(window.location.origin);
-      url.pathname = "/mini";
-      url.searchParams.set("takeover", "1");
-      miniUrl = url.toString();
-    } catch {
-      miniUrl = "/mini?takeover=1";
-    }
-    clearMiniPopupWatcher();
-    const popup = window.open(
-      miniUrl,
-      "metrics-ui-mini-player",
-      "popup=yes,width=720,height=420,resizable=yes,scrollbars=no",
-    );
-    if (!popup) {
-      window.location.assign(miniUrl);
-    } else {
-      miniPopupRef.current = popup;
-      miniPopupPollRef.current = window.setInterval(() => {
-        const trackedPopup = miniPopupRef.current;
-        if (!trackedPopup || trackedPopup.closed) {
-          clearMiniPopupWatcher();
-          reclaimBaseWindowControl();
-        }
-      }, 750);
-      try {
-        popup.focus();
-      } catch {
-        // ignore focus errors
-      }
-    }
-  }, [clearMiniPopupWatcher, reclaimBaseWindowControl]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    return () => {
-      if (miniPopupPollRef.current !== null) {
-        window.clearInterval(miniPopupPollRef.current);
-        miniPopupPollRef.current = null;
-      }
-    };
+    setIsMiniProjectionOpen(true);
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || miniMode) {
-      return;
-    }
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) {
-        return;
-      }
-      const payload = event.data as { type?: unknown } | null;
-      if (!payload || payload.type !== MINI_PLAYER_CLOSED_MESSAGE) {
-        return;
-      }
-      clearMiniPopupWatcher();
-      reclaimBaseWindowControl();
-    };
-    window.addEventListener("message", handleMessage);
-    return () => {
-      window.removeEventListener("message", handleMessage);
-    };
-  }, [miniMode, clearMiniPopupWatcher, reclaimBaseWindowControl]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !miniMode) {
-      return;
-    }
-    const notifyOpener = () => {
-      try {
-        window.opener?.postMessage({ type: MINI_PLAYER_CLOSED_MESSAGE }, window.location.origin);
-      } catch {
-        // ignore cross-window messaging errors
-      }
-    };
-    window.addEventListener("beforeunload", notifyOpener);
-    return () => {
-      window.removeEventListener("beforeunload", notifyOpener);
-    };
-  }, [miniMode]);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") {
@@ -6158,6 +6045,115 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       });
   }, [docsContent.length, docsLoading]);
 
+  const miniChart = (
+    <MetricsChart
+      data={chartData}
+      selectedMetrics={activeMetrics}
+      currentTick={playbackState.currentTick}
+      windowStart={windowStart}
+      windowEnd={windowEnd}
+      resetViewVersion={resetViewVersion}
+      isAutoScroll={isAutoScroll}
+      annotations={annotations}
+      subtitles={subtitles}
+      captures={captures}
+      highlightedMetricKey={highlightedMetricKey}
+      yPrimaryDomain={manualYPrimaryDomain}
+      ySecondaryDomain={hasSecondaryAxis ? manualYSecondaryDomain : null}
+      onYPrimaryDomainChange={setManualYPrimaryDomain}
+      onYSecondaryDomainChange={setManualYSecondaryDomain}
+      onDomainChange={handleChartDomainChange}
+      onWindowRangeChange={handleWindowRangeChange}
+      onSizeChange={(size) => {
+        setViewport((prev) => {
+          const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };
+          if (base.chartWidth === size.width && base.chartHeight === size.height) {
+            return base;
+          }
+          return {
+            ...base,
+            chartWidth: size.width,
+            chartHeight: size.height,
+          };
+        });
+      }}
+      onAddAnnotation={handleAddAnnotation}
+      onRemoveAnnotation={handleRemoveAnnotation}
+    />
+  );
+
+  const miniProjectionChart = (
+    <MetricsChart
+      data={chartData}
+      selectedMetrics={activeMetrics}
+      currentTick={playbackState.currentTick}
+      windowStart={windowStart}
+      windowEnd={windowEnd}
+      resetViewVersion={resetViewVersion}
+      isAutoScroll={isAutoScroll}
+      annotations={annotations}
+      subtitles={subtitles}
+      captures={captures}
+      highlightedMetricKey={highlightedMetricKey}
+      yPrimaryDomain={manualYPrimaryDomain}
+      ySecondaryDomain={hasSecondaryAxis ? manualYSecondaryDomain : null}
+      onYPrimaryDomainChange={setManualYPrimaryDomain}
+      onYSecondaryDomainChange={setManualYSecondaryDomain}
+      onDomainChange={handleChartDomainChange}
+      onWindowRangeChange={handleWindowRangeChange}
+      onSizeChange={(size) => {
+        setViewport((prev) => {
+          const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };
+          if (base.chartWidth === size.width && base.chartHeight === size.height) {
+            return base;
+          }
+          return {
+            ...base,
+            chartWidth: size.width,
+            chartHeight: size.height,
+          };
+        });
+      }}
+      onAddAnnotation={handleAddAnnotation}
+      onRemoveAnnotation={handleRemoveAnnotation}
+      compact
+      eagerResize
+    />
+  );
+
+  const miniStandaloneContent = (
+    <div className="group/mini relative h-full w-full">
+      <div className="h-full w-full">{miniChart}</div>
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-150 ease-linear group-hover/mini:opacity-100 group-hover/mini:pointer-events-auto group-focus-within/mini:opacity-100 group-focus-within/mini:pointer-events-auto"
+        data-testid="mini-player-overlay"
+      >
+        <div className="px-2 pb-2 pt-10 bg-gradient-to-t from-background/60 via-background/20 to-transparent">
+          <div className="pointer-events-auto">
+            <PlaybackControls
+              playbackState={playbackState}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onStop={handleStop}
+              onSeek={handleSeek}
+              onSpeedChange={handleSpeedChange}
+              onStepForward={handleStepForward}
+              onStepBackward={handleStepBackward}
+              currentTime=""
+              disabled={captures.length === 0}
+              seekDisabled={isWindowed}
+            />
+            <div className="pt-1 text-[10px] text-foreground/60 text-right" data-testid="mini-loading-status">
+              {isLoading ? `Loading ${loadingEntries.length}` : "Stable"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const miniProjectionContent = <div className="h-full w-full pr-3 box-border">{miniProjectionChart}</div>;
+
   if (miniMode) {
     return (
       <>
@@ -6197,69 +6193,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           </div>
         ) : null}
         <div className="h-screen w-full bg-background overflow-hidden">
-          <div className="group/mini relative h-full w-full">
-            <div className="h-full w-full">
-              <MetricsChart
-                data={chartData}
-                selectedMetrics={activeMetrics}
-                currentTick={playbackState.currentTick}
-                windowStart={windowStart}
-                windowEnd={windowEnd}
-                resetViewVersion={resetViewVersion}
-                isAutoScroll={isAutoScroll}
-                annotations={annotations}
-                subtitles={subtitles}
-                captures={captures}
-                highlightedMetricKey={highlightedMetricKey}
-                yPrimaryDomain={manualYPrimaryDomain}
-                ySecondaryDomain={hasSecondaryAxis ? manualYSecondaryDomain : null}
-                onYPrimaryDomainChange={setManualYPrimaryDomain}
-                onYSecondaryDomainChange={setManualYSecondaryDomain}
-                onDomainChange={handleChartDomainChange}
-                onWindowRangeChange={handleWindowRangeChange}
-                onSizeChange={(size) => {
-                  setViewport((prev) => {
-                    const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };
-                    if (base.chartWidth === size.width && base.chartHeight === size.height) {
-                      return base;
-                    }
-                    return {
-                      ...base,
-                      chartWidth: size.width,
-                      chartHeight: size.height,
-                    };
-                  });
-                }}
-                onAddAnnotation={handleAddAnnotation}
-                onRemoveAnnotation={handleRemoveAnnotation}
-              />
-            </div>
-            <div
-              className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-150 ease-linear group-hover/mini:opacity-100 group-hover/mini:pointer-events-auto group-focus-within/mini:opacity-100 group-focus-within/mini:pointer-events-auto"
-              data-testid="mini-player-overlay"
-            >
-              <div className="px-2 pb-2 pt-10 bg-gradient-to-t from-background/60 via-background/20 to-transparent">
-                <div className="pointer-events-auto">
-                  <PlaybackControls
-                    playbackState={playbackState}
-                    onPlay={handlePlay}
-                    onPause={handlePause}
-                    onStop={handleStop}
-                    onSeek={handleSeek}
-                    onSpeedChange={handleSpeedChange}
-                    onStepForward={handleStepForward}
-                    onStepBackward={handleStepBackward}
-                    currentTime=""
-                    disabled={captures.length === 0}
-                    seekDisabled={isWindowed}
-                  />
-                  <div className="pt-1 text-[10px] text-foreground/60 text-right" data-testid="mini-loading-status">
-                    {isLoading ? `Loading ${loadingEntries.length}` : "Stable"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {miniStandaloneContent}
         </div>
       </>
     );
@@ -6362,6 +6296,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           </div>
         </DialogContent>
       </Dialog>
+      <PopoutProjection
+        open={isMiniProjectionOpen}
+        onOpenChange={setIsMiniProjectionOpen}
+        windowName="metrics-ui-mini-player-projection"
+        title="Metrics UI - Mini Player"
+      >
+        {miniProjectionContent}
+      </PopoutProjection>
       {connectionLock ? (
         <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-sm flex items-center justify-center p-6">
           <div className="w-full max-w-lg rounded-md border border-border/60 bg-card/95 shadow-xl p-4 flex flex-col gap-3">
@@ -7638,15 +7580,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={handleOpenMiniPlayer}
-                data-testid="button-mini-popout"
-                title="Pop out mini player"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
                 data-testid="button-docs"
                 onClick={handleOpenDocs}
               >
@@ -7707,6 +7640,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                 onHoverMetric={setHighlightedMetricKey}
                 highlightedMetricKey={highlightedMetricKey}
               />
+              <FloatingFrame
+                title="Visualization Frame"
+                className="w-[320px]"
+                dataTestId="visualization-floating-frame"
+                popoutable
+                popoutWindowName="metrics-ui-visualization-frame"
+                popoutWindowTitle="Metrics UI - Visualization Frame"
+              />
             </div>
 
             <div className="shrink-0">
@@ -7722,6 +7663,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                 currentTime=""
                 disabled={captures.length === 0}
                 seekDisabled={isWindowed}
+                onOpenMiniPlayer={handleOpenMiniPlayer}
               />
             </div>
           </main>

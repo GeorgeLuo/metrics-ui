@@ -1,5 +1,5 @@
 import { useState, useMemo, memo, useRef, useLayoutEffect } from "react";
-import { ChevronRight, ChevronDown, Search, Hash, Type, Braces, List } from "lucide-react";
+import { ChevronRight, ChevronDown, Hash, Type, Braces, List } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,10 @@ const METRIC_COLORS = [
 
 const TREE_ROW_HEIGHT = 24;
 const TREE_OVERSCAN_ROWS = 10;
+const INLINE_EDIT_BASE_CLASS =
+  "h-auto p-0 text-xs md:text-xs font-mono text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0";
+const INLINE_EDIT_TEXT_CLASS = `${INLINE_EDIT_BASE_CLASS} text-left`;
+const INLINE_EDIT_EMPTY_CLASS = "rounded-sm bg-muted/40 px-1";
 
 interface ComponentTreeProps {
   captureId: string;
@@ -359,21 +363,19 @@ function ComponentTreeBase({
   );
   const topSpacerHeight = startIndex * TREE_ROW_HEIGHT;
   const bottomSpacerHeight = Math.max(0, (visibleRows.length - endIndex) * TREE_ROW_HEIGHT);
+  const isSearchBlank = searchQuery.trim().length === 0;
 
   return (
     <div className="flex flex-col gap-1">
       <div className="px-2 pb-1">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-7 h-7 text-xs"
-            data-testid={`input-search-${captureId}`}
-          />
-        </div>
+        <Input
+          type="search"
+          placeholder="Search..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className={`${INLINE_EDIT_TEXT_CLASS} w-full ${isSearchBlank ? INLINE_EDIT_EMPTY_CLASS : ""}`}
+          data-testid={`input-search-${captureId}`}
+        />
       </div>
       <div
         ref={viewportRef}

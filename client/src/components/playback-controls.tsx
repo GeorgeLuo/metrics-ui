@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Square, SkipBack, SkipForward, Rewind, FastForward } from "lucide-react";
+import { Play, Pause, Square, SkipBack, SkipForward, Rewind, FastForward, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -24,6 +24,7 @@ interface PlaybackControlsProps {
   currentTime: string;
   disabled: boolean;
   seekDisabled?: boolean;
+  onOpenMiniPlayer?: () => void;
 }
 
 const SPEED_OPTIONS = [
@@ -45,6 +46,7 @@ export function PlaybackControls({
   currentTime,
   disabled,
   seekDisabled = false,
+  onOpenMiniPlayer,
 }: PlaybackControlsProps) {
   const { isPlaying, currentTick, totalTicks, speed } = playbackState;
   const [scrubTick, setScrubTick] = useState(currentTick);
@@ -191,6 +193,18 @@ export function PlaybackControls({
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
+          {onOpenMiniPlayer ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenMiniPlayer}
+              data-testid="button-mini-popout"
+              title="Pop out mini player"
+              aria-label="Pop out mini player"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </Button>
+          ) : null}
           <div className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground hidden sm:inline">Speed:</span>
             <Select

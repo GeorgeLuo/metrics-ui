@@ -45,6 +45,8 @@ interface MetricsChartProps {
   onAddAnnotation?: (annotation: Annotation) => void;
   onRemoveAnnotation?: (options: { id?: string; tick?: number }) => void;
   onWindowRangeChange?: (startTick: number, endTick: number) => void;
+  compact?: boolean;
+  eagerResize?: boolean;
 }
 
 interface ChartDomain {
@@ -57,6 +59,9 @@ interface ChartLinesProps {
   data: DataPoint[];
   selectedMetrics: SelectedMetric[];
   domain: ChartDomain;
+  chartMargin: { top: number; right: number; left: number; bottom: number };
+  yAxisWidth: number;
+  rightAxisInset: number;
   hasSecondaryAxis: boolean;
   annotations: Annotation[];
   selectionSummary: SelectionSummary | null;
@@ -65,6 +70,7 @@ interface ChartLinesProps {
   captures: CaptureSession[];
   highlightedMetricKey?: string | null;
   suppressCursor?: boolean;
+  xAxisHeight: number;
   width?: number;
   height?: number;
 }
@@ -75,8 +81,11 @@ interface ChartCursorProps {
   height?: number;
   stroke?: string;
   viewBox?: { x?: number; y?: number; width?: number; height?: number };
+  plotLeft?: number;
+  plotRight?: number;
   plotTop?: number;
   plotBottom?: number;
+  axisHeight?: number;
 }
 
 interface SelectionSummaryMetric {
@@ -101,9 +110,11 @@ interface PlotBounds {
   plotBottom: number;
 }
 
-const CHART_MARGIN = { top: 5, right: 30, left: 20, bottom: 5 };
-const Y_AXIS_WIDTH = 60;
-const X_AXIS_HEIGHT = 30;
+const CHART_MARGIN = { top: 8, right: 30, left: 12, bottom: 8 };
+const COMPACT_CHART_MARGIN = { top: 8, right: 6, left: 6, bottom: 8 };
+const Y_AXIS_WIDTH = 68;
+const COMPACT_Y_AXIS_WIDTH = 56;
+const X_AXIS_HEIGHT = 32;
 const AXIS_ZOOM_SENSITIVITY = 0.01;
 const WHEEL_X_ZOOM_SENSITIVITY = 0.002;
 const MIN_DOMAIN_SPAN = 1e-6;
@@ -143,8 +154,11 @@ function ChartCursor({
   height,
   stroke,
   viewBox,
+  plotLeft,
+  plotRight,
   plotTop,
   plotBottom,
+  axisHeight,
 }: ChartCursorProps) {
   const x = points?.[0]?.x;
   if (!Number.isFinite(x)) {
@@ -163,10 +177,12 @@ function ChartCursor({
   if (resolvedHeight === null || !Number.isFinite(resolvedHeight)) {
     return null;
   }
-  const viewRight = viewWidth !== undefined ? viewLeft + viewWidth : undefined;
+  const viewRight = Number.isFinite(plotRight) ? (plotRight as number) : viewWidth !== undefined ? viewLeft + viewWidth : undefined;
   let clampedX = x as number;
-  const plotLeft = Math.max(viewLeft, CHART_MARGIN.left + Y_AXIS_WIDTH);
-  clampedX = Math.max(plotLeft, clampedX);
+  const resolvedPlotLeft = Number.isFinite(plotLeft)
+    ? (plotLeft as number)
+    : viewLeft + CHART_MARGIN.left + Y_AXIS_WIDTH;
+  clampedX = Math.max(resolvedPlotLeft, clampedX);
   if (viewRight !== undefined) {
     clampedX = Math.min(viewRight, clampedX);
   }
@@ -175,7 +191,7 @@ function ChartCursor({
     : viewTop + CHART_MARGIN.top;
   const lineBottom = Number.isFinite(plotBottom)
     ? (plotBottom as number)
-    : viewTop + resolvedHeight - X_AXIS_HEIGHT;
+    : viewTop + resolvedHeight - (axisHeight ?? X_AXIS_HEIGHT);
   if (lineBottom <= lineTop) {
     return null;
   }
@@ -195,6 +211,9 @@ const ChartLines = memo(function ChartLines({
   data,
   selectedMetrics,
   domain,
+  chartMargin,
+  yAxisWidth,
+  rightAxisInset,
   hasSecondaryAxis,
   annotations,
   selectionSummary,
@@ -203,12 +222,17 @@ const ChartLines = memo(function ChartLines({
   captures,
   highlightedMetricKey,
   suppressCursor,
+  xAxisHeight,
   width,
   height,
 }: ChartLinesProps) {
   if (!width || !height) {
     return null;
   }
+  const plotTop = chartMargin.top;
+  const plotBottom = height - (chartMargin.bottom + xAxisHeight);
+  const plotLeft = chartMargin.left + yAxisWidth;
+  const plotRight = width - (chartMargin.right + rightAxisInset);
   const getDataKey = (metric: SelectedMetric): string => {
     return `${metric.captureId}_${sanitizeMetricPathKey(metric.fullPath)}`;
   };
@@ -307,13 +331,13 @@ const ChartLines = memo(function ChartLines({
   );
 
   return (
-    <LineChart width={width} height={height} data={data} margin={CHART_MARGIN}>
+    <LineChart width={width} height={height} data={data} margin={chartMargin}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted/30" />
         <XAxis
           dataKey="tick"
           domain={domain.x}
           type="number"
-          height={X_AXIS_HEIGHT}
+          height={xAxisHeight}
           tick={AXIS_TICK_STYLE}
           tickFormatter={(v) => v.toLocaleString()}
           className="text-xs fill-muted-foreground"
@@ -322,7 +346,7 @@ const ChartLines = memo(function ChartLines({
           yAxisId="left"
           domain={domain.yPrimary}
           allowDataOverflow={true}
-          width={Y_AXIS_WIDTH}
+          width={yAxisWidth}
           tickCount={6}
           tick={AXIS_TICK_STYLE}
           tickFormatter={primaryTickFormatter}
@@ -334,7 +358,7 @@ const ChartLines = memo(function ChartLines({
             orientation="right"
             domain={domain.ySecondary}
             allowDataOverflow={true}
-            width={Y_AXIS_WIDTH}
+            width={yAxisWidth}
             tickCount={6}
             tick={AXIS_TICK_STYLE}
             tickFormatter={secondaryTickFormatter}
@@ -347,8 +371,11 @@ const ChartLines = memo(function ChartLines({
               ? false
               : (
                 <ChartCursor
-                  plotTop={CHART_MARGIN.top}
-                  plotBottom={height - (CHART_MARGIN.bottom + X_AXIS_HEIGHT)}
+                  plotLeft={plotLeft}
+                  plotRight={plotRight}
+                  plotTop={plotTop}
+                  plotBottom={plotBottom}
+                  axisHeight={xAxisHeight}
                 />
               )
           }
@@ -398,6 +425,8 @@ export function MetricsChart({
   onAddAnnotation,
   onRemoveAnnotation,
   onWindowRangeChange,
+  compact = false,
+  eagerResize = false,
 }: MetricsChartProps) {
   const visibleData = useMemo(() => {
     if (data.length === 0) return [];
@@ -411,6 +440,10 @@ export function MetricsChart({
     () => selectedMetrics.some((metric) => metric.axis === "y2"),
     [selectedMetrics],
   );
+  const chartMargin = compact ? COMPACT_CHART_MARGIN : CHART_MARGIN;
+  const yAxisWidth = compact ? COMPACT_Y_AXIS_WIDTH : Y_AXIS_WIDTH;
+  const rightAxisInset = hasSecondaryAxis ? yAxisWidth : compact ? yAxisWidth : 0;
+  const xAxisHeight = compact ? X_AXIS_HEIGHT + 6 : X_AXIS_HEIGHT;
 
   const [internalYPrimaryDomain, setInternalYPrimaryDomain] = useState<[number, number] | null>(null);
   const [internalYSecondaryDomain, setInternalYSecondaryDomain] = useState<[number, number] | null>(null);
@@ -596,6 +629,16 @@ export function MetricsChart({
     dragged: boolean;
   } | null>(null);
 
+  const getOwnerDocument = useCallback((): Document | null => {
+    if (chartContainerRef.current?.ownerDocument) {
+      return chartContainerRef.current.ownerDocument;
+    }
+    if (typeof document !== "undefined") {
+      return document;
+    }
+    return null;
+  }, []);
+
   const commitChartSize = useCallback((nextWidth: number, nextHeight: number) => {
     const prev = chartSizeRef.current;
     if (prev.width === nextWidth && prev.height === nextHeight) {
@@ -654,14 +697,14 @@ export function MetricsChart({
       if (!chartSize.width || xMax === xMin) {
         return null;
       }
-      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
-      const plotRight = chartSize.width - CHART_MARGIN.right - (hasSecondaryAxis ? Y_AXIS_WIDTH : 0);
+      const plotLeft = yAxisWidth + chartMargin.left;
+      const plotRight = chartSize.width - chartMargin.right - rightAxisInset;
       const plotWidth = Math.max(1, plotRight - plotLeft);
       const clampedTick = Math.min(Math.max(tick, xMin), xMax);
       const ratio = (clampedTick - xMin) / (xMax - xMin);
       return plotLeft + ratio * plotWidth;
     },
-    [chartSize.width, domain.x, hasSecondaryAxis],
+    [chartMargin.left, chartMargin.right, chartSize.width, domain.x, rightAxisInset, yAxisWidth],
   );
 
   const getTickFromX = useCallback(
@@ -670,29 +713,29 @@ export function MetricsChart({
       if (!chartSize.width || xMax === xMin) {
         return null;
       }
-      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
-      const plotRight = chartSize.width - CHART_MARGIN.right - (hasSecondaryAxis ? Y_AXIS_WIDTH : 0);
+      const plotLeft = yAxisWidth + chartMargin.left;
+      const plotRight = chartSize.width - chartMargin.right - rightAxisInset;
       const plotWidth = Math.max(1, plotRight - plotLeft);
       const clampedX = Math.min(Math.max(x, plotLeft), plotRight);
       const ratio = (clampedX - plotLeft) / plotWidth;
       return Math.round(xMin + ratio * (xMax - xMin));
     },
-    [chartSize.width, domain.x, hasSecondaryAxis],
+    [chartMargin.left, chartMargin.right, chartSize.width, domain.x, rightAxisInset, yAxisWidth],
   );
 
   const getPlotBounds = useCallback((): PlotBounds | null => {
     if (!chartSize.width || !chartSize.height) {
       return null;
     }
-    const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
-    const plotRight = chartSize.width - CHART_MARGIN.right - (hasSecondaryAxis ? Y_AXIS_WIDTH : 0);
-    const plotTop = CHART_MARGIN.top;
-    const plotBottom = chartSize.height - (CHART_MARGIN.bottom + X_AXIS_HEIGHT);
+    const plotLeft = yAxisWidth + chartMargin.left;
+    const plotRight = chartSize.width - chartMargin.right - rightAxisInset;
+    const plotTop = chartMargin.top;
+    const plotBottom = chartSize.height - (chartMargin.bottom + xAxisHeight);
     if (plotRight <= plotLeft || plotBottom <= plotTop) {
       return null;
     }
     return { plotLeft, plotRight, plotTop, plotBottom };
-  }, [chartSize.height, chartSize.width, hasSecondaryAxis]);
+  }, [chartMargin.bottom, chartMargin.left, chartMargin.right, chartMargin.top, chartSize.height, chartSize.width, rightAxisInset, xAxisHeight, yAxisWidth]);
 
   const getAxisTargetFromPoint = useCallback(
     (x: number, y: number): AxisTarget | null => {
@@ -701,27 +744,27 @@ export function MetricsChart({
         return null;
       }
       if (y >= bounds.plotTop && y <= bounds.plotBottom) {
-        const leftAxisStart = CHART_MARGIN.left;
-        const leftAxisEnd = CHART_MARGIN.left + Y_AXIS_WIDTH;
+        const leftAxisStart = chartMargin.left;
+        const leftAxisEnd = chartMargin.left + yAxisWidth;
         if (x >= leftAxisStart && x <= leftAxisEnd) {
           return "left";
         }
         if (hasSecondaryAxis) {
-          const rightAxisStart = chartSize.width - CHART_MARGIN.right - Y_AXIS_WIDTH;
-          const rightAxisEnd = chartSize.width - CHART_MARGIN.right;
+          const rightAxisStart = chartSize.width - chartMargin.right - yAxisWidth;
+          const rightAxisEnd = chartSize.width - chartMargin.right;
           if (x >= rightAxisStart && x <= rightAxisEnd) {
             return "right";
           }
         }
       }
       const xAxisTop = bounds.plotBottom;
-      const xAxisBottom = bounds.plotBottom + X_AXIS_HEIGHT + CHART_MARGIN.bottom;
+      const xAxisBottom = bounds.plotBottom + xAxisHeight + chartMargin.bottom;
       if (y >= xAxisTop && y <= xAxisBottom && x >= bounds.plotLeft && x <= bounds.plotRight) {
         return "bottom";
       }
       return null;
     },
-    [chartSize.width, getPlotBounds, hasSecondaryAxis],
+    [chartMargin.bottom, chartMargin.left, chartMargin.right, chartSize.width, getPlotBounds, hasSecondaryAxis, xAxisHeight, yAxisWidth],
   );
 
   const getAxisValueFromY = useCallback(
@@ -744,8 +787,8 @@ export function MetricsChart({
       if (!chartSize.width || xMax === xMin) {
         return null;
       }
-      const plotLeft = Y_AXIS_WIDTH + CHART_MARGIN.left;
-      const plotRight = chartSize.width - CHART_MARGIN.right - (hasSecondaryAxis ? Y_AXIS_WIDTH : 0);
+      const plotLeft = yAxisWidth + chartMargin.left;
+      const plotRight = chartSize.width - chartMargin.right - rightAxisInset;
       const plotWidth = Math.max(1, plotRight - plotLeft);
       const clamp = (tick: number) => Math.min(Math.max(tick, xMin), xMax);
       const visible = annotations.filter(
@@ -761,7 +804,7 @@ export function MetricsChart({
       }
       return null;
     },
-    [annotations, chartSize.width, domain.x, hasSecondaryAxis, windowEnd, windowStart],
+    [annotations, chartMargin.left, chartMargin.right, chartSize.width, domain.x, rightAxisInset, windowEnd, windowStart, yAxisWidth],
   );
 
   const handleChartClick = useCallback(
@@ -1135,6 +1178,10 @@ export function MetricsChart({
     if (!isSelecting) {
       return;
     }
+    const ownerDocument = getOwnerDocument();
+    if (!ownerDocument) {
+      return;
+    }
     const handleMouseUp = () => {
       const selection = selectionStateRef.current;
       selectionStateRef.current = null;
@@ -1226,15 +1273,16 @@ export function MetricsChart({
         });
       }
     };
-    document.addEventListener("mouseup", handleMouseUp);
-    document.addEventListener("mousemove", handleMouseMove);
+    ownerDocument.addEventListener("mouseup", handleMouseUp);
+    ownerDocument.addEventListener("mousemove", handleMouseMove);
     return () => {
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.removeEventListener("mousemove", handleMouseMove);
+      ownerDocument.removeEventListener("mouseup", handleMouseUp);
+      ownerDocument.removeEventListener("mousemove", handleMouseMove);
     };
   }, [
     domain.yPrimary,
     domain.ySecondary,
+    getOwnerDocument,
     getAxisValueFromY,
     getPlotBounds,
     getTickFromX,
@@ -1245,6 +1293,10 @@ export function MetricsChart({
 
   useEffect(() => {
     if (!isAxisDragging) {
+      return;
+    }
+    const ownerDocument = getOwnerDocument();
+    if (!ownerDocument) {
       return;
     }
     const handleMouseMove = (event: MouseEvent) => {
@@ -1261,13 +1313,13 @@ export function MetricsChart({
       setIsAxisDragging(false);
       setAxisHoverTarget(null);
     };
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    ownerDocument.addEventListener("mousemove", handleMouseMove);
+    ownerDocument.addEventListener("mouseup", handleMouseUp);
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      ownerDocument.removeEventListener("mousemove", handleMouseMove);
+      ownerDocument.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [applyAxisDragZoom, isAxisDragging]);
+  }, [applyAxisDragZoom, getOwnerDocument, isAxisDragging]);
 
   const activeAnnotation = useMemo(
     () => annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null,
@@ -1337,13 +1389,15 @@ export function MetricsChart({
       };
       const handleUp = () => {
         setIsDraggingPanel(false);
-        document.removeEventListener("mousemove", handleMove);
-        document.removeEventListener("mouseup", handleUp);
+        const ownerDocument = getOwnerDocument();
+        ownerDocument?.removeEventListener("mousemove", handleMove);
+        ownerDocument?.removeEventListener("mouseup", handleUp);
       };
-      document.addEventListener("mousemove", handleMove);
-      document.addEventListener("mouseup", handleUp);
+      const ownerDocument = getOwnerDocument();
+      ownerDocument?.addEventListener("mousemove", handleMove);
+      ownerDocument?.addEventListener("mouseup", handleUp);
     },
-    [],
+    [getOwnerDocument],
   );
 
   const hoverAnnotation = useMemo(
@@ -1370,6 +1424,21 @@ export function MetricsChart({
       })
       .filter((annotation): annotation is Annotation & { left: number } => Boolean(annotation));
   }, [chartSize.width, getAnnotationX, visibleAnnotations]);
+
+  const annotationLineBounds = useMemo(() => {
+    if (!chartSize.height) {
+      return null;
+    }
+    const top = chartMargin.top;
+    const bottom = chartSize.height - (chartMargin.bottom + xAxisHeight);
+    if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom <= top) {
+      return null;
+    }
+    return {
+      top,
+      height: Math.max(0, bottom - top),
+    };
+  }, [chartMargin.bottom, chartMargin.top, chartSize.height, xAxisHeight]);
 
   const selectionSummary = useMemo<SelectionSummary | null>(() => {
     if (!selectionRange) {
@@ -1411,6 +1480,10 @@ export function MetricsChart({
         const { width, height } = entry.contentRect;
         const nextWidth = Math.max(0, Math.floor(width));
         const nextHeight = Math.max(0, Math.floor(height));
+        if (eagerResize) {
+          commitChartSize(nextWidth, nextHeight);
+          continue;
+        }
         pendingSizeRef.current = { width: nextWidth, height: nextHeight };
         if (resizeFrameRef.current !== null) {
           continue;
@@ -1432,7 +1505,7 @@ export function MetricsChart({
         window.cancelAnimationFrame(resizeFrameRef.current);
       }
     };
-  }, [commitChartSize]);
+  }, [commitChartSize, eagerResize]);
 
   if (selectedMetrics.length === 0) {
     return (
@@ -1459,7 +1532,7 @@ export function MetricsChart({
         </div>
       )}
 
-      <div className="flex-1 min-h-0 p-4 pt-12">
+      <div className={compact ? "flex-1 min-h-0 p-1 pt-5 pb-3" : "flex-1 min-h-0 p-4 pt-12"}>
         <div
           ref={chartContainerRef}
           className={cn(
@@ -1483,6 +1556,9 @@ export function MetricsChart({
                 data={visibleData}
                 selectedMetrics={selectedMetrics}
                 domain={domain}
+                chartMargin={chartMargin}
+                yAxisWidth={yAxisWidth}
+                rightAxisInset={rightAxisInset}
                 hasSecondaryAxis={hasSecondaryAxis}
                 annotations={annotations}
                 selectionSummary={selectionSummary}
@@ -1491,6 +1567,7 @@ export function MetricsChart({
                 captures={captures}
                 highlightedMetricKey={highlightedMetricKey}
                 suppressCursor={Boolean(hoverAnnotationId)}
+                xAxisHeight={xAxisHeight}
               />
             </ResponsiveContainer>
           </div>
@@ -1510,8 +1587,8 @@ export function MetricsChart({
                   className="absolute"
                   style={{
                     left: `${annotation.left}px`,
-                    top: `${CHART_MARGIN.top}px`,
-                    bottom: `${CHART_MARGIN.bottom + X_AXIS_HEIGHT}px`,
+                    top: `${annotationLineBounds?.top ?? CHART_MARGIN.top}px`,
+                    height: `${annotationLineBounds?.height ?? 0}px`,
                   }}
                 >
                   <div
