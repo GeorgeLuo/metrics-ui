@@ -4,7 +4,7 @@ const DEFAULT_HINT = "Hover controls for quick guidance.";
 const GENERIC_HINTS = {
   input: "Enter a value for this field.",
   toggle: "Toggle this option.",
-  action: "Use this control.",
+  action: "Run this button action in the dashboard.",
   source: "Set the file path or URL for this capture source.",
   poll: "Set how often this live source is polled.",
   windowStart: "Set the first tick of the visible window.",
@@ -44,7 +44,7 @@ const GENERIC_HINTS = {
   derive: "Run a derivation from the selected inputs.",
   nav: "Switch views or open a page.",
   slider: "Adjust this value.",
-  interactive: "Use this control to update the view.",
+  interactive: "Use this interactive control to update the dashboard view.",
 } as const;
 const INTERACTIVE_ROLES = new Set([
   "button",
@@ -80,6 +80,52 @@ const DEFAULT_HEADSPACE_PX = 9;
 const HINT_TEXT_BOX_HEIGHT_PX = HINT_LINE_HEIGHT_PX * HINT_LINES + HINT_BOTTOM_PAD_PX;
 const MAX_HEADSPACE_PX = Math.max(0, HINT_CONTAINER_HEIGHT_PX - HINT_TEXT_BOX_HEIGHT_PX);
 const HINT_HEADSPACE_PX = Math.min(DEFAULT_HEADSPACE_PX, MAX_HEADSPACE_PX);
+
+function normalizeLabelText(value: string): string {
+  return value
+    .replace(/\s+/g, " ")
+    .replace(/[|•]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractControlLabel(candidate: HTMLElement): string {
+  const sources = [
+    candidate.getAttribute("aria-label") || "",
+    candidate.getAttribute("title") || "",
+    candidate.getAttribute("placeholder") || "",
+    candidate.getAttribute("data-hint") || "",
+    candidate.getAttribute("data-testid") || "",
+    candidate.textContent || "",
+  ];
+  for (const source of sources) {
+    const normalized = normalizeLabelText(source);
+    if (!normalized) {
+      continue;
+    }
+    if (normalized.length > 72) {
+      return `${normalized.slice(0, 69)}...`;
+    }
+    return normalized;
+  }
+  return "";
+}
+
+function describeButtonHint(candidate: HTMLElement): string {
+  const label = extractControlLabel(candidate);
+  if (!label) {
+    return GENERIC_HINTS.action;
+  }
+  return `Run action: ${label}.`;
+}
+
+function describeInteractiveHint(candidate: HTMLElement): string {
+  const label = extractControlLabel(candidate);
+  if (!label) {
+    return GENERIC_HINTS.interactive;
+  }
+  return `Interact with: ${label}.`;
+}
 
 function resolveHintFromTarget(target: EventTarget | null): string {
   if (!(target instanceof Element)) {
@@ -241,9 +287,9 @@ function resolveHintFromTarget(target: EventTarget | null): string {
     return GENERIC_HINTS.slider;
   }
   if (tag === "button" || role === "button" || role === "menuitem") {
-    return GENERIC_HINTS.action;
+    return describeButtonHint(candidate);
   }
-  return GENERIC_HINTS.interactive;
+  return describeInteractiveHint(candidate);
 }
 
 export function HintingPanel() {
