@@ -2,13 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Square, SkipBack, SkipForward, Rewind, FastForward, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { PlaybackState } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +20,25 @@ interface PlaybackControlsProps {
   onOpenMiniPlayer?: () => void;
 }
 
-const SPEED_OPTIONS = [
-  { value: "0.5", label: "0.5x" },
-  { value: "1", label: "1x" },
-  { value: "2", label: "2x" },
-  { value: "5", label: "5x" },
-  { value: "10", label: "10x" },
-];
+const MIN_SPEED = 0.05;
+const MAX_SPEED = 100;
+const INLINE_EDIT_BASE_CLASS =
+  "h-auto p-0 text-xs sm:text-sm font-mono text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0";
+const INLINE_EDIT_NUMERIC_CLASS =
+  `${INLINE_EDIT_BASE_CLASS} text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`;
+
+function normalizeSpeedValue(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+  return Math.min(MAX_SPEED, Math.max(MIN_SPEED, value));
+}
+
+function formatSpeedValue(value: number): string {
+  const normalized = normalizeSpeedValue(value);
+  return Number(normalized.toFixed(3)).toString();
+}
+
 export function PlaybackControls({
   playbackState,
   onPlay,
@@ -51,8 +56,10 @@ export function PlaybackControls({
   const { isPlaying, currentTick, totalTicks, speed } = playbackState;
   const [scrubTick, setScrubTick] = useState(currentTick);
   const [isScrubbing, setIsScrubbing] = useState(false);
+  const [speedInput, setSpeedInput] = useState(() => formatSpeedValue(speed));
   const scrubTickRef = useRef(currentTick);
   const scrubRafRef = useRef<number | null>(null);
+  const speedInputFocusedRef = useRef(false);
 
   useEffect(() => {
     if (!isScrubbing) {
@@ -68,6 +75,23 @@ export function PlaybackControls({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!speedInputFocusedRef.current) {
+      setSpeedInput(formatSpeedValue(speed));
+    }
+  }, [speed]);
+
+  const commitSpeedInput = () => {
+    const parsed = Number.parseFloat(speedInput);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setSpeedInput(formatSpeedValue(speed));
+      return;
+    }
+    const normalized = normalizeSpeedValue(parsed);
+    onSpeedChange(normalized);
+    setSpeedInput(formatSpeedValue(normalized));
+  };
 
   const displayTick = isScrubbing ? scrubTick : currentTick;
 
@@ -112,6 +136,18 @@ export function PlaybackControls({
 
       <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-between sm:gap-4">
         <div className="flex items-center gap-1 shrink-0">
+          {onOpenMiniPlayer ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenMiniPlayer}
+              data-testid="button-mini-popout"
+              title="Pop out mini player"
+              aria-label="Pop out mini player"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon"
@@ -193,40 +229,39 @@ export function PlaybackControls({
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
-          {onOpenMiniPlayer ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onOpenMiniPlayer}
-              data-testid="button-mini-popout"
-              title="Pop out mini player"
-              aria-label="Pop out mini player"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </Button>
-          ) : null}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground hidden sm:inline">Speed:</span>
-            <Select
-              value={speed.toString()}
-              onValueChange={(v) => onSpeedChange(parseFloat(v))}
+          <div className="flex items-center gap-0.5 text-sm">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={speedInput}
+              onChange={(event) => setSpeedInput(event.target.value)}
+              onFocus={() => {
+                speedInputFocusedRef.current = true;
+              }}
+              onBlur={() => {
+                speedInputFocusedRef.current = false;
+                commitSpeedInput();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  (event.currentTarget as HTMLInputElement).blur();
+                  return;
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  speedInputFocusedRef.current = false;
+                  setSpeedInput(formatSpeedValue(speed));
+                  (event.currentTarget as HTMLInputElement).blur();
+                }
+              }}
               disabled={disabled}
-            >
-              <SelectTrigger
-                className="w-16 sm:w-20 h-8"
-                data-testid="select-speed"
-                aria-label="Playback speed"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SPEED_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              className={INLINE_EDIT_NUMERIC_CLASS}
+              style={{ width: `${Math.max(speedInput.length, 1)}ch` }}
+              data-testid="select-speed"
+              aria-label="Playback speed"
+            />
+            <span className="text-muted-foreground text-xs sm:text-sm">x</span>
           </div>
 
           <div className="flex flex-col items-center sm:items-end gap-0.5">
