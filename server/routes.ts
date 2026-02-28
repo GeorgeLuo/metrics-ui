@@ -47,18 +47,66 @@ import {
 import {
   registerDocsAndDerivationRoutes,
   type DerivationPluginRouteRecord,
+  type VisualizationPluginRouteRecord,
 } from "./routes/docs-derivation-routes";
 import { registerSourceSeriesRoutes } from "./routes/source-series-routes";
 import { registerLiveDebugRoutes } from "./routes/live-debug-routes";
 
-const UPLOAD_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui", "uploads");
-const UPLOAD_INDEX_FILE = path.join(UPLOAD_ROOT, "index.json");
+function resolveConfiguredPath(envKey: string, fallback: string) {
+  const raw = process.env[envKey];
+  if (!raw || !raw.trim()) {
+    return fallback;
+  }
+  return path.resolve(raw.trim());
+}
+
+const METRICS_UI_DATA_ROOT = resolveConfiguredPath(
+  "METRICS_UI_DATA_ROOT",
+  path.join(os.homedir(), ".simeval", "metrics-ui"),
+);
+const UPLOAD_ROOT = resolveConfiguredPath(
+  "METRICS_UI_UPLOAD_ROOT",
+  path.join(METRICS_UI_DATA_ROOT, "uploads"),
+);
+const UPLOAD_INDEX_FILE = resolveConfiguredPath(
+  "METRICS_UI_UPLOAD_INDEX_FILE",
+  path.join(UPLOAD_ROOT, "index.json"),
+);
 const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024 * 1024;
-const DERIVATION_PLUGIN_ROOT = path.join(os.homedir(), ".simeval", "metrics-ui", "derivation-plugins");
-const DERIVATION_PLUGIN_INDEX_FILE = path.join(DERIVATION_PLUGIN_ROOT, "plugins.json");
+const DERIVATION_PLUGIN_ROOT = resolveConfiguredPath(
+  "METRICS_UI_DERIVATION_PLUGIN_ROOT",
+  path.join(METRICS_UI_DATA_ROOT, "derivation-plugins"),
+);
+const DERIVATION_PLUGIN_INDEX_FILE = resolveConfiguredPath(
+  "METRICS_UI_DERIVATION_PLUGIN_INDEX_FILE",
+  path.join(DERIVATION_PLUGIN_ROOT, "plugins.json"),
+);
 const MAX_DERIVATION_PLUGIN_SIZE_BYTES = 5 * 1024 * 1024;
-const CAPTURE_SOURCES_FILE = path.join(os.homedir(), ".simeval", "metrics-ui", "capture-sources.json");
-const DASHBOARD_STATE_FILE = path.join(os.homedir(), ".simeval", "metrics-ui", "dashboard-state.json");
+const VISUALIZATION_PLUGIN_ROOT = resolveConfiguredPath(
+  "METRICS_UI_VISUALIZATION_PLUGIN_ROOT",
+  path.join(METRICS_UI_DATA_ROOT, "visualization-plugins"),
+);
+const VISUALIZATION_PLUGIN_INDEX_FILE = resolveConfiguredPath(
+  "METRICS_UI_VISUALIZATION_PLUGIN_INDEX_FILE",
+  path.join(VISUALIZATION_PLUGIN_ROOT, "plugins.json"),
+);
+const MAX_VISUALIZATION_PLUGIN_SIZE_BYTES = 5 * 1024 * 1024;
+const CAPTURE_SOURCES_FILE = resolveConfiguredPath(
+  "METRICS_UI_CAPTURE_SOURCES_FILE",
+  path.join(METRICS_UI_DATA_ROOT, "capture-sources.json"),
+);
+const DASHBOARD_STATE_FILE = resolveConfiguredPath(
+  "METRICS_UI_DASHBOARD_STATE_FILE",
+  path.join(METRICS_UI_DATA_ROOT, "dashboard-state.json"),
+);
+const VISUALIZATION_ASSET_ROOT = resolveConfiguredPath(
+  "METRICS_UI_VISUALIZATION_ASSET_ROOT",
+  path.join(METRICS_UI_DATA_ROOT, "visualization-assets"),
+);
+const VISUALIZATION_ASSET_MANIFEST_FILE = resolveConfiguredPath(
+  "METRICS_UI_VISUALIZATION_ASSET_MANIFEST_FILE",
+  path.join(VISUALIZATION_ASSET_ROOT, "manifest.json"),
+);
 const DERIVED_SOURCE_PREFIX = "derive://";
 
 const requireFromServer = createRequire(
@@ -78,21 +126,21 @@ function resolveServerNodeModulesDir(): string | null {
   }
 }
 
-function ensureDerivationPluginNodeModulesLink() {
+function ensurePluginNodeModulesLink(pluginRoot: string, label: string) {
   const target = resolveServerNodeModulesDir();
   if (!target) {
     return;
   }
   try {
-    fs.mkdirSync(DERIVATION_PLUGIN_ROOT, { recursive: true });
-    const linkPath = path.join(DERIVATION_PLUGIN_ROOT, "node_modules");
+    fs.mkdirSync(pluginRoot, { recursive: true });
+    const linkPath = path.join(pluginRoot, "node_modules");
     if (fs.existsSync(linkPath)) {
       const stat = fs.lstatSync(linkPath);
       if (!stat.isSymbolicLink()) {
         return;
       }
       const existing = fs.readlinkSync(linkPath);
-      const resolvedExisting = path.resolve(DERIVATION_PLUGIN_ROOT, existing);
+      const resolvedExisting = path.resolve(pluginRoot, existing);
       if (resolvedExisting === target) {
         return;
       }
@@ -100,8 +148,16 @@ function ensureDerivationPluginNodeModulesLink() {
     }
     fs.symlinkSync(target, linkPath, "dir");
   } catch (error) {
-    console.warn("[derivations] Failed to ensure derivation plugin node_modules link:", error);
+    console.warn(`[${label}] Failed to ensure plugin node_modules link:`, error);
   }
+}
+
+function ensureDerivationPluginNodeModulesLink() {
+  ensurePluginNodeModulesLink(DERIVATION_PLUGIN_ROOT, "derivations");
+}
+
+function ensureVisualizationPluginNodeModulesLink() {
+  ensurePluginNodeModulesLink(VISUALIZATION_PLUGIN_ROOT, "visualization");
 }
 
 const upload = multer({
@@ -123,6 +179,10 @@ const upload = multer({
 const derivationPluginUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_DERIVATION_PLUGIN_SIZE_BYTES },
+});
+const visualizationPluginUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_VISUALIZATION_PLUGIN_SIZE_BYTES },
 });
 const LIVE_RETRYABLE_FILE_ERRORS = new Set(["ENOENT", "ENOTDIR", "EACCES", "EPERM", "EBUSY"]);
 
@@ -452,6 +512,7 @@ const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "set_y_range",
   "set_y2_range",
   "set_auto_scroll",
+  "set_visualization_frame",
   "add_annotation",
   "remove_annotation",
   "clear_annotations",
@@ -557,6 +618,7 @@ type PersistableDashboardState = Partial<
     | "autoScroll"
     | "annotations"
     | "subtitles"
+    | "visualizationFrame"
   >
 >;
 
@@ -575,6 +637,34 @@ let dashboardStateWriteTimer: NodeJS.Timeout | null = null;
 function buildVisualizationStateFromPersistedState(
   state: PersistableDashboardState,
 ): VisualizationState {
+  const visualizationFrameRaw = state.visualizationFrame;
+  const visualizationFrame =
+    visualizationFrameRaw && typeof visualizationFrameRaw === "object"
+      ? (() => {
+          const mode: VisualizationState["visualizationFrame"]["mode"] =
+            (visualizationFrameRaw as { mode?: unknown }).mode === "plugin" ? "plugin" : "builtin";
+          return {
+            mode,
+            pluginId:
+              typeof (visualizationFrameRaw as { pluginId?: unknown }).pluginId === "string"
+                ? String((visualizationFrameRaw as { pluginId: string }).pluginId)
+                : undefined,
+            name:
+              typeof (visualizationFrameRaw as { name?: unknown }).name === "string"
+                ? String((visualizationFrameRaw as { name: string }).name)
+                : undefined,
+            captureId:
+              typeof (visualizationFrameRaw as { captureId?: unknown }).captureId === "string"
+                ? String((visualizationFrameRaw as { captureId: string }).captureId)
+                : undefined,
+            updatedAt:
+              typeof (visualizationFrameRaw as { updatedAt?: unknown }).updatedAt === "string"
+                ? String((visualizationFrameRaw as { updatedAt: string }).updatedAt)
+                : undefined,
+          };
+        })()
+      : { mode: "builtin" as const };
+
   const playback =
     state.playback && typeof state.playback === "object"
       ? state.playback
@@ -620,6 +710,7 @@ function buildVisualizationStateFromPersistedState(
     isFullscreen: false,
     annotations: Array.isArray(state.annotations) ? state.annotations : [],
     subtitles: Array.isArray(state.subtitles) ? state.subtitles : [],
+    visualizationFrame,
   };
 }
 
@@ -765,6 +856,23 @@ function extractPersistableDashboardState(payload: VisualizationState): Persista
   }
   if (Array.isArray(payload.subtitles)) {
     state.subtitles = payload.subtitles;
+  }
+  if (payload.visualizationFrame && typeof payload.visualizationFrame === "object") {
+    const mode = payload.visualizationFrame.mode === "plugin" ? "plugin" : "builtin";
+    const nextFrame: VisualizationState["visualizationFrame"] = { mode };
+    if (typeof payload.visualizationFrame.pluginId === "string") {
+      nextFrame.pluginId = payload.visualizationFrame.pluginId;
+    }
+    if (typeof payload.visualizationFrame.name === "string") {
+      nextFrame.name = payload.visualizationFrame.name;
+    }
+    if (typeof payload.visualizationFrame.captureId === "string") {
+      nextFrame.captureId = payload.visualizationFrame.captureId;
+    }
+    if (typeof payload.visualizationFrame.updatedAt === "string") {
+      nextFrame.updatedAt = payload.visualizationFrame.updatedAt;
+    }
+    state.visualizationFrame = nextFrame;
   }
   return state;
 }
@@ -1104,10 +1212,355 @@ type DerivationPluginManifest = {
     params?: unknown;
   }) => unknown;
 };
+type VisualizationPluginManifest = {
+  id: string;
+  name: string;
+  description?: string;
+  libraries?: string[];
+  renderScript: string;
+};
 
 type DerivationPluginRecord = DerivationPluginRouteRecord;
+type VisualizationPluginRecord = VisualizationPluginRouteRecord;
+
+type VisualizationLibraryAsset = {
+  filePath: string;
+  contentType: string;
+};
+
+type VisualizationAssetFile = {
+  filePath: string;
+  contentType: string;
+};
+
+type BundledVisualizationAsset = {
+  requestPath: string;
+  bundledPath: string;
+  license: string;
+  sourceUrl: string;
+  description: string;
+  tags: string[];
+};
+
+type VisualizationAssetSuggestion = {
+  id: string;
+  name: string;
+  license: string;
+  sourceUrl: string;
+  description: string;
+  tags: string[];
+};
 
 const derivationPlugins = new Map<string, DerivationPluginRecord>();
+const visualizationPlugins = new Map<string, VisualizationPluginRecord>();
+
+const BUNDLED_VISUALIZATION_ASSETS: BundledVisualizationAsset[] = [
+  {
+    requestPath: "highmix/gearbox.glb",
+    bundledPath: path.resolve(
+      process.cwd(),
+      "examples",
+      "visualization-assets",
+      "highmix",
+      "GearboxAssy.glb",
+    ),
+    license: "CC0-1.0",
+    sourceUrl: "https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/GearboxAssy",
+    description: "Machining cell proxy model for station geometry.",
+    tags: ["highmix", "machine", "gearbox"],
+  },
+  {
+    requestPath: "highmix/milktruck.glb",
+    bundledPath: path.resolve(
+      process.cwd(),
+      "examples",
+      "visualization-assets",
+      "highmix",
+      "CesiumMilkTruck.glb",
+    ),
+    license: "CC-BY-4.0",
+    sourceUrl: "https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/CesiumMilkTruck",
+    description: "Transport proxy model for released/completed job movers.",
+    tags: ["highmix", "transport", "truck"],
+  },
+  {
+    requestPath: "highmix/toycar.glb",
+    bundledPath: path.resolve(
+      process.cwd(),
+      "examples",
+      "visualization-assets",
+      "highmix",
+      "ToyCar.glb",
+    ),
+    license: "CC-BY-4.0",
+    sourceUrl: "https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/ToyCar",
+    description: "Alternate transport mover variant for lane diversity.",
+    tags: ["highmix", "transport", "car"],
+  },
+];
+
+const VISUALIZATION_ASSET_SUGGESTIONS: VisualizationAssetSuggestion[] = [
+  {
+    id: "kenney_city_kit_industrial",
+    name: "Kenney City Kit (Industrial)",
+    license: "CC0-1.0",
+    sourceUrl: "https://kenney.nl/assets/city-kit-industrial",
+    description: "Factory shell, industrial props, and structural set dressing.",
+    tags: ["environment", "factory", "cc0"],
+  },
+  {
+    id: "quaternius_buildings_pack",
+    name: "Quaternius Buildings Pack",
+    license: "CC0-1.0",
+    sourceUrl: "https://quaternius.com/packs/buildings.html",
+    description: "Low-poly buildings and industrial blockouts for quick world assembly.",
+    tags: ["environment", "buildings", "cc0"],
+  },
+  {
+    id: "polyhaven_hdri_empty_warehouse",
+    name: "Poly Haven Empty Warehouse HDRI",
+    license: "CC0-1.0",
+    sourceUrl: "https://polyhaven.com/a/empty_warehouse_01",
+    description: "Warehouse lighting backdrop for realistic ambient context.",
+    tags: ["lighting", "hdri", "cc0"],
+  },
+  {
+    id: "ambientcg_materials",
+    name: "ambientCG Materials",
+    license: "CC0-1.0",
+    sourceUrl: "https://ambientcg.com",
+    description: "Free PBR materials for metal, concrete, floor paint, and plastics.",
+    tags: ["materials", "pbr", "cc0"],
+  },
+];
+
+function resolveVisualizationLibraryAsset(libraryIdRaw: string): VisualizationLibraryAsset | null {
+  const libraryId = libraryIdRaw.trim().toLowerCase();
+  const fileById: Record<string, string> = {
+    three: "three.module.js",
+    "three.module.js": "three.module.js",
+    "three.core.js": "three.core.js",
+    "three.module.min.js": "three.module.min.js",
+    "three.core.min.js": "three.core.min.js",
+  };
+  const fileName = fileById[libraryId];
+  if (!fileName) {
+    return null;
+  }
+  const candidates = [
+    path.resolve(process.cwd(), "node_modules", "three", "build", fileName),
+    (() => {
+      try {
+        return requireFromServer.resolve(`three/build/${fileName}`);
+      } catch {
+        return "";
+      }
+    })(),
+  ].filter((value) => typeof value === "string" && value.length > 0);
+
+  const filePath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!filePath) {
+    return null;
+  }
+  return {
+    filePath,
+    contentType: "application/javascript; charset=utf-8",
+  };
+}
+
+function resolveVisualizationAddonAsset(addonPathRaw: string): VisualizationLibraryAsset | null {
+  const addonPath = addonPathRaw.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!addonPath || addonPath.includes("..") || !addonPath.endsWith(".js")) {
+    return null;
+  }
+  const candidates = [
+    path.resolve(process.cwd(), "node_modules", "three", "examples", "jsm", addonPath),
+    (() => {
+      try {
+        const resolved = requireFromServer.resolve("three/examples/jsm/loaders/GLTFLoader.js");
+        const base = path.resolve(path.dirname(resolved), "..");
+        return path.resolve(base, addonPath);
+      } catch {
+        return "";
+      }
+    })(),
+  ].filter((value) => typeof value === "string" && value.length > 0);
+  const filePath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!filePath) {
+    return null;
+  }
+  return {
+    filePath,
+    contentType: "application/javascript; charset=utf-8",
+  };
+}
+
+function getVisualizationAssetContentType(filePath: string): string {
+  const extension = path.extname(filePath).toLowerCase();
+  if (extension === ".glb") {
+    return "model/gltf-binary";
+  }
+  if (extension === ".gltf") {
+    return "model/gltf+json";
+  }
+  if (extension === ".bin") {
+    return "application/octet-stream";
+  }
+  if (extension === ".png") {
+    return "image/png";
+  }
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return "image/jpeg";
+  }
+  if (extension === ".webp") {
+    return "image/webp";
+  }
+  return "application/octet-stream";
+}
+
+function normalizeVisualizationAssetRequestPath(assetPathRaw: string): string | null {
+  const assetPath = assetPathRaw.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (!assetPath || assetPath.includes("..")) {
+    return null;
+  }
+  return assetPath;
+}
+
+function resolveVisualizationAssetPathInRoot(assetPath: string): string | null {
+  const resolvedRoot = path.resolve(VISUALIZATION_ASSET_ROOT);
+  const resolvedPath = path.resolve(resolvedRoot, assetPath);
+  if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(`${resolvedRoot}${path.sep}`)) {
+    return null;
+  }
+  return resolvedPath;
+}
+
+function bootstrapVisualizationAssetsToConfiguredRoot() {
+  try {
+    fs.mkdirSync(VISUALIZATION_ASSET_ROOT, { recursive: true });
+  } catch (error) {
+    console.warn("[visualization] Failed to create visualization asset root:", error);
+    return;
+  }
+
+  const manifestAssets: Array<
+    BundledVisualizationAsset & {
+      localPath: string;
+      localBytes: number;
+      localAvailable: boolean;
+      copiedFromBundled: boolean;
+    }
+  > = [];
+
+  BUNDLED_VISUALIZATION_ASSETS.forEach((asset) => {
+    const targetPath = resolveVisualizationAssetPathInRoot(asset.requestPath);
+    if (!targetPath) {
+      return;
+    }
+    try {
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      let copiedFromBundled = false;
+      if (!fs.existsSync(targetPath) && fs.existsSync(asset.bundledPath)) {
+        fs.copyFileSync(asset.bundledPath, targetPath);
+        copiedFromBundled = true;
+      }
+      const localAvailable = fs.existsSync(targetPath);
+      const localBytes = localAvailable ? fs.statSync(targetPath).size : 0;
+      manifestAssets.push({
+        ...asset,
+        localPath: targetPath,
+        localBytes,
+        localAvailable,
+        copiedFromBundled,
+      });
+    } catch (error) {
+      console.warn(`[visualization] Failed to bootstrap asset ${asset.requestPath}:`, error);
+      manifestAssets.push({
+        ...asset,
+        localPath: targetPath,
+        localBytes: 0,
+        localAvailable: false,
+        copiedFromBundled: false,
+      });
+    }
+  });
+
+  try {
+    fs.mkdirSync(path.dirname(VISUALIZATION_ASSET_MANIFEST_FILE), { recursive: true });
+    const manifest = {
+      generatedAt: new Date().toISOString(),
+      root: VISUALIZATION_ASSET_ROOT,
+      manifestFile: VISUALIZATION_ASSET_MANIFEST_FILE,
+      env: {
+        METRICS_UI_DATA_ROOT,
+        METRICS_UI_VISUALIZATION_ASSET_ROOT: VISUALIZATION_ASSET_ROOT,
+        METRICS_UI_VISUALIZATION_ASSET_MANIFEST_FILE: VISUALIZATION_ASSET_MANIFEST_FILE,
+      },
+      assets: manifestAssets,
+      suggestedReferences: VISUALIZATION_ASSET_SUGGESTIONS,
+      notes: [
+        "Assets are resolved from METRICS_UI_VISUALIZATION_ASSET_ROOT (default: <ui-data-root>/visualization-assets).",
+        "Bundled assets are copied into the configured root on startup when missing.",
+      ],
+    };
+    fs.writeFileSync(
+      VISUALIZATION_ASSET_MANIFEST_FILE,
+      `${JSON.stringify(manifest, null, 2)}\n`,
+      "utf-8",
+    );
+  } catch (error) {
+    console.warn("[visualization] Failed to write visualization asset manifest:", error);
+  }
+}
+
+function resolveVisualizationAssetFile(assetPathRaw: string): VisualizationAssetFile | null {
+  const assetPath = normalizeVisualizationAssetRequestPath(assetPathRaw);
+  if (!assetPath) {
+    return null;
+  }
+  const requestedPath = resolveVisualizationAssetPathInRoot(assetPath);
+  if (!requestedPath) {
+    return null;
+  }
+  let filePath: string | null = null;
+  if (fs.existsSync(requestedPath)) {
+    filePath = requestedPath;
+  } else {
+    const bundled = BUNDLED_VISUALIZATION_ASSETS.find(
+      (entry) => entry.requestPath.toLowerCase() === assetPath.toLowerCase(),
+    );
+    if (bundled && fs.existsSync(bundled.bundledPath)) {
+      filePath = bundled.bundledPath;
+    }
+  }
+  if (!filePath) {
+    return null;
+  }
+  return {
+    filePath,
+    contentType: getVisualizationAssetContentType(filePath),
+  };
+}
+
+function normalizeVisualizationLibraries(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  raw.forEach((entry) => {
+    if (typeof entry !== "string") {
+      return;
+    }
+    const next = entry.trim().toLowerCase();
+    if (!next || seen.has(next)) {
+      return;
+    }
+    seen.add(next);
+    normalized.push(next);
+  });
+  return normalized;
+}
 
 function loadDerivationPluginIndex(): DerivationPluginRecord[] {
   try {
@@ -1128,6 +1581,58 @@ function loadDerivationPluginIndex(): DerivationPluginRecord[] {
 function saveDerivationPluginIndex(records: DerivationPluginRecord[]) {
   fs.mkdirSync(DERIVATION_PLUGIN_ROOT, { recursive: true });
   fs.writeFileSync(DERIVATION_PLUGIN_INDEX_FILE, `${JSON.stringify(records, null, 2)}\n`, "utf-8");
+}
+
+function loadVisualizationPluginIndex(): VisualizationPluginRecord[] {
+  try {
+    const raw = fs.readFileSync(VISUALIZATION_PLUGIN_INDEX_FILE, "utf-8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    const records: VisualizationPluginRecord[] = [];
+    parsed.forEach((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return;
+      }
+      const value = entry as Record<string, unknown>;
+      const id = typeof value.id === "string" ? value.id : "";
+      const name = typeof value.name === "string" ? value.name : id;
+      const description =
+        typeof value.description === "string" ? value.description : undefined;
+      const filePath = typeof value.filePath === "string" ? value.filePath : "";
+      const hash = typeof value.hash === "string" ? value.hash : "";
+      const uploadedAt = typeof value.uploadedAt === "string" ? value.uploadedAt : "";
+      const valid = Boolean(value.valid);
+      const error = typeof value.error === "string" ? value.error : null;
+      const libraries = normalizeVisualizationLibraries(value.libraries);
+      if (!id || !name || !filePath || !hash || !uploadedAt) {
+        return;
+      }
+      records.push({
+        id,
+        name,
+        description,
+        libraries,
+        filePath,
+        hash,
+        uploadedAt,
+        valid,
+        error,
+      });
+    });
+    return records;
+  } catch (error) {
+    if (error && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+function saveVisualizationPluginIndex(records: VisualizationPluginRecord[]) {
+  fs.mkdirSync(VISUALIZATION_PLUGIN_ROOT, { recursive: true });
+  fs.writeFileSync(VISUALIZATION_PLUGIN_INDEX_FILE, `${JSON.stringify(records, null, 2)}\n`, "utf-8");
 }
 
 function isSafeDerivationOutputKey(key: string) {
@@ -1383,6 +1888,138 @@ async function loadDerivationPluginFromFile(filePath: string): Promise<{
   };
 }
 
+async function loadVisualizationPluginFromFile(filePath: string): Promise<{
+  record: Omit<VisualizationPluginRecord, "filePath" | "hash" | "uploadedAt">;
+  manifest: VisualizationPluginManifest | null;
+  runtimeScript?: string;
+}> {
+  ensureVisualizationPluginNodeModulesLink();
+  const moduleUrl = `${pathToFileURL(filePath).href}?cache=${Date.now()}`;
+  let mod: any;
+  try {
+    mod = await import(moduleUrl);
+  } catch (error) {
+    return {
+      record: {
+        id: path.basename(filePath),
+        name: path.basename(filePath),
+        libraries: [],
+        valid: false,
+        error: error instanceof Error ? error.message : "Failed to import visualization plugin module.",
+      },
+      manifest: null,
+    };
+  }
+
+  const exported = mod?.default ?? mod?.createVisualizationPlugin ?? mod?.createPlugin ?? null;
+  const manifest: unknown = typeof exported === "function" ? await exported() : exported;
+
+  if (!manifest || typeof manifest !== "object") {
+    return {
+      record: {
+        id: path.basename(filePath),
+        name: path.basename(filePath),
+        libraries: [],
+        valid: false,
+        error:
+          "Visualization plugin must export a manifest object (default export) or a factory that returns one.",
+      },
+      manifest: null,
+    };
+  }
+
+  const id = typeof (manifest as any).id === "string" ? (manifest as any).id.trim() : "";
+  const name = typeof (manifest as any).name === "string" ? (manifest as any).name.trim() : "";
+  const description =
+    typeof (manifest as any).description === "string" ? (manifest as any).description : undefined;
+  const libraries = normalizeVisualizationLibraries((manifest as any).libraries);
+  const runtimeScript =
+    typeof (manifest as any).renderScript === "string" ? String((manifest as any).renderScript) : "";
+
+  if (!id || !name) {
+    return {
+      record: {
+        id: id || path.basename(filePath),
+        name: name || id || path.basename(filePath),
+        description,
+        libraries,
+        valid: false,
+        error: "Visualization plugin manifest must include non-empty string fields: id, name.",
+      },
+      manifest: null,
+    };
+  }
+
+  if (!runtimeScript.trim()) {
+    return {
+      record: {
+        id,
+        name,
+        description,
+        libraries,
+        valid: false,
+        error: "Visualization plugin manifest must include a non-empty renderScript string.",
+      },
+      manifest: null,
+    };
+  }
+
+  if (runtimeScript.length > 512 * 1024) {
+    return {
+      record: {
+        id,
+        name,
+        description,
+        libraries,
+        valid: false,
+        error: "Visualization plugin renderScript exceeds 512KB limit.",
+      },
+      manifest: null,
+    };
+  }
+
+  const unsupportedLibrary = libraries.find((libraryId) => {
+    if (libraryId === "three-gltf-loader") {
+      return !resolveVisualizationAddonAsset("loaders/GLTFLoader.js");
+    }
+    return !resolveVisualizationLibraryAsset(libraryId);
+  });
+  if (unsupportedLibrary) {
+    return {
+      record: {
+        id,
+        name,
+        description,
+        libraries,
+        valid: false,
+        error: `Visualization plugin library not allowed: ${unsupportedLibrary}.`,
+      },
+      manifest: null,
+    };
+  }
+
+  const typedManifest: VisualizationPluginManifest = {
+    id,
+    name,
+    description,
+    libraries,
+    renderScript: runtimeScript,
+  };
+
+  return {
+    record: {
+      id,
+      name,
+      description,
+      libraries,
+      valid: true,
+      error: null,
+    },
+    manifest: typedManifest,
+    runtimeScript,
+  };
+}
+
 function bootstrapDerivationPluginsFromDisk() {
   const records = loadDerivationPluginIndex();
   records.forEach((record) => {
@@ -1392,6 +2029,17 @@ function bootstrapDerivationPluginsFromDisk() {
   });
 }
 bootstrapDerivationPluginsFromDisk();
+
+function bootstrapVisualizationPluginsFromDisk() {
+  const records = loadVisualizationPluginIndex();
+  records.forEach((record) => {
+    if (record && typeof record.id === "string") {
+      visualizationPlugins.set(record.id, record);
+    }
+  });
+}
+bootstrapVisualizationPluginsFromDisk();
+bootstrapVisualizationAssetsToConfiguredRoot();
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -1551,6 +2199,7 @@ function createDefaultVisualizationState(): VisualizationState {
     isFullscreen: false,
     annotations: [],
     subtitles: [],
+    visualizationFrame: { mode: "builtin" },
   };
 }
 
@@ -1588,6 +2237,65 @@ function metricFromCommand(command: ControlCommand): SelectedMetric | null {
   };
 }
 
+function buildAgentStateSnapshot(): VisualizationState {
+  const base = ensureLastVisualizationState();
+  const merged = new Map<string, VisualizationState["captures"][number]>();
+
+  for (const capture of Array.isArray(base.captures) ? base.captures : []) {
+    if (!capture || typeof capture.id !== "string" || !capture.id) {
+      continue;
+    }
+    merged.set(capture.id, {
+      id: capture.id,
+      filename: capture.filename,
+      tickCount: Number.isFinite(Number(capture.tickCount)) ? Number(capture.tickCount) : 0,
+      isActive: Boolean(capture.isActive),
+    });
+  }
+
+  const knownIds = new Set<string>();
+  for (const id of captureMetadata.keys()) {
+    knownIds.add(id);
+  }
+  for (const id of captureSources.keys()) {
+    knownIds.add(id);
+  }
+  for (const id of captureLastTicks.keys()) {
+    knownIds.add(id);
+  }
+  for (const id of persistedCaptureSources.keys()) {
+    knownIds.add(id);
+  }
+
+  for (const captureId of knownIds) {
+    const existing = merged.get(captureId);
+    const lastTick = captureLastTicks.get(captureId);
+    const metadata = captureMetadata.get(captureId);
+    const persisted = persistedCaptureSources.get(captureId);
+    const filename =
+      metadata?.filename ||
+      persisted?.filename ||
+      existing?.filename ||
+      captureId;
+    const tickCount =
+      typeof lastTick === "number" && Number.isFinite(lastTick)
+        ? Math.max(existing?.tickCount ?? 0, lastTick)
+        : existing?.tickCount ?? 0;
+    const isActive = captureEnded.has(captureId) ? false : true;
+    merged.set(captureId, {
+      id: captureId,
+      filename,
+      tickCount,
+      isActive,
+    });
+  }
+
+  return {
+    ...base,
+    captures: Array.from(merged.values()),
+  };
+}
+
 function applyAgentCommandToLastVisualizationState(command: ControlCommand): boolean {
   if (
     command.type !== "create_derivation_group" &&
@@ -1602,6 +2310,7 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
     command.type !== "set_metric_axis" &&
     command.type !== "set_y_range" &&
     command.type !== "set_y2_range" &&
+    command.type !== "set_visualization_frame" &&
     command.type !== "deselect_analysis_metric" &&
     command.type !== "clear_analysis_metrics"
   ) {
@@ -1780,6 +2489,26 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
         state.ySecondaryDomain = [min, max];
         changed = true;
       }
+    }
+  } else if (command.type === "set_visualization_frame") {
+    const nextMode = command.mode === "plugin" ? "plugin" : "builtin";
+    const previous = state.visualizationFrame ?? { mode: "builtin" };
+    const nextFrame: VisualizationState["visualizationFrame"] = {
+      mode: nextMode,
+      updatedAt: new Date().toISOString(),
+    };
+    if (nextMode === "plugin" && typeof command.pluginId === "string" && command.pluginId.trim().length > 0) {
+      nextFrame.pluginId = command.pluginId.trim();
+    }
+    if (typeof command.name === "string" && command.name.trim().length > 0) {
+      nextFrame.name = command.name.trim();
+    }
+    if (typeof command.captureId === "string" && command.captureId.trim().length > 0) {
+      nextFrame.captureId = command.captureId.trim();
+    }
+    if (JSON.stringify(previous) !== JSON.stringify(nextFrame)) {
+      state.visualizationFrame = nextFrame;
+      changed = true;
     }
   } else if (command.type === "deselect_analysis_metric") {
     const key = `${command.captureId}::${command.fullPath}`;
@@ -4437,6 +5166,49 @@ export async function registerRoutes(
 
         const command = message as ControlCommand;
         const captureId = "captureId" in command ? String(command.captureId ?? "") : "";
+        if (command.type === "get_state" || command.type === "list_captures") {
+          const snapshot = buildAgentStateSnapshot();
+          ws.send(
+            JSON.stringify({
+              type: "state_update",
+              payload: snapshot,
+              request_id: command.request_id,
+            } as ControlResponse),
+          );
+          ws.send(
+            JSON.stringify({
+              type: "ack",
+              payload: { command: command.type, source: "server_snapshot" },
+              request_id: command.request_id,
+            } as ControlResponse),
+          );
+          return;
+        }
+        if (command.type === "set_visualization_frame" && command.mode === "plugin") {
+          const pluginId =
+            typeof command.pluginId === "string" ? command.pluginId.trim() : "";
+          if (!pluginId) {
+            ws.send(
+              JSON.stringify({
+                type: "error",
+                error: "set_visualization_frame mode=plugin requires pluginId.",
+                request_id: command.request_id,
+              } as ControlResponse),
+            );
+            return;
+          }
+          const plugin = visualizationPlugins.get(pluginId);
+          if (!plugin || !plugin.valid) {
+            ws.send(
+              JSON.stringify({
+                type: "error",
+                error: `Visualization plugin not found or invalid: ${pluginId}`,
+                request_id: command.request_id,
+              } as ControlResponse),
+            );
+            return;
+          }
+        }
         applyAgentCommandToLastVisualizationState(command);
         if (command.type === "get_derivation_plugins") {
           ws.send(
@@ -4729,6 +5501,16 @@ export async function registerRoutes(
     derivationPluginUpload: derivationPluginUpload.single("file"),
     loadDerivationPluginFromFile,
     saveDerivationPluginIndex,
+    visualizationPluginRoot: VISUALIZATION_PLUGIN_ROOT,
+    visualizationPlugins,
+    visualizationPluginUpload: visualizationPluginUpload.single("file"),
+    loadVisualizationPluginFromFile,
+    saveVisualizationPluginIndex,
+    resolveVisualizationLibraryAsset,
+    resolveVisualizationAddonAsset,
+    resolveVisualizationAssetFile,
+    visualizationAssetRoot: VISUALIZATION_ASSET_ROOT,
+    visualizationAssetManifestFile: VISUALIZATION_ASSET_MANIFEST_FILE,
     sendToFrontend,
   });
 
