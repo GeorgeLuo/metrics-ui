@@ -597,24 +597,21 @@ ws.on("message", (data) => {
 Use a single artifact to both initialize the dashboard and verify the final state:
 
 - Spec artifact: `examples/highmix/view-spec.json`
-- Runner: `scripts/highmix-bootstrap-verify.mjs`
+- Runner: `simeval ui bootstrap-verify` (from `simtest0/tools/cli`)
 
-Bootstrap the HighMix view and verify it:
+Bootstrap + verify:
 
 ```bash
-npm run highmix:bootstrap:verify
+simeval ui bootstrap-verify \
+  --spec /path/to/Stream-Metrics-UI/examples/highmix/view-spec.json \
+  --ui ws://127.0.0.1:5050/ws/control
 ```
 
-Verify-only (do not mutate current UI state):
+Verify-only:
 
 ```bash
-node scripts/highmix-bootstrap-verify.mjs --verifyOnly true
-```
-
-Override capture file paths at runtime:
-
-```bash
-node scripts/highmix-bootstrap-verify.mjs \
-  --legacySource /path/to/highmix-legacy_1_simulation.jsonl \
-  --causalSource /path/to/highmix-causal_1_simulation.jsonl
+simeval ui bootstrap-verify \
+  --spec /path/to/Stream-Metrics-UI/examples/highmix/view-spec.json \
+  --verify-only true \
+  --ui ws://127.0.0.1:5050/ws/control
 ```
