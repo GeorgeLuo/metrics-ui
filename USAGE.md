@@ -591,3 +591,30 @@ ws.on("message", (data) => {
   ws.send(JSON.stringify({ type: "play" }));
 });
 ```
+
+### HighMix Example Bootstrap + Verify
+
+Use a single artifact to both initialize the dashboard and verify the final state:
+
+- Spec artifact: `examples/highmix/view-spec.json`
+- Runner: `scripts/highmix-bootstrap-verify.mjs`
+
+Bootstrap the HighMix view and verify it:
+
+```bash
+npm run highmix:bootstrap:verify
+```
+
+Verify-only (do not mutate current UI state):
+
+```bash
+node scripts/highmix-bootstrap-verify.mjs --verifyOnly true
+```
+
+Override capture file paths at runtime:
+
+```bash
+node scripts/highmix-bootstrap-verify.mjs \
+  --legacySource /path/to/highmix-legacy_1_simulation.jsonl \
+  --causalSource /path/to/highmix-causal_1_simulation.jsonl
+```

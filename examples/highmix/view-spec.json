@@ -1,0 +1,60 @@
+{
+  "name": "highmix-example-view",
+  "version": 1,
+  "ui": {
+    "http": "http://127.0.0.1:5050",
+    "ws": "ws://127.0.0.1:5050/ws/control"
+  },
+  "captures": [
+    {
+      "id": "legacy",
+      "source": "/Volumes/samsung_usb/captures/highmix/highmix-legacy/highmix-legacy_1_simulation.jsonl",
+      "minTickCount": 100
+    },
+    {
+      "id": "causal",
+      "source": "/Volumes/samsung_usb/captures/highmix/highmix-causal/highmix-causal_1_simulation.jsonl",
+      "minTickCount": 100
+    }
+  ],
+  "selectedMetrics": [
+    {
+      "captureId": "legacy",
+      "path": ["0", "job_release_summary", "total_jobs"]
+    },
+    {
+      "captureId": "legacy",
+      "path": ["0", "job_release_summary", "released_jobs"]
+    },
+    {
+      "captureId": "legacy",
+      "path": ["0", "job_release_summary", "pending_jobs"]
+    },
+    {
+      "captureId": "legacy",
+      "path": ["0", "job_release_summary", "completed_jobs"]
+    },
+    {
+      "captureId": "causal",
+      "path": ["0", "job_release_summary", "total_jobs"]
+    },
+    {
+      "captureId": "causal",
+      "path": ["0", "job_release_summary", "released_jobs"]
+    },
+    {
+      "captureId": "causal",
+      "path": ["0", "job_release_summary", "pending_jobs"]
+    },
+    {
+      "captureId": "causal",
+      "path": ["0", "job_release_summary", "completed_jobs"]
+    }
+  ],
+  "visualization": {
+    "pluginId": "highmix_factory_3d",
+    "pluginFile": "examples/visualization-plugins/highmix_factory_3d.mjs",
+    "captureId": "legacy",
+    "requireVisualSignal": true
+  }
+}
