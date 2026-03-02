@@ -81,6 +81,12 @@ export interface WsCommandDispatchContext {
   onYSecondaryRangeChange: (min: number, max: number) => void;
   onAutoScrollChange: (enabled: boolean) => void;
   onSetFullscreen: (enabled: boolean) => void;
+  onSetVisualizationFrame: (frame: {
+    mode: "builtin" | "plugin";
+    pluginId?: string;
+    name?: string;
+    captureId?: string;
+  }) => void;
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onLiveStart: (options: {

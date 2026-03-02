@@ -232,6 +232,24 @@ export function handleInteractionCommand(
       context.onSetFullscreen(command.enabled);
       context.sendAck(requestId, command.type);
       return true;
+    case "set_visualization_frame": {
+      if (command.mode === "plugin" && (typeof command.pluginId !== "string" || command.pluginId.trim().length === 0)) {
+        context.sendError(
+          requestId,
+          "set_visualization_frame with mode=plugin requires pluginId.",
+          { mode: command.mode, pluginId: command.pluginId },
+        );
+        return true;
+      }
+      context.onSetVisualizationFrame({
+        mode: command.mode === "plugin" ? "plugin" : "builtin",
+        pluginId: typeof command.pluginId === "string" ? command.pluginId : undefined,
+        name: typeof command.name === "string" ? command.name : undefined,
+        captureId: typeof command.captureId === "string" ? command.captureId : undefined,
+      });
+      context.sendAck(requestId, command.type);
+      return true;
+    }
     case "add_annotation":
       context.onAddAnnotation({
         id: command.id ?? "",

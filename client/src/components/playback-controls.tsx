@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Square, SkipBack, SkipForward, Rewind, FastForward, ExternalLink } from "lucide-react";
+import { Play, Pause, Square, SkipBack, SkipForward, Rewind, FastForward, ExternalLink, Maximize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import type { PlaybackState } from "@shared/schema";
@@ -14,6 +14,7 @@ interface PlaybackControlsProps {
   onSpeedChange: (speed: number) => void;
   onStepForward: () => void;
   onStepBackward: () => void;
+  onResetWindow?: () => void;
   currentTime: string;
   disabled: boolean;
   seekDisabled?: boolean;
@@ -48,6 +49,7 @@ export function PlaybackControls({
   onSpeedChange,
   onStepForward,
   onStepBackward,
+  onResetWindow,
   currentTime,
   disabled,
   seekDisabled = false,
@@ -96,7 +98,7 @@ export function PlaybackControls({
   const displayTick = isScrubbing ? scrubTick : currentTick;
 
   return (
-    <div className={cn("flex flex-col gap-3 py-3", disabled && "opacity-50 pointer-events-none")}>
+    <div className={cn("flex flex-col justify-center gap-2 pt-2 pb-1", disabled && "opacity-50 pointer-events-none")}>
       <div className="flex items-center gap-2">
         <Slider
           value={[displayTick]}
@@ -172,7 +174,7 @@ export function PlaybackControls({
 
           {isPlaying ? (
             <Button
-              variant="default"
+              variant="outline"
               size="icon"
               onClick={onPause}
               disabled={disabled}
@@ -183,7 +185,7 @@ export function PlaybackControls({
             </Button>
           ) : (
             <Button
-              variant="default"
+              variant="outline"
               size="icon"
               onClick={onPlay}
               disabled={disabled || currentTick >= totalTicks}
@@ -226,10 +228,24 @@ export function PlaybackControls({
           >
             <Square className="w-4 h-4" />
           </Button>
+
+          {onResetWindow ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onResetWindow}
+              disabled={disabled}
+              data-testid="button-reset-window"
+              aria-label="Full view"
+              title="Full View"
+            >
+              <Maximize className="w-4 h-4" />
+            </Button>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-0.5 text-sm">
+          <div className="flex items-center gap-0.5 text-sm leading-none">
             <input
               type="text"
               inputMode="decimal"
@@ -264,11 +280,11 @@ export function PlaybackControls({
             <span className="text-muted-foreground text-xs sm:text-sm">x</span>
           </div>
 
-          <div className="flex flex-col items-center sm:items-end gap-0.5">
-            <span className="font-mono text-xs sm:text-sm" data-testid="text-tick-position">
+          <div className="flex flex-col justify-center items-center sm:items-end gap-0.5">
+            <span className="font-mono text-xs sm:text-sm leading-none" data-testid="text-tick-position">
               {displayTick.toLocaleString()} / {totalTicks.toLocaleString()}
             </span>
-            <span className="font-mono text-xs text-muted-foreground hidden sm:block" data-testid="text-current-time">
+            <span className="font-mono text-xs leading-none text-muted-foreground hidden sm:block" data-testid="text-current-time">
               {currentTime}
             </span>
           </div>

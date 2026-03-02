@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { UI_TEXT_ROLE } from "@/lib/ui-typography";
 
 const DEFAULT_HINT = "Hover controls for quick guidance.";
 const GENERIC_HINTS = {
@@ -72,15 +73,6 @@ function isLikelyInteractive(element: HTMLElement): boolean {
   return element.tabIndex >= 0;
 }
 
-const HINT_CONTAINER_HEIGHT_PX = 22;
-const HINT_LINE_HEIGHT_PX = 14;
-const HINT_LINES = 1;
-const HINT_BOTTOM_PAD_PX = 1;
-const DEFAULT_HEADSPACE_PX = 9;
-const HINT_TEXT_BOX_HEIGHT_PX = HINT_LINE_HEIGHT_PX * HINT_LINES + HINT_BOTTOM_PAD_PX;
-const MAX_HEADSPACE_PX = Math.max(0, HINT_CONTAINER_HEIGHT_PX - HINT_TEXT_BOX_HEIGHT_PX);
-const HINT_HEADSPACE_PX = Math.min(DEFAULT_HEADSPACE_PX, MAX_HEADSPACE_PX);
-
 function normalizeLabelText(value: string): string {
   return value
     .replace(/\s+/g, " ")
@@ -102,9 +94,6 @@ function extractControlLabel(candidate: HTMLElement): string {
     const normalized = normalizeLabelText(source);
     if (!normalized) {
       continue;
-    }
-    if (normalized.length > 72) {
-      return `${normalized.slice(0, 69)}...`;
     }
     return normalized;
   }
@@ -322,26 +311,21 @@ export function HintingPanel() {
   }, []);
 
   return (
-    <div className="select-none border-t border-border/60" data-testid="hinting-panel">
-      <div className="bg-transparent px-2" style={{ height: `${HINT_CONTAINER_HEIGHT_PX}px` }}>
-        <div className="h-full px-2">
-          <div
-            className="h-full min-w-0 flex items-start text-[13px] text-foreground/75"
-            data-hint-ignore="true"
-            title={hint}
-            style={{ paddingTop: `${HINT_HEADSPACE_PX}px` }}
+    <div
+      className="select-none border-t border-border/60 shrink-0 box-border px-4 py-1 w-full min-w-0 overflow-x-hidden"
+      data-testid="hinting-panel"
+    >
+      <div className="w-full min-w-0">
+        <div
+          className={`min-w-0 w-full ${UI_TEXT_ROLE.panelBody} leading-4 text-foreground/75`}
+          data-hint-ignore="true"
+          title={hint}
+        >
+          <span
+            className="block min-w-0 whitespace-pre-wrap break-words italic"
           >
-            <span
-              className="block flex-1 min-w-0 overflow-hidden break-words italic"
-              style={{
-                lineHeight: `${HINT_LINE_HEIGHT_PX}px`,
-                maxHeight: `${HINT_TEXT_BOX_HEIGHT_PX}px`,
-                paddingBottom: `${HINT_BOTTOM_PAD_PX}px`,
-              }}
-            >
-              {hint}
-            </span>
-          </div>
+            {hint}
+          </span>
         </div>
       </div>
     </div>

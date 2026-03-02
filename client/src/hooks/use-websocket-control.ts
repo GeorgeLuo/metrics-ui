@@ -42,6 +42,7 @@ interface UseWebSocketControlProps {
   viewport?: VisualizationState["viewport"];
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
+  visualizationFrame: VisualizationState["visualizationFrame"];
   onRestoreState?: (command: RestoreStateCommand) => void;
   onWindowSizeChange: (windowSize: number) => void;
   onWindowStartChange: (windowStart: number) => void;
@@ -51,6 +52,12 @@ interface UseWebSocketControlProps {
   onYSecondaryRangeChange: (min: number, max: number) => void;
   onAutoScrollChange: (enabled: boolean) => void;
   onSetFullscreen: (enabled: boolean) => void;
+  onSetVisualizationFrame: (frame: {
+    mode: "builtin" | "plugin";
+    pluginId?: string;
+    name?: string;
+    captureId?: string;
+  }) => void;
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onToggleCapture: (captureId: string) => void;
@@ -136,6 +143,7 @@ export function useWebSocketControl({
   viewport,
   annotations,
   subtitles,
+  visualizationFrame,
   onRestoreState,
   onSourceModeChange,
   onLiveSourceChange,
@@ -168,6 +176,7 @@ export function useWebSocketControl({
   onYSecondaryRangeChange,
   onAutoScrollChange,
   onSetFullscreen,
+  onSetVisualizationFrame,
   onLiveStart,
   onLiveStop,
   onCaptureInit,
@@ -199,6 +208,8 @@ export function useWebSocketControl({
   const reconnectDisabledRef = useRef(false);
   const outboundQueueRef = useRef<ControlCommand[]>([]);
   const autoSyncTimerRef = useRef<number | null>(null);
+  const awaitingServerRestoreRef = useRef(false);
+  const restoreFallbackTimerRef = useRef<number | null>(null);
 
   const sendMessage = useCallback((message: ControlResponse | ControlCommand) => {
     const ws = wsRef.current;
@@ -245,6 +256,7 @@ export function useWebSocketControl({
         viewport,
         annotations,
         subtitles,
+        visualizationFrame,
       };
       wsRef.current.send(JSON.stringify({
         type: "state_update",
@@ -252,7 +264,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, yPrimaryDomain, ySecondaryDomain, autoScroll, isFullscreen, viewport, annotations, subtitles]);
+  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, yPrimaryDomain, ySecondaryDomain, autoScroll, isFullscreen, viewport, annotations, subtitles, visualizationFrame]);
 
   const sendStateRef = useRef(sendState);
 
@@ -273,14 +285,18 @@ export function useWebSocketControl({
     if (!isRegisteredRef.current) {
       return;
     }
+    if (awaitingServerRestoreRef.current) {
+      return;
+    }
 
     const hasMeaningfulState =
       selectedMetrics.length > 0 ||
       derivationGroups.length > 0 ||
+      visualizationFrame.mode === "plugin" ||
       (Array.isArray(yPrimaryDomain) && yPrimaryDomain.length === 2) ||
       (Array.isArray(ySecondaryDomain) && ySecondaryDomain.length === 2) ||
       annotations.length > 0 ||
-      subtitles.length > 0;
+    subtitles.length > 0;
 
     // Prevent an empty, freshly-loaded browser session from overwriting server-side state. Once the
     // user makes a meaningful selection (or the server restores state), we start syncing normally.
@@ -322,6 +338,7 @@ export function useWebSocketControl({
     isFullscreen,
     annotations,
     subtitles,
+    visualizationFrame,
   ]);
 
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
@@ -416,6 +433,7 @@ export function useWebSocketControl({
       onYSecondaryRangeChange,
       onAutoScrollChange,
       onSetFullscreen,
+      onSetVisualizationFrame,
       onSourceModeChange,
       onLiveSourceChange,
       onLiveStart,
@@ -488,6 +506,7 @@ export function useWebSocketControl({
     onYSecondaryRangeChange,
     onAutoScrollChange,
     onSetFullscreen,
+    onSetVisualizationFrame,
     onSourceModeChange,
     onLiveSourceChange,
     onLiveStart,
@@ -595,13 +614,34 @@ export function useWebSocketControl({
 
               try {
                 const hasLocalState = hasMeaningfulLocalDashboardState();
-                isBootstrappedRef.current = hasLocalState;
-                if (hasLocalState) {
-                  sendStateRef.current("initial_state_sync");
+                // Wait briefly for server-driven restore_state/state_sync before sending local
+                // state back. This avoids stale localStorage overriding persisted server state.
+                awaitingServerRestoreRef.current = true;
+                if (restoreFallbackTimerRef.current !== null) {
+                  window.clearTimeout(restoreFallbackTimerRef.current);
+                }
+                restoreFallbackTimerRef.current = window.setTimeout(() => {
+                  restoreFallbackTimerRef.current = null;
+                  if (!awaitingServerRestoreRef.current) {
+                    return;
+                  }
+                  awaitingServerRestoreRef.current = false;
+                  if (hasLocalState) {
+                    isBootstrappedRef.current = true;
+                    sendStateRef.current("initial_state_sync_fallback");
+                  }
+                }, 1500);
+                if (!hasLocalState) {
+                  isBootstrappedRef.current = false;
                 }
               } catch (error) {
                 console.warn("[ws] Failed to inspect localStorage for dashboard state:", error);
                 isBootstrappedRef.current = false;
+                awaitingServerRestoreRef.current = false;
+                if (restoreFallbackTimerRef.current !== null) {
+                  window.clearTimeout(restoreFallbackTimerRef.current);
+                  restoreFallbackTimerRef.current = null;
+                }
               }
 
               // Flush any queued user commands (remove/clear capture) that may have been triggered
@@ -620,6 +660,13 @@ export function useWebSocketControl({
               }
             }
             return;
+          }
+          if (message.type === "restore_state" || message.type === "state_sync") {
+            awaitingServerRestoreRef.current = false;
+            if (restoreFallbackTimerRef.current !== null) {
+              window.clearTimeout(restoreFallbackTimerRef.current);
+              restoreFallbackTimerRef.current = null;
+            }
           }
           handleCommandRef.current(message as ControlCommand | ControlResponse);
         } catch (e) {
@@ -679,6 +726,10 @@ export function useWebSocketControl({
       if (autoSyncTimerRef.current !== null) {
         window.clearTimeout(autoSyncTimerRef.current);
         autoSyncTimerRef.current = null;
+      }
+      if (restoreFallbackTimerRef.current !== null) {
+        window.clearTimeout(restoreFallbackTimerRef.current);
+        restoreFallbackTimerRef.current = null;
       }
       wsRef.current?.close();
     };

@@ -1,57 +1,27 @@
 import { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect, useDeferredValue } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { FileUpload } from "@/components/file-upload";
-import { ComponentTree } from "@/components/component-tree";
-import { PlaybackControls } from "@/components/playback-controls";
-import { MetricsChart } from "@/components/metrics-chart";
-import { MetricsHUD } from "@/components/metrics-hud";
-import { FloatingFrame } from "@/components/floating-frame";
 import { PopoutProjection } from "@/components/popout-projection";
+import type { InjectedVisualizationDebug } from "@/components/injected-visualization";
+import { ConnectionLockOverlay } from "@/components/home/connection-lock-overlay";
+import { DerivationPluginSourceDialog } from "@/components/home/derivation-plugin-source-dialog";
+import { DocsDialog } from "@/components/home/docs-dialog";
+import { HomeHeaderControls } from "@/components/home/home-header-controls";
+import type { ChartViewProps } from "@/components/home/metrics-chart-view";
+import { MetricsMainPanel } from "@/components/home/metrics-main-panel";
+import { MiniModeView, MiniProjectionContent } from "@/components/home/mini-mode-view";
+import { SidebarDerivationsPane } from "@/components/home/sidebar-derivations-pane";
+import { SidebarSetupPane } from "@/components/home/sidebar-setup-pane";
 import { HintingPanel } from "@/components/hinting-panel";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarProvider,
-  SidebarTrigger,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import {
   Activity,
-  X,
-  FileText,
-  Copy,
-  Check,
-  Plus,
-  BookOpen,
-  ChevronDown,
-  GripVertical,
-  Eye,
-  EyeOff,
-  RefreshCw,
-  Maximize,
-  Maximize2,
-  Minimize2,
-  Play,
-  Code,
-  ExternalLink,
 } from "lucide-react";
 import type {
   Annotation,
@@ -67,9 +37,23 @@ import type {
   ControlResponse,
   MemoryStatsResponse,
   VisualizationState,
+  VisualizationFrameState,
 } from "@shared/schema";
 import { useWebSocketControl } from "@/hooks/use-websocket-control";
 import { useStreamingActivityTracker } from "@/hooks/dashboard/use-streaming-activity";
+import {
+  useDerivationGroups,
+  type DerivationPluginOutput,
+  type DerivationPluginRecord,
+  type DerivationPluginSourceResponse,
+} from "@/hooks/home/use-derivation-groups";
+import { useDerivationRuntime } from "@/hooks/home/use-derivation-runtime";
+import {
+  useLiveStreams,
+  type LiveStreamEntry,
+  type LiveStreamStatus,
+} from "@/hooks/home/use-live-streams";
+import { useWindowAndAxes } from "@/hooks/home/use-window-and-axes";
 import { compactRecord } from "@shared/compact";
 import {
   mergeComponentTrees,
@@ -107,15 +91,11 @@ import {
 import {
   extractDataPoints,
   parseComponentTree,
-  type MetricCoverageByCapture,
 } from "@/lib/dashboard/chart-data";
 import {
   DEFAULT_BYTES_PER_POINT,
   DEFAULT_BYTES_PER_PROP,
   formatBytes,
-  formatDomainNumber,
-  MIN_Y_DOMAIN_SPAN,
-  sanitizeDomain,
 } from "@/lib/dashboard/number-format";
 import { isDerivedCaptureSource } from "@/lib/dashboard/source-utils";
 import {
@@ -128,7 +108,6 @@ import {
 
 const INITIAL_WINDOW_SIZE = 50;
 const DEFAULT_POLL_SECONDS = 2;
-const EMPTY_METRICS: SelectedMetric[] = [];
 const APPEND_FLUSH_MS = 100;
 const LIVE_SERIES_REFRESH_MS = 500;
 const FULLSCREEN_RESIZE_DELAY = 0;
@@ -158,16 +137,6 @@ const METRIC_COLORS = [
   "#FFB703",
 ];
 
-type LiveStreamStatus = "idle" | "connecting" | "retrying" | "connected" | "completed";
-
-interface LiveStreamEntry {
-  id: string;
-  source: string;
-  pollSeconds: number;
-  status: LiveStreamStatus;
-  error: string | null;
-}
-
 interface LiveStreamMeta {
   dirty: boolean;
   lastSource: string | null;
@@ -182,39 +151,6 @@ interface LiveStatusStream {
   pollIntervalMs?: unknown;
   lastError?: unknown;
 }
-
-type DerivationPluginOutput = { key: string; label?: string };
-type DerivationPluginRecord = {
-  id: string;
-  name: string;
-  description?: string;
-  minInputs: number;
-  maxInputs: number | null;
-  outputs: DerivationPluginOutput[];
-  uploadedAt: string;
-  valid: boolean;
-  error: string | null;
-};
-
-type DerivationPluginSourceResponse = {
-  pluginId: string;
-  name: string;
-  filename: string;
-  bytes: number;
-  truncated: boolean;
-  source: string;
-};
-
-type DerivationDragState = {
-  groupId: string;
-  fromIndex: number;
-} | null;
-
-type DerivationDropState = {
-  groupId: string;
-  targetIndex: number;
-  position: "before" | "after";
-} | null;
 
 type UiEventLevel = "info" | "error";
 
@@ -232,6 +168,8 @@ type ConnectionLockState = {
   closeCode: number;
   closeReason: string;
 } | null;
+
+type VisualizationDebugState = InjectedVisualizationDebug;
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
@@ -267,6 +205,28 @@ function computeSampleStats(samples: number[]) {
 
 function isInlineFieldBlank(value: string): boolean {
   return value.trim().length === 0;
+}
+
+function normalizeVisualizationFrameState(value: unknown): VisualizationFrameState {
+  if (!value || typeof value !== "object") {
+    return { mode: "builtin" };
+  }
+  const raw = value as Partial<VisualizationFrameState>;
+  const mode = raw.mode === "plugin" ? "plugin" : "builtin";
+  const next: VisualizationFrameState = { mode };
+  if (mode === "plugin" && typeof raw.pluginId === "string") {
+    next.pluginId = raw.pluginId;
+  }
+  if (typeof raw.name === "string") {
+    next.name = raw.name;
+  }
+  if (typeof raw.captureId === "string") {
+    next.captureId = raw.captureId;
+  }
+  if (typeof raw.updatedAt === "string") {
+    next.updatedAt = raw.updatedAt;
+  }
+  return next;
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {
@@ -309,70 +269,57 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     const parsed = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.selectedMetrics);
     return normalizeMetricList(parsed);
   });
-  const [derivationGroups, setDerivationGroups] = useState<DerivationGroup[]>(() => {
-    const parsed = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.derivationGroups);
-    return normalizeDerivationGroups(parsed);
-  });
-  const [derivationPlugins, setDerivationPlugins] = useState<DerivationPluginRecord[]>([]);
-  const [derivationPluginsError, setDerivationPluginsError] = useState<string | null>(null);
-  const [isDerivationPluginSourceOpen, setIsDerivationPluginSourceOpen] = useState(false);
-  const [derivationPluginSource, setDerivationPluginSource] =
-    useState<DerivationPluginSourceResponse | null>(null);
-  const [derivationPluginSourceLoading, setDerivationPluginSourceLoading] = useState(false);
-  const [derivationPluginSourceError, setDerivationPluginSourceError] = useState<string | null>(null);
-  const [isDerivationPluginSourceCopied, setIsDerivationPluginSourceCopied] = useState(false);
-  const derivationPluginCopyResetTimerRef = useRef<number | null>(null);
-  const derivationPluginFileRef = useRef<HTMLInputElement | null>(null);
-  const [activeDerivationGroupId, setActiveDerivationGroupId] = useState<string>(() => {
-    return readStorageString(DASHBOARD_STORAGE_KEYS.activeDerivationGroupId) ?? "";
-  });
-  const [displayDerivationGroupId, setDisplayDerivationGroupId] = useState<string>(() => {
-    return readStorageString(DASHBOARD_STORAGE_KEYS.displayDerivationGroupId) ?? "";
-  });
-  const [focusedDerivationGroupNameId, setFocusedDerivationGroupNameId] = useState<string>("");
-  const [derivationGroupNameDrafts, setDerivationGroupNameDrafts] = useState<
-    Record<string, string>
-  >({});
+  const {
+    derivationGroups,
+    setDerivationGroups,
+    derivationPlugins,
+    setDerivationPlugins,
+    derivationPluginsError,
+    setDerivationPluginsError,
+    isDerivationPluginSourceOpen,
+    setIsDerivationPluginSourceOpen,
+    derivationPluginSource,
+    setDerivationPluginSource,
+    derivationPluginSourceLoading,
+    setDerivationPluginSourceLoading,
+    derivationPluginSourceError,
+    setDerivationPluginSourceError,
+    isDerivationPluginSourceCopied,
+    setIsDerivationPluginSourceCopied,
+    derivationPluginCopyResetTimerRef,
+    derivationPluginFileRef,
+    activeDerivationGroupId,
+    setActiveDerivationGroupId,
+    displayDerivationGroupId,
+    setDisplayDerivationGroupId,
+    focusedDerivationGroupNameId,
+    setFocusedDerivationGroupNameId,
+    derivationGroupNameDrafts,
+    setDerivationGroupNameDrafts,
+    derivationDragState,
+    setDerivationDragState,
+    derivationDropState,
+    setDerivationDropState,
+  } = useDerivationGroups();
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [memoryStatsSnapshot, setMemoryStatsSnapshot] = useState<MemoryStatsResponse | null>(null);
   const [memoryStatsAt, setMemoryStatsAt] = useState<number | null>(null);
   const [isSelectionOpen, setIsSelectionOpen] = useState(true);
   const [selectionCaptureOpenById, setSelectionCaptureOpenById] = useState<Record<string, boolean>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [sourceMode, setSourceMode] = useState<"file" | "live">(() => {
-    return readStorageString(DASHBOARD_STORAGE_KEYS.sourceMode) === "live"
-      ? "live"
-      : "file";
+  const {
+    sourceMode,
+    setSourceMode,
+    liveStreams,
+    setLiveStreams,
+    livePollInputDrafts,
+    setLivePollInputDrafts,
+    handleLivePollInputDraftChange,
+    handleLivePollInputDraftBlur,
+  } = useLiveStreams({
+    createId: generateId,
+    defaultPollSeconds: DEFAULT_POLL_SECONDS,
   });
-  const [liveStreams, setLiveStreams] = useState<LiveStreamEntry[]>(() => {
-    const parsed = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.liveStreams);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      const hydrated = parsed
-        .map((entry) => ({
-          id: typeof (entry as { id?: unknown })?.id === "string"
-            ? ((entry as { id: string }).id)
-            : generateId(),
-          source: typeof (entry as { source?: unknown })?.source === "string"
-            ? ((entry as { source: string }).source)
-            : "",
-          pollSeconds:
-            Number.isFinite(Number((entry as { pollSeconds?: unknown })?.pollSeconds))
-            && Number((entry as { pollSeconds?: unknown }).pollSeconds) > 0
-              ? Number((entry as { pollSeconds: unknown }).pollSeconds)
-              : DEFAULT_POLL_SECONDS,
-          status: "idle" as LiveStreamStatus,
-          error: null,
-        }))
-        .filter((entry) => entry.source.trim().length > 0);
-
-      if (hydrated.length > 0) {
-        return hydrated;
-      }
-    }
-
-    return [];
-  });
-  const [livePollInputDrafts, setLivePollInputDrafts] = useState<Record<string, string>>({});
 
   const [playbackState, setPlaybackState] = useState<PlaybackState>({
     isPlaying: true,
@@ -380,22 +327,64 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     speed: 1,
     totalTicks: 0,
   });
-
-  const [windowSize, setWindowSize] = useState(INITIAL_WINDOW_SIZE);
-  const [windowStart, setWindowStart] = useState(1);
-  const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
-  const [isWindowed, setIsWindowed] = useState(false);
-  const [resetViewVersion, setResetViewVersion] = useState(0);
-  const [windowStartInput, setWindowStartInput] = useState(String(windowStart));
-  const [windowEndInput, setWindowEndInput] = useState(String(windowEnd));
-  const [manualYPrimaryDomain, setManualYPrimaryDomain] = useState<[number, number] | null>(null);
-  const [manualYSecondaryDomain, setManualYSecondaryDomain] = useState<[number, number] | null>(null);
-  const [resolvedYPrimaryDomain, setResolvedYPrimaryDomain] = useState<[number, number]>([0, 100]);
-  const [resolvedYSecondaryDomain, setResolvedYSecondaryDomain] = useState<[number, number]>([0, 100]);
-  const [yPrimaryMinInput, setYPrimaryMinInput] = useState("0");
-  const [yPrimaryMaxInput, setYPrimaryMaxInput] = useState("100");
-  const [ySecondaryMinInput, setYSecondaryMinInput] = useState("0");
-  const [ySecondaryMaxInput, setYSecondaryMaxInput] = useState("100");
+  const {
+    windowSize,
+    setWindowSize,
+    windowStart,
+    setWindowStart,
+    windowEnd,
+    setWindowEnd,
+    isWindowed,
+    setIsWindowed,
+    resetViewVersion,
+    setResetViewVersion,
+    windowStartInput,
+    setWindowStartInput,
+    windowEndInput,
+    setWindowEndInput,
+    manualYPrimaryDomain,
+    setManualYPrimaryDomain,
+    manualYSecondaryDomain,
+    setManualYSecondaryDomain,
+    resolvedYPrimaryDomain,
+    setResolvedYPrimaryDomain,
+    resolvedYSecondaryDomain,
+    setResolvedYSecondaryDomain,
+    yPrimaryMinInput,
+    setYPrimaryMinInput,
+    yPrimaryMaxInput,
+    setYPrimaryMaxInput,
+    ySecondaryMinInput,
+    setYSecondaryMinInput,
+    ySecondaryMaxInput,
+    setYSecondaryMaxInput,
+    isAutoScroll,
+    setIsAutoScroll,
+    windowStartEditingRef,
+    windowEndEditingRef,
+    yPrimaryMinEditingRef,
+    yPrimaryMaxEditingRef,
+    ySecondaryMinEditingRef,
+    ySecondaryMaxEditingRef,
+    applyWindowRange,
+    handleWindowSizeChange,
+    handleWindowStartChange,
+    handleWindowEndChange,
+    handleWindowRangeChange,
+    commitWindowStartInput,
+    commitWindowEndInput,
+    handleChartDomainChange,
+    commitYPrimaryBoundary,
+    commitYSecondaryBoundary,
+    handleYPrimaryRangeChange,
+    handleYSecondaryRangeChange,
+    handleResetWindow,
+    handleAutoScrollChange,
+  } = useWindowAndAxes({
+    playbackState,
+    setPlaybackState,
+    initialWindowSize: INITIAL_WINDOW_SIZE,
+  });
   const [viewport, setViewport] = useState<VisualizationState["viewport"]>({
     width: 0,
     height: 0,
@@ -403,17 +392,17 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     chartHeight: 0,
     devicePixelRatio: 1,
   });
-  const [isAutoScroll, setIsAutoScroll] = useState(true);
-  const [isHudVisible, setIsHudVisible] = useState(true);
+  const isHudVisible = true;
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [subtitles, setSubtitles] = useState<SubtitleOverlay[]>([]);
+  const [visualizationFrame, setVisualizationFrame] = useState<VisualizationFrameState>(() =>
+    normalizeVisualizationFrameState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame)),
+  );
   const [sidebarMode, setSidebarMode] = useState<"setup" | "analysis">("setup");
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
   const [initialSyncReady, setInitialSyncReady] = useState(false);
-  const [derivationDragState, setDerivationDragState] = useState<DerivationDragState>(null);
-  const [derivationDropState, setDerivationDropState] = useState<DerivationDropState>(null);
   const [loadingProbe, setLoadingProbe] = useState(() => ({
     pendingSeries: 0,
     pendingAppends: 0,
@@ -421,12 +410,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     pendingTicks: 0,
     updatedAt: 0,
   }));
-  const [pendingDerivationRuns, setPendingDerivationRuns] = useState<
-    Array<{ requestId: string; outputCaptureId: string; label: string }>
-  >([]);
   const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
   const [isEventsVisible, setIsEventsVisible] = useState(false);
   const [isMiniProjectionOpen, setIsMiniProjectionOpen] = useState(false);
+  const [isVisualizationPoppedOut, setIsVisualizationPoppedOut] = useState(false);
+  const [visualizationDockRequestToken, setVisualizationDockRequestToken] = useState(0);
   const [connectionLock, setConnectionLock] = useState<ConnectionLockState>(null);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
   const [docsContent, setDocsContent] = useState<string>("");
@@ -472,13 +460,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const seriesRefreshTimerRef = useRef<number | null>(null);
   const lastSeriesRefreshRef = useRef(new Map<string, number>());
   const lastSeriesTickRef = useRef(new Map<string, number>());
-  const windowStartEditingRef = useRef(false);
-  const windowEndEditingRef = useRef(false);
-  const yPrimaryMinEditingRef = useRef(false);
-  const yPrimaryMaxEditingRef = useRef(false);
-  const ySecondaryMinEditingRef = useRef(false);
-  const ySecondaryMaxEditingRef = useRef(false);
   const sidebarHeaderRef = useRef<HTMLDivElement | null>(null);
+  const sidebarContentRef = useRef<HTMLDivElement | null>(null);
+  const sidebarBodyRef = useRef<HTMLDivElement | null>(null);
   const baselineHeapRef = useRef<number | null>(null);
   const componentUpdateSamplesRef = useRef<number[]>([]);
   const componentUpdateLastMsRef = useRef<number | null>(null);
@@ -506,15 +490,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const selectionHandlersRef = useRef(new Map<string, (metrics: SelectedMetric[]) => void>());
   const activeCaptureIdsRef = useRef(new Set<string>());
   const streamModeRef = useRef(new Map<string, "lite" | "full">());
-  const derivationRerunTimersRef = useRef(new Map<string, number>());
-  const derivationOutputGroupByCaptureRef = useRef(new Map<string, string>());
-  const pendingDerivationByRequestRef = useRef(
-    new Map<string, { outputCaptureId: string; label: string }>(),
-  );
-  const pendingDerivationRequestsByCaptureRef = useRef(new Map<string, Set<string>>());
   const staleSeriesRecoverAtRef = useRef(new Map<string, number>());
   const staleSeriesRecoverErrorAtRef = useRef(new Map<string, number>());
   const sourceRepairAttemptAtRef = useRef(new Map<string, number>());
+  const visualizationDebugRef = useRef<VisualizationDebugState | null>(null);
+
+  const handleVisualizationDebugChange = useCallback((debug: VisualizationDebugState) => {
+    visualizationDebugRef.current = debug;
+  }, []);
 
   const pushUiEvent = useCallback((event: Omit<UiEvent, "id" | "timestamp">) => {
     setUiEvents((prev) => {
@@ -531,84 +514,39 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     });
   }, []);
 
-  const syncPendingDerivationRuns = useCallback(() => {
-    const next = Array.from(pendingDerivationByRequestRef.current.entries()).map(
-      ([requestId, entry]) => ({
-        requestId,
-        outputCaptureId: entry.outputCaptureId,
-        label: entry.label,
-      }),
-    );
-    setPendingDerivationRuns(next);
-  }, []);
-
-  const markDerivationRunPending = useCallback(
-    (requestId: string, outputCaptureId: string, label: string) => {
-      if (!requestId.trim() || !outputCaptureId.trim()) {
-        return;
-      }
-      pendingDerivationByRequestRef.current.set(requestId, {
-        outputCaptureId,
-        label: label.trim(),
-      });
-      const existing = pendingDerivationRequestsByCaptureRef.current.get(outputCaptureId);
-      if (existing) {
-        existing.add(requestId);
-      } else {
-        pendingDerivationRequestsByCaptureRef.current.set(outputCaptureId, new Set([requestId]));
-      }
-      syncPendingDerivationRuns();
-    },
-    [syncPendingDerivationRuns],
-  );
-
-  const clearDerivationRunPendingByRequest = useCallback(
-    (requestId?: string) => {
-      if (!requestId || !requestId.trim()) {
-        return;
-      }
-      const existing = pendingDerivationByRequestRef.current.get(requestId);
-      if (!existing) {
-        return;
-      }
-      pendingDerivationByRequestRef.current.delete(requestId);
-      const captureSet = pendingDerivationRequestsByCaptureRef.current.get(
-        existing.outputCaptureId,
-      );
-      if (captureSet) {
-        captureSet.delete(requestId);
-        if (captureSet.size === 0) {
-          pendingDerivationRequestsByCaptureRef.current.delete(existing.outputCaptureId);
-        }
-      }
-      syncPendingDerivationRuns();
-    },
-    [syncPendingDerivationRuns],
-  );
-
-  const clearDerivationRunPendingByCapture = useCallback(
-    (captureId: string) => {
-      if (!captureId.trim()) {
-        return;
-      }
-      const captureSet = pendingDerivationRequestsByCaptureRef.current.get(captureId);
-      if (!captureSet || captureSet.size === 0) {
-        return;
-      }
-      captureSet.forEach((requestId) => {
-        pendingDerivationByRequestRef.current.delete(requestId);
-      });
-      pendingDerivationRequestsByCaptureRef.current.delete(captureId);
-      syncPendingDerivationRuns();
-    },
-    [syncPendingDerivationRuns],
-  );
-
-  const clearAllPendingDerivationRuns = useCallback(() => {
-    pendingDerivationByRequestRef.current.clear();
-    pendingDerivationRequestsByCaptureRef.current.clear();
-    syncPendingDerivationRuns();
-  }, [syncPendingDerivationRuns]);
+  const {
+    pendingDerivationRuns,
+    syncPendingDerivationRuns,
+    derivationRerunTimersRef,
+    derivationOutputGroupByCaptureRef,
+    pendingDerivationByRequestRef,
+    pendingDerivationRequestsByCaptureRef,
+    autoReplayDerivationsRef,
+    clearDerivationRunPendingByRequest,
+    clearDerivationRunPendingByCapture,
+    clearAllPendingDerivationRuns,
+    handleReorderDerivationGroupMetrics,
+    handleDerivationMetricDragStart,
+    handleDerivationMetricDragOver,
+    handleDerivationMetricDrop,
+    handleDerivationMetricDragEnd,
+    handleRunDerivation,
+    handleRunDerivationPlugin,
+  } = useDerivationRuntime({
+    captures,
+    initialSyncReady,
+    derivationGroups,
+    derivationGroupsRef,
+    derivationPluginsRef,
+    setDerivationGroups,
+    derivationDragState,
+    derivationDropState,
+    setDerivationDragState,
+    setDerivationDropState,
+    sendMessageRef,
+    pushUiEvent,
+    generateId,
+  });
 
   const normalizeDerivationPlugins = useCallback((raw: unknown): DerivationPluginRecord[] => {
     if (!Array.isArray(raw)) {
@@ -880,6 +818,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         derivationGroups: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.derivationGroups),
         activeDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.activeDerivationGroupId),
         displayDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.displayDerivationGroupId),
+        visualizationFrame: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame),
         liveStreams: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.liveStreams),
         sourceMode: readStorageString(DASHBOARD_STORAGE_KEYS.sourceMode),
         theme: readStorageString("theme"),
@@ -936,6 +875,21 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     const componentUpdateTimers = Array.from(componentUpdateTimersRef.current.entries()).map(
       ([captureId, timerId]) => ({ captureId, hasTimer: timerId !== null }),
     );
+    const sidebarContentHeight = sidebarContentRef.current?.getBoundingClientRect?.().height ?? null;
+    const sidebarBodyHeight = sidebarBodyRef.current?.getBoundingClientRect?.().height ?? null;
+    const hintPanelEl =
+      typeof document !== "undefined"
+        ? document.querySelector<HTMLElement>("[data-testid='hinting-panel']")
+        : null;
+    const hintPanelHeight = hintPanelEl?.getBoundingClientRect?.().height ?? null;
+    const sidebarHeightSum =
+      typeof sidebarBodyHeight === "number" && typeof hintPanelHeight === "number"
+        ? sidebarBodyHeight + hintPanelHeight
+        : null;
+    const sidebarHeightDelta =
+      typeof sidebarContentHeight === "number" && typeof sidebarHeightSum === "number"
+        ? sidebarContentHeight - sidebarHeightSum
+        : null;
 
     return {
       generatedAt: new Date().toISOString(),
@@ -960,6 +914,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         liveStreams,
         annotations,
         subtitles,
+        visualizationFrame,
         sidebarMode,
         isCaptureSourceOpen,
         isSelectionOpen,
@@ -1022,6 +977,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         windowStartEditing: windowStartEditingRef.current,
         windowEndEditing: windowEndEditingRef.current,
         sidebarHeaderHeight: sidebarHeaderRef.current?.getBoundingClientRect?.().height ?? null,
+        sidebarContentHeight,
+        sidebarBodyHeight,
+        hintPanelHeight,
+        sidebarHeightSum,
+        sidebarHeightDelta,
         baselineHeap: baselineHeapRef.current,
         selectionHandlers: selectionHandlersRef.current.size,
         prevSelectedCount: prevSelectedRef.current.length,
@@ -1029,6 +989,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         endedCaptureReasons: Array.from(endedCaptureReasonsRef.current.entries()).map(
           ([captureId, info]) => ({ captureId, ...info }),
         ),
+        visualization: visualizationDebugRef.current,
       },
       localStorage: localStorageSnapshot,
     };
@@ -1066,6 +1027,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     windowStart,
     highlightedMetricKey,
     isAutoScroll,
+    visualizationFrame,
   ]);
 
   useEffect(() => {
@@ -1659,36 +1621,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   }, [displayDerivationGroupId]);
 
   useEffect(() => {
-    if (!windowStartEditingRef.current) {
-      setWindowStartInput(String(windowStart));
-    }
-  }, [windowStart]);
-
-  useEffect(() => {
-    if (!windowEndEditingRef.current) {
-      setWindowEndInput(String(windowEnd));
-    }
-  }, [windowEnd]);
-
-  useEffect(() => {
-    if (!yPrimaryMinEditingRef.current) {
-      setYPrimaryMinInput(formatDomainNumber(resolvedYPrimaryDomain[0]));
-    }
-    if (!yPrimaryMaxEditingRef.current) {
-      setYPrimaryMaxInput(formatDomainNumber(resolvedYPrimaryDomain[1]));
-    }
-  }, [resolvedYPrimaryDomain]);
-
-  useEffect(() => {
-    if (!ySecondaryMinEditingRef.current) {
-      setYSecondaryMinInput(formatDomainNumber(resolvedYSecondaryDomain[0]));
-    }
-    if (!ySecondaryMaxEditingRef.current) {
-      setYSecondaryMaxInput(formatDomainNumber(resolvedYSecondaryDomain[1]));
-    }
-  }, [resolvedYSecondaryDomain]);
-
-  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -1813,6 +1745,10 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       displayDerivationGroupId,
     );
   }, [displayDerivationGroupId]);
+
+  useEffect(() => {
+    writeStorageJson(DASHBOARD_STORAGE_KEYS.visualizationFrame, visualizationFrame);
+  }, [visualizationFrame]);
 
   useEffect(() => {
     if (sidebarMode !== "analysis") {
@@ -2492,6 +2428,30 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     }
   }, []);
 
+  const handleSetVisualizationFrame = useCallback(
+    (next: {
+      mode: "builtin" | "plugin";
+      pluginId?: string;
+      name?: string;
+      captureId?: string;
+    }) => {
+      setVisualizationFrame((prev) => {
+        const normalized = normalizeVisualizationFrameState({
+          mode: next.mode,
+          pluginId: typeof next.pluginId === "string" ? next.pluginId : undefined,
+          name: typeof next.name === "string" ? next.name : undefined,
+          captureId: typeof next.captureId === "string" ? next.captureId : undefined,
+          updatedAt: new Date().toISOString(),
+        });
+        if (JSON.stringify(prev) === JSON.stringify(normalized)) {
+          return prev;
+        }
+        return normalized;
+      });
+    },
+    [],
+  );
+
   const handleSourceModeChange = useCallback((mode: "file" | "live") => {
     setSourceMode(mode);
     if (mode === "live") {
@@ -2855,6 +2815,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       if (Array.isArray(state.subtitles)) {
         setSubtitles(state.subtitles);
       }
+      if (state.visualizationFrame && typeof state.visualizationFrame === "object") {
+        setVisualizationFrame(normalizeVisualizationFrameState(state.visualizationFrame));
+      }
     },
     [isAutoScroll],
   );
@@ -2932,15 +2895,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     stopLiveStream,
     updateLiveStream,
   ]);
-
-  useEffect(() => {
-    return () => {
-      derivationRerunTimersRef.current.forEach((timer) => {
-        window.clearTimeout(timer);
-      });
-      derivationRerunTimersRef.current.clear();
-    };
-  }, []);
 
   const handleCaptureInit = useCallback(
     (
@@ -4134,184 +4088,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     [pushUiEvent, removeCaptureIds, toUniqueGroupId],
   );
 
-  const scheduleDerivationRecompute = useCallback((groupId: string, pluginId: string) => {
-    const normalizedGroupId = groupId.trim();
-    const normalizedPluginId = pluginId.trim();
-    if (!normalizedGroupId || !normalizedPluginId) {
-      return;
-    }
-
-    const timerKey = `${normalizedGroupId}::${normalizedPluginId}`;
-    const existingTimer = derivationRerunTimersRef.current.get(timerKey);
-    if (existingTimer !== undefined) {
-      window.clearTimeout(existingTimer);
-    }
-
-    const timer = window.setTimeout(() => {
-      derivationRerunTimersRef.current.delete(timerKey);
-      const currentGroup = derivationGroupsRef.current.find(
-        (group) => group.id === normalizedGroupId,
-      );
-      if (!currentGroup) {
-        pushUiEvent({
-          level: "info",
-          message: "Derivation recompute canceled",
-          detail: `group deleted: ${normalizedGroupId}`,
-        });
-        return;
-      }
-      const currentPluginId =
-        typeof currentGroup.pluginId === "string" ? currentGroup.pluginId.trim() : "";
-      if (currentPluginId !== normalizedPluginId) {
-        pushUiEvent({
-          level: "info",
-          message: "Derivation recompute canceled",
-          detail: `plugin changed: ${normalizedGroupId}`,
-        });
-        return;
-      }
-      const outputCaptureId = `derive-${normalizedGroupId}-${normalizedPluginId}`;
-      const inputMetrics = getDerivationGroupInputMetrics(currentGroup).map(cloneMetric);
-      const requestId = `derive-recompute-${generateId()}`;
-      pushUiEvent({
-        level: "info",
-        message: "Derivation recompute started",
-        detail: `${normalizedGroupId} -> ${normalizedPluginId}`,
-      });
-      markDerivationRunPending(
-        requestId,
-        outputCaptureId,
-        `${normalizedGroupId} -> ${normalizedPluginId}`,
-      );
-      const sent = sendMessageRef.current({
-        type: "run_derivation_plugin",
-        groupId: normalizedGroupId,
-        pluginId: normalizedPluginId,
-        outputCaptureId,
-        metrics: inputMetrics,
-        request_id: requestId,
-      });
-      if (!sent) {
-        clearDerivationRunPendingByRequest(requestId);
-      }
-    }, 180);
-
-    derivationRerunTimersRef.current.set(timerKey, timer);
-    pushUiEvent({
-      level: "info",
-      message: "Derivation recompute queued",
-      detail: `${normalizedGroupId} -> ${normalizedPluginId}`,
-    });
-  }, [clearDerivationRunPendingByRequest, markDerivationRunPending, pushUiEvent]);
-
-  const handleReorderDerivationGroupMetrics = useCallback(
-    (groupId: string, fromIndex: number, toIndex: number) => {
-      if (!Number.isFinite(fromIndex) || !Number.isFinite(toIndex)) {
-        return;
-      }
-      const from = Math.floor(fromIndex);
-      const to = Math.floor(toIndex);
-
-      const existingGroup = derivationGroupsRef.current.find((group) => group.id === groupId);
-      if (!existingGroup) {
-        return;
-      }
-      const size = getDerivationGroupInputMetrics(existingGroup).length;
-      if (size <= 1) {
-        return;
-      }
-      if (from < 0 || from >= size || to < 0 || to >= size || from === to) {
-        return;
-      }
-
-      setDerivationGroups((prev) => {
-        const next = prev.map((group) => {
-          if (group.id !== groupId) {
-            return group;
-          }
-          const nextMetrics = [...getDerivationGroupInputMetrics(group)];
-          const [moved] = nextMetrics.splice(from, 1);
-          if (!moved) {
-            return group;
-          }
-          nextMetrics.splice(to, 0, moved);
-          return { ...group, metrics: nextMetrics };
-        });
-        derivationGroupsRef.current = next;
-        return next;
-      });
-
-      const pluginId = typeof existingGroup.pluginId === "string" ? existingGroup.pluginId.trim() : "";
-      if (pluginId) {
-        scheduleDerivationRecompute(groupId, pluginId);
-      }
-    },
-    [scheduleDerivationRecompute],
-  );
-
-  const handleDerivationMetricDragStart = useCallback(
-    (event: React.DragEvent<HTMLDivElement>, groupId: string, fromIndex: number) => {
-      setDerivationDragState({ groupId, fromIndex });
-      setDerivationDropState(null);
-      try {
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData(
-          "text/plain",
-          JSON.stringify({ type: "derivation-metric", groupId, fromIndex }),
-        );
-      } catch {
-        // ignore dataTransfer errors
-      }
-    },
-    [],
-  );
-
-  const handleDerivationMetricDragOver = useCallback(
-    (event: React.DragEvent<HTMLDivElement>, groupId: string, targetIndex: number) => {
-      if (!derivationDragState || derivationDragState.groupId !== groupId) {
-        return;
-      }
-      event.preventDefault();
-      const rect = event.currentTarget.getBoundingClientRect();
-      const middleY = rect.top + rect.height / 2;
-      const position: "before" | "after" = event.clientY < middleY ? "before" : "after";
-      setDerivationDropState({ groupId, targetIndex, position });
-      event.dataTransfer.dropEffect = "move";
-    },
-    [derivationDragState],
-  );
-
-  const handleDerivationMetricDrop = useCallback(
-    (event: React.DragEvent<HTMLDivElement>, groupId: string, targetIndex: number) => {
-      if (!derivationDragState || derivationDragState.groupId !== groupId) {
-        return;
-      }
-      event.preventDefault();
-
-      const fromIndex = derivationDragState.fromIndex;
-      const position =
-        derivationDropState &&
-        derivationDropState.groupId === groupId &&
-        derivationDropState.targetIndex === targetIndex
-          ? derivationDropState.position
-          : "before";
-
-      const rawInsertIndex = position === "before" ? targetIndex : targetIndex + 1;
-      const normalizedInsertIndex =
-        fromIndex < rawInsertIndex ? rawInsertIndex - 1 : rawInsertIndex;
-
-      setDerivationDragState(null);
-      setDerivationDropState(null);
-      handleReorderDerivationGroupMetrics(groupId, fromIndex, normalizedInsertIndex);
-    },
-    [derivationDragState, derivationDropState, handleReorderDerivationGroupMetrics],
-  );
-
-  const handleDerivationMetricDragEnd = useCallback(() => {
-    setDerivationDragState(null);
-    setDerivationDropState(null);
-  }, []);
-
   const handleSetDisplayDerivationGroup = useCallback((groupId: string) => {
     if (!groupId) {
       displayDerivationGroupIdRef.current = "";
@@ -4324,106 +4100,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     displayDerivationGroupIdRef.current = groupId;
     setDisplayDerivationGroupId(groupId);
   }, []);
-
-  const handleRunDerivation = useCallback(
-    (options: { groupId: string; kind: "moving_average" | "diff"; window?: number }) => {
-      const derivedCaptureId =
-        options.kind === "moving_average"
-          ? `derive-${options.groupId}-moving_average-${options.window ?? 5}`
-          : `derive-${options.groupId}-diff`;
-      const requestId = `derive-run-${generateId()}`;
-      derivationOutputGroupByCaptureRef.current.set(derivedCaptureId, options.groupId);
-      markDerivationRunPending(
-        requestId,
-        derivedCaptureId,
-        `${options.groupId} -> ${options.kind}`,
-      );
-      const sent = sendMessageRef.current({
-        type: "run_derivation",
-        groupId: options.groupId,
-        kind: options.kind,
-        window: options.window,
-        request_id: requestId,
-      });
-      if (!sent) {
-        clearDerivationRunPendingByRequest(requestId);
-      }
-      pushUiEvent({
-        level: "info",
-        message: "Derivation run requested",
-        detail: `${options.kind} on ${options.groupId}`,
-      });
-    },
-    [clearDerivationRunPendingByRequest, markDerivationRunPending, pushUiEvent],
-  );
-
-  const handleRunDerivationPlugin = useCallback(
-    (options: { groupId: string; pluginId: string; outputCaptureId?: string }) => {
-      const outputCaptureId =
-        options.outputCaptureId || `derive-${options.groupId}-${options.pluginId}`;
-      const requestId = `derive-plugin-${generateId()}`;
-      const group = derivationGroupsRef.current.find(
-        (entry) => entry.id === options.groupId,
-      );
-      if (!group) {
-        pushUiEvent({
-          level: "error",
-          message: `Derivation group not found: ${options.groupId}`,
-        });
-        return;
-      }
-      let inputMetrics = uniqueMetrics(getDerivationGroupInputMetrics(group).map(cloneMetric));
-      const plugin = derivationPluginsRef.current.find(
-        (entry) => entry.id === options.pluginId,
-      );
-      if (plugin) {
-        const minInputs = Number.isInteger(plugin.minInputs) ? plugin.minInputs : 1;
-        const maxInputs =
-          Number.isInteger(plugin.maxInputs) && (plugin.maxInputs as number) >= minInputs
-            ? (plugin.maxInputs as number)
-            : null;
-        if (maxInputs !== null && inputMetrics.length > maxInputs) {
-          inputMetrics = inputMetrics.slice(0, maxInputs);
-          pushUiEvent({
-            level: "info",
-            message: "Trimmed derivation inputs",
-            detail: `${options.groupId} -> ${options.pluginId} (${maxInputs} max)`,
-          });
-        }
-        if (inputMetrics.length < minInputs) {
-          pushUiEvent({
-            level: "error",
-            message: `Plugin ${options.pluginId} requires at least ${minInputs} input metrics`,
-            detail: `${options.groupId} has ${inputMetrics.length}`,
-          });
-          return;
-        }
-      }
-      derivationOutputGroupByCaptureRef.current.set(outputCaptureId, options.groupId);
-      markDerivationRunPending(
-        requestId,
-        outputCaptureId,
-        `${options.groupId} -> ${options.pluginId}`,
-      );
-      const sent = sendMessageRef.current({
-        type: "run_derivation_plugin",
-        groupId: options.groupId,
-        pluginId: options.pluginId,
-        outputCaptureId,
-        metrics: inputMetrics,
-        request_id: requestId,
-      });
-      if (!sent) {
-        clearDerivationRunPendingByRequest(requestId);
-      }
-      pushUiEvent({
-        level: "info",
-        message: "Derivation plugin run requested",
-        detail: `${options.groupId} -> ${options.pluginId}`,
-      });
-    },
-    [clearDerivationRunPendingByRequest, markDerivationRunPending, pushUiEvent],
-  );
 
   const handleCreateDerivationGroupFromActive = useCallback(
     (mode: "new" | "deep-copy" | "shallow-copy") => {
@@ -4499,52 +4175,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     },
     [handleCreateDerivationGroup, handleRunDerivationPlugin, toUniqueGroupId],
   );
-
-  const autoReplayDerivationsRef = useRef(new Set<string>());
-
-  useEffect(() => {
-    if (!initialSyncReady) {
-      return;
-    }
-    if (derivationGroups.length === 0) {
-      return;
-    }
-    derivationGroups.forEach((group) => {
-      const pluginId = typeof group.pluginId === "string" ? group.pluginId.trim() : "";
-      if (!pluginId) {
-        return;
-      }
-      const metrics = getDerivationGroupInputMetrics(group);
-      if (metrics.length === 0) {
-        return;
-      }
-      const persistedDerivedMetrics = getDerivationGroupDerivedMetrics(group);
-      if (persistedDerivedMetrics.length === 0) {
-        return;
-      }
-      const knownDerivedCaptureIds = Array.from(
-        new Set(
-          persistedDerivedMetrics
-            .map((metric) => metric.captureId)
-            .filter((captureId) => typeof captureId === "string" && captureId.length > 0),
-        ),
-      );
-      const outputCaptureId =
-        knownDerivedCaptureIds[0] ?? `derive-${group.id}-${pluginId}`;
-      const existing = captures.find((capture) => capture.id === outputCaptureId);
-      // Replay only when the output capture already has records in this session.
-      // This restores derived outputs after refresh without creating duplicate output captures.
-      if (existing && existing.records.length > 0) {
-        return;
-      }
-      const key = `${group.id}::${pluginId}`;
-      if (autoReplayDerivationsRef.current.has(key)) {
-        return;
-      }
-      autoReplayDerivationsRef.current.add(key);
-      handleRunDerivationPlugin({ groupId: group.id, pluginId, outputCaptureId });
-    });
-  }, [captures, derivationGroups, handleRunDerivationPlugin, initialSyncReady]);
 
   const prevSelectedRef = useRef<SelectedMetric[]>([]);
 
@@ -4823,231 +4453,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handleSpeedChange = useCallback((speed: number) => {
     setPlaybackState((prev) => ({ ...prev, speed }));
   }, []);
-
-  const applyWindowRange = useCallback(
-    (startTick: number, endTick: number) => {
-      const maxTick = Math.max(1, playbackState.totalTicks || 1);
-      let start = Number.isFinite(startTick) ? Math.floor(startTick) : 1;
-      let end = Number.isFinite(endTick) ? Math.floor(endTick) : 1;
-      start = Math.max(1, start);
-      end = Math.max(1, end);
-      if (end > maxTick) {
-        end = maxTick;
-      }
-      if (start > end) {
-        start = end;
-      }
-      setWindowStart(start);
-      setWindowEnd(end);
-      setPlaybackState((prev) => ({
-        ...prev,
-        currentTick: end,
-      }));
-      return { start, end };
-    },
-    [playbackState.totalTicks],
-  );
-
-  const handleWindowSizeChange = useCallback(
-    (size: number) => {
-      if (!Number.isFinite(size) || size <= 0) {
-        return;
-      }
-      setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
-      const safeSize = Math.max(1, Math.floor(size));
-      setWindowSize(safeSize);
-      setIsAutoScroll(false);
-      setIsWindowed(true);
-      const end = isAutoScroll ? playbackState.currentTick : windowEnd;
-      applyWindowRange(end - safeSize + 1, end);
-    },
-    [applyWindowRange, isAutoScroll, playbackState.currentTick, windowEnd],
-  );
-
-  const handleWindowStartChange = useCallback(
-    (startTick: number) => {
-      if (!Number.isFinite(startTick)) {
-        return;
-      }
-      setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
-      setIsAutoScroll(false);
-      setIsWindowed(true);
-      const start = Math.max(1, Math.floor(startTick));
-      const end = start + windowSize - 1;
-      applyWindowRange(start, end);
-    },
-    [applyWindowRange, windowSize],
-  );
-
-  const handleWindowEndChange = useCallback(
-    (endTick: number) => {
-      if (!Number.isFinite(endTick)) {
-        return;
-      }
-      setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
-      setIsAutoScroll(false);
-      setIsWindowed(true);
-      const end = Math.max(1, Math.floor(endTick));
-      const start = end - windowSize + 1;
-      applyWindowRange(start, end);
-    },
-    [applyWindowRange, windowSize],
-  );
-
-  const handleWindowRangeChange = useCallback(
-    (startTick: number, endTick: number) => {
-      if (!Number.isFinite(startTick) && !Number.isFinite(endTick)) {
-        return;
-      }
-      setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
-      setIsAutoScroll(false);
-      setIsWindowed(true);
-      const window = applyWindowRange(startTick, endTick);
-      setWindowSize(Math.max(1, window.end - window.start + 1));
-    },
-    [applyWindowRange],
-  );
-
-  const commitWindowStartInput = useCallback(
-    (rawValue: string) => {
-      const parsed = Number(rawValue);
-      if (!Number.isFinite(parsed)) {
-        setWindowStartInput(String(windowStart));
-        return;
-      }
-      handleWindowStartChange(parsed);
-    },
-    [handleWindowStartChange, windowStart],
-  );
-
-  const commitWindowEndInput = useCallback(
-    (rawValue: string) => {
-      const parsed = Number(rawValue);
-      if (!Number.isFinite(parsed)) {
-        setWindowEndInput(String(windowEnd));
-        return;
-      }
-      handleWindowEndChange(parsed);
-    },
-    [handleWindowEndChange, windowEnd],
-  );
-
-  const handleChartDomainChange = useCallback(
-    (domain: { yPrimary: [number, number]; ySecondary: [number, number] }) => {
-      const nextPrimary = sanitizeDomain(domain.yPrimary);
-      const nextSecondary = sanitizeDomain(domain.ySecondary);
-      setResolvedYPrimaryDomain((prev) =>
-        prev[0] === nextPrimary[0] && prev[1] === nextPrimary[1] ? prev : nextPrimary,
-      );
-      setResolvedYSecondaryDomain((prev) =>
-        prev[0] === nextSecondary[0] && prev[1] === nextSecondary[1] ? prev : nextSecondary,
-      );
-    },
-    [],
-  );
-
-  const commitYPrimaryBoundary = useCallback(
-    (boundary: "min" | "max", rawValue: string) => {
-      const parsed = Number(rawValue);
-      const source = sanitizeDomain(manualYPrimaryDomain ?? resolvedYPrimaryDomain);
-      if (!Number.isFinite(parsed)) {
-        if (boundary === "min") {
-          setYPrimaryMinInput(formatDomainNumber(source[0]));
-        } else {
-          setYPrimaryMaxInput(formatDomainNumber(source[1]));
-        }
-        return;
-      }
-      let [nextMin, nextMax] = source;
-      if (boundary === "min") {
-        nextMin = parsed;
-        if (nextMin >= nextMax) {
-          nextMin = nextMax - MIN_Y_DOMAIN_SPAN;
-        }
-      } else {
-        nextMax = parsed;
-        if (nextMax <= nextMin) {
-          nextMax = nextMin + MIN_Y_DOMAIN_SPAN;
-        }
-      }
-      setManualYPrimaryDomain([nextMin, nextMax]);
-    },
-    [manualYPrimaryDomain, resolvedYPrimaryDomain],
-  );
-
-  const commitYSecondaryBoundary = useCallback(
-    (boundary: "min" | "max", rawValue: string) => {
-      const parsed = Number(rawValue);
-      const source = sanitizeDomain(manualYSecondaryDomain ?? resolvedYSecondaryDomain);
-      if (!Number.isFinite(parsed)) {
-        if (boundary === "min") {
-          setYSecondaryMinInput(formatDomainNumber(source[0]));
-        } else {
-          setYSecondaryMaxInput(formatDomainNumber(source[1]));
-        }
-        return;
-      }
-      let [nextMin, nextMax] = source;
-      if (boundary === "min") {
-        nextMin = parsed;
-        if (nextMin >= nextMax) {
-          nextMin = nextMax - MIN_Y_DOMAIN_SPAN;
-        }
-      } else {
-        nextMax = parsed;
-        if (nextMax <= nextMin) {
-          nextMax = nextMin + MIN_Y_DOMAIN_SPAN;
-        }
-      }
-      setManualYSecondaryDomain([nextMin, nextMax]);
-    },
-    [manualYSecondaryDomain, resolvedYSecondaryDomain],
-  );
-
-  const handleYPrimaryRangeChange = useCallback((min: number, max: number) => {
-    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
-      return;
-    }
-    setManualYPrimaryDomain([min, max]);
-  }, []);
-
-  const handleYSecondaryRangeChange = useCallback((min: number, max: number) => {
-    if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
-      return;
-    }
-    setManualYSecondaryDomain([min, max]);
-  }, []);
-
-  const handleResetWindow = useCallback(() => {
-    const end = Math.max(1, playbackState.totalTicks || playbackState.currentTick);
-    setIsAutoScroll(true);
-    setIsWindowed(false);
-    setManualYPrimaryDomain(null);
-    setManualYSecondaryDomain(null);
-    setResetViewVersion((prev) => prev + 1);
-    setPlaybackState((prev) => ({
-      ...prev,
-      isPlaying: true,
-      currentTick: end,
-    }));
-    setWindowStart(1);
-    setWindowEnd(end);
-    setWindowSize(end);
-  }, [playbackState.currentTick, playbackState.totalTicks]);
-
-  const handleAutoScrollChange = useCallback(
-    (enabled: boolean) => {
-      const nextEnabled = Boolean(enabled);
-      setIsAutoScroll(nextEnabled);
-      if (nextEnabled) {
-        setIsWindowed(false);
-      }
-      if (!enabled) {
-        setPlaybackState((prev) => ({ ...prev, isPlaying: false }));
-      }
-    },
-    [],
-  );
 
   const handleAddAnnotation = useCallback((annotation: Annotation) => {
     if (!Number.isFinite(annotation.tick)) {
@@ -5363,6 +4768,33 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
   const currentData =
     chartData.find((dataPoint) => dataPoint.tick === playbackState.currentTick) || null;
+
+  const visualizationCapture = useMemo(() => {
+    const activeSourceCaptures = captures.filter(
+      (capture) => capture.isActive && !isDerivedCaptureSource(capture.source ?? ""),
+    );
+    if (activeSourceCaptures.length === 0) {
+      return null;
+    }
+    const pinnedCaptureId =
+      typeof visualizationFrame.captureId === "string"
+      && visualizationFrame.captureId.trim().length > 0
+        ? visualizationFrame.captureId.trim()
+        : "";
+    if (pinnedCaptureId) {
+      const pinned = activeSourceCaptures.find((capture) => capture.id === pinnedCaptureId);
+      if (pinned) {
+        return pinned;
+      }
+    }
+    return (
+      activeSourceCaptures.find((capture) =>
+        /highmix[\s_-]*causal|causal/i.test(
+          `${capture.id} ${capture.filename} ${capture.source ?? ""}`,
+        ),
+      ) ?? activeSourceCaptures[0]
+    );
+  }, [captures, visualizationFrame.captureId]);
 
   const rebuildCaptureStats = useCallback((capture: CaptureSession): CaptureStats => {
     const stats = createEmptyCaptureStats();
@@ -5708,24 +5140,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     };
   }, [hasLiveIntent, playbackState.isPlaying, playbackState.speed]);
 
-  useLayoutEffect(() => {
-    if (!isAutoScroll) {
-      return;
-    }
-    const end = Math.max(1, playbackState.currentTick);
-    const start = Math.max(1, Math.min(windowStart, end));
-    const size = Math.max(1, end - start + 1);
-    if (windowStart !== start) {
-      setWindowStart(start);
-    }
-    if (windowEnd !== end) {
-      setWindowEnd(end);
-    }
-    if (windowSize !== size) {
-      setWindowSize(size);
-    }
-  }, [isAutoScroll, playbackState.currentTick, windowEnd, windowSize, windowStart]);
-
   const { sendMessage } = useWebSocketControl({
     captures,
     selectedMetrics,
@@ -5745,6 +5159,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     viewport,
     annotations,
     subtitles,
+    visualizationFrame,
     onRestoreState: handleRestoreState,
     onSourceModeChange: handleSourceModeChange,
     onLiveSourceChange: handleLiveSourceCommand,
@@ -5777,6 +5192,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     onYSecondaryRangeChange: handleYSecondaryRangeChange,
     onAutoScrollChange: handleAutoScrollChange,
     onSetFullscreen: handleSetFullscreen,
+    onSetVisualizationFrame: handleSetVisualizationFrame,
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,
@@ -5876,6 +5292,10 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
   const handleOpenMiniPlayer = useCallback(() => {
     setIsMiniProjectionOpen(true);
+  }, []);
+
+  const handleRecallVisualization = useCallback(() => {
+    setVisualizationDockRequestToken((prev) => prev + 1);
   }, []);
 
   useLayoutEffect(() => {
@@ -6045,163 +5465,81 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       });
   }, [docsContent.length, docsLoading]);
 
-  const miniChart = (
-    <MetricsChart
-      data={chartData}
-      selectedMetrics={activeMetrics}
-      currentTick={playbackState.currentTick}
-      windowStart={windowStart}
-      windowEnd={windowEnd}
-      resetViewVersion={resetViewVersion}
-      isAutoScroll={isAutoScroll}
-      annotations={annotations}
-      subtitles={subtitles}
-      captures={captures}
-      highlightedMetricKey={highlightedMetricKey}
-      yPrimaryDomain={manualYPrimaryDomain}
-      ySecondaryDomain={hasSecondaryAxis ? manualYSecondaryDomain : null}
-      onYPrimaryDomainChange={setManualYPrimaryDomain}
-      onYSecondaryDomainChange={setManualYSecondaryDomain}
-      onDomainChange={handleChartDomainChange}
-      onWindowRangeChange={handleWindowRangeChange}
-      onSizeChange={(size) => {
-        setViewport((prev) => {
-          const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };
-          if (base.chartWidth === size.width && base.chartHeight === size.height) {
-            return base;
-          }
-          return {
-            ...base,
-            chartWidth: size.width,
-            chartHeight: size.height,
-          };
-        });
-      }}
-      onAddAnnotation={handleAddAnnotation}
-      onRemoveAnnotation={handleRemoveAnnotation}
-    />
-  );
+  const handleSelectionCaptureOpenChange = useCallback((captureId: string, open: boolean) => {
+    setSelectionCaptureOpenById((prev) => {
+      if ((prev[captureId] ?? true) === open) {
+        return prev;
+      }
+      return { ...prev, [captureId]: open };
+    });
+  }, []);
 
-  const miniProjectionChart = (
-    <MetricsChart
-      data={chartData}
-      selectedMetrics={activeMetrics}
-      currentTick={playbackState.currentTick}
-      windowStart={windowStart}
-      windowEnd={windowEnd}
-      resetViewVersion={resetViewVersion}
-      isAutoScroll={isAutoScroll}
-      annotations={annotations}
-      subtitles={subtitles}
-      captures={captures}
-      highlightedMetricKey={highlightedMetricKey}
-      yPrimaryDomain={manualYPrimaryDomain}
-      ySecondaryDomain={hasSecondaryAxis ? manualYSecondaryDomain : null}
-      onYPrimaryDomainChange={setManualYPrimaryDomain}
-      onYSecondaryDomainChange={setManualYSecondaryDomain}
-      onDomainChange={handleChartDomainChange}
-      onWindowRangeChange={handleWindowRangeChange}
-      onSizeChange={(size) => {
-        setViewport((prev) => {
-          const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };
-          if (base.chartWidth === size.width && base.chartHeight === size.height) {
-            return base;
-          }
-          return {
-            ...base,
-            chartWidth: size.width,
-            chartHeight: size.height,
-          };
-        });
-      }}
-      onAddAnnotation={handleAddAnnotation}
-      onRemoveAnnotation={handleRemoveAnnotation}
-      compact
-      eagerResize
-    />
-  );
+  const handleChartSizeChange = useCallback((size: { width: number; height: number }) => {
+    setViewport((prev) => {
+      const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };
+      if (base.chartWidth === size.width && base.chartHeight === size.height) {
+        return base;
+      }
+      return {
+        ...base,
+        chartWidth: size.width,
+        chartHeight: size.height,
+      };
+    });
+  }, []);
 
-  const miniStandaloneContent = (
-    <div className="group/mini relative h-full w-full">
-      <div className="h-full w-full">{miniChart}</div>
-      <div
-        className="pointer-events-none absolute inset-x-0 bottom-0 opacity-0 transition-opacity duration-150 ease-linear group-hover/mini:opacity-100 group-hover/mini:pointer-events-auto group-focus-within/mini:opacity-100 group-focus-within/mini:pointer-events-auto"
-        data-testid="mini-player-overlay"
-      >
-        <div className="px-2 pb-2 pt-10 bg-gradient-to-t from-background/60 via-background/20 to-transparent">
-          <div className="pointer-events-auto">
-            <PlaybackControls
-              playbackState={playbackState}
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onStop={handleStop}
-              onSeek={handleSeek}
-              onSpeedChange={handleSpeedChange}
-              onStepForward={handleStepForward}
-              onStepBackward={handleStepBackward}
-              currentTime=""
-              disabled={captures.length === 0}
-              seekDisabled={isWindowed}
-            />
-            <div className="pt-1 text-[10px] text-foreground/60 text-right" data-testid="mini-loading-status">
-              {isLoading ? `Loading ${loadingEntries.length}` : "Stable"}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const chartViewProps: ChartViewProps = {
+    data: chartData,
+    selectedMetrics: activeMetrics,
+    currentTick: playbackState.currentTick,
+    windowStart,
+    windowEnd,
+    resetViewVersion,
+    isAutoScroll,
+    annotations,
+    subtitles,
+    captures,
+    highlightedMetricKey,
+    yPrimaryDomain: manualYPrimaryDomain,
+    ySecondaryDomain: hasSecondaryAxis ? manualYSecondaryDomain : null,
+    onYPrimaryDomainChange: setManualYPrimaryDomain,
+    onYSecondaryDomainChange: setManualYSecondaryDomain,
+    onDomainChange: handleChartDomainChange,
+    onWindowRangeChange: handleWindowRangeChange,
+    onSizeChange: handleChartSizeChange,
+    onAddAnnotation: handleAddAnnotation,
+    onRemoveAnnotation: handleRemoveAnnotation,
+  };
 
-  const miniProjectionContent = <div className="h-full w-full pr-3 box-border">{miniProjectionChart}</div>;
+  const miniProjectionContent = <MiniProjectionContent chart={chartViewProps} />;
 
   if (miniMode) {
     return (
-      <>
-        {connectionLock ? (
-          <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-sm flex items-center justify-center p-6">
-            <div className="w-full max-w-lg rounded-md border border-border/60 bg-card/95 shadow-xl p-4 flex flex-col gap-3">
-              <div className="text-sm font-medium tracking-tight text-foreground">
-                Dashboard access locked
-              </div>
-              <div className="text-xs text-muted-foreground leading-relaxed">
-                {connectionLock.message}
-              </div>
-              <div className="text-[11px] text-muted-foreground font-mono">
-                close code: {connectionLock.closeCode}
-                {connectionLock.closeReason ? ` | reason: ${connectionLock.closeReason}` : ""}
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleTakeoverDashboard}
-                  data-testid="button-dashboard-lock-takeover"
-                >
-                  Take over this session
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={handleRetryConnection}
-                  data-testid="button-dashboard-lock-retry"
-                >
-                  Retry
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-        <div className="h-screen w-full bg-background overflow-hidden">
-          {miniStandaloneContent}
-        </div>
-      </>
+      <MiniModeView
+        chart={chartViewProps}
+        playbackState={playbackState}
+        onPlay={handlePlay}
+        onPause={handlePause}
+        onStop={handleStop}
+        onSeek={handleSeek}
+        onSpeedChange={handleSpeedChange}
+        onStepForward={handleStepForward}
+        onStepBackward={handleStepBackward}
+        onResetWindow={handleResetWindow}
+        seekDisabled={isWindowed}
+        disabled={captures.length === 0}
+        isLoading={isLoading}
+        loadingCount={loadingEntries.length}
+        connectionLock={connectionLock}
+        onTakeoverDashboard={handleTakeoverDashboard}
+        onRetryConnection={handleRetryConnection}
+      />
     );
   }
 
   return (
     <SidebarProvider style={sidebarStyle as React.CSSProperties}>
-      <Dialog
+      <DerivationPluginSourceDialog
         open={isDerivationPluginSourceOpen}
         onOpenChange={(open) => {
           setIsDerivationPluginSourceOpen(open);
@@ -6216,86 +5554,20 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             setDerivationPluginSourceLoading(false);
           }
         }}
-      >
-        <DialogContent hideClose className="max-w-3xl h-[80vh] flex flex-col gap-3">
-          {derivationPluginSourceLoading && (
-            <div className="text-xs text-muted-foreground">Loading source...</div>
-          )}
-          {derivationPluginSourceError && (
-            <div className="text-xs text-red-500">{derivationPluginSourceError}</div>
-          )}
-          {derivationPluginSource && (
-            <div className="flex flex-col gap-2 flex-1 min-h-0">
-              <div className="text-xs text-muted-foreground flex items-center justify-between gap-2">
-                <span className="truncate">
-                  {derivationPluginSource.name} ({derivationPluginSource.pluginId})
-                </span>
-                <span className="font-mono text-[11px] shrink-0">
-                  {formatBytes(derivationPluginSource.bytes)}
-                  {derivationPluginSource.truncated ? " (truncated)" : ""}
-                </span>
-              </div>
-              <div className="relative flex-1 min-h-0 rounded-md border border-border/50 bg-muted/20 overflow-hidden group/plugin-source">
-                <div className="pointer-events-none absolute top-1 right-1 left-auto z-20">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleCopyDerivationPluginSource}
-                    className="pointer-events-auto h-6 w-6 rounded-sm border border-border/50 bg-background/85 text-muted-foreground opacity-0 transition-opacity hover:bg-background group-hover/plugin-source:opacity-100 focus-visible:opacity-100"
-                    data-hint={
-                      isDerivationPluginSourceCopied
-                        ? "Plugin source copied"
-                        : "Copy plugin source to clipboard"
-                    }
-                    aria-label="Copy plugin source to clipboard"
-                  >
-                    {isDerivationPluginSourceCopied ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </div>
-                <ScrollArea className="h-full">
-                  <pre className="p-3 text-[11px] leading-relaxed font-mono text-foreground whitespace-pre overflow-x-auto">
-                    {derivationPluginSource.source}
-                  </pre>
-                </ScrollArea>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-      <Dialog open={isDocsOpen} onOpenChange={setIsDocsOpen}>
-        <DialogContent className="max-w-5xl h-[85vh] flex flex-col gap-3">
-          <DialogHeader>
-            <DialogTitle className="text-sm flex items-center gap-2">
-              <span>Documentation</span>
-              <a
-                href="/USAGE.md"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Raw
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </DialogTitle>
-          </DialogHeader>
-          {docsLoading ? (
-            <div className="text-xs text-muted-foreground">Loading docs...</div>
-          ) : null}
-          {docsError ? <div className="text-xs text-destructive">{docsError}</div> : null}
-          <div className="flex-1 min-h-0 rounded-md border border-border/50 bg-muted/20 overflow-hidden">
-            <ScrollArea className="h-full">
-              <pre className="p-3 text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words text-foreground">
-                {docsContent || "No documentation content loaded."}
-              </pre>
-            </ScrollArea>
-          </div>
-        </DialogContent>
-      </Dialog>
+        loading={derivationPluginSourceLoading}
+        error={derivationPluginSourceError}
+        source={derivationPluginSource}
+        copied={isDerivationPluginSourceCopied}
+        onCopy={handleCopyDerivationPluginSource}
+        formatBytes={formatBytes}
+      />
+      <DocsDialog
+        open={isDocsOpen}
+        onOpenChange={setIsDocsOpen}
+        loading={docsLoading}
+        error={docsError}
+        content={docsContent}
+      />
       <PopoutProjection
         open={isMiniProjectionOpen}
         onOpenChange={setIsMiniProjectionOpen}
@@ -6304,41 +5576,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       >
         {miniProjectionContent}
       </PopoutProjection>
-      {connectionLock ? (
-        <div className="fixed inset-0 z-[200] bg-background/95 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="w-full max-w-lg rounded-md border border-border/60 bg-card/95 shadow-xl p-4 flex flex-col gap-3">
-            <div className="text-sm font-medium tracking-tight text-foreground">
-              Dashboard access locked
-            </div>
-            <div className="text-xs text-muted-foreground leading-relaxed">
-              {connectionLock.message}
-            </div>
-            <div className="text-[11px] text-muted-foreground font-mono">
-              close code: {connectionLock.closeCode}
-              {connectionLock.closeReason ? ` | reason: ${connectionLock.closeReason}` : ""}
-            </div>
-            <div className="flex items-center gap-2 pt-1">
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleTakeoverDashboard}
-                data-testid="button-dashboard-lock-takeover"
-              >
-                Take over this session
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handleRetryConnection}
-                data-testid="button-dashboard-lock-retry"
-              >
-                Retry
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ConnectionLockOverlay
+        lock={connectionLock}
+        onTakeover={handleTakeoverDashboard}
+        onRetry={handleRetryConnection}
+      />
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <Sidebar>
           <SidebarHeader ref={sidebarHeaderRef} className="p-4">
@@ -6359,1314 +5601,165 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             </div>
           </SidebarHeader>
           <SidebarContent
+            ref={sidebarContentRef}
             className="min-h-0 flex flex-col"
-            style={{ height: "calc(100% - var(--metrics-ui-sidebar-header, 0px))" }}
           >
-            <div className="flex flex-col flex-1 min-h-0">
-            <div
-              className={
-                sidebarMode === "setup"
-                  ? "flex flex-col flex-1 min-h-0 overflow-y-auto gap-2 overscroll-contain"
-                  : "hidden"
-              }
-              aria-hidden={sidebarMode !== "setup"}
-            >
-              <>
-                <Collapsible open={isCaptureSourceOpen} onOpenChange={setIsCaptureSourceOpen}>
-                  <SidebarGroup>
-                    <SidebarGroupLabel asChild>
-                      <CollapsibleTrigger className="flex w-full items-center justify-between">
-                        <span>Capture Source</span>
-                        <ChevronDown
-                          className={`h-3 w-3 text-muted-foreground transition-transform ${
-                            isCaptureSourceOpen ? "rotate-180" : ""
-                          }`}
-                        />
-                      </CollapsibleTrigger>
-                    </SidebarGroupLabel>
-                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-                      <SidebarGroupContent>
-                        <div className="px-2">
-                          <Tabs
-                            value={sourceMode}
-                            onValueChange={(value) => {
-                              const nextMode = value === "live" ? "live" : "file";
-                              handleSourceModeChange(nextMode);
-                            }}
-                            className="w-full"
-                          >
-                            <TabsList className="grid h-9 w-full grid-cols-2">
-                              <TabsTrigger value="file" className="text-xs">
-                                File
-                              </TabsTrigger>
-                              <TabsTrigger value="live" className="text-xs">
-                                Live
-                              </TabsTrigger>
-                            </TabsList>
-                            <TabsContent value="file" className="mt-3">
-                              <FileUpload
-                                onFileUpload={handleFileUpload}
-                                isUploading={uploadMutation.isPending}
-                                uploadedFile={null}
-                                error={uploadError}
-                                onClear={handleClearUploadError}
-                              />
-                            </TabsContent>
-                            <TabsContent value="live" className="mt-3">
-                              <div className="flex flex-col gap-3">
-                                {liveStreams.map((entry, index) => {
-                                  const isConnected = entry.status === "connected";
-                                  const isConnecting = entry.status === "connecting";
-                                  const isRetrying = entry.status === "retrying";
-                                  const isCompleted = entry.status === "completed";
-                                  const sourceBlank = isInlineFieldBlank(entry.source);
-                                  const pollDraft = livePollInputDrafts[entry.id];
-                                  const pollInputValue = pollDraft ?? String(entry.pollSeconds);
-                                  const pollBlank = isInlineFieldBlank(pollInputValue);
-                                  const statusLabel = isConnected
-                                    ? `Connected (${entry.id})`
-                                    : isConnecting
-                                      ? "Connecting..."
-                                      : isRetrying
-                                        ? "Retrying..."
-                                        : isCompleted
-                                          ? "Completed"
-                                          : "Idle";
-
-                                  return (
-                                    <div
-                                      key={entry.id}
-                                      className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
-                                    >
-                                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                                        <span>Stream {index + 1}</span>
-                                        <div className="flex items-center">
-                                          <button
-                                            type="button"
-                                            onClick={() => removeCaptureIds([entry.id])}
-                                            data-testid={`button-live-remove-${entry.id}`}
-                                            aria-label={`Remove live stream ${index + 1}`}
-                                            className="h-3 w-3 shrink-0 p-0 leading-none rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
-                                          >
-                                          </button>
-                                        </div>
-                                      </div>
-                                      <Input
-                                        value={entry.source}
-                                        onChange={(event) => {
-                                          handleLiveSourceInput(entry.id, event.target.value);
-                                        }}
-                                        className={`${INLINE_EDIT_TEXT_CLASS} w-full ${sourceBlank ? INLINE_EDIT_EMPTY_CLASS : ""}`}
-                                        aria-label={`Capture file source ${index + 1}`}
-                                      />
-                                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                        <span>polling (s)</span>
-                                        <Input
-                                          type="number"
-                                          min={0.5}
-                                          step={0.5}
-                                          value={pollInputValue}
-                                          onChange={(event) => {
-                                            const raw = event.target.value;
-                                            setLivePollInputDrafts((prev) => ({
-                                              ...prev,
-                                              [entry.id]: raw,
-                                            }));
-                                            const parsed = Number(raw);
-                                            if (Number.isFinite(parsed) && parsed > 0) {
-                                              handleLivePollChange(entry.id, parsed);
-                                            }
-                                          }}
-                                          onBlur={() => {
-                                            setLivePollInputDrafts((prev) => {
-                                              if (!(entry.id in prev)) {
-                                                return prev;
-                                              }
-                                              const next = { ...prev };
-                                              delete next[entry.id];
-                                              return next;
-                                            });
-                                          }}
-                                          className={`${INLINE_EDIT_NUMERIC_CLASS} ${pollBlank ? INLINE_EDIT_EMPTY_CLASS : ""}`}
-                                          style={{ width: `${Math.max(pollInputValue.length, 1)}ch` }}
-                                          disabled={isConnected || isConnecting}
-                                          aria-label={`Poll interval seconds ${index + 1}`}
-                                        />
-                                      </div>
-                                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                        <span>{statusLabel}</span>
-                                        {isConnected ? (
-                                          <span
-                                            data-testid={`live-connected-light-${entry.id}`}
-                                            aria-label={`Live stream connected ${index + 1}`}
-                                            className="h-3 w-3 shrink-0 rounded-full bg-blue-500/80 [animation:pulse_2.4s_ease-in-out_infinite]"
-                                          />
-                                        ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleLiveRefresh(entry.id)}
-                                            disabled={!entry.source.trim() || isConnecting}
-                                            data-testid={`button-live-refresh-${entry.id}`}
-                                            aria-label={`Refresh live source ${index + 1}`}
-                                            className="h-3 w-3 shrink-0 p-0 leading-none rounded-full bg-blue-500/50 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                          >
-                                          </button>
-                                        )}
-                                      </div>
-                                      {entry.error && (
-                                        <div className="text-xs text-destructive">{entry.error}</div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-xs"
-                                  onClick={handleAddLiveStream}
-                                  data-testid="button-live-add"
-                                >
-                                  Add live stream
-                                </Button>
-                              </div>
-                            </TabsContent>
-                          </Tabs>
-                        </div>
-                      </SidebarGroupContent>
-                    </CollapsibleContent>
-                  </SidebarGroup>
-                </Collapsible>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Captures</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <div className="flex flex-col gap-1 px-2">
-                      {captures.map((capture) => (
-                        <div
-                          key={capture.id}
-                          className="flex items-center gap-2 py-1.5 text-sm"
-                          data-testid={`capture-item-${capture.id}`}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => handleToggleCapture(capture.id)}
-                            data-testid={`checkbox-capture-${capture.id}`}
-                            aria-label={`${capture.isActive ? "Disable" : "Enable"} capture ${capture.id}`}
-                            aria-pressed={capture.isActive}
-                            className={`h-3 w-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${
-                              capture.isActive
-                                ? "bg-yellow-400/90 hover:bg-yellow-400"
-                                : "bg-yellow-400/20 hover:bg-yellow-400/30"
-                            }`}
-                          />
-                          <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
-                          <span className="truncate flex-1 text-xs" title={capture.filename}>
-                            {getCaptureShortName(capture)}
-                          </span>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {capture.tickCount}
-                          </span>
-                          <button
-                            type="button"
-                            className="h-3 w-3 shrink-0 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
-                            onClick={() => handleRemoveCapture(capture.id)}
-                            data-testid={`button-remove-capture-${capture.id}`}
-                            aria-label={`Remove capture ${capture.id}`}
-                          />
-                        </div>
-                      ))}
-                      {captures.length === 0 && (
-                        <p className="text-xs text-muted-foreground py-2">
-                          No captures loaded
-                        </p>
-                      )}
-                    </div>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-                <Collapsible open={isSelectionOpen} onOpenChange={setIsSelectionOpen}>
-                  <SidebarGroup>
-                    <SidebarGroupLabel asChild>
-                      <CollapsibleTrigger className="flex w-full items-center justify-between">
-                        <span>Selection</span>
-                        <ChevronDown
-                          className={`h-3 w-3 text-muted-foreground transition-transform ${
-                            isSelectionOpen ? "rotate-180" : ""
-                          }`}
-                        />
-                      </CollapsibleTrigger>
-                    </SidebarGroupLabel>
-                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-                      <SidebarGroupContent>
-                        <div className="flex flex-col gap-3">
-                          {activeCaptures.length === 0 && (
-                            <div className="px-2 text-xs text-muted-foreground">
-                              No active captures
-                            </div>
-                          )}
-                          {activeCaptures.map((capture) => {
-                            const isCaptureSelectionOpen =
-                              selectionCaptureOpenById[capture.id] ?? true;
-                            return (
-                              <Collapsible
-                                key={capture.id}
-                                open={isCaptureSelectionOpen}
-                                onOpenChange={(open) =>
-                                  setSelectionCaptureOpenById((prev) => {
-                                    if ((prev[capture.id] ?? true) === open) {
-                                      return prev;
-                                    }
-                                    return { ...prev, [capture.id]: open };
-                                  })
-                                }
-                              >
-                                <div className="flex flex-col gap-1">
-                                  <CollapsibleTrigger asChild>
-                                    <button
-                                      type="button"
-                                      className="group flex w-full items-center px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                                      aria-label={`Toggle metric tree for ${capture.id}`}
-                                      data-testid={`button-toggle-selection-capture-${capture.id}`}
-                                    >
-                                      <span className="truncate text-left" title={capture.filename}>
-                                        {getCaptureShortName(capture)}
-                                      </span>
-                                    </button>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-                                    <ComponentTree
-                                      captureId={capture.id}
-                                      components={capture.components}
-                                      selectedMetrics={selectedMetricsByCapture.get(capture.id) ?? EMPTY_METRICS}
-                                      metricCoverage={deferredMetricCoverage[capture.id]}
-                                      onSelectionChange={getSelectionHandler(capture.id)}
-                                      colorOffset={captures.findIndex((c) => c.id === capture.id)}
-                                      isVisible={isSelectionOpen && isCaptureSelectionOpen}
-                                    />
-                                  </CollapsibleContent>
-                                </div>
-                              </Collapsible>
-                            );
-                          })}
-                        </div>
-                      </SidebarGroupContent>
-                    </CollapsibleContent>
-                  </SidebarGroup>
-                </Collapsible>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Overview</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between">
-                        <span>Captures</span>
-                        <span className="font-mono text-foreground">{captures.length}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Active</span>
-                        <span className="font-mono text-foreground">{activeCaptures.length}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Selected metrics</span>
-                        <span className="font-mono text-foreground">{selectedMetrics.length}</span>
-                      </div>
-                    </div>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-                <SidebarGroup>
-                  <SidebarGroupLabel>View</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
-                      <div className="flex items-center justify-between">
-                        <span>Tick</span>
-                        <span className="font-mono text-foreground">
-                          {playbackState.currentTick} / {playbackState.totalTicks}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Window</span>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            min={1}
-                            value={windowStartInput}
-                            onFocus={() => {
-                              windowStartEditingRef.current = true;
-                            }}
-                            onChange={(event) => setWindowStartInput(event.target.value)}
-                            onBlur={(event) => {
-                              windowStartEditingRef.current = false;
-                              commitWindowStartInput(event.target.value);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                windowStartEditingRef.current = false;
-                                commitWindowStartInput((event.target as HTMLInputElement).value);
-                                (event.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className={INLINE_EDIT_NUMERIC_CLASS}
-                            style={{ width: `${Math.max(windowStartInput.length, 1)}ch` }}
-                            aria-label="Window start tick"
-                          />
-                          <span className="text-muted-foreground">–</span>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={windowEndInput}
-                            onFocus={() => {
-                              windowEndEditingRef.current = true;
-                            }}
-                            onChange={(event) => setWindowEndInput(event.target.value)}
-                            onBlur={(event) => {
-                              windowEndEditingRef.current = false;
-                              commitWindowEndInput(event.target.value);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                windowEndEditingRef.current = false;
-                                commitWindowEndInput((event.target as HTMLInputElement).value);
-                                (event.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className={INLINE_EDIT_NUMERIC_CLASS}
-                            style={{ width: `${Math.max(windowEndInput.length, 1)}ch` }}
-                            aria-label="Window end tick"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Y</span>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            value={yPrimaryMinInput}
-                            onFocus={() => {
-                              yPrimaryMinEditingRef.current = true;
-                            }}
-                            onChange={(event) => setYPrimaryMinInput(event.target.value)}
-                            onBlur={(event) => {
-                              yPrimaryMinEditingRef.current = false;
-                              commitYPrimaryBoundary("min", event.target.value);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                yPrimaryMinEditingRef.current = false;
-                                commitYPrimaryBoundary("min", (event.target as HTMLInputElement).value);
-                                (event.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className={INLINE_EDIT_NUMERIC_CLASS}
-                            style={{ width: `${Math.max(yPrimaryMinInput.length, 1)}ch` }}
-                            aria-label="Primary axis minimum"
-                          />
-                          <span className="text-muted-foreground">–</span>
-                          <Input
-                            type="number"
-                            value={yPrimaryMaxInput}
-                            onFocus={() => {
-                              yPrimaryMaxEditingRef.current = true;
-                            }}
-                            onChange={(event) => setYPrimaryMaxInput(event.target.value)}
-                            onBlur={(event) => {
-                              yPrimaryMaxEditingRef.current = false;
-                              commitYPrimaryBoundary("max", event.target.value);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                yPrimaryMaxEditingRef.current = false;
-                                commitYPrimaryBoundary("max", (event.target as HTMLInputElement).value);
-                                (event.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className={INLINE_EDIT_NUMERIC_CLASS}
-                            style={{ width: `${Math.max(yPrimaryMaxInput.length, 1)}ch` }}
-                            aria-label="Primary axis maximum"
-                          />
-                        </div>
-                      </div>
-                      {hasSecondaryAxis ? (
-                        <div className="flex items-center justify-between">
-                          <span>Y2</span>
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              value={ySecondaryMinInput}
-                              onFocus={() => {
-                                ySecondaryMinEditingRef.current = true;
-                              }}
-                              onChange={(event) => setYSecondaryMinInput(event.target.value)}
-                              onBlur={(event) => {
-                                ySecondaryMinEditingRef.current = false;
-                                commitYSecondaryBoundary("min", event.target.value);
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  ySecondaryMinEditingRef.current = false;
-                                  commitYSecondaryBoundary("min", (event.target as HTMLInputElement).value);
-                                  (event.target as HTMLInputElement).blur();
-                                }
-                              }}
-                              className={INLINE_EDIT_NUMERIC_CLASS}
-                              style={{ width: `${Math.max(ySecondaryMinInput.length, 1)}ch` }}
-                              aria-label="Secondary axis minimum"
-                            />
-                            <span className="text-muted-foreground">–</span>
-                            <Input
-                              type="number"
-                              value={ySecondaryMaxInput}
-                              onFocus={() => {
-                                ySecondaryMaxEditingRef.current = true;
-                              }}
-                              onChange={(event) => setYSecondaryMaxInput(event.target.value)}
-                              onBlur={(event) => {
-                                ySecondaryMaxEditingRef.current = false;
-                                commitYSecondaryBoundary("max", event.target.value);
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter") {
-                                  event.preventDefault();
-                                  ySecondaryMaxEditingRef.current = false;
-                                  commitYSecondaryBoundary("max", (event.target as HTMLInputElement).value);
-                                  (event.target as HTMLInputElement).blur();
-                                }
-                              }}
-                              className={INLINE_EDIT_NUMERIC_CLASS}
-                              style={{ width: `${Math.max(ySecondaryMaxInput.length, 1)}ch` }}
-                              aria-label="Secondary axis maximum"
-                            />
-                          </div>
-                        </div>
-                      ) : null}
-                      <div className="flex items-center justify-between">
-                        <span>Auto-scroll</span>
-                        <span className="font-mono text-foreground">
-                          {isAutoScroll ? "On" : "Off"}
-                        </span>
-                      </div>
-                    </div>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-                <Collapsible open={isDiagnosticsOpen} onOpenChange={setIsDiagnosticsOpen}>
-                  <SidebarGroup>
-                    <SidebarGroupLabel asChild>
-                      <CollapsibleTrigger className="flex w-full items-center justify-between">
-                        <span>Diagnostics</span>
-                        <ChevronDown
-                          className={`h-3 w-3 text-muted-foreground transition-transform ${
-                            isDiagnosticsOpen ? "rotate-180" : ""
-                          }`}
-                        />
-                      </CollapsibleTrigger>
-                    </SidebarGroupLabel>
-                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-                      <SidebarGroupContent>
-                        <div className="flex items-center justify-between px-2 text-[11px] text-muted-foreground">
-                          <span>
-                            {memoryStatsAt
-                              ? `Updated ${new Date(memoryStatsAt).toLocaleTimeString()}`
-                              : "Not sampled"}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-[11px]"
-                            onClick={handleRefreshMemoryStats}
-                            data-testid="button-refresh-diagnostics"
-                          >
-                            Refresh
-                          </Button>
-                        </div>
-                        {!memoryStatsSnapshot && (
-                          <div className="px-2 py-2 text-xs text-muted-foreground">
-                            Click refresh to capture telemetry.
-                          </div>
-                        )}
-                        {memoryStatsSnapshot && (
-                          <div className="flex flex-col gap-3 px-2 py-2 text-xs text-muted-foreground">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center justify-between">
-                                <span>Heap used</span>
-                                <span className="font-mono text-foreground">
-                                  {formatBytes(memoryStatsSnapshot.usedHeap)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span>Record store</span>
-                                <span className="font-mono text-foreground">
-                                  {formatBytes(memoryStatsSnapshot.estimates.recordStoreBytes)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span>Series bytes</span>
-                                <span className="font-mono text-foreground">
-                                  {formatBytes(memoryStatsSnapshot.totals.seriesBytes)}
-                                </span>
-                              </div>
-                              <div className="text-[10px] uppercase tracking-wide">
-                                Estimates ({memoryStatsSnapshot.estimates.estimateSource})
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span>Bytes / prop</span>
-                                <span className="font-mono text-foreground">
-                                  {memoryStatsSnapshot.estimates.effectiveBytesPerObjectProp.toFixed(1)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span>Bytes / point</span>
-                                <span className="font-mono text-foreground">
-                                  {memoryStatsSnapshot.estimates.effectiveBytesPerSeriesPoint.toFixed(1)}
-                                </span>
-                              </div>
-                            </div>
-                            {memoryStatsSnapshot.captures.map((capture) => {
-                              const topSeries = [...capture.seriesMetrics]
-                                .sort((a, b) => b.estBytes - a.estBytes)
-                                .slice(0, 5);
-                              return (
-                                <div
-                                  key={capture.captureId}
-                                  className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
-                                >
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="truncate font-medium text-foreground">
-                                      {capture.filename}
-                                    </span>
-                                    <span className="font-mono text-muted-foreground">
-                                      {capture.tickCount}
-                                    </span>
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-                                    <span>Records</span>
-                                    <span className="font-mono text-foreground">
-                                      {capture.records}
-                                    </span>
-                                    <span>Record bytes</span>
-                                    <span className="font-mono text-foreground">
-                                      {formatBytes(capture.estimatedRecordBytes)}
-                                    </span>
-                                    <span>Series points</span>
-                                    <span className="font-mono text-foreground">
-                                      {capture.seriesPoints}
-                                    </span>
-                                    <span>Series bytes</span>
-                                    <span className="font-mono text-foreground">
-                                      {formatBytes(capture.seriesBytes)}
-                                    </span>
-                                  </div>
-                                  {topSeries.length > 0 && (
-                                    <div className="flex flex-col gap-1">
-                                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                        Top series
-                                      </span>
-                                      {topSeries.map((entry) => (
-                                        <div
-                                          key={`${capture.captureId}-${entry.fullPath}`}
-                                          className="flex items-center justify-between text-[11px]"
-                                        >
-                                          <span className="truncate">{entry.fullPath}</span>
-                                          <span className="font-mono text-foreground">
-                                            {formatBytes(entry.estBytes)}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </SidebarGroupContent>
-                    </CollapsibleContent>
-                  </SidebarGroup>
-                </Collapsible>
-              </>
+            <div ref={sidebarBodyRef} className="flex flex-col flex-1 min-h-0">
+              <SidebarSetupPane
+                sidebarMode={sidebarMode}
+                isCaptureSourceOpen={isCaptureSourceOpen}
+                onCaptureSourceOpenChange={setIsCaptureSourceOpen}
+                sourceMode={sourceMode}
+                onSourceModeChange={handleSourceModeChange}
+                onFileUpload={handleFileUpload}
+                isUploading={uploadMutation.isPending}
+                uploadError={uploadError}
+                onClearUploadError={handleClearUploadError}
+                liveStreams={liveStreams}
+                livePollInputDrafts={livePollInputDrafts}
+                onLivePollInputDraftChange={handleLivePollInputDraftChange}
+                onLivePollInputDraftBlur={handleLivePollInputDraftBlur}
+                onLivePollChange={handleLivePollChange}
+                onRemoveLiveStream={(captureId) => removeCaptureIds([captureId])}
+                onLiveSourceInput={handleLiveSourceInput}
+                onLiveRefresh={handleLiveRefresh}
+                onAddLiveStream={handleAddLiveStream}
+                inlineEditTextClass={INLINE_EDIT_TEXT_CLASS}
+                inlineEditNumericClass={INLINE_EDIT_NUMERIC_CLASS}
+                inlineEditEmptyClass={INLINE_EDIT_EMPTY_CLASS}
+                isInlineFieldBlank={isInlineFieldBlank}
+                captures={captures}
+                onToggleCapture={handleToggleCapture}
+                onRemoveCapture={handleRemoveCapture}
+                getCaptureShortName={getCaptureShortName}
+                isSelectionOpen={isSelectionOpen}
+                onSelectionOpenChange={setIsSelectionOpen}
+                activeCaptures={activeCaptures}
+                selectionCaptureOpenById={selectionCaptureOpenById}
+                onSelectionCaptureOpenChange={handleSelectionCaptureOpenChange}
+                selectedMetricsByCapture={selectedMetricsByCapture}
+                deferredMetricCoverage={deferredMetricCoverage}
+                getSelectionHandler={getSelectionHandler}
+                selectedMetricCount={selectedMetrics.length}
+                playbackState={playbackState}
+                windowStartInput={windowStartInput}
+                onWindowStartInputChange={setWindowStartInput}
+                windowStartEditingRef={windowStartEditingRef}
+                onCommitWindowStartInput={commitWindowStartInput}
+                windowEndInput={windowEndInput}
+                onWindowEndInputChange={setWindowEndInput}
+                windowEndEditingRef={windowEndEditingRef}
+                onCommitWindowEndInput={commitWindowEndInput}
+                yPrimaryMinInput={yPrimaryMinInput}
+                onYPrimaryMinInputChange={setYPrimaryMinInput}
+                yPrimaryMinEditingRef={yPrimaryMinEditingRef}
+                onCommitYPrimaryBoundary={commitYPrimaryBoundary}
+                yPrimaryMaxInput={yPrimaryMaxInput}
+                onYPrimaryMaxInputChange={setYPrimaryMaxInput}
+                yPrimaryMaxEditingRef={yPrimaryMaxEditingRef}
+                hasSecondaryAxis={hasSecondaryAxis}
+                ySecondaryMinInput={ySecondaryMinInput}
+                onYSecondaryMinInputChange={setYSecondaryMinInput}
+                ySecondaryMinEditingRef={ySecondaryMinEditingRef}
+                onCommitYSecondaryBoundary={commitYSecondaryBoundary}
+                ySecondaryMaxInput={ySecondaryMaxInput}
+                onYSecondaryMaxInputChange={setYSecondaryMaxInput}
+                ySecondaryMaxEditingRef={ySecondaryMaxEditingRef}
+                isAutoScroll={isAutoScroll}
+                isDiagnosticsOpen={isDiagnosticsOpen}
+                onDiagnosticsOpenChange={setIsDiagnosticsOpen}
+                memoryStatsAt={memoryStatsAt}
+                onRefreshMemoryStats={handleRefreshMemoryStats}
+                memoryStatsSnapshot={memoryStatsSnapshot}
+                formatBytes={formatBytes}
+              />
+              <SidebarDerivationsPane
+                sidebarMode={sidebarMode}
+                derivationPluginFileRef={derivationPluginFileRef}
+                onUploadDerivationPlugin={handleUploadDerivationPlugin}
+                derivationPlugins={derivationPlugins}
+                derivationPluginsError={derivationPluginsError}
+                onViewDerivationPluginSource={handleViewDerivationPluginSource}
+                onDeleteDerivationPlugin={handleDeleteDerivationPlugin}
+                derivationGroups={derivationGroups}
+                onCreateDerivationGroupFromActive={handleCreateDerivationGroupFromActive}
+                resolvedActiveDerivationGroupId={resolvedActiveDerivationGroupId}
+                resolvedDisplayDerivationGroupId={resolvedDisplayDerivationGroupId}
+                onSetActiveDerivationGroup={handleSetActiveDerivationGroup}
+                derivationGroupNameDrafts={derivationGroupNameDrafts}
+                setDerivationGroupNameDrafts={setDerivationGroupNameDrafts}
+                focusedDerivationGroupNameId={focusedDerivationGroupNameId}
+                setFocusedDerivationGroupNameId={setFocusedDerivationGroupNameId}
+                onUpdateDerivationGroup={handleUpdateDerivationGroup}
+                onRunDerivationPlugin={handleRunDerivationPlugin}
+                onSetDisplayDerivationGroup={handleSetDisplayDerivationGroup}
+                onDeleteDerivationGroup={handleDeleteDerivationGroup}
+                captures={captures}
+                getCaptureShortName={getCaptureShortName}
+                derivationDragState={derivationDragState}
+                derivationDropState={derivationDropState}
+                getAnalysisKey={getAnalysisKey}
+                onDerivationMetricDragStart={handleDerivationMetricDragStart}
+                onDerivationMetricDragOver={handleDerivationMetricDragOver}
+                onDerivationMetricDrop={handleDerivationMetricDrop}
+                onDerivationMetricDragEnd={handleDerivationMetricDragEnd}
+                onRemoveDerivationMetric={handleRemoveDerivationMetric}
+              />
             </div>
-            <div
-              className={
-                sidebarMode === "analysis"
-                  ? "flex flex-col flex-1 min-h-0 overflow-y-auto gap-2 overscroll-contain"
-                  : "hidden"
-              }
-              aria-hidden={sidebarMode !== "analysis"}
-            >
-              <>
-                <SidebarGroup>
-                  <SidebarGroupLabel>Derivations</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <input
-                      ref={derivationPluginFileRef}
-                      type="file"
-                      accept=".mjs,.js"
-                      className="hidden"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) {
-                          handleUploadDerivationPlugin(file);
-                        }
-                        event.target.value = "";
-                      }}
-                    />
-                    <div className="flex items-center justify-between px-2 pb-2">
-                      <span className="text-xs text-muted-foreground">
-                        {derivationPlugins.length} systems
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => derivationPluginFileRef.current?.click()}
-                        data-testid="button-derivation-plugin-upload"
-                        aria-label="Upload derivation system"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    {derivationPluginsError && (
-                      <div className="px-2 text-xs text-red-500">
-                        {derivationPluginsError}
-                      </div>
-                    )}
-                    {derivationPlugins.length === 0 && (
-                      <div className="px-2 text-xs text-muted-foreground">
-                        Upload a derivation system plugin to compute derived metrics.
-                      </div>
-                    )}
-                    {derivationPlugins.length > 0 && (
-                      <div className="flex flex-col gap-2 px-2 pb-2 text-xs text-muted-foreground">
-                        {derivationPlugins.map((plugin) => (
-                          <div
-                            key={plugin.id}
-                            className={`rounded-md border px-2 py-1.5 flex items-start justify-between gap-2 ${
-                              plugin.valid ? "border-border/50" : "border-red-500/40"
-                            }`}
-                          >
-                            <div className="min-w-0 flex flex-col gap-0.5">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="truncate font-medium text-foreground">
-                                  {plugin.name}
-                                </span>
-                                <span className="truncate font-mono text-[10px] text-muted-foreground">
-                                  {plugin.id}
-                                </span>
-                              </div>
-                              <div className="truncate text-[10px] text-muted-foreground">
-                                outputs:{" "}
-                                {plugin.outputs.length > 0
-                                  ? plugin.outputs.map((output) => output.key).join(", ")
-                                  : "-"}
-                              </div>
-                              {!plugin.valid && plugin.error && (
-                                <div className="text-[10px] text-red-500">
-                                  {plugin.error}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                              <button
-                                type="button"
-                                onClick={() => handleViewDerivationPluginSource(plugin.id)}
-                                aria-label={`View derivation system source ${plugin.name}`}
-                                data-testid={`button-derivation-plugin-source-${plugin.id}`}
-                                className="h-3 w-3 rounded-sm bg-muted/40 hover:bg-muted/60 transition-colors flex items-center justify-center"
-                              >
-                                <Code className="w-[10px] h-[10px] text-muted-foreground" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDerivationPlugin(plugin.id)}
-                                aria-label={`Delete derivation system ${plugin.name}`}
-                                className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="mx-2 h-px bg-border/50" />
-
-                    <div className="flex items-center justify-between px-2 pb-2">
-                      <span className="text-xs text-muted-foreground">
-                        {derivationGroups.length} groups
-                      </span>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            data-testid="button-derivation-group-create"
-                            aria-label="Create derivation group"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="w-44"
-                          data-testid="menu-derivation-group-create"
-                        >
-                          <DropdownMenuItem
-                            onClick={() => handleCreateDerivationGroupFromActive("new")}
-                            data-testid="menu-item-derivation-group-new"
-                          >
-                            New Group
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            disabled={derivationGroups.length === 0}
-                            onClick={() => handleCreateDerivationGroupFromActive("deep-copy")}
-                            data-testid="menu-item-derivation-group-deep-copy"
-                          >
-                            Deep Copy
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            disabled={derivationGroups.length === 0}
-                            onClick={() => handleCreateDerivationGroupFromActive("shallow-copy")}
-                            data-testid="menu-item-derivation-group-shallow-copy"
-                          >
-                            Shallow Copy
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    {derivationGroups.length === 0 && (
-                      <div className="px-2 text-xs text-muted-foreground">
-                        Click a metric in the HUD to create a default group.
-                      </div>
-                    )}
-                    <div className="flex flex-col gap-3 px-2 text-xs text-muted-foreground">
-                      {derivationGroups.map((group) => {
-                        const isActive = group.id === resolvedActiveDerivationGroupId;
-                        const isDisplayed = group.id === resolvedDisplayDerivationGroupId;
-                        const selectedPluginId =
-                          typeof group.pluginId === "string" ? group.pluginId : "";
-                        const normalizedPluginId = selectedPluginId.trim();
-                        const selectedPlugin = selectedPluginId
-                          ? derivationPlugins.find((plugin) => plugin.id === selectedPluginId) ?? null
-                          : null;
-                        const canRunPlugin = Boolean(
-                          selectedPluginId && selectedPlugin && selectedPlugin.valid,
-                        );
-                        const inputMetricRows = getDerivationGroupInputMetrics(group).map(
-                          (metric, index) => ({ metric, index }),
-                        );
-                        const derivedMetricRows = getDerivationGroupDerivedMetrics(group);
-                        return (
-                          <div
-                            key={group.id}
-                            className={`rounded-md border p-2 flex flex-col gap-2 ${
-                              isActive ? "border-foreground/40" : "border-border/50"
-                            } cursor-pointer`}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => handleSetActiveDerivationGroup(group.id)}
-                            onKeyDown={(event) => {
-                              if (event.target !== event.currentTarget) {
-                                return;
-                              }
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                handleSetActiveDerivationGroup(group.id);
-                              }
-                            }}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Input
-                                value={derivationGroupNameDrafts[group.id] ?? group.name}
-                                onChange={(event) => {
-                                  const nextValue = event.target.value;
-                                  setDerivationGroupNameDrafts((prev) => {
-                                    if (prev[group.id] === nextValue) {
-                                      return prev;
-                                    }
-                                    return { ...prev, [group.id]: nextValue };
-                                  });
-                                }}
-                                onFocus={() => {
-                                  setFocusedDerivationGroupNameId(group.id);
-                                  setDerivationGroupNameDrafts((prev) => {
-                                    if (typeof prev[group.id] === "string") {
-                                      return prev;
-                                    }
-                                    return { ...prev, [group.id]: group.name };
-                                  });
-                                }}
-                                onBlur={(event) => {
-                                  const rawValue =
-                                    derivationGroupNameDrafts[group.id] ?? event.target.value;
-                                  const nextName = rawValue.trim();
-                                  if (nextName && nextName !== group.name) {
-                                    handleUpdateDerivationGroup(group.id, { name: nextName });
-                                  }
-                                  setFocusedDerivationGroupNameId((prev) =>
-                                    prev === group.id ? "" : prev,
-                                  );
-                                  setDerivationGroupNameDrafts((prev) => {
-                                    if (!(group.id in prev)) {
-                                      return prev;
-                                    }
-                                    const { [group.id]: _removed, ...rest } = prev;
-                                    return rest;
-                                  });
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "Enter") {
-                                    event.preventDefault();
-                                    (event.target as HTMLInputElement).blur();
-                                  }
-                                }}
-                                className="flex-1 min-w-0 h-auto p-0 text-xs font-mono tracking-tight text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-                                aria-label={`Derivation group name`}
-                              />
-                              <div className="flex items-center gap-1 shrink-0">
-                                <div
-                                  className="w-[7.5rem]"
-                                  onClick={(event) => event.stopPropagation()}
-                                >
-                                  <Select
-                                    value={selectedPluginId || "__none__"}
-                                    onValueChange={(value) => {
-                                      handleUpdateDerivationGroup(group.id, {
-                                        pluginId: value === "__none__" ? "" : value,
-                                      });
-                                    }}
-                                  >
-                                    <SelectTrigger
-                                      className="h-6 px-2 py-1 text-xs font-mono tracking-tight bg-transparent border-border/50 focus:ring-0 focus:ring-offset-0"
-                                      aria-label={`Derivation system for ${group.name}`}
-                                      data-testid={`select-derivation-group-plugin-${group.id}`}
-                                    >
-                                      <SelectValue placeholder="No system" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="__none__">No system</SelectItem>
-                                      {derivationPlugins.map((plugin) => (
-                                        <SelectItem
-                                          key={plugin.id}
-                                          value={plugin.id}
-                                          disabled={!plugin.valid}
-                                        >
-                                          {plugin.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    if (!canRunPlugin) {
-                                      return;
-                                    }
-                                    const stableOutputCaptureId = `derive-${group.id}-${selectedPluginId}`;
-                                    handleRunDerivationPlugin({
-                                      groupId: group.id,
-                                      pluginId: selectedPluginId,
-                                      outputCaptureId: stableOutputCaptureId,
-                                    });
-                                  }}
-                                  disabled={!canRunPlugin}
-                                  aria-label={`Run derivation system for ${group.name}`}
-                                  data-testid={`button-derivation-group-run-plugin-${group.id}`}
-                                  className={`h-5 w-5 flex items-center justify-center rounded-sm transition-colors ${
-                                    canRunPlugin
-                                      ? "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                                      : "text-muted-foreground/30 cursor-not-allowed"
-                                  }`}
-                                >
-                                  <Play className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleSetDisplayDerivationGroup(isDisplayed ? "" : group.id)
-                                  }
-                                  data-testid={`button-derivation-group-display-${group.id}`}
-                                  aria-label={
-                                    isDisplayed
-                                      ? `Show all metrics (stop solo display for ${group.name})`
-                                      : `Show only metrics in ${group.name}`
-                                  }
-                                  className={`h-3 w-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${
-                                    isDisplayed
-                                      ? "bg-yellow-400/90 hover:bg-yellow-400"
-                                      : "bg-yellow-400/20 hover:bg-yellow-400/30"
-                                  }`}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteDerivationGroup(group.id)}
-                                  data-testid={`button-derivation-group-delete-${group.id}`}
-                                  aria-label={`Delete derivation group ${group.name}`}
-                                  className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
-                                />
-                              </div>
-                            </div>
-                            {focusedDerivationGroupNameId === group.id && (
-                              <div
-                                className="rounded-sm border border-border/50 bg-muted/20 px-2 py-1 text-xs font-mono text-foreground break-all"
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                {derivationGroupNameDrafts[group.id] ?? group.name}
-                              </div>
-                            )}
-                            <div className="flex flex-col gap-1">
-                              {inputMetricRows.length === 0 && derivedMetricRows.length === 0 && (
-                                <div className="text-xs text-muted-foreground">
-                                  No metrics yet.
-                                </div>
-                              )}
-                              {inputMetricRows.length > 0 && (
-                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                                  Inputs
-                                </div>
-                              )}
-                              {inputMetricRows.map((row) => {
-                                const { metric, index } = row;
-                                const capture = captures.find(
-                                  (entry) => entry.id === metric.captureId,
-                                );
-                                const captureName = capture
-                                  ? getCaptureShortName(capture)
-                                  : metric.captureId;
-                                const isDraggingThis =
-                                  derivationDragState?.groupId === group.id
-                                  && derivationDragState?.fromIndex === index;
-                                const isDropTarget =
-                                  derivationDropState?.groupId === group.id
-                                  && derivationDropState?.targetIndex === index;
-                                const dropBefore = isDropTarget && derivationDropState?.position === "before";
-                                const dropAfter = isDropTarget && derivationDropState?.position === "after";
-                                return (
-                                  <div
-                                    key={`${group.id}-${getAnalysisKey(metric)}`}
-                                    className={`relative flex items-center gap-2 rounded-sm ${
-                                      isDraggingThis ? "opacity-60" : ""
-                                    }`}
-                                    draggable
-                                    onDragStart={(event) => {
-                                      event.stopPropagation();
-                                      handleDerivationMetricDragStart(event, group.id, index);
-                                    }}
-                                    onDragOver={(event) => {
-                                      event.stopPropagation();
-                                      handleDerivationMetricDragOver(event, group.id, index);
-                                    }}
-                                    onDrop={(event) => {
-                                      event.stopPropagation();
-                                      handleDerivationMetricDrop(event, group.id, index);
-                                    }}
-                                    onDragEnd={(event) => {
-                                      event.stopPropagation();
-                                      handleDerivationMetricDragEnd();
-                                    }}
-                                  >
-                                    {dropBefore && (
-                                      <span className="pointer-events-none absolute -top-0.5 left-0 right-0 h-px bg-foreground/70" />
-                                    )}
-                                    {dropAfter && (
-                                      <span className="pointer-events-none absolute -bottom-0.5 left-0 right-0 h-px bg-foreground/70" />
-                                    )}
-                                    <span className="text-muted-foreground/70 cursor-grab active:cursor-grabbing">
-                                      <GripVertical className="w-3 h-3" />
-                                    </span>
-                                    <span
-                                      className="h-2 w-2 rounded-full shrink-0"
-                                      style={{ backgroundColor: metric.color }}
-                                    />
-                                    <span className="truncate flex-1">
-                                      {captureName}: {metric.label}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="text-muted-foreground hover:text-foreground"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleRemoveDerivationMetric(group.id, metric);
-                                      }}
-                                      aria-label={`Remove ${captureName}: ${metric.label} from ${group.name}`}
-                                    >
-                                      x
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                              {derivedMetricRows.length > 0 && (
-                                <div className="pt-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                                  Derived
-                                </div>
-                              )}
-                              {derivedMetricRows.map((metric) => {
-                                const capture = captures.find(
-                                  (entry) => entry.id === metric.captureId,
-                                );
-                                const captureName = capture
-                                  ? getCaptureShortName(capture)
-                                  : metric.captureId;
-                                return (
-                                  <div
-                                    key={`${group.id}-${getAnalysisKey(metric)}`}
-                                    className="flex items-center gap-2 opacity-90"
-                                  >
-                                    <span
-                                      className="h-2 w-2 rounded-full shrink-0"
-                                      style={{ backgroundColor: metric.color }}
-                                    />
-                                    <span className="truncate flex-1">
-                                      {captureName}: {metric.label}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="text-muted-foreground hover:text-foreground"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleRemoveDerivationMetric(group.id, metric);
-                                      }}
-                                      aria-label={`Remove ${captureName}: ${metric.label} from ${group.name}`}
-                                    >
-                                      x
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              </>
-            </div>
-            </div>
-            <HintingPanel />
           </SidebarContent>
+          <SidebarFooter className="p-0 gap-0 shrink-0 w-full min-w-0 overflow-x-hidden">
+            <HintingPanel />
+          </SidebarFooter>
         </Sidebar>
 
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
-          <header className="flex items-center justify-between gap-4 px-4 h-12 shrink-0">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {selectedMetrics.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearSelection}
-                  className="gap-1.5"
-                  data-testid="button-clear-selection"
-                >
-                  <X className="w-3 h-3" />
-                  Clear ({selectedMetrics.length})
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsHudVisible(!isHudVisible)}
-                data-testid="button-toggle-hud"
-                title={isHudVisible ? "Hide HUD" : "Show HUD"}
-              >
-                {isHudVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleResetWindow}
-                data-testid="button-reset-window"
-                title="Full View"
-              >
-                <Maximize className="w-4 h-4" />
-              </Button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 px-2"
-                    data-testid="button-loading-status"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isLoading ? "animate-spin" : ""}`} />
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {isLoading ? loadingEntries.length : "Stable"}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80 p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Loading</div>
-                    <div className="flex h-6 min-w-[4.5rem] items-center justify-end">
-                      <div className="text-right text-xs leading-none text-muted-foreground">
-                        {isLoading ? "In progress" : "None"}
-                      </div>
-                    </div>
-                  </div>
-                  <ScrollArea className="mt-3 max-h-40 pr-2">
-                    {loadingEntries.length === 0 ? (
-                      <div className="text-xs text-muted-foreground">No active work.</div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {loadingEntries.map((entry) => (
-                          <div key={entry.key} className="text-xs">
-                            <div className="text-foreground">{entry.label}</div>
-                            {entry.detail ? (
-                              <div className="text-muted-foreground">{entry.detail}</div>
-                            ) : null}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </ScrollArea>
-                  <div className="my-3 h-px bg-border/50" />
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">Events</div>
-                    <div className="ml-auto flex h-6 items-center justify-end gap-1">
-                      <div className="text-right text-xs leading-none text-muted-foreground">
-                        {recentUiEvents.length > 0 ? recentUiEvents.length : "None"}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-auto px-0 text-right text-[11px]"
-                        onClick={() => setIsEventsVisible((prev) => !prev)}
-                        data-testid="button-toggle-events"
-                      >
-                        {isEventsVisible ? "Hide" : "Show"}
-                      </Button>
-                    </div>
-                  </div>
-                  {isEventsVisible ? (
-                    <div className="mt-2 max-h-56 overflow-y-auto pr-2">
-                      {recentUiEvents.length === 0 ? (
-                        <div className="text-xs text-muted-foreground">No recent events.</div>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {recentUiEvents.map((event) => (
-                            <div key={event.id} className="text-xs">
-                              <div
-                                className={
-                                  event.level === "error" ? "text-destructive" : "text-foreground"
-                                }
-                              >
-                                {event.message}
-                              </div>
-                              {event.detail ? (
-                                <div className="text-muted-foreground break-all">{event.detail}</div>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </PopoverContent>
-              </Popover>
-              <div className="h-6 w-px bg-border/60 mx-1" />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleSetFullscreen(!isFullscreen)}
-                data-testid="button-fullscreen"
-                title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-              >
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                data-testid="button-docs"
-                onClick={handleOpenDocs}
-              >
-                <BookOpen className="w-4 h-4" />
-              </Button>
-              <ThemeToggle />
-            </div>
-          </header>
-
-          <main className="flex-1 flex flex-col p-4 gap-4 overflow-hidden min-h-0">
-            <div className="relative flex-1 min-h-0">
-              <MetricsChart
-                data={chartData}
-                selectedMetrics={activeMetrics}
-                currentTick={playbackState.currentTick}
-                windowStart={windowStart}
-                windowEnd={windowEnd}
-                resetViewVersion={resetViewVersion}
-                isAutoScroll={isAutoScroll}
-                annotations={annotations}
-                subtitles={subtitles}
-                captures={captures}
-                highlightedMetricKey={highlightedMetricKey}
-                yPrimaryDomain={manualYPrimaryDomain}
-                ySecondaryDomain={hasSecondaryAxis ? manualYSecondaryDomain : null}
-                onYPrimaryDomainChange={setManualYPrimaryDomain}
-                onYSecondaryDomainChange={setManualYSecondaryDomain}
-                onDomainChange={handleChartDomainChange}
-                onWindowRangeChange={handleWindowRangeChange}
-                onSizeChange={(size) => {
-                  setViewport((prev) => {
-                    const base = prev ?? { width: 0, height: 0, devicePixelRatio: 1 };
-                    if (base.chartWidth === size.width && base.chartHeight === size.height) {
-                      return base;
-                    }
-                    return {
-                      ...base,
-                      chartWidth: size.width,
-                      chartHeight: size.height,
-                    };
-                  });
-                }}
-                onAddAnnotation={handleAddAnnotation}
-                onRemoveAnnotation={handleRemoveAnnotation}
-              />
-              <MetricsHUD
-                currentData={currentData}
-                selectedMetrics={activeMetrics}
-                currentTick={playbackState.currentTick}
-                captures={captures}
-                isVisible={isHudVisible}
-                activeDerivationGroupName={activeDerivationGroupName}
-                analysisKeys={analysisKeys}
-                onToggleAnalysisMetric={handleToggleAnalysisMetric}
-                onToggleMetricAxis={handleToggleMetricAxis}
-                isMetricOnSecondaryAxis={isMetricOnSecondaryAxis}
-                onDeselectMetric={handleDeselectMetric}
-                onHoverMetric={setHighlightedMetricKey}
-                highlightedMetricKey={highlightedMetricKey}
-              />
-              <FloatingFrame
-                title="Visualization Frame"
-                className="w-[320px]"
-                dataTestId="visualization-floating-frame"
-                popoutable
-                popoutWindowName="metrics-ui-visualization-frame"
-                popoutWindowTitle="Metrics UI - Visualization Frame"
-              />
-            </div>
-
-            <div className="shrink-0">
-              <PlaybackControls
-                playbackState={playbackState}
-                onPlay={handlePlay}
-                onPause={handlePause}
-                onStop={handleStop}
-                onSeek={handleSeek}
-                onSpeedChange={handleSpeedChange}
-                onStepForward={handleStepForward}
-                onStepBackward={handleStepBackward}
-                currentTime=""
-                disabled={captures.length === 0}
-                seekDisabled={isWindowed}
-                onOpenMiniPlayer={handleOpenMiniPlayer}
-              />
-            </div>
-          </main>
+          <HomeHeaderControls
+            selectedMetricCount={selectedMetrics.length}
+            annotationCount={annotations.length}
+            onClearSelection={handleClearSelection}
+            onClearAnnotations={handleClearAnnotations}
+            onRecallVisualization={handleRecallVisualization}
+            isVisualizationPoppedOut={isVisualizationPoppedOut}
+            isLoading={isLoading}
+            loadingEntries={loadingEntries}
+            recentUiEvents={recentUiEvents}
+            isEventsVisible={isEventsVisible}
+            onToggleEvents={() => setIsEventsVisible((prev) => !prev)}
+            isFullscreen={isFullscreen}
+            onSetFullscreen={handleSetFullscreen}
+            onOpenDocs={handleOpenDocs}
+          />
+          <MetricsMainPanel
+            chart={chartViewProps}
+            currentData={currentData}
+            activeMetrics={activeMetrics}
+            playbackState={playbackState}
+            captures={captures}
+            isHudVisible={isHudVisible}
+            activeDerivationGroupName={activeDerivationGroupName}
+            analysisKeys={analysisKeys}
+            onToggleAnalysisMetric={handleToggleAnalysisMetric}
+            onToggleMetricAxis={handleToggleMetricAxis}
+            isMetricOnSecondaryAxis={isMetricOnSecondaryAxis}
+            onDeselectMetric={handleDeselectMetric}
+            onHoverMetric={setHighlightedMetricKey}
+            highlightedMetricKey={highlightedMetricKey}
+            visualizationFrame={visualizationFrame}
+            visualizationCapture={visualizationCapture}
+            onVisualizationDebugChange={handleVisualizationDebugChange}
+            onVisualizationPopoutChange={setIsVisualizationPoppedOut}
+            visualizationDockRequestToken={visualizationDockRequestToken}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onStop={handleStop}
+            onSeek={handleSeek}
+            onSpeedChange={handleSpeedChange}
+            onStepForward={handleStepForward}
+            onStepBackward={handleStepBackward}
+            onResetWindow={handleResetWindow}
+            onOpenMiniPlayer={handleOpenMiniPlayer}
+            seekDisabled={isWindowed}
+          />
         </div>
       </div>
     </SidebarProvider>

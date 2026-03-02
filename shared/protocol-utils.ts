@@ -684,6 +684,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "set_y2_range",
       "set_auto_scroll",
       "set_fullscreen",
+      "set_visualization_frame",
       "add_annotation",
       "remove_annotation",
       "clear_annotations",

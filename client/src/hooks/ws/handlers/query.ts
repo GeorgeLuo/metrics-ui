@@ -143,11 +143,45 @@ export function handleQueryCommand(
         context.sendError(requestId, "UI debug not available.");
         return true;
       }
-      const debug = context.getUiDebug();
+      let debug: unknown;
+      try {
+        debug = context.getUiDebug();
+      } catch (error) {
+        context.sendError(
+          requestId,
+          error instanceof Error ? error.message : "Failed to build UI debug payload.",
+          { command: "get_ui_debug" },
+        );
+        return true;
+      }
+      const scopeRaw = (command as { scope?: unknown }).scope;
+      const scope = typeof scopeRaw === "string" ? scopeRaw.trim().toLowerCase() : "";
+      const payload =
+        scope === "visualization"
+          ? {
+              generatedAt:
+                debug && typeof debug === "object" && "generatedAt" in debug
+                  ? (debug as { generatedAt?: unknown }).generatedAt ?? null
+                  : null,
+              refs:
+                debug
+                && typeof debug === "object"
+                && "refs" in debug
+                && (debug as { refs?: unknown }).refs
+                && typeof (debug as { refs?: unknown }).refs === "object"
+                  ? {
+                      visualization: (
+                        (debug as { refs: { visualization?: unknown } }).refs.visualization
+                        ?? null
+                      ),
+                    }
+                  : { visualization: null },
+            }
+          : debug;
       context.sendMessage({
         type: "ui_debug",
         request_id: requestId,
-        payload: debug,
+        payload,
       });
       context.sendAck(requestId, command.type);
       return true;

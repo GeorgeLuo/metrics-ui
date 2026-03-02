@@ -126,6 +126,14 @@ export interface SubtitleOverlay {
   color?: string;
 }
 
+export interface VisualizationFrameState {
+  mode: "builtin" | "plugin";
+  pluginId?: string;
+  name?: string;
+  captureId?: string;
+  updatedAt?: string;
+}
+
 export interface SeriesWindowResponse {
   captureId: string;
   path: string[];
@@ -435,6 +443,7 @@ export type ControlCommand =
         | "autoScroll"
         | "annotations"
         | "subtitles"
+        | "visualizationFrame"
       >>;
       savedAt?: string;
     } & ControlRequestBase)
@@ -499,6 +508,13 @@ export type ControlCommand =
   | ({ type: "set_y2_range"; min: number; max: number } & ControlRequestBase)
   | ({ type: "set_auto_scroll"; enabled: boolean } & ControlRequestBase)
   | ({ type: "set_fullscreen"; enabled: boolean } & ControlRequestBase)
+  | ({
+      type: "set_visualization_frame";
+      mode: "builtin" | "plugin";
+      pluginId?: string;
+      name?: string;
+      captureId?: string;
+    } & ControlRequestBase)
   | ({ type: "set_stream_mode"; captureId: string; mode: "lite" | "full" } & ControlRequestBase)
   | ({ type: "add_annotation"; tick: number; label?: string; color?: string; id?: string } & ControlRequestBase)
   | ({ type: "remove_annotation"; id?: string; tick?: number } & ControlRequestBase)
@@ -655,6 +671,7 @@ export interface VisualizationState {
   };
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
+  visualizationFrame: VisualizationFrameState;
 }
 
 export interface User {

@@ -20,6 +20,9 @@ interface FloatingFrameProps {
   popoutable?: boolean;
   popoutWindowName?: string;
   popoutWindowTitle?: string;
+  contentFill?: boolean;
+  onPopoutChange?: (isPoppedOut: boolean) => void;
+  dockRequestToken?: number;
 }
 
 const DEFAULT_POSITION: Point = { x: 24, y: 72 };
@@ -53,6 +56,9 @@ export function FloatingFrame({
   popoutable = false,
   popoutWindowName = "metrics-ui-floating-frame",
   popoutWindowTitle,
+  contentFill = false,
+  onPopoutChange,
+  dockRequestToken,
 }: FloatingFrameProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragOffset = useRef<Point>({ x: 0, y: 0 });
@@ -62,6 +68,7 @@ export function FloatingFrame({
   const [isDragging, setIsDragging] = useState(false);
   const [isMinimized, setIsMinimized] = useState(defaultMinimized);
   const [isPoppedOut, setIsPoppedOut] = useState(false);
+  const lastDockRequestTokenRef = useRef<number | undefined>(dockRequestToken);
 
   const syncPopoutDocumentStyles = useCallback(() => {
     const popup = popoutWindowRef.current;
@@ -90,7 +97,9 @@ export function FloatingFrame({
     popoutContainerRef.current = null;
     popoutWindowRef.current = null;
     setIsPoppedOut(false);
-  }, []);
+    setIsMinimized(false);
+    onPopoutChange?.(false);
+  }, [onPopoutChange]);
 
   const closePopout = useCallback(() => {
     const popup = popoutWindowRef.current;
@@ -115,7 +124,9 @@ export function FloatingFrame({
       } catch {
         // ignore focus errors
       }
+      setIsMinimized(false);
       setIsPoppedOut(true);
+      onPopoutChange?.(true);
       return;
     }
 
@@ -141,7 +152,9 @@ export function FloatingFrame({
 
     popoutWindowRef.current = popup;
     popoutContainerRef.current = container;
+    setIsMinimized(false);
     setIsPoppedOut(true);
+    onPopoutChange?.(true);
     syncPopoutDocumentStyles();
 
     try {
@@ -149,7 +162,7 @@ export function FloatingFrame({
     } catch {
       // ignore focus errors
     }
-  }, [clearPopoutState, popoutWindowName, syncPopoutDocumentStyles]);
+  }, [clearPopoutState, onPopoutChange, popoutWindowName, syncPopoutDocumentStyles]);
 
   const handlePopoutToggle = useCallback(() => {
     if (isPoppedOut) {
@@ -210,6 +223,21 @@ export function FloatingFrame({
     };
   }, [closePopout]);
 
+  useEffect(() => {
+    if (dockRequestToken === undefined) {
+      return;
+    }
+    if (lastDockRequestTokenRef.current === dockRequestToken) {
+      return;
+    }
+    lastDockRequestTokenRef.current = dockRequestToken;
+    if (isPoppedOut) {
+      closePopout();
+      return;
+    }
+    setIsMinimized(false);
+  }, [closePopout, dockRequestToken, isPoppedOut]);
+
   const handleDragStart = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       if (isPoppedOut) {
@@ -250,6 +278,7 @@ export function FloatingFrame({
     <div
       ref={frameRef}
       className={cn(
+        contentFill ? "flex flex-col" : "",
         isPoppedOut
           ? "h-full w-full border border-slate-400/80 bg-slate-200/95 text-black shadow-xl select-none"
           : "fixed z-30 min-w-[260px] max-w-[420px] border border-slate-400/80 bg-slate-200/95 text-black shadow-xl select-none",
@@ -268,6 +297,12 @@ export function FloatingFrame({
               left: position.x,
               top: position.y,
               cursor: isDragging ? "grabbing" : "default",
+              ...(isMinimized
+                ? {
+                    height: "auto",
+                    minHeight: "0px",
+                  }
+                : {}),
             }
       }
       data-testid={dataTestId}
@@ -300,22 +335,22 @@ export function FloatingFrame({
             </button>
           ) : null}
           {headerRight}
-          {minimizable ? (
+          {minimizable && !isPoppedOut ? (
             <button
               type="button"
-              className="p-0.5 text-black/70 hover:text-black"
+              className="inline-flex items-center justify-center self-center shrink-0 leading-none p-0.5 text-black/70 hover:text-black"
               onClick={() => setIsMinimized((prev) => !prev)}
               aria-label={isMinimized ? `Expand ${title}` : `Minimize ${title}`}
               data-hint={isMinimized ? "Expand this floating frame." : "Minimize this floating frame."}
             >
               {isMinimized ? (
                 <span
-                  className="inline-block h-2.5 w-2.5 border border-black/80 align-middle"
+                  className="block h-2.5 w-2.5 border border-black/80"
                   aria-hidden="true"
                 />
               ) : (
                 <span
-                  className="inline-block w-3 border-t border-black/80 align-middle"
+                  className="block w-3 border-t border-black/80"
                   aria-hidden="true"
                 />
               )}
@@ -324,7 +359,15 @@ export function FloatingFrame({
         </div>
       </div>
       {!isMinimized ? (
-        <div className={cn("px-3 py-2 text-xs text-black min-h-[140px]", contentClassName)}>{children}</div>
+        <div
+          className={cn(
+            "px-3 py-2 text-xs text-black min-h-[140px]",
+            contentFill ? "flex-1 min-h-0 h-0" : "",
+            contentClassName,
+          )}
+        >
+          {children}
+        </div>
       ) : null}
     </div>
   );

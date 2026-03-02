@@ -3,6 +3,7 @@ export const DASHBOARD_STORAGE_KEYS = {
   derivationGroups: "metrics-ui-derivation-groups",
   activeDerivationGroupId: "metrics-ui-active-derivation-group",
   displayDerivationGroupId: "metrics-ui-display-derivation-group",
+  visualizationFrame: "metrics-ui-visualization-frame",
   sourceMode: "metrics-ui-source-mode",
   liveStreams: "metrics-ui-live-streams",
 } as const;
