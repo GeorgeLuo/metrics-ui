@@ -51,6 +51,28 @@
       "path": ["0", "job_release_summary", "completed_jobs"]
     }
   ],
+  "annotations": [
+    {
+      "id": "highmix-startup",
+      "tick": 120,
+      "label": "Startup stabilization"
+    },
+    {
+      "id": "highmix-shift-load",
+      "tick": 360,
+      "label": "Shift load change"
+    },
+    {
+      "id": "highmix-throughput-rise",
+      "tick": 560,
+      "label": "Throughput inflection"
+    },
+    {
+      "id": "highmix-end-window",
+      "tick": 760,
+      "label": "End-window comparison"
+    }
+  ],
   "visualization": {
     "pluginId": "highmix_factory_3d",
     "pluginFile": "examples/visualization-plugins/highmix_factory_3d.mjs",

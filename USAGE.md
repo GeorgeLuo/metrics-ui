@@ -598,6 +598,7 @@ Use a single artifact to both initialize the dashboard and verify the final stat
 
 - Spec artifact: `examples/highmix/view-spec.json`
 - Runner: `simeval ui bootstrap-verify` (from `simtest0/tools/cli`)
+- Spec supports `annotations` entries (`id`, `tick`, `label`, optional `color`); bootstrap applies them and verify checks they are present.
 
 Bootstrap + verify:
 
