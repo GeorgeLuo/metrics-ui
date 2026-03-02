@@ -881,6 +881,38 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       typeof document !== "undefined"
         ? document.querySelector<HTMLElement>("[data-testid='hinting-panel']")
         : null;
+    const chartContainerEl =
+      typeof document !== "undefined"
+        ? document.querySelector<HTMLElement>("[data-testid='metrics-chart-container']")
+        : null;
+    const annotationOverlayLayerEl =
+      typeof document !== "undefined"
+        ? document.querySelector<HTMLElement>("[data-testid='annotation-overlay-layer']")
+        : null;
+    const annotationRenderedCount =
+      typeof document !== "undefined"
+        ? document.querySelectorAll("[data-testid^='annotation-line-']").length
+        : null;
+    const chartContainerRect = chartContainerEl?.getBoundingClientRect?.();
+    const chartCenterProbe =
+      chartContainerRect && typeof document !== "undefined"
+        ? (() => {
+            const centerX = chartContainerRect.left + chartContainerRect.width / 2;
+            const centerY = chartContainerRect.top + chartContainerRect.height / 2;
+            const element = document.elementFromPoint(centerX, centerY);
+            return {
+              x: centerX,
+              y: centerY,
+              tag: element?.tagName?.toLowerCase() ?? null,
+              className:
+                typeof (element as HTMLElement | null)?.className === "string"
+                  ? ((element as HTMLElement).className as string)
+                  : null,
+              dataTestId: (element as HTMLElement | null)?.getAttribute?.("data-testid") ?? null,
+              insideChart: element ? chartContainerEl?.contains(element) ?? false : false,
+            };
+          })()
+        : null;
     const hintPanelHeight = hintPanelEl?.getBoundingClientRect?.().height ?? null;
     const sidebarHeightSum =
       typeof sidebarBodyHeight === "number" && typeof hintPanelHeight === "number"
@@ -893,6 +925,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
     return {
       generatedAt: new Date().toISOString(),
+      buildMarker: "annotation-reference-line-2026-03-02",
       state: {
         captures: captureSummaries,
         selectedMetrics,
@@ -980,6 +1013,17 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         sidebarContentHeight,
         sidebarBodyHeight,
         hintPanelHeight,
+        chartContainerRect: chartContainerRect
+          ? {
+              left: chartContainerRect.left,
+              top: chartContainerRect.top,
+              width: chartContainerRect.width,
+              height: chartContainerRect.height,
+            }
+          : null,
+        annotationOverlayLayerPresent: Boolean(annotationOverlayLayerEl),
+        annotationRenderedCount,
+        chartCenterProbe,
         sidebarHeightSum,
         sidebarHeightDelta,
         baselineHeap: baselineHeapRef.current,
@@ -4787,13 +4831,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         return pinned;
       }
     }
-    return (
-      activeSourceCaptures.find((capture) =>
-        /highmix[\s_-]*causal|causal/i.test(
-          `${capture.id} ${capture.filename} ${capture.source ?? ""}`,
-        ),
-      ) ?? activeSourceCaptures[0]
-    );
+    return activeSourceCaptures[0];
   }, [captures, visualizationFrame.captureId]);
 
   const rebuildCaptureStats = useCallback((capture: CaptureSession): CaptureStats => {
