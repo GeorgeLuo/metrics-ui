@@ -2,99 +2,40 @@ export default {
   id: "highmix_factory_3d",
   name: "HighMix Factory 3D",
   description: "Three.js factory floor scene driven by HighMix simulation summary metrics.",
-  libraries: ["three", "three-gltf-loader"],
+  libraries: ["three"],
   renderScript: `
 (() => {
-  const root = document.getElementById("metrics-ui-visual-root");
-  if (!root) {
-    return;
-  }
-  root.innerHTML = "";
-  root.style.background = "#0b1220";
-
-  const THREE = window.THREE;
-  if (!THREE) {
-    root.textContent = "Three.js not available";
+  const bridge = window.MetricsUIBridge;
+  if (!bridge || typeof bridge !== "object") {
     return;
   }
 
   const report = (payload) => {
-    if (window.MetricsUIBridge && typeof window.MetricsUIBridge.report === "function") {
-      window.MetricsUIBridge.report(payload);
+    if (typeof bridge.report === "function") {
+      bridge.report(payload);
     }
   };
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-  renderer.domElement.style.width = "100%";
-  renderer.domElement.style.height = "100%";
-  renderer.domElement.style.display = "block";
-  root.appendChild(renderer.domElement);
-
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#0f172a");
-
-  const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 200);
-  camera.position.set(9, 7, 10);
-  camera.lookAt(0, 1.8, 0);
-
-  const keyLight = new THREE.DirectionalLight("#f8fafc", 1.25);
-  keyLight.position.set(9, 14, 7);
-  scene.add(keyLight);
-  scene.add(new THREE.AmbientLight("#93c5fd", 0.55));
-
-  const world = new THREE.Group();
-  scene.add(world);
-
-  const WORLD_BOUNDS = {
-    minX: -10.5,
-    maxX: 10.5,
-    minY: 0,
-    maxY: 6.2,
-    minZ: -7.5,
-    maxZ: 7.5,
-  };
-  const boundsSize = new THREE.Vector3(
-    WORLD_BOUNDS.maxX - WORLD_BOUNDS.minX,
-    WORLD_BOUNDS.maxY - WORLD_BOUNDS.minY,
-    WORLD_BOUNDS.maxZ - WORLD_BOUNDS.minZ,
-  );
-  const boundsCenter = new THREE.Vector3(
-    (WORLD_BOUNDS.minX + WORLD_BOUNDS.maxX) * 0.5,
-    (WORLD_BOUNDS.minY + WORLD_BOUNDS.maxY) * 0.5,
-    (WORLD_BOUNDS.minZ + WORLD_BOUNDS.maxZ) * 0.5,
-  );
-  const boundsGuide = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.BoxGeometry(boundsSize.x, boundsSize.y, boundsSize.z)),
-    new THREE.LineBasicMaterial({ color: "#475569", transparent: true, opacity: 0.52 }),
-  );
-  boundsGuide.position.copy(boundsCenter);
-  world.add(boundsGuide);
-
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(22, 16),
-    new THREE.MeshStandardMaterial({ color: "#1e293b", roughness: 0.9, metalness: 0.15 }),
-  );
-  floor.rotation.x = -Math.PI / 2;
-  world.add(floor);
-
-  const lane = new THREE.Mesh(
-    new THREE.PlaneGeometry(16, 2.4),
-    new THREE.MeshStandardMaterial({ color: "#334155", roughness: 0.86, metalness: 0.2 }),
-  );
-  lane.rotation.x = -Math.PI / 2;
-  lane.position.set(0, 0.01, 3.1);
-  world.add(lane);
-
-  const grid = new THREE.GridHelper(20, 20, "#334155", "#1f2937");
-  grid.position.y = 0.02;
-  world.add(grid);
+  const shell = typeof bridge.createFactoryShell === "function"
+    ? bridge.createFactoryShell({ title: "HighMix Factory 3D" })
+    : null;
+  if (!shell) {
+    const root = document.getElementById("metrics-ui-visual-root");
+    if (root) {
+      root.textContent = "Visualization shell unavailable";
+    }
+    report({ kind: "error", error: "Visualization shell unavailable." });
+    return;
+  }
+  const THREE = shell.THREE;
+  const world = shell.world;
+  const WORLD_BOUNDS = shell.bounds;
+  const setBanner = shell.setBanner;
 
   const mkRack = (color, x) => {
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 0.35, 2.2),
-      new THREE.MeshStandardMaterial({ color: "#0f172a", roughness: 0.95, metalness: 0.1 }),
+      new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.95, metalness: 0.08 }),
     );
     base.position.set(x, 0.18, -2.9);
     world.add(base);
@@ -141,19 +82,6 @@ export default {
     moverSlots.push(slot);
     moverFallbackApplied.push(false);
   }
-
-  const banner = document.createElement("div");
-  banner.style.position = "absolute";
-  banner.style.left = "10px";
-  banner.style.top = "8px";
-  banner.style.padding = "6px 8px";
-  banner.style.background = "rgba(15,23,42,0.75)";
-  banner.style.border = "1px solid rgba(148,163,184,0.35)";
-  banner.style.color = "rgba(226,232,240,0.92)";
-  banner.style.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
-  banner.style.pointerEvents = "none";
-  banner.textContent = "HighMix Factory 3D";
-  root.appendChild(banner);
 
   const asNumber = (value, fallback = 0) => {
     const parsed = Number(value);
@@ -210,15 +138,7 @@ export default {
   let navigation = null;
 
   const resize = () => {
-    const rect = root.getBoundingClientRect();
-    const width = Math.max(1, Math.floor(rect.width));
-    const height = Math.max(1, Math.floor(rect.height));
-    renderer.setSize(width, height, false);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-    if (navigation && navigation.controls && typeof navigation.controls.update === "function") {
-      navigation.controls.update();
-    }
+    shell.resize();
   };
 
   const normalizeTemplate = (object, targetSize) => {
@@ -314,17 +234,7 @@ export default {
   };
 
   const setupNavigation = () => {
-    if (!window.MetricsUIBridge || typeof window.MetricsUIBridge.register3DScene !== "function") {
-      return;
-    }
-    if (navigation && typeof navigation.dispose === "function") {
-      try { navigation.dispose(); } catch (_error) {}
-    }
-    navigation = window.MetricsUIBridge.register3DScene({
-      renderer,
-      camera,
-      sceneRoot: world,
-    });
+    navigation = shell.setupNavigation();
     if (navigation) {
       report({ kind: "navigation", mode: "turntable", target: navigation.target, distance: navigation.distance });
     }
@@ -429,17 +339,7 @@ export default {
     });
 
     const boundsIssueCount = boundsViolations.length;
-    if (boundsIssueCount > 0) {
-      banner.style.background = "rgba(127,29,29,0.76)";
-      banner.style.border = "1px solid rgba(248,113,113,0.8)";
-      banner.style.color = "rgba(254,226,226,0.96)";
-    } else {
-      banner.style.background = "rgba(15,23,42,0.75)";
-      banner.style.border = "1px solid rgba(148,163,184,0.35)";
-      banner.style.color = "rgba(226,232,240,0.92)";
-    }
-
-    banner.textContent =
+    const bannerText =
       "HighMix Factory 3D | scenario=" + state.scenario
       + " | tick=" + String(t)
       + " | pending=" + String(state.pending)
@@ -447,8 +347,9 @@ export default {
       + " | completed=" + String(state.completed)
       + " | oob=" + String(boundsIssueCount)
       + (state.loadedAssets > 0 ? " | models=loaded" : " | models=fallback");
+    setBanner(bannerText, boundsIssueCount > 0 ? "error" : "info");
 
-    renderer.render(scene, camera);
+    shell.render();
 
     const now = Date.now();
     if (boundsIssueCount > 0) {
@@ -508,11 +409,8 @@ export default {
 
   window.addEventListener("beforeunload", () => {
     try { unsubscribe(); } catch (_error) {}
-    if (navigation && typeof navigation.dispose === "function") {
-      try { navigation.dispose(); } catch (_error) {}
-    }
     try { window.cancelAnimationFrame(animationHandle); } catch (_error) {}
-    try { renderer.dispose(); } catch (_error) {}
+    try { shell.dispose(); } catch (_error) {}
   });
 })();
 `,

@@ -4,15 +4,31 @@ export default {
   description: "Canvas-based visualization of HighMix summary metrics.",
   renderScript: `
 (() => {
-  const root = document.getElementById("metrics-ui-visual-root");
-  if (!root) {
+  const bridge = window.MetricsUIBridge;
+  if (!bridge || typeof bridge !== "object") {
     return;
   }
-
-  root.innerHTML = "";
-  root.style.background = "#0f172a";
+  const shell = typeof bridge.createFactoryShell === "function"
+    ? bridge.createFactoryShell({ title: "HighMix Canvas View" })
+    : null;
+  if (!shell) {
+    const rootFallback = document.getElementById("metrics-ui-visual-root");
+    if (rootFallback) {
+      rootFallback.textContent = "Visualization shell unavailable";
+    }
+    if (typeof bridge.report === "function") {
+      bridge.report({ kind: "error", error: "Visualization shell unavailable." });
+    }
+    return;
+  }
+  const root = shell.root;
 
   const canvas = document.createElement("canvas");
+  canvas.style.position = "absolute";
+  canvas.style.inset = "0";
+  canvas.style.zIndex = "3";
+  canvas.style.pointerEvents = "none";
+  canvas.style.background = "transparent";
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   canvas.style.display = "block";
@@ -73,7 +89,7 @@ export default {
   };
 
   const drawLabel = (x, y, label, value, color) => {
-    ctx.fillStyle = "rgba(226,232,240,0.95)";
+    ctx.fillStyle = "rgba(15,23,42,0.95)";
     ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
     ctx.fillText(label, x, y);
     ctx.fillStyle = color;
@@ -92,21 +108,15 @@ export default {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, "#0b1220");
-    gradient.addColorStop(1, "#111827");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
-
     const margin = 16;
     const panelW = Math.max(120, Math.floor(w * 0.38));
     const panelH = h - margin * 2;
     const panelX = w - panelW - margin;
     const panelY = margin;
 
-    ctx.fillStyle = "rgba(15,23,42,0.7)";
+    ctx.fillStyle = "rgba(248,250,252,0.84)";
     ctx.fillRect(panelX, panelY, panelW, panelH);
-    ctx.strokeStyle = "rgba(148,163,184,0.35)";
+    ctx.strokeStyle = "rgba(100,116,139,0.35)";
     ctx.lineWidth = 1;
     ctx.strokeRect(panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1);
 
@@ -116,7 +126,7 @@ export default {
     const completedRatio = Math.max(0, Math.min(1, summary.completed / total));
 
     const lineY = Math.floor(h * 0.62);
-    ctx.strokeStyle = "rgba(148,163,184,0.35)";
+    ctx.strokeStyle = "rgba(100,116,139,0.35)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(margin, lineY);
@@ -137,7 +147,7 @@ export default {
       const x = margin + index * (barW + gap) + 10;
       const hMax = Math.floor(h * 0.45);
       const barH = Math.max(2, Math.floor(hMax * bar.ratio));
-      ctx.fillStyle = "rgba(30,41,59,0.6)";
+      ctx.fillStyle = "rgba(203,213,225,0.8)";
       ctx.fillRect(x, barBaseY - hMax, barW, hMax);
       ctx.fillStyle = bar.color;
       ctx.fillRect(x, barBaseY - barH, barW, barH);
@@ -163,11 +173,11 @@ export default {
       ctx.fill();
     }
 
-    ctx.fillStyle = "#e2e8f0";
+    ctx.fillStyle = "#0f172a";
     ctx.font = "bold 14px ui-monospace, SFMono-Regular, Menlo, monospace";
     ctx.fillText("HighMix Factory View", margin, margin + 2);
     ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.fillStyle = "rgba(203,213,225,0.9)";
+    ctx.fillStyle = "rgba(51,65,85,0.92)";
     ctx.fillText("Scenario: " + summary.scenario, margin, margin + 20);
     ctx.fillText("Tick: " + String(frame && frame.tick ? frame.tick : "-"), panelX + 12, panelY + panelH - 12);
 
@@ -179,7 +189,7 @@ export default {
           kind: "frame",
           hasVisualSignal: true,
           visualSignal: "canvas",
-          rootChildCount: 1,
+          rootChildCount: root.childElementCount,
           canvasCount: 1,
           svgCount: 0,
           textLength: 0,
@@ -203,6 +213,7 @@ export default {
 
   window.addEventListener("beforeunload", () => {
     try { unsubscribe(); } catch (_error) {}
+    try { shell.dispose(); } catch (_error) {}
   });
 })();
 `,

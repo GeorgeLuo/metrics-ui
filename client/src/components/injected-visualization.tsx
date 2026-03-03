@@ -398,6 +398,180 @@ ${JSON.stringify(importMap, null, 2)}
           }
         };
 
+        const createFactoryShell = (options) => {
+          try {
+            const root = document.getElementById("metrics-ui-visual-root");
+            const THREE = window.THREE || (window.__metricsUILibs && window.__metricsUILibs.three);
+            if (!root || !THREE) {
+              return null;
+            }
+
+            root.innerHTML = "";
+            root.style.background = "#f8fafc";
+            root.style.position = "relative";
+            root.style.overflow = "hidden";
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+            renderer.domElement.style.width = "100%";
+            renderer.domElement.style.height = "100%";
+            renderer.domElement.style.display = "block";
+            root.appendChild(renderer.domElement);
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color("#e2e8f0");
+
+            const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 200);
+            camera.position.set(9, 7, 10);
+            camera.lookAt(0, 1.8, 0);
+
+            const keyLight = new THREE.DirectionalLight("#f8fafc", 1.25);
+            keyLight.position.set(9, 14, 7);
+            scene.add(keyLight);
+            scene.add(new THREE.AmbientLight("#93c5fd", 0.55));
+
+            const world = new THREE.Group();
+            scene.add(world);
+
+            const bounds =
+              options && options.bounds && typeof options.bounds === "object"
+                ? options.bounds
+                : {
+                    minX: -10.5,
+                    maxX: 10.5,
+                    minY: 0,
+                    maxY: 6.2,
+                    minZ: -7.5,
+                    maxZ: 7.5,
+                  };
+
+            const boundsSize = new THREE.Vector3(
+              bounds.maxX - bounds.minX,
+              bounds.maxY - bounds.minY,
+              bounds.maxZ - bounds.minZ,
+            );
+            const boundsCenter = new THREE.Vector3(
+              (bounds.minX + bounds.maxX) * 0.5,
+              (bounds.minY + bounds.maxY) * 0.5,
+              (bounds.minZ + bounds.maxZ) * 0.5,
+            );
+            const boundsGuide = new THREE.LineSegments(
+              new THREE.EdgesGeometry(new THREE.BoxGeometry(boundsSize.x, boundsSize.y, boundsSize.z)),
+              new THREE.LineBasicMaterial({ color: "#64748b", transparent: true, opacity: 0.48 }),
+            );
+            boundsGuide.position.copy(boundsCenter);
+            world.add(boundsGuide);
+
+            const floor = new THREE.Mesh(
+              new THREE.PlaneGeometry(22, 16),
+              new THREE.MeshStandardMaterial({ color: "#e2e8f0", roughness: 0.92, metalness: 0.08 }),
+            );
+            floor.rotation.x = -Math.PI / 2;
+            world.add(floor);
+
+            const lane = new THREE.Mesh(
+              new THREE.PlaneGeometry(16, 2.4),
+              new THREE.MeshStandardMaterial({ color: "#cbd5e1", roughness: 0.88, metalness: 0.14 }),
+            );
+            lane.rotation.x = -Math.PI / 2;
+            lane.position.set(0, 0.01, 3.1);
+            world.add(lane);
+
+            const grid = new THREE.GridHelper(20, 20, "#94a3b8", "#cbd5e1");
+            grid.position.y = 0.02;
+            world.add(grid);
+
+            const banner = document.createElement("div");
+            banner.style.position = "absolute";
+            banner.style.left = "10px";
+            banner.style.top = "8px";
+            banner.style.padding = "6px 8px";
+            banner.style.background = "rgba(248,250,252,0.86)";
+            banner.style.border = "1px solid rgba(100,116,139,0.32)";
+            banner.style.color = "rgba(15,23,42,0.94)";
+            banner.style.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
+            banner.style.pointerEvents = "none";
+            root.appendChild(banner);
+
+            const setBanner = (text, level) => {
+              banner.textContent = typeof text === "string" ? text : "";
+              if (level === "error") {
+                banner.style.background = "rgba(127,29,29,0.76)";
+                banner.style.border = "1px solid rgba(248,113,113,0.8)";
+                banner.style.color = "rgba(254,226,226,0.96)";
+                return;
+              }
+              banner.style.background = "rgba(248,250,252,0.86)";
+              banner.style.border = "1px solid rgba(100,116,139,0.32)";
+              banner.style.color = "rgba(15,23,42,0.94)";
+            };
+            setBanner(
+              options && typeof options.title === "string" && options.title.trim().length > 0
+                ? options.title.trim()
+                : "Visualization",
+              "info",
+            );
+
+            let navigation = null;
+            const resize = () => {
+              const rect = root.getBoundingClientRect();
+              const width = Math.max(1, Math.floor(rect.width));
+              const height = Math.max(1, Math.floor(rect.height));
+              renderer.setSize(width, height, false);
+              camera.aspect = width / height;
+              camera.updateProjectionMatrix();
+              if (navigation && navigation.controls && typeof navigation.controls.update === "function") {
+                navigation.controls.update();
+              }
+            };
+
+            const setupNavigation = () => {
+              if (navigation && typeof navigation.dispose === "function") {
+                try { navigation.dispose(); } catch (_error) {}
+              }
+              navigation = register3DScene({
+                renderer,
+                camera,
+                sceneRoot: world,
+              });
+              return navigation;
+            };
+
+            const render = () => {
+              renderer.render(scene, camera);
+            };
+
+            const dispose = () => {
+              if (navigation && typeof navigation.dispose === "function") {
+                try { navigation.dispose(); } catch (_error) {}
+              }
+              try { renderer.dispose(); } catch (_error) {}
+            };
+
+            return {
+              THREE,
+              root,
+              renderer,
+              scene,
+              camera,
+              world,
+              bounds,
+              setBanner,
+              resize,
+              render,
+              setupNavigation,
+              dispose,
+            };
+          } catch (error) {
+            safePost({
+              kind: "error",
+              error: error instanceof Error ? error.message : "Failed to initialize visualization shell.",
+            });
+            return null;
+          }
+        };
+
         window.MetricsUIBridge = {
           apiBase: metricsUiApiBase,
           getFrame: () => currentFrame,
@@ -423,6 +597,7 @@ ${JSON.stringify(importMap, null, 2)}
           },
           register3DScene,
           createTurntableControls,
+          createFactoryShell,
         };
 
         window.addEventListener("message", (event) => {
