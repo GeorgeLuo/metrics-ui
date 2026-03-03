@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Square, SkipBack, SkipForward, Rewind, FastForward, ExternalLink, Maximize } from "lucide-react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { Play, Pause, Square, SkipBack, SkipForward, Rewind, FastForward, ExternalLink, Maximize, MoveVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import type { PlaybackState } from "@shared/schema";
@@ -22,7 +22,9 @@ interface PlaybackControlsProps {
 }
 
 const MIN_SPEED = 0.05;
-const MAX_SPEED = 100;
+const MAX_SPEED = 100000;
+const SPEED_DRAG_GAIN = 0.005;
+const SPEED_DRAG_EXPONENT = 1.25;
 const INLINE_EDIT_BASE_CLASS =
   "h-auto p-0 text-xs sm:text-sm font-mono text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0";
 const INLINE_EDIT_NUMERIC_CLASS =
@@ -62,6 +64,7 @@ export function PlaybackControls({
   const scrubTickRef = useRef(currentTick);
   const scrubRafRef = useRef<number | null>(null);
   const speedInputFocusedRef = useRef(false);
+  const speedDragRef = useRef<{ pointerId: number; startY: number; startSpeed: number } | null>(null);
 
   useEffect(() => {
     if (!isScrubbing) {
@@ -93,6 +96,50 @@ export function PlaybackControls({
     const normalized = normalizeSpeedValue(parsed);
     onSpeedChange(normalized);
     setSpeedInput(formatSpeedValue(normalized));
+  };
+
+  const startSpeedDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (disabled) {
+      return;
+    }
+    const parsed = Number.parseFloat(speedInput);
+    const currentSpeed = Number.isFinite(parsed) && parsed > 0 ? normalizeSpeedValue(parsed) : speed;
+    speedInputFocusedRef.current = false;
+    setSpeedInput(formatSpeedValue(currentSpeed));
+    speedDragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startSpeed: currentSpeed,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const updateSpeedDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = speedDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || disabled) {
+      return;
+    }
+    const deltaY = event.clientY - drag.startY;
+    const direction = deltaY === 0 ? 0 : -Math.sign(deltaY);
+    const magnitude = Math.pow(Math.abs(deltaY), SPEED_DRAG_EXPONENT);
+    const scale = Math.exp(direction * magnitude * SPEED_DRAG_GAIN);
+    const nextSpeed = normalizeSpeedValue(drag.startSpeed * scale);
+    onSpeedChange(nextSpeed);
+    setSpeedInput(formatSpeedValue(nextSpeed));
+    event.preventDefault();
+  };
+
+  const stopSpeedDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = speedDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+    speedDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    event.preventDefault();
   };
 
   const displayTick = isScrubbing ? scrubTick : currentTick;
@@ -132,6 +179,7 @@ export function PlaybackControls({
           className="flex-1"
           disabled={disabled || seekDisabled || totalTicks === 0}
           data-testid="slider-playback"
+          data-hint="Scrub to move playback to a specific tick in the timeline."
           aria-label="Playback position"
         />
       </div>
@@ -236,6 +284,7 @@ export function PlaybackControls({
               onClick={onResetWindow}
               disabled={disabled}
               data-testid="button-reset-window"
+              data-hint="Reset the chart to Full View across all available ticks."
               aria-label="Full view"
               title="Full View"
             >
@@ -244,50 +293,64 @@ export function PlaybackControls({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
-          <div className="flex items-center gap-0.5 text-sm leading-none">
-            <input
-              type="text"
-              inputMode="decimal"
-              value={speedInput}
-              onChange={(event) => setSpeedInput(event.target.value)}
-              onFocus={() => {
-                speedInputFocusedRef.current = true;
-              }}
-              onBlur={() => {
-                speedInputFocusedRef.current = false;
-                commitSpeedInput();
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  (event.currentTarget as HTMLInputElement).blur();
-                  return;
-                }
-                if (event.key === "Escape") {
-                  event.preventDefault();
+        <div className="flex flex-col items-center sm:items-end gap-0.5">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-4">
+            <div className="flex h-5 items-center gap-1 text-sm leading-none">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={speedInput}
+                onChange={(event) => setSpeedInput(event.target.value)}
+                onFocus={() => {
+                  speedInputFocusedRef.current = true;
+                }}
+                onBlur={() => {
                   speedInputFocusedRef.current = false;
-                  setSpeedInput(formatSpeedValue(speed));
-                  (event.currentTarget as HTMLInputElement).blur();
-                }
-              }}
-              disabled={disabled}
-              className={INLINE_EDIT_NUMERIC_CLASS}
-              style={{ width: `${Math.max(speedInput.length, 1)}ch` }}
-              data-testid="select-speed"
-              aria-label="Playback speed"
-            />
-            <span className="text-muted-foreground text-xs sm:text-sm">x</span>
-          </div>
+                  commitSpeedInput();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    (event.currentTarget as HTMLInputElement).blur();
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    speedInputFocusedRef.current = false;
+                    setSpeedInput(formatSpeedValue(speed));
+                    (event.currentTarget as HTMLInputElement).blur();
+                  }
+                }}
+                disabled={disabled}
+                className={cn(INLINE_EDIT_NUMERIC_CLASS, "h-5 leading-none align-middle")}
+                style={{ width: `${Math.max(speedInput.length, 1)}ch` }}
+                data-testid="select-speed"
+                aria-label="Playback speed"
+                data-hint="Set playback speed directly."
+              />
+              <span className="text-muted-foreground text-xs sm:text-sm">x</span>
+              <button
+                type="button"
+                className="inline-flex h-4 w-4 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground cursor-ns-resize"
+                onPointerDown={startSpeedDrag}
+                onPointerMove={updateSpeedDrag}
+                onPointerUp={stopSpeedDrag}
+                onPointerCancel={stopSpeedDrag}
+                data-testid="button-speed-drag"
+                aria-label="Drag to adjust playback speed"
+                data-hint="Drag up to speed up playback, drag down to slow it down."
+              >
+                <MoveVertical className="h-3 w-3" />
+              </button>
+            </div>
 
-          <div className="flex flex-col justify-center items-center sm:items-end gap-0.5">
-            <span className="font-mono text-xs sm:text-sm leading-none" data-testid="text-tick-position">
+            <span className="font-mono text-xs sm:text-sm leading-none h-5 inline-flex items-center" data-testid="text-tick-position">
               {displayTick.toLocaleString()} / {totalTicks.toLocaleString()}
             </span>
-            <span className="font-mono text-xs leading-none text-muted-foreground hidden sm:block" data-testid="text-current-time">
-              {currentTime}
-            </span>
           </div>
+          <span className="font-mono text-xs leading-none text-muted-foreground hidden sm:block" data-testid="text-current-time">
+            {currentTime}
+          </span>
         </div>
       </div>
 

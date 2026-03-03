@@ -195,9 +195,6 @@ function resolveHintFromTarget(target: EventTarget | null): string {
   if (matches(/\b(copy)\b/)) {
     return GENERIC_HINTS.copy;
   }
-  if (matches(/\b(view|open|source|details)\b/)) {
-    return GENERIC_HINTS.open;
-  }
   if (matches(/\b(create|new group|add group)\b/)) {
     return GENERIC_HINTS.create;
   }
@@ -242,6 +239,9 @@ function resolveHintFromTarget(target: EventTarget | null): string {
   }
   if (matches(/\b(reset|full view|window)\b/)) {
     return GENERIC_HINTS.reset;
+  }
+  if (matches(/\b(view|open|source|details)\b/)) {
+    return GENERIC_HINTS.open;
   }
   if (matches(/\b(derivation|derive)\b/)) {
     return GENERIC_HINTS.derive;

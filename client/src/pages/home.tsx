@@ -5144,14 +5144,19 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   useEffect(() => {
     if (!playbackState.isPlaying) return;
 
-    const interval = 1000 / playbackState.speed;
+    const effectiveSpeed =
+      Number.isFinite(playbackState.speed) && playbackState.speed > 0
+        ? playbackState.speed
+        : 1;
+    const interval = 1000 / effectiveSpeed;
     let lastTime = performance.now();
 
     const tick = (currentTime: number) => {
       const delta = currentTime - lastTime;
 
       if (delta >= interval) {
-        lastTime = currentTime;
+        const steps = Math.max(1, Math.floor(delta / interval));
+        lastTime += steps * interval;
         setPlaybackState((prev) => {
           if (prev.totalTicks <= 0) {
             return prev;
@@ -5162,7 +5167,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             }
             return { ...prev, isPlaying: false };
           }
-          return { ...prev, currentTick: prev.currentTick + 1 };
+          const nextTick = Math.min(prev.totalTicks, prev.currentTick + steps);
+          return { ...prev, currentTick: nextTick };
         });
       }
 
