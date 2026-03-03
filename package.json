@@ -1,12 +1,44 @@
 {
-  "name": "rest-express",
-  "version": "1.0.0",
+  "name": "@georgeluo/metrics-ui",
+  "version": "0.1.1",
+  "description": "Metrics UI server and dashboard for SimEval captures, streaming playback, and derivations.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://github.com/GeorgeLuo/metrics-ui#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GeorgeLuo/metrics-ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/GeorgeLuo/metrics-ui/issues"
+  },
+  "keywords": [
+    "metrics",
+    "dashboard",
+    "simeval",
+    "ecs",
+    "simulation",
+    "visualization"
+  ],
+  "bin": {
+    "metrics-ui": "bin/metrics-ui.cjs"
+  },
+  "main": "dist/index.cjs",
+  "files": [
+    "dist/**",
+    "bin/metrics-ui.cjs",
+    "USAGE.md",
+    "README.md",
+    "LICENSE",
+    "examples/highmix/view-spec.json",
+    "examples/visualization-assets/highmix/**",
+    "examples/visualization-plugins/**"
+  ],
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/index.ts",
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
+    "prepack": "npm run build",
     "check": "tsc && npm run docs:ws:check",
     "ui:regress": "bash scripts/ui-regress.sh",
     "ws:single-frontend:regress": "node scripts/single-frontend-regress.mjs",
@@ -119,5 +151,11 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

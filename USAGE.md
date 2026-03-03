@@ -22,7 +22,7 @@ CLI flags:
 Example:
 
 ```bash
-simeval ui serve --ui-data-root /Volumes/samsung_usb/metrics-ui
+simeval ui serve --ui-data-root /path/to/metrics-ui
 ```
 
 The UI server also supports environment-variable overrides (fallback/advanced use):

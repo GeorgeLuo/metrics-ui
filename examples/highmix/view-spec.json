@@ -8,12 +8,12 @@
   "captures": [
     {
       "id": "legacy",
-      "source": "/Volumes/samsung_usb/captures/highmix/highmix-legacy/highmix-legacy_1_simulation.jsonl",
+      "source": "/path/to/highmix-legacy_1_simulation.jsonl",
       "minTickCount": 100
     },
     {
       "id": "causal",
-      "source": "/Volumes/samsung_usb/captures/highmix/highmix-causal/highmix-causal_1_simulation.jsonl",
+      "source": "/path/to/highmix-causal_1_simulation.jsonl",
       "minTickCount": 100
     }
   ],
