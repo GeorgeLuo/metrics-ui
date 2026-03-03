@@ -616,3 +616,34 @@ simeval ui bootstrap-verify \
   --verify-only true \
   --ui ws://127.0.0.1:5050/ws/control
 ```
+
+### Kuramoto Example Bootstrap + Verify
+
+Use the Kuramoto spec to restore a comparison dashboard for oscillator phases plus simulation/evaluation order parameter overlays.
+
+- Spec artifact: `examples/kuramoto/view-spec.json`
+- Update the two capture `source` paths in the spec before running.
+- Helper script (auto-wires local capture paths): `examples/kuramoto/bootstrap-ui.sh`
+
+Helper run:
+
+```bash
+bash examples/kuramoto/bootstrap-ui.sh
+```
+
+Bootstrap + verify:
+
+```bash
+simeval ui bootstrap-verify \
+  --spec /path/to/Stream-Metrics-UI/examples/kuramoto/view-spec.json \
+  --ui ws://127.0.0.1:5050/ws/control
+```
+
+Verify-only:
+
+```bash
+simeval ui bootstrap-verify \
+  --spec /path/to/Stream-Metrics-UI/examples/kuramoto/view-spec.json \
+  --verify-only true \
+  --ui ws://127.0.0.1:5050/ws/control
+```

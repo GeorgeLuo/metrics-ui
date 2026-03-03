@@ -31,6 +31,7 @@
     "README.md",
     "LICENSE",
     "examples/highmix/view-spec.json",
+    "examples/kuramoto/**",
     "examples/visualization-assets/highmix/**",
     "examples/visualization-plugins/**"
   ],

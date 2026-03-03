@@ -1,0 +1,70 @@
+{
+  "name": "kuramoto-example-view",
+  "version": 1,
+  "ui": {
+    "http": "http://127.0.0.1:5050",
+    "ws": "ws://127.0.0.1:5050/ws/control"
+  },
+  "captures": [
+    {
+      "id": "kuramoto-sim",
+      "source": "/path/to/kuramoto_simulation.jsonl",
+      "minTickCount": 100
+    },
+    {
+      "id": "kuramoto-eval",
+      "source": "/path/to/kuramoto_evaluation.jsonl",
+      "minTickCount": 100
+    }
+  ],
+  "selectedMetrics": [
+    {
+      "captureId": "kuramoto-sim",
+      "path": ["1", "osc_phase"]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": ["2", "osc_phase"]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": ["3", "osc_phase"]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": ["13", "series_order_parameter_r"]
+    },
+    {
+      "captureId": "kuramoto-eval",
+      "path": ["1", "kuramoto.eval.metrics", "order_parameter_r"],
+      "axis": "y2"
+    },
+    {
+      "captureId": "kuramoto-eval",
+      "path": ["1", "kuramoto.eval.metrics", "max_pairwise_phase_distance"]
+    }
+  ],
+  "annotations": [
+    {
+      "id": "kuramoto-start",
+      "tick": 100,
+      "label": "Early transient"
+    },
+    {
+      "id": "kuramoto-mid",
+      "tick": 1000,
+      "label": "Mid-run dynamics"
+    },
+    {
+      "id": "kuramoto-late",
+      "tick": 1800,
+      "label": "Late-run behavior"
+    }
+  ],
+  "visualization": {
+    "pluginId": "kuramoto_phase_canvas",
+    "pluginFile": "../visualization-plugins/kuramoto_phase_canvas.mjs",
+    "captureId": "kuramoto-sim",
+    "requireVisualSignal": true
+  }
+}
