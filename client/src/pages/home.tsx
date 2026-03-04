@@ -11,8 +11,16 @@ import { MetricsMainPanel } from "@/components/home/metrics-main-panel";
 import { MiniModeView, MiniProjectionContent } from "@/components/home/mini-mode-view";
 import { SidebarDerivationsPane } from "@/components/home/sidebar-derivations-pane";
 import { SidebarSetupPane } from "@/components/home/sidebar-setup-pane";
+import { SidebarTextsPane } from "@/components/home/sidebar-texts-pane";
+import { TextsMainPanel } from "@/components/home/texts-main-panel";
 import { HintingPanel } from "@/components/hinting-panel";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -20,9 +28,6 @@ import {
   SidebarHeader,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import {
-  Activity,
-} from "lucide-react";
 import type {
   Annotation,
   SubtitleOverlay,
@@ -144,6 +149,8 @@ interface LiveStreamMeta {
   retrySource: string | null;
   completed: boolean;
 }
+
+type SidebarApp = "metrics" | "texts";
 
 interface LiveStatusStream {
   captureId?: unknown;
@@ -399,6 +406,10 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const [visualizationFrame, setVisualizationFrame] = useState<VisualizationFrameState>(() =>
     normalizeVisualizationFrameState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame)),
   );
+  const [sidebarApp, setSidebarApp] = useState<SidebarApp>(() => {
+    const stored = readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp);
+    return stored === "texts" ? "texts" : "metrics";
+  });
   const [sidebarMode, setSidebarMode] = useState<"setup" | "analysis">("setup");
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
@@ -1793,6 +1804,10 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   useEffect(() => {
     writeStorageJson(DASHBOARD_STORAGE_KEYS.visualizationFrame, visualizationFrame);
   }, [visualizationFrame]);
+
+  useEffect(() => {
+    writeStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp, sidebarApp);
+  }, [sidebarApp]);
 
   useEffect(() => {
     if (sidebarMode !== "analysis") {
@@ -5310,8 +5325,13 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     return name.length > MAX_NAME_CHARS ? `${name.substring(0, MAX_NAME_CHARS)}...` : name;
   };
 
-  const toggleSidebarMode = useCallback(() => {
-    setSidebarMode((prev) => (prev === "setup" ? "analysis" : "setup"));
+  const handleSidebarAppSelect = useCallback((nextApp: SidebarApp) => {
+    setSidebarApp(nextApp);
+  }, []);
+
+  const handleSidebarModeSelect = useCallback((nextMode: "setup" | "analysis") => {
+    setSidebarApp("metrics");
+    setSidebarMode(nextMode);
   }, []);
 
   const handleTakeoverDashboard = useCallback(() => {
@@ -5341,6 +5361,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handleRecallVisualization = useCallback(() => {
     setVisualizationDockRequestToken((prev) => prev + 1);
   }, []);
+  const noop = useCallback(() => {}, []);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") {
@@ -5628,20 +5649,51 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <Sidebar>
           <SidebarHeader ref={sidebarHeaderRef} className="p-4">
-            <div className="flex items-center gap-3">
-              <Activity className="w-4 h-4 text-foreground" />
-              <button
-                type="button"
-                onClick={toggleSidebarMode}
-                className="text-sm font-medium tracking-tight flex items-center gap-2 hover:text-foreground/80"
-                data-testid="button-toggle-sidebar-mode"
-                aria-pressed={sidebarMode === "analysis"}
-              >
-                Metrics
-                <span className="text-[11px] text-muted-foreground uppercase tracking-wide">
+            <div className="flex items-baseline gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-sm font-medium tracking-tight leading-none hover:text-foreground/80"
+                    data-testid="button-sidebar-app-menu"
+                  >
+                    {sidebarApp === "texts" ? "Texts" : "Metrics"}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-28">
+                  <DropdownMenuItem
+                    onClick={() => handleSidebarAppSelect("metrics")}
+                    data-testid="menuitem-sidebar-app-metrics"
+                    className={sidebarApp === "metrics" ? "bg-muted" : undefined}
+                  >
+                    Metrics
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleSidebarAppSelect("texts")}
+                    data-testid="menuitem-sidebar-app-texts"
+                    className={sidebarApp === "texts" ? "bg-muted" : undefined}
+                  >
+                    Texts
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {sidebarApp === "metrics" ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSidebarModeSelect(sidebarMode === "analysis" ? "setup" : "analysis")
+                  }
+                  className="text-[11px] text-muted-foreground uppercase tracking-wide leading-none hover:text-foreground/80"
+                  data-testid="button-toggle-sidebar-mode"
+                  aria-pressed={sidebarMode === "analysis"}
+                >
                   {sidebarMode === "analysis" ? "Derivations" : "Setup"}
+                </button>
+              ) : (
+                <span className="text-[11px] text-muted-foreground uppercase tracking-wide leading-none">
+                  Texts
                 </span>
-              </button>
+              )}
             </div>
           </SidebarHeader>
           <SidebarContent
@@ -5649,106 +5701,112 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             className="min-h-0 flex flex-col"
           >
             <div ref={sidebarBodyRef} className="flex flex-col flex-1 min-h-0">
-              <SidebarSetupPane
-                sidebarMode={sidebarMode}
-                isCaptureSourceOpen={isCaptureSourceOpen}
-                onCaptureSourceOpenChange={setIsCaptureSourceOpen}
-                sourceMode={sourceMode}
-                onSourceModeChange={handleSourceModeChange}
-                onFileUpload={handleFileUpload}
-                isUploading={uploadMutation.isPending}
-                uploadError={uploadError}
-                onClearUploadError={handleClearUploadError}
-                liveStreams={liveStreams}
-                livePollInputDrafts={livePollInputDrafts}
-                onLivePollInputDraftChange={handleLivePollInputDraftChange}
-                onLivePollInputDraftBlur={handleLivePollInputDraftBlur}
-                onLivePollChange={handleLivePollChange}
-                onRemoveLiveStream={(captureId) => removeCaptureIds([captureId])}
-                onLiveSourceInput={handleLiveSourceInput}
-                onLiveRefresh={handleLiveRefresh}
-                onAddLiveStream={handleAddLiveStream}
-                inlineEditTextClass={INLINE_EDIT_TEXT_CLASS}
-                inlineEditNumericClass={INLINE_EDIT_NUMERIC_CLASS}
-                inlineEditEmptyClass={INLINE_EDIT_EMPTY_CLASS}
-                isInlineFieldBlank={isInlineFieldBlank}
-                captures={captures}
-                onToggleCapture={handleToggleCapture}
-                onRemoveCapture={handleRemoveCapture}
-                getCaptureShortName={getCaptureShortName}
-                isSelectionOpen={isSelectionOpen}
-                onSelectionOpenChange={setIsSelectionOpen}
-                activeCaptures={activeCaptures}
-                selectionCaptureOpenById={selectionCaptureOpenById}
-                onSelectionCaptureOpenChange={handleSelectionCaptureOpenChange}
-                selectedMetricsByCapture={selectedMetricsByCapture}
-                deferredMetricCoverage={deferredMetricCoverage}
-                getSelectionHandler={getSelectionHandler}
-                selectedMetricCount={selectedMetrics.length}
-                playbackState={playbackState}
-                windowStartInput={windowStartInput}
-                onWindowStartInputChange={setWindowStartInput}
-                windowStartEditingRef={windowStartEditingRef}
-                onCommitWindowStartInput={commitWindowStartInput}
-                windowEndInput={windowEndInput}
-                onWindowEndInputChange={setWindowEndInput}
-                windowEndEditingRef={windowEndEditingRef}
-                onCommitWindowEndInput={commitWindowEndInput}
-                yPrimaryMinInput={yPrimaryMinInput}
-                onYPrimaryMinInputChange={setYPrimaryMinInput}
-                yPrimaryMinEditingRef={yPrimaryMinEditingRef}
-                onCommitYPrimaryBoundary={commitYPrimaryBoundary}
-                yPrimaryMaxInput={yPrimaryMaxInput}
-                onYPrimaryMaxInputChange={setYPrimaryMaxInput}
-                yPrimaryMaxEditingRef={yPrimaryMaxEditingRef}
-                hasSecondaryAxis={hasSecondaryAxis}
-                ySecondaryMinInput={ySecondaryMinInput}
-                onYSecondaryMinInputChange={setYSecondaryMinInput}
-                ySecondaryMinEditingRef={ySecondaryMinEditingRef}
-                onCommitYSecondaryBoundary={commitYSecondaryBoundary}
-                ySecondaryMaxInput={ySecondaryMaxInput}
-                onYSecondaryMaxInputChange={setYSecondaryMaxInput}
-                ySecondaryMaxEditingRef={ySecondaryMaxEditingRef}
-                isAutoScroll={isAutoScroll}
-                isDiagnosticsOpen={isDiagnosticsOpen}
-                onDiagnosticsOpenChange={setIsDiagnosticsOpen}
-                memoryStatsAt={memoryStatsAt}
-                onRefreshMemoryStats={handleRefreshMemoryStats}
-                memoryStatsSnapshot={memoryStatsSnapshot}
-                formatBytes={formatBytes}
-              />
-              <SidebarDerivationsPane
-                sidebarMode={sidebarMode}
-                derivationPluginFileRef={derivationPluginFileRef}
-                onUploadDerivationPlugin={handleUploadDerivationPlugin}
-                derivationPlugins={derivationPlugins}
-                derivationPluginsError={derivationPluginsError}
-                onViewDerivationPluginSource={handleViewDerivationPluginSource}
-                onDeleteDerivationPlugin={handleDeleteDerivationPlugin}
-                derivationGroups={derivationGroups}
-                onCreateDerivationGroupFromActive={handleCreateDerivationGroupFromActive}
-                resolvedActiveDerivationGroupId={resolvedActiveDerivationGroupId}
-                resolvedDisplayDerivationGroupId={resolvedDisplayDerivationGroupId}
-                onSetActiveDerivationGroup={handleSetActiveDerivationGroup}
-                derivationGroupNameDrafts={derivationGroupNameDrafts}
-                setDerivationGroupNameDrafts={setDerivationGroupNameDrafts}
-                focusedDerivationGroupNameId={focusedDerivationGroupNameId}
-                setFocusedDerivationGroupNameId={setFocusedDerivationGroupNameId}
-                onUpdateDerivationGroup={handleUpdateDerivationGroup}
-                onRunDerivationPlugin={handleRunDerivationPlugin}
-                onSetDisplayDerivationGroup={handleSetDisplayDerivationGroup}
-                onDeleteDerivationGroup={handleDeleteDerivationGroup}
-                captures={captures}
-                getCaptureShortName={getCaptureShortName}
-                derivationDragState={derivationDragState}
-                derivationDropState={derivationDropState}
-                getAnalysisKey={getAnalysisKey}
-                onDerivationMetricDragStart={handleDerivationMetricDragStart}
-                onDerivationMetricDragOver={handleDerivationMetricDragOver}
-                onDerivationMetricDrop={handleDerivationMetricDrop}
-                onDerivationMetricDragEnd={handleDerivationMetricDragEnd}
-                onRemoveDerivationMetric={handleRemoveDerivationMetric}
-              />
+              {sidebarApp === "metrics" ? (
+                <>
+                  <SidebarSetupPane
+                    sidebarMode={sidebarMode}
+                    isCaptureSourceOpen={isCaptureSourceOpen}
+                    onCaptureSourceOpenChange={setIsCaptureSourceOpen}
+                    sourceMode={sourceMode}
+                    onSourceModeChange={handleSourceModeChange}
+                    onFileUpload={handleFileUpload}
+                    isUploading={uploadMutation.isPending}
+                    uploadError={uploadError}
+                    onClearUploadError={handleClearUploadError}
+                    liveStreams={liveStreams}
+                    livePollInputDrafts={livePollInputDrafts}
+                    onLivePollInputDraftChange={handleLivePollInputDraftChange}
+                    onLivePollInputDraftBlur={handleLivePollInputDraftBlur}
+                    onLivePollChange={handleLivePollChange}
+                    onRemoveLiveStream={(captureId) => removeCaptureIds([captureId])}
+                    onLiveSourceInput={handleLiveSourceInput}
+                    onLiveRefresh={handleLiveRefresh}
+                    onAddLiveStream={handleAddLiveStream}
+                    inlineEditTextClass={INLINE_EDIT_TEXT_CLASS}
+                    inlineEditNumericClass={INLINE_EDIT_NUMERIC_CLASS}
+                    inlineEditEmptyClass={INLINE_EDIT_EMPTY_CLASS}
+                    isInlineFieldBlank={isInlineFieldBlank}
+                    captures={captures}
+                    onToggleCapture={handleToggleCapture}
+                    onRemoveCapture={handleRemoveCapture}
+                    getCaptureShortName={getCaptureShortName}
+                    isSelectionOpen={isSelectionOpen}
+                    onSelectionOpenChange={setIsSelectionOpen}
+                    activeCaptures={activeCaptures}
+                    selectionCaptureOpenById={selectionCaptureOpenById}
+                    onSelectionCaptureOpenChange={handleSelectionCaptureOpenChange}
+                    selectedMetricsByCapture={selectedMetricsByCapture}
+                    deferredMetricCoverage={deferredMetricCoverage}
+                    getSelectionHandler={getSelectionHandler}
+                    selectedMetricCount={selectedMetrics.length}
+                    playbackState={playbackState}
+                    windowStartInput={windowStartInput}
+                    onWindowStartInputChange={setWindowStartInput}
+                    windowStartEditingRef={windowStartEditingRef}
+                    onCommitWindowStartInput={commitWindowStartInput}
+                    windowEndInput={windowEndInput}
+                    onWindowEndInputChange={setWindowEndInput}
+                    windowEndEditingRef={windowEndEditingRef}
+                    onCommitWindowEndInput={commitWindowEndInput}
+                    yPrimaryMinInput={yPrimaryMinInput}
+                    onYPrimaryMinInputChange={setYPrimaryMinInput}
+                    yPrimaryMinEditingRef={yPrimaryMinEditingRef}
+                    onCommitYPrimaryBoundary={commitYPrimaryBoundary}
+                    yPrimaryMaxInput={yPrimaryMaxInput}
+                    onYPrimaryMaxInputChange={setYPrimaryMaxInput}
+                    yPrimaryMaxEditingRef={yPrimaryMaxEditingRef}
+                    hasSecondaryAxis={hasSecondaryAxis}
+                    ySecondaryMinInput={ySecondaryMinInput}
+                    onYSecondaryMinInputChange={setYSecondaryMinInput}
+                    ySecondaryMinEditingRef={ySecondaryMinEditingRef}
+                    onCommitYSecondaryBoundary={commitYSecondaryBoundary}
+                    ySecondaryMaxInput={ySecondaryMaxInput}
+                    onYSecondaryMaxInputChange={setYSecondaryMaxInput}
+                    ySecondaryMaxEditingRef={ySecondaryMaxEditingRef}
+                    isAutoScroll={isAutoScroll}
+                    isDiagnosticsOpen={isDiagnosticsOpen}
+                    onDiagnosticsOpenChange={setIsDiagnosticsOpen}
+                    memoryStatsAt={memoryStatsAt}
+                    onRefreshMemoryStats={handleRefreshMemoryStats}
+                    memoryStatsSnapshot={memoryStatsSnapshot}
+                    formatBytes={formatBytes}
+                  />
+                  <SidebarDerivationsPane
+                    sidebarMode={sidebarMode}
+                    derivationPluginFileRef={derivationPluginFileRef}
+                    onUploadDerivationPlugin={handleUploadDerivationPlugin}
+                    derivationPlugins={derivationPlugins}
+                    derivationPluginsError={derivationPluginsError}
+                    onViewDerivationPluginSource={handleViewDerivationPluginSource}
+                    onDeleteDerivationPlugin={handleDeleteDerivationPlugin}
+                    derivationGroups={derivationGroups}
+                    onCreateDerivationGroupFromActive={handleCreateDerivationGroupFromActive}
+                    resolvedActiveDerivationGroupId={resolvedActiveDerivationGroupId}
+                    resolvedDisplayDerivationGroupId={resolvedDisplayDerivationGroupId}
+                    onSetActiveDerivationGroup={handleSetActiveDerivationGroup}
+                    derivationGroupNameDrafts={derivationGroupNameDrafts}
+                    setDerivationGroupNameDrafts={setDerivationGroupNameDrafts}
+                    focusedDerivationGroupNameId={focusedDerivationGroupNameId}
+                    setFocusedDerivationGroupNameId={setFocusedDerivationGroupNameId}
+                    onUpdateDerivationGroup={handleUpdateDerivationGroup}
+                    onRunDerivationPlugin={handleRunDerivationPlugin}
+                    onSetDisplayDerivationGroup={handleSetDisplayDerivationGroup}
+                    onDeleteDerivationGroup={handleDeleteDerivationGroup}
+                    captures={captures}
+                    getCaptureShortName={getCaptureShortName}
+                    derivationDragState={derivationDragState}
+                    derivationDropState={derivationDropState}
+                    getAnalysisKey={getAnalysisKey}
+                    onDerivationMetricDragStart={handleDerivationMetricDragStart}
+                    onDerivationMetricDragOver={handleDerivationMetricDragOver}
+                    onDerivationMetricDrop={handleDerivationMetricDrop}
+                    onDerivationMetricDragEnd={handleDerivationMetricDragEnd}
+                    onRemoveDerivationMetric={handleRemoveDerivationMetric}
+                  />
+                </>
+              ) : (
+                <SidebarTextsPane />
+              )}
             </div>
           </SidebarContent>
           <SidebarFooter className="p-0 gap-0 shrink-0 w-full min-w-0 overflow-x-hidden">
@@ -5758,14 +5816,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <HomeHeaderControls
-            selectedMetricCount={selectedMetrics.length}
-            annotationCount={annotations.length}
-            onClearSelection={handleClearSelection}
-            onClearAnnotations={handleClearAnnotations}
+            selectedMetricCount={sidebarApp === "metrics" ? selectedMetrics.length : 0}
+            annotationCount={sidebarApp === "metrics" ? annotations.length : 0}
+            onClearSelection={sidebarApp === "metrics" ? handleClearSelection : noop}
+            onClearAnnotations={sidebarApp === "metrics" ? handleClearAnnotations : noop}
             onRecallVisualization={handleRecallVisualization}
             isVisualizationPoppedOut={isVisualizationPoppedOut}
-            isLoading={isLoading}
-            loadingEntries={loadingEntries}
+            isLoading={sidebarApp === "metrics" ? isLoading : false}
+            loadingEntries={sidebarApp === "metrics" ? loadingEntries : []}
             recentUiEvents={recentUiEvents}
             isEventsVisible={isEventsVisible}
             onToggleEvents={() => setIsEventsVisible((prev) => !prev)}
@@ -5773,37 +5831,41 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             onSetFullscreen={handleSetFullscreen}
             onOpenDocs={handleOpenDocs}
           />
-          <MetricsMainPanel
-            chart={chartViewProps}
-            currentData={currentData}
-            activeMetrics={activeMetrics}
-            playbackState={playbackState}
-            captures={captures}
-            isHudVisible={isHudVisible}
-            activeDerivationGroupName={activeDerivationGroupName}
-            analysisKeys={analysisKeys}
-            onToggleAnalysisMetric={handleToggleAnalysisMetric}
-            onToggleMetricAxis={handleToggleMetricAxis}
-            isMetricOnSecondaryAxis={isMetricOnSecondaryAxis}
-            onDeselectMetric={handleDeselectMetric}
-            onHoverMetric={setHighlightedMetricKey}
-            highlightedMetricKey={highlightedMetricKey}
-            visualizationFrame={visualizationFrame}
-            visualizationCapture={visualizationCapture}
-            onVisualizationDebugChange={handleVisualizationDebugChange}
-            onVisualizationPopoutChange={setIsVisualizationPoppedOut}
-            visualizationDockRequestToken={visualizationDockRequestToken}
-            onPlay={handlePlay}
-            onPause={handlePause}
-            onStop={handleStop}
-            onSeek={handleSeek}
-            onSpeedChange={handleSpeedChange}
-            onStepForward={handleStepForward}
-            onStepBackward={handleStepBackward}
-            onResetWindow={handleResetWindow}
-            onOpenMiniPlayer={handleOpenMiniPlayer}
-            seekDisabled={isWindowed}
-          />
+          {sidebarApp === "metrics" ? (
+            <MetricsMainPanel
+              chart={chartViewProps}
+              currentData={currentData}
+              activeMetrics={activeMetrics}
+              playbackState={playbackState}
+              captures={captures}
+              isHudVisible={isHudVisible}
+              activeDerivationGroupName={activeDerivationGroupName}
+              analysisKeys={analysisKeys}
+              onToggleAnalysisMetric={handleToggleAnalysisMetric}
+              onToggleMetricAxis={handleToggleMetricAxis}
+              isMetricOnSecondaryAxis={isMetricOnSecondaryAxis}
+              onDeselectMetric={handleDeselectMetric}
+              onHoverMetric={setHighlightedMetricKey}
+              highlightedMetricKey={highlightedMetricKey}
+              visualizationFrame={visualizationFrame}
+              visualizationCapture={visualizationCapture}
+              onVisualizationDebugChange={handleVisualizationDebugChange}
+              onVisualizationPopoutChange={setIsVisualizationPoppedOut}
+              visualizationDockRequestToken={visualizationDockRequestToken}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onStop={handleStop}
+              onSeek={handleSeek}
+              onSpeedChange={handleSpeedChange}
+              onStepForward={handleStepForward}
+              onStepBackward={handleStepBackward}
+              onResetWindow={handleResetWindow}
+              onOpenMiniPlayer={handleOpenMiniPlayer}
+              seekDisabled={isWindowed}
+            />
+          ) : (
+            <TextsMainPanel />
+          )}
         </div>
       </div>
     </SidebarProvider>

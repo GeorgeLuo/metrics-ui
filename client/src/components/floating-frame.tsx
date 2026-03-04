@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { ExternalLink, GripVertical, Minimize2 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { buildPopoutWindowFeatures } from "@/lib/popout-window";
@@ -239,18 +247,25 @@ export function FloatingFrame({
   }, [closePopout, dockRequestToken, isPoppedOut]);
 
   const handleDragStart = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (isPoppedOut) {
         return;
       }
       event.preventDefault();
+      event.stopPropagation();
+      const pointerId = event.pointerId;
+      try {
+        event.currentTarget.setPointerCapture(pointerId);
+      } catch {
+        // no-op: pointer capture can fail in some embedded/browser contexts
+      }
       setIsDragging(true);
       dragOffset.current = {
         x: event.clientX - position.x,
         y: event.clientY - position.y,
       };
 
-      const handleDragMove = (moveEvent: MouseEvent) => {
+      const handleDragMove = (moveEvent: PointerEvent | MouseEvent) => {
         const next = {
           x: moveEvent.clientX - dragOffset.current.x,
           y: moveEvent.clientY - dragOffset.current.y,
@@ -260,12 +275,23 @@ export function FloatingFrame({
 
       const handleDragEnd = () => {
         setIsDragging(false);
-        document.removeEventListener("mousemove", handleDragMove);
-        document.removeEventListener("mouseup", handleDragEnd);
+        window.removeEventListener("pointermove", handleDragMove as EventListener);
+        window.removeEventListener("pointerup", handleDragEnd);
+        window.removeEventListener("pointercancel", handleDragEnd);
+        window.removeEventListener("blur", handleDragEnd);
+        document.removeEventListener("mouseleave", handleDragEnd);
+        try {
+          event.currentTarget.releasePointerCapture(pointerId);
+        } catch {
+          // no-op
+        }
       };
 
-      document.addEventListener("mousemove", handleDragMove);
-      document.addEventListener("mouseup", handleDragEnd);
+      window.addEventListener("pointermove", handleDragMove as EventListener, { passive: true });
+      window.addEventListener("pointerup", handleDragEnd);
+      window.addEventListener("pointercancel", handleDragEnd);
+      window.addEventListener("blur", handleDragEnd);
+      document.addEventListener("mouseleave", handleDragEnd);
     },
     [isPoppedOut, position.x, position.y],
   );
@@ -313,7 +339,7 @@ export function FloatingFrame({
             <button
               type="button"
               className="cursor-grab active:cursor-grabbing p-0.5 text-black/70 hover:text-black"
-              onMouseDown={handleDragStart}
+              onPointerDown={handleDragStart}
               aria-label={`Drag ${title}`}
               data-hint="Drag this frame anywhere on the page."
             >
