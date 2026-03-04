@@ -11,16 +11,11 @@ import { MetricsMainPanel } from "@/components/home/metrics-main-panel";
 import { MiniModeView, MiniProjectionContent } from "@/components/home/mini-mode-view";
 import { SidebarDerivationsPane } from "@/components/home/sidebar-derivations-pane";
 import { SidebarSetupPane } from "@/components/home/sidebar-setup-pane";
+import { SidebarSubappHeader } from "@/components/home/sidebar-subapp-header";
 import { SidebarTextsPane } from "@/components/home/sidebar-texts-pane";
 import { TextsMainPanel } from "@/components/home/texts-main-panel";
 import { HintingPanel } from "@/components/hinting-panel";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -104,6 +99,12 @@ import {
 } from "@/lib/dashboard/number-format";
 import { isDerivedCaptureSource } from "@/lib/dashboard/source-utils";
 import {
+  isMetricsSidebarApp,
+  normalizeSidebarApp,
+  type SidebarApp,
+  type SidebarMode,
+} from "@/lib/dashboard/subapp-shell";
+import {
   DASHBOARD_STORAGE_KEYS,
   readStorageJson,
   readStorageString,
@@ -149,8 +150,6 @@ interface LiveStreamMeta {
   retrySource: string | null;
   completed: boolean;
 }
-
-type SidebarApp = "metrics" | "texts";
 
 interface LiveStatusStream {
   captureId?: unknown;
@@ -407,10 +406,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     normalizeVisualizationFrameState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame)),
   );
   const [sidebarApp, setSidebarApp] = useState<SidebarApp>(() => {
-    const stored = readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp);
-    return stored === "texts" ? "texts" : "metrics";
+    return normalizeSidebarApp(readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp));
   });
-  const [sidebarMode, setSidebarMode] = useState<"setup" | "analysis">("setup");
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("setup");
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
   const [initialSyncReady, setInitialSyncReady] = useState(false);
@@ -830,6 +828,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         activeDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.activeDerivationGroupId),
         displayDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.displayDerivationGroupId),
         visualizationFrame: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame),
+        sidebarApp: readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp),
         liveStreams: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.liveStreams),
         sourceMode: readStorageString(DASHBOARD_STORAGE_KEYS.sourceMode),
         theme: readStorageString("theme"),
@@ -959,6 +958,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         annotations,
         subtitles,
         visualizationFrame,
+        sidebarApp,
         sidebarMode,
         isCaptureSourceOpen,
         isSelectionOpen,
@@ -5329,10 +5329,13 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     setSidebarApp(nextApp);
   }, []);
 
-  const handleSidebarModeSelect = useCallback((nextMode: "setup" | "analysis") => {
+  const handleSidebarModeSelect = useCallback((nextMode: SidebarMode) => {
     setSidebarApp("metrics");
     setSidebarMode(nextMode);
   }, []);
+  const handleToggleSidebarMode = useCallback(() => {
+    handleSidebarModeSelect(sidebarMode === "analysis" ? "setup" : "analysis");
+  }, [handleSidebarModeSelect, sidebarMode]);
 
   const handleTakeoverDashboard = useCallback(() => {
     if (typeof window === "undefined") {
@@ -5649,59 +5652,19 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       <div className="flex h-screen w-full bg-background overflow-hidden">
         <Sidebar>
           <SidebarHeader ref={sidebarHeaderRef} className="p-4">
-            <div className="flex items-baseline gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="text-sm font-medium tracking-tight leading-none hover:text-foreground/80"
-                    data-testid="button-sidebar-app-menu"
-                  >
-                    {sidebarApp === "texts" ? "Texts" : "Metrics"}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-28">
-                  <DropdownMenuItem
-                    onClick={() => handleSidebarAppSelect("metrics")}
-                    data-testid="menuitem-sidebar-app-metrics"
-                    className={sidebarApp === "metrics" ? "bg-muted" : undefined}
-                  >
-                    Metrics
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleSidebarAppSelect("texts")}
-                    data-testid="menuitem-sidebar-app-texts"
-                    className={sidebarApp === "texts" ? "bg-muted" : undefined}
-                  >
-                    Texts
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              {sidebarApp === "metrics" ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleSidebarModeSelect(sidebarMode === "analysis" ? "setup" : "analysis")
-                  }
-                  className="text-[11px] text-muted-foreground uppercase tracking-wide leading-none hover:text-foreground/80"
-                  data-testid="button-toggle-sidebar-mode"
-                  aria-pressed={sidebarMode === "analysis"}
-                >
-                  {sidebarMode === "analysis" ? "Derivations" : "Setup"}
-                </button>
-              ) : (
-                <span className="text-[11px] text-muted-foreground uppercase tracking-wide leading-none">
-                  Texts
-                </span>
-              )}
-            </div>
+            <SidebarSubappHeader
+              sidebarApp={sidebarApp}
+              sidebarMode={sidebarMode}
+              onSelectApp={handleSidebarAppSelect}
+              onToggleMode={handleToggleSidebarMode}
+            />
           </SidebarHeader>
           <SidebarContent
             ref={sidebarContentRef}
             className="min-h-0 flex flex-col"
           >
             <div ref={sidebarBodyRef} className="flex flex-col flex-1 min-h-0">
-              {sidebarApp === "metrics" ? (
+              {isMetricsSidebarApp(sidebarApp) ? (
                 <>
                   <SidebarSetupPane
                     sidebarMode={sidebarMode}
@@ -5816,14 +5779,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <HomeHeaderControls
-            selectedMetricCount={sidebarApp === "metrics" ? selectedMetrics.length : 0}
-            annotationCount={sidebarApp === "metrics" ? annotations.length : 0}
-            onClearSelection={sidebarApp === "metrics" ? handleClearSelection : noop}
-            onClearAnnotations={sidebarApp === "metrics" ? handleClearAnnotations : noop}
+            selectedMetricCount={isMetricsSidebarApp(sidebarApp) ? selectedMetrics.length : 0}
+            annotationCount={isMetricsSidebarApp(sidebarApp) ? annotations.length : 0}
+            onClearSelection={isMetricsSidebarApp(sidebarApp) ? handleClearSelection : noop}
+            onClearAnnotations={isMetricsSidebarApp(sidebarApp) ? handleClearAnnotations : noop}
             onRecallVisualization={handleRecallVisualization}
             isVisualizationPoppedOut={isVisualizationPoppedOut}
-            isLoading={sidebarApp === "metrics" ? isLoading : false}
-            loadingEntries={sidebarApp === "metrics" ? loadingEntries : []}
+            isLoading={isMetricsSidebarApp(sidebarApp) ? isLoading : false}
+            loadingEntries={isMetricsSidebarApp(sidebarApp) ? loadingEntries : []}
             recentUiEvents={recentUiEvents}
             isEventsVisible={isEventsVisible}
             onToggleEvents={() => setIsEventsVisible((prev) => !prev)}
@@ -5831,7 +5794,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             onSetFullscreen={handleSetFullscreen}
             onOpenDocs={handleOpenDocs}
           />
-          {sidebarApp === "metrics" ? (
+          {isMetricsSidebarApp(sidebarApp) ? (
             <MetricsMainPanel
               chart={chartViewProps}
               currentData={currentData}

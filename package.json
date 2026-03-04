@@ -42,6 +42,8 @@
     "prepack": "npm run build",
     "check": "tsc && npm run docs:ws:check",
     "ui:regress": "bash scripts/ui-regress.sh",
+    "subapp:shell:regress": "node scripts/subapp-shell-regress.mjs",
+    "refactor:regress": "node scripts/refactor-regress.mjs",
     "ws:single-frontend:regress": "node scripts/single-frontend-regress.mjs",
     "derivation:regress": "node scripts/derivation-plugin-regress.mjs",
     "derivation:chain:regress": "node scripts/derivation-chain-regress.mjs",
