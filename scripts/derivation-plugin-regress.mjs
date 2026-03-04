@@ -193,6 +193,9 @@ async function main() {
       },
     }),
   );
+  // Allow server-side dashboard state persistence to settle before requesting
+  // a derivation run that depends on group state resolution.
+  await sleep(200);
 
   agent.send(
     JSON.stringify({
