@@ -39,4 +39,3 @@ run().catch((error) => {
   console.error("[refactor-regress] FAIL:", error instanceof Error ? error.stack || error.message : String(error));
   process.exit(1);
 });
-

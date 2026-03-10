@@ -12,8 +12,6 @@ import { MiniModeView, MiniProjectionContent } from "@/components/home/mini-mode
 import { SidebarDerivationsPane } from "@/components/home/sidebar-derivations-pane";
 import { SidebarSetupPane } from "@/components/home/sidebar-setup-pane";
 import { SidebarSubappHeader } from "@/components/home/sidebar-subapp-header";
-import { SidebarTextsPane } from "@/components/home/sidebar-texts-pane";
-import { TextsMainPanel } from "@/components/home/texts-main-panel";
 import { HintingPanel } from "@/components/hinting-panel";
 import { Button } from "@/components/ui/button";
 import {
@@ -99,9 +97,6 @@ import {
 } from "@/lib/dashboard/number-format";
 import { isDerivedCaptureSource } from "@/lib/dashboard/source-utils";
 import {
-  isMetricsSidebarApp,
-  normalizeSidebarApp,
-  type SidebarApp,
   type SidebarMode,
 } from "@/lib/dashboard/subapp-shell";
 import {
@@ -405,9 +400,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const [visualizationFrame, setVisualizationFrame] = useState<VisualizationFrameState>(() =>
     normalizeVisualizationFrameState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame)),
   );
-  const [sidebarApp, setSidebarApp] = useState<SidebarApp>(() => {
-    return normalizeSidebarApp(readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp));
-  });
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("setup");
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
@@ -828,7 +820,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         activeDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.activeDerivationGroupId),
         displayDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.displayDerivationGroupId),
         visualizationFrame: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame),
-        sidebarApp: readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp),
         liveStreams: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.liveStreams),
         sourceMode: readStorageString(DASHBOARD_STORAGE_KEYS.sourceMode),
         theme: readStorageString("theme"),
@@ -958,7 +949,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         annotations,
         subtitles,
         visualizationFrame,
-        sidebarApp,
         sidebarMode,
         isCaptureSourceOpen,
         isSelectionOpen,
@@ -1804,10 +1794,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   useEffect(() => {
     writeStorageJson(DASHBOARD_STORAGE_KEYS.visualizationFrame, visualizationFrame);
   }, [visualizationFrame]);
-
-  useEffect(() => {
-    writeStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp, sidebarApp);
-  }, [sidebarApp]);
 
   useEffect(() => {
     if (sidebarMode !== "analysis") {
@@ -5325,12 +5311,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     return name.length > MAX_NAME_CHARS ? `${name.substring(0, MAX_NAME_CHARS)}...` : name;
   };
 
-  const handleSidebarAppSelect = useCallback((nextApp: SidebarApp) => {
-    setSidebarApp(nextApp);
-  }, []);
-
   const handleSidebarModeSelect = useCallback((nextMode: SidebarMode) => {
-    setSidebarApp("metrics");
     setSidebarMode(nextMode);
   }, []);
   const handleToggleSidebarMode = useCallback(() => {
@@ -5364,7 +5345,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handleRecallVisualization = useCallback(() => {
     setVisualizationDockRequestToken((prev) => prev + 1);
   }, []);
-  const noop = useCallback(() => {}, []);
 
   useLayoutEffect(() => {
     if (typeof window === "undefined") {
@@ -5653,9 +5633,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         <Sidebar>
           <SidebarHeader ref={sidebarHeaderRef} className="p-4">
             <SidebarSubappHeader
-              sidebarApp={sidebarApp}
               sidebarMode={sidebarMode}
-              onSelectApp={handleSidebarAppSelect}
               onToggleMode={handleToggleSidebarMode}
             />
           </SidebarHeader>
@@ -5664,7 +5642,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             className="min-h-0 flex flex-col"
           >
             <div ref={sidebarBodyRef} className="flex flex-col flex-1 min-h-0">
-              {isMetricsSidebarApp(sidebarApp) ? (
                 <>
                   <SidebarSetupPane
                     sidebarMode={sidebarMode}
@@ -5767,9 +5744,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                     onRemoveDerivationMetric={handleRemoveDerivationMetric}
                   />
                 </>
-              ) : (
-                <SidebarTextsPane />
-              )}
             </div>
           </SidebarContent>
           <SidebarFooter className="p-0 gap-0 shrink-0 w-full min-w-0 overflow-x-hidden">
@@ -5779,14 +5753,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <HomeHeaderControls
-            selectedMetricCount={isMetricsSidebarApp(sidebarApp) ? selectedMetrics.length : 0}
-            annotationCount={isMetricsSidebarApp(sidebarApp) ? annotations.length : 0}
-            onClearSelection={isMetricsSidebarApp(sidebarApp) ? handleClearSelection : noop}
-            onClearAnnotations={isMetricsSidebarApp(sidebarApp) ? handleClearAnnotations : noop}
+            selectedMetricCount={selectedMetrics.length}
+            annotationCount={annotations.length}
+            onClearSelection={handleClearSelection}
+            onClearAnnotations={handleClearAnnotations}
             onRecallVisualization={handleRecallVisualization}
             isVisualizationPoppedOut={isVisualizationPoppedOut}
-            isLoading={isMetricsSidebarApp(sidebarApp) ? isLoading : false}
-            loadingEntries={isMetricsSidebarApp(sidebarApp) ? loadingEntries : []}
+            isLoading={isLoading}
+            loadingEntries={loadingEntries}
             recentUiEvents={recentUiEvents}
             isEventsVisible={isEventsVisible}
             onToggleEvents={() => setIsEventsVisible((prev) => !prev)}
@@ -5794,7 +5768,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             onSetFullscreen={handleSetFullscreen}
             onOpenDocs={handleOpenDocs}
           />
-          {isMetricsSidebarApp(sidebarApp) ? (
             <MetricsMainPanel
               chart={chartViewProps}
               currentData={currentData}
@@ -5826,9 +5799,6 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onOpenMiniPlayer={handleOpenMiniPlayer}
               seekDisabled={isWindowed}
             />
-          ) : (
-            <TextsMainPanel />
-          )}
         </div>
       </div>
     </SidebarProvider>

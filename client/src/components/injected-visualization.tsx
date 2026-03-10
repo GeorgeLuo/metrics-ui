@@ -43,6 +43,7 @@ export type InjectedVisualizationDebug = {
       }
     | null;
   pluginReportError: string | null;
+  pluginFrameValues: Record<string, unknown> | null;
   error: string | null;
 };
 
@@ -76,7 +77,52 @@ type PluginRenderReport = {
       }
     | null;
   error: string | null;
+  values: Record<string, unknown> | null;
 };
+
+function sanitizeVisualizationValues(
+  value: unknown,
+  depth = 0,
+): Record<string, unknown> | null {
+  const MAX_DEPTH = 4;
+  const MAX_OBJECT_KEYS = 64;
+  const MAX_ARRAY_ITEMS = 32;
+
+  const walk = (input: unknown, level: number): unknown => {
+    if (level > MAX_DEPTH) {
+      return "[depth-limit]";
+    }
+    if (
+      input === null
+      || typeof input === "string"
+      || typeof input === "number"
+      || typeof input === "boolean"
+    ) {
+      return input;
+    }
+    if (Array.isArray(input)) {
+      return input.slice(0, MAX_ARRAY_ITEMS).map((entry) => walk(entry, level + 1));
+    }
+    if (!input || typeof input !== "object") {
+      return String(input);
+    }
+    const out: Record<string, unknown> = {};
+    const entries = Object.entries(input as Record<string, unknown>).slice(0, MAX_OBJECT_KEYS);
+    for (const [key, entry] of entries) {
+      out[key] = walk(entry, level + 1);
+    }
+    return out;
+  };
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const walked = walk(value, depth);
+  if (!walked || typeof walked !== "object" || Array.isArray(walked)) {
+    return null;
+  }
+  return walked as Record<string, unknown>;
+}
 
 function findRecordForTick(records: CaptureRecord[], tick: number): CaptureRecord | null {
   if (!Array.isArray(records) || records.length === 0) {
@@ -140,6 +186,7 @@ ${JSON.stringify(importMap, null, 2)}
         const listeners = new Set();
         let currentFrame = null;
         let probeTimer = null;
+        let lastDispatchReportAt = 0;
         const metricsUiApiBase = ${JSON.stringify(apiBase)};
 
         const safePost = (payload) => {
@@ -592,6 +639,13 @@ ${JSON.stringify(importMap, null, 2)}
               safePost({ kind: "plugin", value: payload ?? null });
             }
           },
+          reportFrameValues: (values) => {
+            if (values && typeof values === "object" && !Array.isArray(values)) {
+              safePost({ kind: "frame_values", values });
+            } else {
+              safePost({ kind: "frame_values", values: { value: values ?? null } });
+            }
+          },
           probe: () => {
             probeDom();
           },
@@ -605,10 +659,33 @@ ${JSON.stringify(importMap, null, 2)}
             return;
           }
           currentFrame = event.data.payload ?? null;
+          const now = Date.now();
+          if (now - lastDispatchReportAt > 500) {
+            lastDispatchReportAt = now;
+            safePost({
+              kind: "frame_dispatch",
+              status: "received",
+              tick:
+                currentFrame
+                && typeof currentFrame === "object"
+                && typeof currentFrame.tick === "number"
+                  ? currentFrame.tick
+                  : null,
+              listenerCount: listeners.size,
+            });
+          }
           listeners.forEach((handler) => {
             try {
               handler(currentFrame);
-            } catch (_error) {}
+            } catch (error) {
+              safePost({
+                kind: "frame_listener_error",
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Visualization frame listener failed.",
+              });
+            }
           });
         });
 
@@ -866,6 +943,10 @@ export function InjectedVisualization({
         record.bounds && typeof record.bounds === "object"
           ? (record.bounds as Record<string, unknown>)
           : null;
+      const values =
+        record.values && typeof record.values === "object" && !Array.isArray(record.values)
+          ? sanitizeVisualizationValues(record.values)
+          : null;
       const bounds =
         boundsRaw
         && Number.isFinite(Number(boundsRaw.minX))
@@ -930,6 +1011,7 @@ export function InjectedVisualization({
             typeof record.error === "string" && record.error.trim().length > 0
               ? record.error
               : prev?.error ?? null,
+          values: values ?? prev?.values ?? null,
         };
         return next;
       });
@@ -946,7 +1028,18 @@ export function InjectedVisualization({
     if (!frameWindow || !isIframeReady || !runtime) {
       return;
     }
-    frameWindow.postMessage(messagePayload, "*");
+    try {
+      frameWindow.postMessage(messagePayload, "*");
+      setRuntimeError((prev) =>
+        prev && prev.startsWith("Failed to post frame message:") ? null : prev,
+      );
+    } catch (error) {
+      setRuntimeError(
+        error instanceof Error
+          ? `Failed to post frame message: ${error.message}`
+          : "Failed to post frame message.",
+      );
+    }
   }, [isIframeReady, messagePayload, runtime]);
 
   useEffect(() => {
@@ -976,6 +1069,7 @@ export function InjectedVisualization({
       oobSample: renderReport?.oobSample ?? null,
       oobBounds: renderReport?.oobBounds ?? null,
       pluginReportError: renderReport?.error ?? null,
+      pluginFrameValues: renderReport?.values ?? null,
       error: runtimeError,
     });
   }, [
@@ -1006,7 +1100,18 @@ export function InjectedVisualization({
           setIsIframeReady(true);
           const frameWindow = iframeRef.current?.contentWindow;
           if (frameWindow && runtime) {
-            frameWindow.postMessage(messagePayload, "*");
+            try {
+              frameWindow.postMessage(messagePayload, "*");
+              setRuntimeError((prev) =>
+                prev && prev.startsWith("Failed to post frame message:") ? null : prev,
+              );
+            } catch (error) {
+              setRuntimeError(
+                error instanceof Error
+                  ? `Failed to post frame message: ${error.message}`
+                  : "Failed to post frame message.",
+              );
+            }
           }
         }}
       />

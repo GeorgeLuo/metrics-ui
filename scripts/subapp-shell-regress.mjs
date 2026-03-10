@@ -34,34 +34,14 @@ function main() {
   const storage = read(storagePath);
   const floatingFrame = read(floatingFramePath);
 
-  // Sub-app selector contract.
-  requireRegex(
-    headerSource,
-    /data-testid="button-sidebar-app-menu"/,
-    "sidebar app menu trigger is missing",
-  );
-  requireRegex(
-    headerSource,
-    /data-testid="menuitem-sidebar-app-metrics"/,
-    "sidebar app metrics menu item is missing",
-  );
-  requireRegex(
-    headerSource,
-    /data-testid="menuitem-sidebar-app-texts"/,
-    "sidebar app texts menu item is missing",
-  );
+  // Sidebar header toggle contract.
   requireRegex(
     headerSource,
     /data-testid="button-toggle-sidebar-mode"/,
     "submenu toggle trigger is missing",
   );
 
-  // Sidebar content split contract.
-  requireRegex(
-    home,
-    /isMetricsSidebarApp\(sidebarApp\)\s*\?\s*\(/,
-    "sidebar app branch condition is missing",
-  );
+  // Sidebar content contract.
   requireRegex(
     home,
     /<SidebarSetupPane/s,
@@ -72,29 +52,19 @@ function main() {
     /<SidebarDerivationsPane/s,
     "metrics sidebar derivations pane render is missing",
   );
+
+  // Main content contract.
   requireRegex(
     home,
-    /<SidebarTextsPane\s*\/>/s,
-    "texts sidebar pane render is missing",
+    /<MetricsMainPanel/s,
+    "metrics main panel render is missing",
   );
 
-  // Main content split contract.
-  requireRegex(
-    home,
-    /\{isMetricsSidebarApp\(sidebarApp\)\s*\?\s*\(\s*<MetricsMainPanel/s,
-    "metrics main panel conditional branch is missing",
-  );
-  requireRegex(
-    home,
-    /:\s*\(\s*<TextsMainPanel\s*\/>\s*\)\s*\}/s,
-    "texts main panel branch is missing",
-  );
-
-  // Persistence contract for active sub-app.
-  requireRegex(
+  // Storage should no longer persist Texts-era app routing.
+  assert.doesNotMatch(
     storage,
-    /sidebarApp:\s*"metrics-ui-sidebar-app"/,
-    "sidebar app storage key is missing",
+    /metrics-ui-sidebar-app|textsSelectedSourceId/,
+    "texts-era sidebar storage keys should be removed",
   );
 
   // Drag/drop reliability contract for floating frame.

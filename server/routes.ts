@@ -176,7 +176,6 @@ const upload = multer({
   }),
   limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
 });
-
 const derivationPluginUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_DERIVATION_PLUGIN_SIZE_BYTES },

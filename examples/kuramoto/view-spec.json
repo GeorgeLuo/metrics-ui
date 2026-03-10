@@ -20,28 +20,111 @@
   "selectedMetrics": [
     {
       "captureId": "kuramoto-sim",
-      "path": ["1", "osc_phase"]
+      "path": [
+        "1",
+        "osc_phase"
+      ]
     },
     {
       "captureId": "kuramoto-sim",
-      "path": ["2", "osc_phase"]
+      "path": [
+        "2",
+        "osc_phase"
+      ]
     },
     {
       "captureId": "kuramoto-sim",
-      "path": ["3", "osc_phase"]
+      "path": [
+        "3",
+        "osc_phase"
+      ]
     },
     {
       "captureId": "kuramoto-sim",
-      "path": ["13", "series_order_parameter_r"]
+      "path": [
+        "4",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "5",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "6",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "7",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "8",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "9",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "10",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "11",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "12",
+        "osc_phase"
+      ]
+    },
+    {
+      "captureId": "kuramoto-sim",
+      "path": [
+        "13",
+        "series_order_parameter_r"
+      ]
     },
     {
       "captureId": "kuramoto-eval",
-      "path": ["1", "kuramoto.eval.metrics", "order_parameter_r"],
+      "path": [
+        "1",
+        "kuramoto.eval.metrics",
+        "order_parameter_r"
+      ],
       "axis": "y2"
     },
     {
       "captureId": "kuramoto-eval",
-      "path": ["1", "kuramoto.eval.metrics", "max_pairwise_phase_distance"]
+      "path": [
+        "1",
+        "kuramoto.eval.metrics",
+        "max_pairwise_phase_distance"
+      ]
     }
   ],
   "annotations": [
