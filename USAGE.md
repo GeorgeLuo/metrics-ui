@@ -449,6 +449,43 @@ Capture source (UI mode):
 - `{"type":"set_visualization_frame","mode":"builtin"}`
 - `{"type":"set_visualization_frame","mode":"plugin","pluginId":"factory_view","name":"agent-view","captureId":"causal"}`
 
+Equations pane:
+- `{"type":"set_sidebar_app","app":"equations"}`
+- `{"type":"set_equations_pane","content":{"workspace":{"title":"Solver","body":"y = mx + b"}}}`
+- `{"type":"set_equations_pane","dimensions":{"frameAspect":[4,3],"workspace":{"col":0,"row":0,"colSpan":2,"rowSpan":5}}}`
+- `{"type":"set_equations_pane","cells":[{"col":0,"row":0,"colSpan":1,"rowSpan":1,"title":"","body":"test"}]}`
+- `{"type":"set_equations_pane","document":{"spec":{"frameAspect":[16,9],"frameBorderDiv":[0,0],"grid":[1,1],"cellBorderDiv":[0,0],"fitMode":"contain"},"items":[{"id":"workspace","title":"Kuramoto Model","body":"","math":{"kind":"preset","preset":"kuramoto_model","displayMode":true},"col":0,"row":0,"colSpan":1,"rowSpan":1}]}}`
+- `{"type":"set_equations_pane","context":{"selectedHitBox":{"itemId":"workspace","hitBox":{"id":"omega_i","label":"ω_i","sequence":"ω_i","category":"term","latex":"\\omega_{i}"}}}}`
+- `{"type":"set_equations_pane","replace":true,"content":{"notes":{"title":"Status","body":"reset + patch"}}}`
+
+`set_equations_pane` applies partial patches by default. Set `replace: true` to reset the pane to defaults before applying the new content/dimensions. If `document` is provided, it becomes the explicit FrameGrid source of truth for rendering and state sync. If `cells` is provided without `document`, the Equations pane renders that explicit list of cell items instead of the legacy four-region layout. `context.selectedHitBox` exposes the currently selected Equations interaction context and round-trips through `get_state`, `state_update`, and `restore_state`.
+
+CLI examples:
+
+```bash
+simeval ui subapp \
+  --app equations \
+  --ui ws://127.0.0.1:5050/ws/control
+
+simeval ui equations-pane \
+  --activate true \
+  --content '{"workspace":{"title":"Solver","body":"y = mx + b"}}' \
+  --ui ws://127.0.0.1:5050/ws/control
+
+simeval ui equations-pane \
+  --dimensions-file ./equations-layout.json \
+  --content-file ./equations-content.json \
+  --ui ws://127.0.0.1:5050/ws/control
+
+simeval ui equations-pane \
+  --document-file ./examples/kuramoto/equations-framegrid.json \
+  --ui ws://127.0.0.1:5050/ws/control
+
+simeval ui equations-pane \
+  --context '{"selectedHitBox":{"itemId":"workspace","hitBox":{"id":"omega_i","label":"ω_i","sequence":"ω_i","category":"term","latex":"\\omega_{i}"}}}' \
+  --ui ws://127.0.0.1:5050/ws/control
+```
+
 Live polling:
 - `{"type":"live_start","source":"/path/to/capture.jsonl","pollIntervalMs":2000,"captureId":"live-a"}`
 - `{"type":"live_start","source":"/path/to/other.jsonl","pollIntervalMs":2000,"captureId":"live-b"}`
@@ -469,6 +506,7 @@ Capture streaming (push records over WS):
 - `get_state`
 - `list_captures`
 - `restore_state`
+- `set_sidebar_app`
 - `toggle_capture`
 - `remove_capture`
 - `select_metric`
@@ -502,6 +540,7 @@ Capture streaming (push records over WS):
 - `set_auto_scroll`
 - `set_fullscreen`
 - `set_visualization_frame`
+- `set_equations_pane`
 - `add_annotation`
 - `remove_annotation`
 - `clear_annotations`

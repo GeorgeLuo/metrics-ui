@@ -1,9 +1,12 @@
 export const DASHBOARD_STORAGE_KEYS = {
+  sidebarApp: "metrics-ui-sidebar-app",
   selectedMetrics: "metrics-ui-selected-metrics",
   derivationGroups: "metrics-ui-derivation-groups",
   activeDerivationGroupId: "metrics-ui-active-derivation-group",
   displayDerivationGroupId: "metrics-ui-display-derivation-group",
   visualizationFrame: "metrics-ui-visualization-frame",
+  equationsPane: "metrics-ui-equations-pane",
+  frameGridLayoutDebug: "metrics-ui-framegrid-layout-debug",
   sourceMode: "metrics-ui-source-mode",
   liveStreams: "metrics-ui-live-streams",
 } as const;

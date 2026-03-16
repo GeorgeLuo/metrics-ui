@@ -5,14 +5,17 @@ import type { InjectedVisualizationDebug } from "@/components/injected-visualiza
 import { ConnectionLockOverlay } from "@/components/home/connection-lock-overlay";
 import { DerivationPluginSourceDialog } from "@/components/home/derivation-plugin-source-dialog";
 import { DocsDialog } from "@/components/home/docs-dialog";
+import { EquationsMainPanel } from "@/components/home/equations-main-panel";
 import { HomeHeaderControls } from "@/components/home/home-header-controls";
 import type { ChartViewProps } from "@/components/home/metrics-chart-view";
 import { MetricsMainPanel } from "@/components/home/metrics-main-panel";
 import { MiniModeView, MiniProjectionContent } from "@/components/home/mini-mode-view";
 import { SidebarDerivationsPane } from "@/components/home/sidebar-derivations-pane";
+import { SidebarEquationsPane } from "@/components/home/sidebar-equations-pane";
 import { SidebarSetupPane } from "@/components/home/sidebar-setup-pane";
 import { SidebarSubappHeader } from "@/components/home/sidebar-subapp-header";
 import { HintingPanel } from "@/components/hinting-panel";
+import type { FrameGridDebugSnapshot } from "@/components/frame-grid";
 import { Button } from "@/components/ui/button";
 import {
   Sidebar,
@@ -97,6 +100,7 @@ import {
 } from "@/lib/dashboard/number-format";
 import { isDerivedCaptureSource } from "@/lib/dashboard/source-utils";
 import {
+  type SidebarApp,
   type SidebarMode,
 } from "@/lib/dashboard/subapp-shell";
 import {
@@ -106,6 +110,10 @@ import {
   writeStorageJson,
   writeStorageString,
 } from "@/lib/dashboard/storage";
+import {
+  mergeEquationsPaneStatePatch,
+  normalizeEquationsPaneState,
+} from "@shared/equations-pane";
 
 const INITIAL_WINDOW_SIZE = 50;
 const DEFAULT_POLL_SECONDS = 2;
@@ -400,6 +408,16 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const [visualizationFrame, setVisualizationFrame] = useState<VisualizationFrameState>(() =>
     normalizeVisualizationFrameState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame)),
   );
+  const [equationsPane, setEquationsPane] = useState<VisualizationState["equationsPane"]>(() =>
+    normalizeEquationsPaneState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsPane)),
+  );
+  const [sidebarApp, setSidebarApp] = useState<SidebarApp>(() => {
+    const raw = readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp);
+    return raw === "equations" ? "equations" : "metrics";
+  });
+  const [frameGridLayoutDebug, setFrameGridLayoutDebug] = useState(() => (
+    readStorageString(DASHBOARD_STORAGE_KEYS.frameGridLayoutDebug) === "1"
+  ));
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("setup");
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
@@ -495,9 +513,13 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const staleSeriesRecoverErrorAtRef = useRef(new Map<string, number>());
   const sourceRepairAttemptAtRef = useRef(new Map<string, number>());
   const visualizationDebugRef = useRef<VisualizationDebugState | null>(null);
+  const equationsFrameDebugRef = useRef<FrameGridDebugSnapshot | null>(null);
 
   const handleVisualizationDebugChange = useCallback((debug: VisualizationDebugState) => {
     visualizationDebugRef.current = debug;
+  }, []);
+  const handleEquationsFrameDebugChange = useCallback((debug: FrameGridDebugSnapshot) => {
+    equationsFrameDebugRef.current = debug;
   }, []);
 
   const pushUiEvent = useCallback((event: Omit<UiEvent, "id" | "timestamp">) => {
@@ -820,6 +842,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         activeDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.activeDerivationGroupId),
         displayDerivationGroupId: readStorageString(DASHBOARD_STORAGE_KEYS.displayDerivationGroupId),
         visualizationFrame: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame),
+        equationsPane: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsPane),
         liveStreams: readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.liveStreams),
         sourceMode: readStorageString(DASHBOARD_STORAGE_KEYS.sourceMode),
         theme: readStorageString("theme"),
@@ -949,6 +972,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         annotations,
         subtitles,
         visualizationFrame,
+        equationsPane,
+        sidebarApp,
         sidebarMode,
         isCaptureSourceOpen,
         isSelectionOpen,
@@ -1035,6 +1060,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           ([captureId, info]) => ({ captureId, ...info }),
         ),
         visualization: visualizationDebugRef.current,
+        equationsFrame: equationsFrameDebugRef.current,
       },
       localStorage: localStorageSnapshot,
     };
@@ -1060,11 +1086,13 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     playbackState,
     selectedMetrics,
     sourceMode,
+    sidebarApp,
     sidebarMode,
     subtitles,
     uploadError,
     uiEvents,
     viewport,
+    equationsPane,
     windowEndInput,
     windowEnd,
     windowStartInput,
@@ -1796,10 +1824,25 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   }, [visualizationFrame]);
 
   useEffect(() => {
-    if (sidebarMode !== "analysis") {
+    writeStorageJson(DASHBOARD_STORAGE_KEYS.equationsPane, equationsPane);
+  }, [equationsPane]);
+
+  useEffect(() => {
+    writeStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp, sidebarApp);
+  }, [sidebarApp]);
+
+  useEffect(() => {
+    writeStorageString(
+      DASHBOARD_STORAGE_KEYS.frameGridLayoutDebug,
+      frameGridLayoutDebug ? "1" : "0",
+    );
+  }, [frameGridLayoutDebug]);
+
+  useEffect(() => {
+    if (sidebarApp !== "metrics" || sidebarMode !== "analysis") {
       setHighlightedMetricKey(null);
     }
-  }, [sidebarMode]);
+  }, [sidebarApp, sidebarMode]);
 
   useEffect(() => {
     const payload = liveStreams
@@ -2497,6 +2540,23 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     [],
   );
 
+  const handleSetSidebarApp = useCallback((app: SidebarApp) => {
+    setSidebarApp(app === "equations" ? "equations" : "metrics");
+  }, []);
+
+  const handleSetEquationsPane = useCallback(
+    (
+      patch: Parameters<typeof mergeEquationsPaneStatePatch>[1],
+      options?: { replace?: boolean },
+    ) => {
+      setEquationsPane((prev) => {
+        const next = mergeEquationsPaneStatePatch(prev, patch, options);
+        return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+      });
+    },
+    [],
+  );
+
   const handleSourceModeChange = useCallback((mode: "file" | "live") => {
     setSourceMode(mode);
     if (mode === "live") {
@@ -2812,6 +2872,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       if (typeof state.displayDerivationGroupId === "string") {
         setDisplayDerivationGroupId(state.displayDerivationGroupId);
       }
+      if (state.sidebarApp === "metrics" || state.sidebarApp === "equations") {
+        setSidebarApp(state.sidebarApp);
+      }
       if (state.playback && typeof state.playback === "object") {
         const maybe = state.playback as Partial<PlaybackState>;
         setPlaybackState((prev) => ({
@@ -2862,6 +2925,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       }
       if (state.visualizationFrame && typeof state.visualizationFrame === "object") {
         setVisualizationFrame(normalizeVisualizationFrameState(state.visualizationFrame));
+      }
+      if (state.equationsPane && typeof state.equationsPane === "object") {
+        setEquationsPane(normalizeEquationsPaneState(state.equationsPane));
       }
     },
     [isAutoScroll],
@@ -5192,6 +5258,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     derivationGroups,
     activeDerivationGroupId: resolvedActiveDerivationGroupId,
     displayDerivationGroupId: resolvedDisplayDerivationGroupId,
+    sidebarApp,
     playbackState,
     windowSize,
     windowStart,
@@ -5205,7 +5272,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     annotations,
     subtitles,
     visualizationFrame,
+    equationsPane,
     onRestoreState: handleRestoreState,
+    onSetSidebarApp: handleSetSidebarApp,
     onSourceModeChange: handleSourceModeChange,
     onLiveSourceChange: handleLiveSourceCommand,
     onToggleCapture: handleToggleCapture,
@@ -5238,6 +5307,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     onAutoScrollChange: handleAutoScrollChange,
     onSetFullscreen: handleSetFullscreen,
     onSetVisualizationFrame: handleSetVisualizationFrame,
+    onSetEquationsPane: handleSetEquationsPane,
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,
@@ -5292,6 +5362,23 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     sendMessageRef.current = sendMessage;
   }, [sendMessage]);
 
+  const handleEquationHitBoxSelect = useCallback(
+    (selectedHitBox: VisualizationState["equationsPane"]["context"]["selectedHitBox"]) => {
+      handleSetEquationsPane({
+        context: {
+          selectedHitBox,
+        },
+      });
+      sendMessage({
+        type: "set_equations_pane",
+        context: {
+          selectedHitBox,
+        },
+      });
+    },
+    [handleSetEquationsPane, sendMessage],
+  );
+
   const sidebarStyle = {
     "--sidebar-width": "20rem",
     "--sidebar-width-icon": "4rem",
@@ -5313,6 +5400,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
   const handleSidebarModeSelect = useCallback((nextMode: SidebarMode) => {
     setSidebarMode(nextMode);
+  }, []);
+  const handleSidebarAppSelect = useCallback((nextApp: SidebarApp) => {
+    setSidebarApp(nextApp);
   }, []);
   const handleToggleSidebarMode = useCallback(() => {
     handleSidebarModeSelect(sidebarMode === "analysis" ? "setup" : "analysis");
@@ -5633,7 +5723,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         <Sidebar>
           <SidebarHeader ref={sidebarHeaderRef} className="p-4">
             <SidebarSubappHeader
+              sidebarApp={sidebarApp}
               sidebarMode={sidebarMode}
+              onSelectApp={handleSidebarAppSelect}
               onToggleMode={handleToggleSidebarMode}
             />
           </SidebarHeader>
@@ -5642,6 +5734,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             className="min-h-0 flex flex-col"
           >
             <div ref={sidebarBodyRef} className="flex flex-col flex-1 min-h-0">
+              {sidebarApp === "metrics" ? (
                 <>
                   <SidebarSetupPane
                     sidebarMode={sidebarMode}
@@ -5744,6 +5837,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                     onRemoveDerivationMetric={handleRemoveDerivationMetric}
                   />
                 </>
+              ) : (
+                <SidebarEquationsPane
+                  sidebarMode={sidebarMode}
+                  frameGridLayoutDebug={frameGridLayoutDebug}
+                  onFrameGridLayoutDebugChange={setFrameGridLayoutDebug}
+                  equationHitBoxClick={equationsPane.context.selectedHitBox}
+                />
+              )}
             </div>
           </SidebarContent>
           <SidebarFooter className="p-0 gap-0 shrink-0 w-full min-w-0 overflow-x-hidden">
@@ -5768,6 +5869,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             onSetFullscreen={handleSetFullscreen}
             onOpenDocs={handleOpenDocs}
           />
+          {sidebarApp === "metrics" ? (
             <MetricsMainPanel
               chart={chartViewProps}
               currentData={currentData}
@@ -5799,6 +5901,16 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onOpenMiniPlayer={handleOpenMiniPlayer}
               seekDisabled={isWindowed}
             />
+          ) : (
+            <EquationsMainPanel
+              sidebarMode={sidebarMode}
+              equationsPane={equationsPane}
+              frameGridLayoutDebug={frameGridLayoutDebug}
+              onFrameGridDebugChange={handleEquationsFrameDebugChange}
+              equationHitBoxClick={equationsPane.context.selectedHitBox}
+              onEquationHitBoxSelect={handleEquationHitBoxSelect}
+            />
+          )}
         </div>
       </div>
     </SidebarProvider>

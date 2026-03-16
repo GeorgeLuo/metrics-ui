@@ -15,6 +15,10 @@ import type {
 import { compactEntities, compactValue, DEFAULT_MAX_NUMERIC_DEPTH } from "@shared/compact";
 import { buildComponentTreeFromEntities, mergeComponentTrees, pruneComponentTree } from "@shared/component-tree";
 import {
+  mergeEquationsPaneStatePatch,
+  normalizeEquationsPaneState,
+} from "@shared/equations-pane";
+import {
   ComponentManager,
   EntityManager,
   System,
@@ -485,6 +489,7 @@ const ENABLE_FRAME_CACHE = true;
 const MAX_FRAME_CACHE_BYTES = 2 * 1024 * 1024 * 1024;
 const DEFAULT_CACHE_TAIL_FRAMES = 200;
 const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
+  "set_sidebar_app",
   "toggle_capture",
   "remove_capture",
   "select_metric",
@@ -513,6 +518,7 @@ const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "set_y2_range",
   "set_auto_scroll",
   "set_visualization_frame",
+  "set_equations_pane",
   "add_annotation",
   "remove_annotation",
   "clear_annotations",
@@ -609,6 +615,7 @@ type PersistableDashboardState = Partial<
     | "derivationGroups"
     | "activeDerivationGroupId"
     | "displayDerivationGroupId"
+    | "sidebarApp"
     | "playback"
     | "windowSize"
     | "windowStart"
@@ -619,6 +626,7 @@ type PersistableDashboardState = Partial<
     | "annotations"
     | "subtitles"
     | "visualizationFrame"
+    | "equationsPane"
   >
 >;
 
@@ -690,6 +698,7 @@ function buildVisualizationStateFromPersistedState(
     Number(state.ySecondaryDomain[1]) > Number(state.ySecondaryDomain[0])
       ? [Number(state.ySecondaryDomain[0]), Number(state.ySecondaryDomain[1])] as [number, number]
       : null;
+  const sidebarApp = state.sidebarApp === "equations" ? "equations" : "metrics";
 
   return {
     captures: [],
@@ -700,6 +709,7 @@ function buildVisualizationStateFromPersistedState(
       typeof state.activeDerivationGroupId === "string" ? state.activeDerivationGroupId : "",
     displayDerivationGroupId:
       typeof state.displayDerivationGroupId === "string" ? state.displayDerivationGroupId : "",
+    sidebarApp,
     playback,
     windowSize,
     windowStart,
@@ -711,6 +721,7 @@ function buildVisualizationStateFromPersistedState(
     annotations: Array.isArray(state.annotations) ? state.annotations : [],
     subtitles: Array.isArray(state.subtitles) ? state.subtitles : [],
     visualizationFrame,
+    equationsPane: normalizeEquationsPaneState(state.equationsPane),
   };
 }
 
@@ -808,6 +819,9 @@ function extractPersistableDashboardState(payload: VisualizationState): Persista
   if (typeof payload.displayDerivationGroupId === "string") {
     state.displayDerivationGroupId = payload.displayDerivationGroupId;
   }
+  if (payload.sidebarApp === "metrics" || payload.sidebarApp === "equations") {
+    state.sidebarApp = payload.sidebarApp;
+  }
   if (payload.playback && typeof payload.playback === "object") {
     state.playback = payload.playback;
   }
@@ -873,6 +887,9 @@ function extractPersistableDashboardState(payload: VisualizationState): Persista
       nextFrame.updatedAt = payload.visualizationFrame.updatedAt;
     }
     state.visualizationFrame = nextFrame;
+  }
+  if (payload.equationsPane && typeof payload.equationsPane === "object") {
+    state.equationsPane = normalizeEquationsPaneState(payload.equationsPane);
   }
   return state;
 }
@@ -2147,6 +2164,7 @@ function createDefaultVisualizationState(): VisualizationState {
     derivationGroups: [],
     activeDerivationGroupId: "",
     displayDerivationGroupId: "",
+    sidebarApp: "metrics",
     playback: { isPlaying: true, currentTick: 1, speed: 1, totalTicks: 0 },
     windowSize: 50,
     windowStart: 1,
@@ -2158,6 +2176,7 @@ function createDefaultVisualizationState(): VisualizationState {
     annotations: [],
     subtitles: [],
     visualizationFrame: { mode: "builtin" },
+    equationsPane: normalizeEquationsPaneState(null),
   };
 }
 
@@ -2256,6 +2275,7 @@ function buildAgentStateSnapshot(): VisualizationState {
 
 function applyAgentCommandToLastVisualizationState(command: ControlCommand): boolean {
   if (
+    command.type !== "set_sidebar_app" &&
     command.type !== "create_derivation_group" &&
     command.type !== "delete_derivation_group" &&
     command.type !== "set_active_derivation_group" &&
@@ -2269,6 +2289,7 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
     command.type !== "set_y_range" &&
     command.type !== "set_y2_range" &&
     command.type !== "set_visualization_frame" &&
+    command.type !== "set_equations_pane" &&
     command.type !== "deselect_analysis_metric" &&
     command.type !== "clear_analysis_metrics"
   ) {
@@ -2278,7 +2299,13 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
   const state = ensureLastVisualizationState();
   let changed = false;
 
-  if (command.type === "create_derivation_group") {
+  if (command.type === "set_sidebar_app") {
+    const nextApp = command.app === "equations" ? "equations" : "metrics";
+    if (state.sidebarApp !== nextApp) {
+      state.sidebarApp = nextApp;
+      changed = true;
+    }
+  } else if (command.type === "create_derivation_group") {
     const requestedId =
       typeof command.groupId === "string" && command.groupId.trim() ? command.groupId.trim() : "";
     const groupId = requestedId || `group-${Date.now().toString(36)}`;
@@ -2466,6 +2493,22 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
     }
     if (JSON.stringify(previous) !== JSON.stringify(nextFrame)) {
       state.visualizationFrame = nextFrame;
+      changed = true;
+    }
+  } else if (command.type === "set_equations_pane") {
+    const nextPane = mergeEquationsPaneStatePatch(
+      state.equationsPane,
+      {
+        content: command.content,
+        dimensions: command.dimensions,
+        cells: command.cells,
+        context: command.context,
+        document: command.document,
+      },
+      { replace: command.replace },
+    );
+    if (JSON.stringify(state.equationsPane) !== JSON.stringify(nextPane)) {
+      state.equationsPane = nextPane;
       changed = true;
     }
   } else if (command.type === "deselect_analysis_metric") {
