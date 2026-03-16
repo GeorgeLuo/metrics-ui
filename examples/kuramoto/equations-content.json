@@ -1,0 +1,417 @@
+{
+  "workspace": {
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "\\dot{\\theta}_{i}",
+        "hitBox": {
+          "id": "theta_dot_i",
+          "label": "phase velocity",
+          "sequence": "angle [of] i dot",
+          "category": "term",
+          "latex": "\\dot{\\theta}_{i}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "=",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\omega_{i}",
+        "hitBox": {
+          "id": "omega_i",
+          "label": "natural frequency",
+          "sequence": "omega sub i",
+          "category": "term",
+          "latex": "\\omega_{i}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "+",
+        "hitBox": {
+          "id": "plus",
+          "label": "plus",
+          "sequence": "plus",
+          "category": "operator",
+          "latex": "+"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\frac{K}{N}",
+        "hitBox": {
+          "id": "coupling_scale",
+          "label": "coupling scale",
+          "sequence": "K over N",
+          "category": "term",
+          "latex": "\\frac{K}{N}"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\sum_{j=1}^{N}",
+        "hitBox": {
+          "id": "population_sum",
+          "label": "population sum",
+          "sequence": "the sum from j equals 1 to N",
+          "category": "summation",
+          "latex": "\\sum_{j=1}^{N}"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\sin",
+        "hitBox": {
+          "id": "sine_interaction",
+          "label": "sine interaction",
+          "sequence": "sine",
+          "category": "function",
+          "latex": "\\sin"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\left(\\theta_{j} - \\theta_{i}\\right)",
+        "hitBox": {
+          "id": "phase_difference",
+          "label": "phase difference",
+          "sequence": "angle [of] j minus angle [of] i",
+          "category": "term",
+          "latex": "\\left(\\theta_{j} - \\theta_{i}\\right)"
+        }
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "angle [of] i dot",
+        "hitBox": {
+          "id": "theta_dot_i",
+          "label": "phase velocity",
+          "sequence": "angle [of] i dot",
+          "category": "term",
+          "latex": "\\dot{\\theta}_{i}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " equals ",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": "omega sub i",
+        "hitBox": {
+          "id": "omega_i",
+          "label": "natural frequency",
+          "sequence": "omega sub i",
+          "category": "term",
+          "latex": "\\omega_{i}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " plus ",
+        "hitBox": {
+          "id": "plus",
+          "label": "plus",
+          "sequence": "plus",
+          "category": "operator",
+          "latex": "+"
+        }
+      },
+      {
+        "kind": "text",
+        "value": "K over N",
+        "hitBox": {
+          "id": "coupling_scale",
+          "label": "coupling scale",
+          "sequence": "K over N",
+          "category": "term",
+          "latex": "\\frac{K}{N}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "the sum from j equals 1 to N",
+        "hitBox": {
+          "id": "population_sum",
+          "label": "population sum",
+          "sequence": "the sum from j equals 1 to N",
+          "category": "summation",
+          "latex": "\\sum_{j=1}^{N}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " of "
+      },
+      {
+        "kind": "text",
+        "value": "sine",
+        "hitBox": {
+          "id": "sine_interaction",
+          "label": "sine interaction",
+          "sequence": "sine",
+          "category": "function",
+          "latex": "\\sin"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " of "
+      },
+      {
+        "kind": "text",
+        "value": "angle [of] j minus angle [of] i",
+        "hitBox": {
+          "id": "phase_difference",
+          "label": "phase difference",
+          "sequence": "angle [of] j minus angle [of] i",
+          "category": "term",
+          "latex": "\\left(\\theta_{j} - \\theta_{i}\\right)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": "."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "The phase velocity of oscillator i",
+        "hitBox": {
+          "id": "theta_dot_i",
+          "label": "phase velocity",
+          "sequence": "The phase velocity of oscillator i",
+          "category": "term",
+          "latex": "\\dot{\\theta}_{i}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " is "
+      },
+      {
+        "kind": "text",
+        "value": "set by",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "set by",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": " its "
+      },
+      {
+        "kind": "text",
+        "value": "natural frequency",
+        "hitBox": {
+          "id": "omega_i",
+          "label": "natural frequency",
+          "sequence": "natural frequency",
+          "category": "term",
+          "latex": "\\omega_{i}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " plus "
+      },
+      {
+        "kind": "text",
+        "value": "a coupling strength scaled by population size",
+        "hitBox": {
+          "id": "coupling_scale",
+          "label": "coupling scale",
+          "sequence": "a coupling strength scaled by population size",
+          "category": "term",
+          "latex": "\\frac{K}{N}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", accumulated "
+      },
+      {
+        "kind": "text",
+        "value": "across the population",
+        "hitBox": {
+          "id": "population_sum",
+          "label": "population sum",
+          "sequence": "across the population",
+          "category": "summation",
+          "latex": "\\sum_{j=1}^{N}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " through a "
+      },
+      {
+        "kind": "text",
+        "value": "sine interaction",
+        "hitBox": {
+          "id": "sine_interaction",
+          "label": "sine interaction",
+          "sequence": "sine interaction",
+          "category": "function",
+          "latex": "\\sin"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " on "
+      },
+      {
+        "kind": "text",
+        "value": "the phase difference between oscillators.",
+        "hitBox": {
+          "id": "phase_difference",
+          "label": "phase difference",
+          "sequence": "the phase difference between oscillators",
+          "category": "term",
+          "latex": "\\left(\\theta_{j} - \\theta_{i}\\right)"
+        }
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Synchronization problems ask how "
+      },
+      {
+        "kind": "text",
+        "value": "local phase change",
+        "hitBox": {
+          "id": "theta_dot_i",
+          "label": "phase velocity",
+          "sequence": "local phase change",
+          "category": "term",
+          "latex": "\\dot{\\theta}_{i}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " emerges from "
+      },
+      {
+        "kind": "text",
+        "value": "intrinsic tendencies",
+        "hitBox": {
+          "id": "omega_i",
+          "label": "natural frequency",
+          "sequence": "intrinsic tendencies",
+          "category": "term",
+          "latex": "\\omega_{i}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " and "
+      },
+      {
+        "kind": "text",
+        "value": "shared coupling",
+        "hitBox": {
+          "id": "coupling_scale",
+          "label": "coupling scale",
+          "sequence": "shared coupling",
+          "category": "term",
+          "latex": "\\frac{K}{N}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", aggregated "
+      },
+      {
+        "kind": "text",
+        "value": "over many neighbors",
+        "hitBox": {
+          "id": "population_sum",
+          "label": "population sum",
+          "sequence": "over many neighbors",
+          "category": "summation",
+          "latex": "\\sum_{j=1}^{N}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " through "
+      },
+      {
+        "kind": "text",
+        "value": "phase-sensitive interaction",
+        "hitBox": {
+          "id": "sine_interaction",
+          "label": "sine interaction",
+          "sequence": "phase-sensitive interaction",
+          "category": "function",
+          "latex": "\\sin"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " on "
+      },
+      {
+        "kind": "text",
+        "value": "relative phase.",
+        "hitBox": {
+          "id": "phase_difference",
+          "label": "phase difference",
+          "sequence": "relative phase",
+          "category": "term",
+          "latex": "\\left(\\theta_{j} - \\theta_{i}\\right)"
+        }
+      }
+    ]
+  }
+}

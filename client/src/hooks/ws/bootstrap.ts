@@ -1,8 +1,10 @@
 import type { ControlCommand } from "@shared/schema";
+import { DEFAULT_EQUATIONS_PANE_STATE, normalizeEquationsPaneState } from "@shared/equations-pane";
 import { isDerivedCaptureSource } from "@/lib/dashboard/source-utils";
 import {
   DASHBOARD_STORAGE_KEYS,
   readStorageJson,
+  readStorageString,
 } from "@/lib/dashboard/storage";
 
 type SyncCaptureSource = {
@@ -62,5 +64,18 @@ export function buildCaptureSourceSyncCommand(
 export function hasMeaningfulLocalDashboardState(): boolean {
   const selected = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.selectedMetrics);
   const groups = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.derivationGroups);
-  return (Array.isArray(selected) && selected.length > 0) || (Array.isArray(groups) && groups.length > 0);
+  const visualizationFrame = readStorageJson<{ mode?: unknown }>(DASHBOARD_STORAGE_KEYS.visualizationFrame);
+  const equationsPane = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsPane);
+  const sidebarApp = readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp);
+  const hasCustomEquationsPane =
+    equationsPane && typeof equationsPane === "object"
+      ? JSON.stringify(normalizeEquationsPaneState(equationsPane)) !== JSON.stringify(DEFAULT_EQUATIONS_PANE_STATE)
+      : false;
+  return (
+    (Array.isArray(selected) && selected.length > 0)
+    || (Array.isArray(groups) && groups.length > 0)
+    || visualizationFrame?.mode === "plugin"
+    || hasCustomEquationsPane
+    || sidebarApp === "equations"
+  );
 }

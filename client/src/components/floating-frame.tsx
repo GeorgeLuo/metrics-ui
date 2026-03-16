@@ -4,6 +4,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type RefObject,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -13,14 +14,19 @@ import { buildPopoutWindowFeatures } from "@/lib/popout-window";
 import { cn } from "@/lib/utils";
 
 type Point = { x: number; y: number };
+type FloatingFramePositionMode = "viewport" | "container";
 
-interface FloatingFrameProps {
+export interface FloatingFrameProps {
   title: string;
   children?: ReactNode;
   isVisible?: boolean;
   defaultPosition?: Point;
   className?: string;
   contentClassName?: string;
+  headerClassName?: string;
+  titleClassName?: string;
+  dragHandleClassName?: string;
+  controlButtonClassName?: string;
   headerRight?: ReactNode;
   dataTestId?: string;
   minimizable?: boolean;
@@ -31,17 +37,51 @@ interface FloatingFrameProps {
   contentFill?: boolean;
   onPopoutChange?: (isPoppedOut: boolean) => void;
   dockRequestToken?: number;
+  positionMode?: FloatingFramePositionMode;
+  containerRef?: RefObject<HTMLElement | null>;
+  contentMinHeight?: number;
+  dragHint?: string;
 }
 
 const DEFAULT_POSITION: Point = { x: 24, y: 72 };
 const VIEWPORT_PADDING = 8;
 
-function clampPosition(frame: HTMLDivElement | null, position: Point): Point {
+function resolveContainerNode(
+  containerRef: RefObject<HTMLElement | null> | undefined,
+  frame: HTMLDivElement | null,
+): HTMLElement | null {
+  if (containerRef?.current instanceof HTMLElement) {
+    return containerRef.current;
+  }
+  if (frame?.offsetParent instanceof HTMLElement) {
+    return frame.offsetParent;
+  }
+  return null;
+}
+
+function clampPosition(
+  frame: HTMLDivElement | null,
+  position: Point,
+  positionMode: FloatingFramePositionMode,
+  containerRef?: RefObject<HTMLElement | null>,
+): Point {
   if (typeof window === "undefined") {
     return position;
   }
   const width = frame?.offsetWidth ?? 300;
   const height = frame?.offsetHeight ?? 140;
+  if (positionMode === "container") {
+    const container = resolveContainerNode(containerRef, frame);
+    if (!container) {
+      return position;
+    }
+    const maxX = Math.max(0, container.clientWidth - width);
+    const maxY = Math.max(0, container.clientHeight - height);
+    return {
+      x: Math.min(Math.max(0, position.x), maxX),
+      y: Math.min(Math.max(0, position.y), maxY),
+    };
+  }
   const maxX = Math.max(VIEWPORT_PADDING, window.innerWidth - width - VIEWPORT_PADDING);
   const maxY = Math.max(VIEWPORT_PADDING, window.innerHeight - height - VIEWPORT_PADDING);
   return {
@@ -57,6 +97,10 @@ export function FloatingFrame({
   defaultPosition = DEFAULT_POSITION,
   className,
   contentClassName,
+  headerClassName,
+  titleClassName,
+  dragHandleClassName,
+  controlButtonClassName,
   headerRight,
   dataTestId = "floating-frame",
   minimizable = true,
@@ -67,6 +111,10 @@ export function FloatingFrame({
   contentFill = false,
   onPopoutChange,
   dockRequestToken,
+  positionMode = "viewport",
+  containerRef,
+  contentMinHeight = 140,
+  dragHint = "Drag this frame anywhere on the page.",
 }: FloatingFrameProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragOffset = useRef<Point>({ x: 0, y: 0 });
@@ -188,21 +236,33 @@ export function FloatingFrame({
     if (!isVisible || isPoppedOut) {
       return;
     }
-    setPosition((prev) => clampPosition(frameRef.current, prev));
-  }, [isVisible, isPoppedOut]);
+    setPosition((prev) => clampPosition(frameRef.current, prev, positionMode, containerRef));
+  }, [containerRef, isVisible, isPoppedOut, positionMode]);
 
   useEffect(() => {
     if (!isVisible || isPoppedOut) {
       return;
     }
     const handleResize = () => {
-      setPosition((prev) => clampPosition(frameRef.current, prev));
+      setPosition((prev) => clampPosition(frameRef.current, prev, positionMode, containerRef));
     };
+    const container = resolveContainerNode(containerRef, frameRef.current);
+    const observer =
+      positionMode === "container" && typeof ResizeObserver !== "undefined" && container
+        ? new ResizeObserver(handleResize)
+        : null;
+    if (observer && container) {
+      observer.observe(container);
+    }
+    if (frameRef.current) {
+      observer?.observe(frameRef.current);
+    }
     window.addEventListener("resize", handleResize);
     return () => {
+      observer?.disconnect();
       window.removeEventListener("resize", handleResize);
     };
-  }, [isVisible, isPoppedOut]);
+  }, [containerRef, isVisible, isPoppedOut, positionMode]);
 
   useEffect(() => {
     if (!isPoppedOut) {
@@ -270,7 +330,7 @@ export function FloatingFrame({
           x: moveEvent.clientX - dragOffset.current.x,
           y: moveEvent.clientY - dragOffset.current.y,
         };
-        setPosition(clampPosition(frameRef.current, next));
+        setPosition(clampPosition(frameRef.current, next, positionMode, containerRef));
       };
 
       const handleDragEnd = () => {
@@ -293,7 +353,7 @@ export function FloatingFrame({
       window.addEventListener("blur", handleDragEnd);
       document.addEventListener("mouseleave", handleDragEnd);
     },
-    [isPoppedOut, position.x, position.y],
+    [containerRef, isPoppedOut, position.x, position.y, positionMode],
   );
 
   if (!isVisible) {
@@ -307,7 +367,9 @@ export function FloatingFrame({
         contentFill ? "flex flex-col" : "",
         isPoppedOut
           ? "h-full w-full border border-slate-400/80 bg-slate-200/95 text-black shadow-xl select-none"
-          : "fixed z-30 min-w-[260px] max-w-[420px] border border-slate-400/80 bg-slate-200/95 text-black shadow-xl select-none",
+          : positionMode === "container"
+            ? "absolute z-20 min-w-[260px] max-w-[420px] border border-slate-400/80 bg-slate-200/95 text-black shadow-xl select-none"
+            : "fixed z-30 min-w-[260px] max-w-[420px] border border-slate-400/80 bg-slate-200/95 text-black shadow-xl select-none",
         className,
       )}
       style={
@@ -333,26 +395,29 @@ export function FloatingFrame({
       }
       data-testid={dataTestId}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-slate-400/60 px-2 py-1.5">
+      <div className={cn("flex items-center justify-between gap-2 border-b border-slate-400/60 px-2 py-1.5", headerClassName)}>
         <div className="flex items-center gap-1.5 min-w-0">
           {!isPoppedOut ? (
             <button
               type="button"
-              className="cursor-grab active:cursor-grabbing p-0.5 text-black/70 hover:text-black"
+              className={cn(
+                "cursor-grab active:cursor-grabbing p-0.5 text-black/70 hover:text-black",
+                dragHandleClassName,
+              )}
               onPointerDown={handleDragStart}
               aria-label={`Drag ${title}`}
-              data-hint="Drag this frame anywhere on the page."
+              data-hint={dragHint}
             >
               <GripVertical className="w-3 h-3" />
             </button>
           ) : null}
-          <div className="truncate text-xs text-black">{title}</div>
+          <div className={cn("truncate text-xs text-black", titleClassName)}>{title}</div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {popoutable ? (
             <button
               type="button"
-              className="p-0.5 text-black/70 hover:text-black"
+              className={cn("p-0.5 text-black/70 hover:text-black", controlButtonClassName)}
               onClick={handlePopoutToggle}
               aria-label={isPoppedOut ? `Dock ${title}` : `Pop out ${title}`}
               data-hint={isPoppedOut ? "Dock this frame back into the dashboard." : "Pop this frame into a linked window."}
@@ -364,19 +429,22 @@ export function FloatingFrame({
           {minimizable && !isPoppedOut ? (
             <button
               type="button"
-              className="inline-flex items-center justify-center self-center shrink-0 leading-none p-0.5 text-black/70 hover:text-black"
+              className={cn(
+                "inline-flex items-center justify-center self-center shrink-0 leading-none p-0.5 text-black/70 hover:text-black",
+                controlButtonClassName,
+              )}
               onClick={() => setIsMinimized((prev) => !prev)}
               aria-label={isMinimized ? `Expand ${title}` : `Minimize ${title}`}
               data-hint={isMinimized ? "Expand this floating frame." : "Minimize this floating frame."}
             >
               {isMinimized ? (
                 <span
-                  className="block h-2.5 w-2.5 border border-black/80"
+                  className="block h-2.5 w-2.5 border border-current"
                   aria-hidden="true"
                 />
               ) : (
                 <span
-                  className="block w-3 border-t border-black/80"
+                  className="block w-3 border-t border-current"
                   aria-hidden="true"
                 />
               )}
@@ -387,10 +455,11 @@ export function FloatingFrame({
       {!isMinimized ? (
         <div
           className={cn(
-            "px-3 py-2 text-xs text-black min-h-[140px]",
+            "px-3 py-2 text-xs text-black",
             contentFill ? "flex-1 min-h-0 h-0" : "",
             contentClassName,
           )}
+          style={contentMinHeight > 0 ? { minHeight: `${contentMinHeight}px` } : undefined}
         >
           {children}
         </div>
@@ -402,4 +471,28 @@ export function FloatingFrame({
     return createPortal(content, popoutContainerRef.current);
   }
   return content;
+}
+
+export type ViewportFloatingFrameProps = Omit<FloatingFrameProps, "positionMode" | "containerRef">;
+
+export function ViewportFloatingFrame(props: ViewportFloatingFrameProps) {
+  return <FloatingFrame {...props} positionMode="viewport" />;
+}
+
+export type SubappFloatingFrameProps =
+  Omit<FloatingFrameProps, "positionMode"> & {
+    containerRef: RefObject<HTMLElement | null>;
+  };
+
+export function SubappFloatingFrame({
+  containerRef,
+  ...props
+}: SubappFloatingFrameProps) {
+  return (
+    <FloatingFrame
+      {...props}
+      positionMode="container"
+      containerRef={containerRef}
+    />
+  );
 }

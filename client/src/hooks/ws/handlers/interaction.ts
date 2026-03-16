@@ -31,6 +31,10 @@ export function handleInteractionCommand(
       context.markBootstrapped();
       context.sendAck(requestId, command.type);
       return true;
+    case "set_sidebar_app":
+      context.onSetSidebarApp(command.app);
+      context.sendAck(requestId, command.type);
+      return true;
     case "toggle_capture":
       context.onToggleCapture(command.captureId);
       context.sendAck(requestId, command.type);
@@ -250,6 +254,19 @@ export function handleInteractionCommand(
       context.sendAck(requestId, command.type);
       return true;
     }
+    case "set_equations_pane":
+      context.onSetEquationsPane(
+        {
+          content: command.content,
+          dimensions: command.dimensions,
+          cells: command.cells,
+          context: command.context,
+          document: command.document,
+        },
+        { replace: command.replace },
+      );
+      context.sendAck(requestId, command.type);
+      return true;
     case "add_annotation":
       context.onAddAnnotation({
         id: command.id ?? "",

@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useMemo } from "react";
 import type {
   ControlCommand,
   ControlResponse,
+  EquationsPaneStatePatch,
   VisualizationState,
   SelectedMetric,
   DerivationGroup,
@@ -30,6 +31,7 @@ interface UseWebSocketControlProps {
   derivationGroups: DerivationGroup[];
   activeDerivationGroupId: string;
   displayDerivationGroupId: string;
+  sidebarApp: VisualizationState["sidebarApp"];
   playbackState: PlaybackState;
   windowSize: number;
   windowStart: number;
@@ -43,7 +45,9 @@ interface UseWebSocketControlProps {
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
   visualizationFrame: VisualizationState["visualizationFrame"];
+  equationsPane: VisualizationState["equationsPane"];
   onRestoreState?: (command: RestoreStateCommand) => void;
+  onSetSidebarApp: (app: VisualizationState["sidebarApp"]) => void;
   onWindowSizeChange: (windowSize: number) => void;
   onWindowStartChange: (windowStart: number) => void;
   onWindowEndChange: (windowEnd: number) => void;
@@ -58,6 +62,7 @@ interface UseWebSocketControlProps {
     name?: string;
     captureId?: string;
   }) => void;
+  onSetEquationsPane: (patch: EquationsPaneStatePatch, options?: { replace?: boolean }) => void;
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onToggleCapture: (captureId: string) => void;
@@ -131,6 +136,7 @@ export function useWebSocketControl({
   derivationGroups,
   activeDerivationGroupId,
   displayDerivationGroupId,
+  sidebarApp,
   playbackState,
   windowSize,
   windowStart,
@@ -144,7 +150,9 @@ export function useWebSocketControl({
   annotations,
   subtitles,
   visualizationFrame,
+  equationsPane,
   onRestoreState,
+  onSetSidebarApp,
   onSourceModeChange,
   onLiveSourceChange,
   onToggleCapture,
@@ -177,6 +185,7 @@ export function useWebSocketControl({
   onAutoScrollChange,
   onSetFullscreen,
   onSetVisualizationFrame,
+  onSetEquationsPane,
   onLiveStart,
   onLiveStop,
   onCaptureInit,
@@ -245,6 +254,7 @@ export function useWebSocketControl({
         derivationGroups,
         activeDerivationGroupId,
         displayDerivationGroupId,
+        sidebarApp,
         playback: playbackState,
         windowSize,
         windowStart,
@@ -257,6 +267,7 @@ export function useWebSocketControl({
         annotations,
         subtitles,
         visualizationFrame,
+        equationsPane,
       };
       wsRef.current.send(JSON.stringify({
         type: "state_update",
@@ -264,7 +275,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, playbackState, windowSize, windowStart, windowEnd, yPrimaryDomain, ySecondaryDomain, autoScroll, isFullscreen, viewport, annotations, subtitles, visualizationFrame]);
+  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, sidebarApp, playbackState, windowSize, windowStart, windowEnd, yPrimaryDomain, ySecondaryDomain, autoScroll, isFullscreen, viewport, annotations, subtitles, visualizationFrame, equationsPane]);
 
   const sendStateRef = useRef(sendState);
 
@@ -292,6 +303,7 @@ export function useWebSocketControl({
     const hasMeaningfulState =
       selectedMetrics.length > 0 ||
       derivationGroups.length > 0 ||
+      sidebarApp === "equations" ||
       visualizationFrame.mode === "plugin" ||
       (Array.isArray(yPrimaryDomain) && yPrimaryDomain.length === 2) ||
       (Array.isArray(ySecondaryDomain) && ySecondaryDomain.length === 2) ||
@@ -328,6 +340,7 @@ export function useWebSocketControl({
     derivationGroups,
     activeDerivationGroupId,
     displayDerivationGroupId,
+    sidebarApp,
     playbackIdentity,
     windowSize,
     windowStart,
@@ -339,6 +352,7 @@ export function useWebSocketControl({
     annotations,
     subtitles,
     visualizationFrame,
+    equationsPane,
   ]);
 
   const sendAck = useCallback((requestId: string | undefined, command: string) => {
@@ -404,6 +418,7 @@ export function useWebSocketControl({
       subtitles,
       isWindowed,
       onRestoreState,
+      onSetSidebarApp,
       onToggleCapture,
       onRemoveCapture,
       onSelectMetric,
@@ -434,6 +449,7 @@ export function useWebSocketControl({
       onAutoScrollChange,
       onSetFullscreen,
       onSetVisualizationFrame,
+      onSetEquationsPane,
       onSourceModeChange,
       onLiveSourceChange,
       onLiveStart,
@@ -477,6 +493,7 @@ export function useWebSocketControl({
     subtitles,
     isWindowed,
     onRestoreState,
+    onSetSidebarApp,
     onToggleCapture,
     onRemoveCapture,
     onSelectMetric,
@@ -507,6 +524,7 @@ export function useWebSocketControl({
     onAutoScrollChange,
     onSetFullscreen,
     onSetVisualizationFrame,
+    onSetEquationsPane,
     onSourceModeChange,
     onLiveSourceChange,
     onLiveStart,

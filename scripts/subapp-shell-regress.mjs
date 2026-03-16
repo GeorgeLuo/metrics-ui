@@ -25,6 +25,14 @@ function main() {
     "home",
     "sidebar-subapp-header.tsx",
   );
+  const equationsPanelPath = path.join(
+    repoRoot,
+    "client",
+    "src",
+    "components",
+    "home",
+    "equations-main-panel.tsx",
+  );
   const storagePath = path.join(repoRoot, "client", "src", "lib", "dashboard", "storage.ts");
   const floatingFramePath = path.join(repoRoot, "client", "src", "components", "floating-frame.tsx");
 
@@ -33,8 +41,14 @@ function main() {
   const headerSource = `${home}\n${sidebarHeader}`;
   const storage = read(storagePath);
   const floatingFrame = read(floatingFramePath);
+  const equationsPanel = read(equationsPanelPath);
 
   // Sidebar header toggle contract.
+  requireRegex(
+    headerSource,
+    /data-testid="button-toggle-sidebar-app"/,
+    "sub-app selector trigger is missing",
+  );
   requireRegex(
     headerSource,
     /data-testid="button-toggle-sidebar-mode"/,
@@ -59,11 +73,36 @@ function main() {
     /<MetricsMainPanel/s,
     "metrics main panel render is missing",
   );
+  requireRegex(
+    home,
+    /<EquationsMainPanel/s,
+    "equations main panel render is missing",
+  );
+  requireRegex(
+    home,
+    /<SidebarEquationsPane/s,
+    "equations sidebar pane render is missing",
+  );
+  requireRegex(
+    equationsPanel,
+    /<FrameGrid/s,
+    "equations panel should be rendered through FrameGrid",
+  );
+  requireRegex(
+    equationsPanel,
+    /<FrameGrid\.Item/s,
+    "equations panel should use explicit FrameGrid item placements",
+  );
 
-  // Storage should no longer persist Texts-era app routing.
+  // Storage should persist sub-app route and should not include Texts-era fields.
+  requireRegex(
+    storage,
+    /metrics-ui-sidebar-app/,
+    "sidebar app storage key is missing",
+  );
   assert.doesNotMatch(
     storage,
-    /metrics-ui-sidebar-app|textsSelectedSourceId/,
+    /textsSelectedSourceId/,
     "texts-era sidebar storage keys should be removed",
   );
 

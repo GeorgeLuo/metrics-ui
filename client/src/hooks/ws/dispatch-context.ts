@@ -4,9 +4,11 @@ import type {
   ComponentNode,
   ControlCommand,
   ControlResponse,
+  EquationsPaneStatePatch,
   MemoryStatsResponse,
   PlaybackState,
   SelectedMetric,
+  SidebarAppState,
   SubtitleOverlay,
   UiDebugResponse,
 } from "@shared/schema";
@@ -49,6 +51,7 @@ export interface WsCommandDispatchContext {
   subtitles: SubtitleOverlay[];
   isWindowed: boolean;
   onRestoreState?: (command: RestoreStateCommand) => void;
+  onSetSidebarApp: (app: SidebarAppState) => void;
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
@@ -87,6 +90,7 @@ export interface WsCommandDispatchContext {
     name?: string;
     captureId?: string;
   }) => void;
+  onSetEquationsPane: (patch: EquationsPaneStatePatch, options?: { replace?: boolean }) => void;
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onLiveStart: (options: {

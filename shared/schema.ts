@@ -134,6 +134,147 @@ export interface VisualizationFrameState {
   updatedAt?: string;
 }
 
+export type SidebarAppState = "metrics" | "equations";
+
+export type EquationsMathExpression =
+  {
+    kind: "latex";
+    latex: string;
+    displayMode?: boolean;
+  };
+
+export interface EquationsPaneCard {
+  title: string;
+  body: string;
+  math?: EquationsMathExpression;
+  mappings?: EquationsMappingEntry[];
+}
+
+export interface EquationsPanePlacement {
+  col: number;
+  row: number;
+  colSpan: number;
+  rowSpan: number;
+}
+
+export interface EquationsPaneDimensions {
+  frameAspect: [number, number];
+  grid: [number, number];
+  workspace: EquationsPanePlacement;
+  details: EquationsPanePlacement;
+  notes: EquationsPanePlacement;
+  footer: EquationsPanePlacement;
+}
+
+export interface EquationsPaneContent {
+  workspace: EquationsPaneCard;
+  details: EquationsPaneCard;
+  notes: EquationsPaneCard;
+  footer: EquationsPaneCard;
+}
+
+export interface EquationsPaneCell extends EquationsPanePlacement, EquationsPaneCard {
+  id?: string;
+}
+
+export type FrameGridFitMode = "contain" | "cover";
+
+export interface EquationsFrameGridSpec {
+  frameAspect: [number, number];
+  frameBorderDiv: [number, number];
+  grid: [number, number];
+  cellBorderDiv: [number, number];
+  fitMode: FrameGridFitMode;
+}
+
+export interface EquationsFrameGridItem extends EquationsPaneCell {
+  id?: string;
+}
+
+export interface EquationsFrameGridDocument {
+  spec: EquationsFrameGridSpec;
+  items: EquationsFrameGridItem[];
+}
+
+export type EquationsHitBoxCategory =
+  | "term"
+  | "operator"
+  | "function"
+  | "delimiter"
+  | "summation";
+
+export interface EquationsHitBoxDefinition {
+  id: string;
+  label: string;
+  sequence: string;
+  category: EquationsHitBoxCategory;
+  latex: string;
+}
+
+export type EquationsMappingEntryKind = "text" | "latex";
+
+export interface EquationsMappingEntry {
+  kind: EquationsMappingEntryKind;
+  value: string;
+  displayMode?: boolean;
+  hitBox?: EquationsHitBoxDefinition;
+}
+
+export interface EquationsPaneSelectedHitBox {
+  itemId: string;
+  hitBox: EquationsHitBoxDefinition;
+}
+
+export interface EquationsPaneContextState {
+  selectedHitBox: EquationsPaneSelectedHitBox | null;
+}
+
+export interface EquationsPaneState {
+  dimensions: EquationsPaneDimensions;
+  content: EquationsPaneContent;
+  cells: EquationsPaneCell[];
+  context: EquationsPaneContextState;
+  document?: EquationsFrameGridDocument;
+}
+
+export interface EquationsPaneCardPatch {
+  title?: string;
+  body?: string;
+  math?: EquationsMathExpression | null;
+  mappings?: EquationsMappingEntry[] | null;
+}
+
+export interface EquationsPanePlacementPatch {
+  col?: number;
+  row?: number;
+  colSpan?: number;
+  rowSpan?: number;
+}
+
+export interface EquationsPaneDimensionsPatch {
+  frameAspect?: [number, number];
+  grid?: [number, number];
+  workspace?: EquationsPanePlacementPatch;
+  details?: EquationsPanePlacementPatch;
+  notes?: EquationsPanePlacementPatch;
+  footer?: EquationsPanePlacementPatch;
+}
+
+export interface EquationsPaneContentPatch {
+  workspace?: EquationsPaneCardPatch;
+  details?: EquationsPaneCardPatch;
+  notes?: EquationsPaneCardPatch;
+  footer?: EquationsPaneCardPatch;
+}
+
+export interface EquationsPaneStatePatch {
+  dimensions?: EquationsPaneDimensionsPatch;
+  content?: EquationsPaneContentPatch;
+  cells?: EquationsPaneCell[];
+  context?: Partial<EquationsPaneContextState>;
+  document?: EquationsFrameGridDocument;
+}
+
 export interface SeriesWindowResponse {
   captureId: string;
   path: string[];
@@ -434,6 +575,7 @@ export type ControlCommand =
         | "derivationGroups"
         | "activeDerivationGroupId"
         | "displayDerivationGroupId"
+        | "sidebarApp"
         | "playback"
         | "windowSize"
         | "windowStart"
@@ -444,9 +586,11 @@ export type ControlCommand =
         | "annotations"
         | "subtitles"
         | "visualizationFrame"
+        | "equationsPane"
       >>;
       savedAt?: string;
     } & ControlRequestBase)
+  | ({ type: "set_sidebar_app"; app: SidebarAppState } & ControlRequestBase)
   | ({ type: "toggle_capture"; captureId: string } & ControlRequestBase)
   | ({ type: "remove_capture"; captureId: string } & ControlRequestBase)
   | ({
@@ -515,6 +659,10 @@ export type ControlCommand =
       name?: string;
       captureId?: string;
     } & ControlRequestBase)
+  | ({
+      type: "set_equations_pane";
+      replace?: boolean;
+    } & EquationsPaneStatePatch & ControlRequestBase)
   | ({ type: "set_stream_mode"; captureId: string; mode: "lite" | "full" } & ControlRequestBase)
   | ({ type: "add_annotation"; tick: number; label?: string; color?: string; id?: string } & ControlRequestBase)
   | ({ type: "remove_annotation"; id?: string; tick?: number } & ControlRequestBase)
@@ -654,6 +802,7 @@ export interface VisualizationState {
   derivationGroups: DerivationGroup[];
   activeDerivationGroupId: string;
   displayDerivationGroupId: string;
+  sidebarApp: SidebarAppState;
   playback: PlaybackState;
   windowSize: number;
   windowStart: number;
@@ -672,6 +821,7 @@ export interface VisualizationState {
   annotations: Annotation[];
   subtitles: SubtitleOverlay[];
   visualizationFrame: VisualizationFrameState;
+  equationsPane: EquationsPaneState;
 }
 
 export interface User {
