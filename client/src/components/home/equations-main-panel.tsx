@@ -12,7 +12,7 @@ import { resolveEquationsMathExpression } from "@shared/equations-math";
 import { buildEquationsFrameGridDocument } from "@shared/equations-framegrid-document";
 import type { EquationHitBoxClickSignal } from "@/components/home/equation-interaction.types";
 import { InjectedVisualization, type InjectedVisualizationDebug } from "@/components/injected-visualization";
-import { SubappFloatingFrame } from "@/components/floating-frame";
+import { SubappFloatingFrame, ViewportFloatingFrame } from "@/components/floating-frame";
 import { FrameGrid, type FrameGridDebugSnapshot } from "@/components/frame-grid";
 import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
 import { DASHBOARD_STORAGE_KEYS } from "@/lib/dashboard/storage";
@@ -559,9 +559,8 @@ export function EquationsMainPanel({
           )}
         </SubappFloatingFrame>
         {visualizationFrame ? (
-          <SubappFloatingFrame
+          <ViewportFloatingFrame
             title="Visualization Frame"
-            containerRef={contentAreaRef}
             defaultPosition={{ x: 20, y: 170 }}
             defaultSize={{ width: 340, height: 300 }}
             dataTestId="equations-visualization-frame"
@@ -574,7 +573,7 @@ export function EquationsMainPanel({
             contentClassName="!px-2 !py-2"
             contentMinHeight={0}
             contentFill
-            dragHint="Drag this visualization within the equations area."
+            dragHint="Drag this visualization anywhere in the web app viewport."
             popoutable
             popoutWindowName="metrics-ui-equations-visualization-frame"
             popoutWindowTitle="Metrics UI - Equations Visualization Frame"
@@ -589,7 +588,7 @@ export function EquationsMainPanel({
               currentTick={currentTick}
               onDebugChange={onVisualizationDebugChange}
             />
-          </SubappFloatingFrame>
+          </ViewportFloatingFrame>
         ) : null}
       </section>
     </main>
