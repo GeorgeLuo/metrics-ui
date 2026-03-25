@@ -1,0 +1,50 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Theta Bounds vs Omega Bounds",
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Why The Shortcut Fails",
+      "rightTitle": "Correct Form",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Everywhere else in this walkthrough, Eq. 10 is kept in the paper's compact order. Under that same convention, the bounds minus pi over 2 to pi over 2 are the old angle bounds carried by the pre-collapse expression."
+        },
+        {
+          "kind": "text",
+          "value": "That is why the shortcut below is inconsistent. Theta has already been integrated out, but the line keeps d omega while reusing the old angle bounds minus pi over 2 to pi over 2."
+        },
+        {
+          "kind": "math",
+          "latex": "r\\stackrel{\\text{wrong}}{=}\\int_{-\\pi/2}^{\\pi/2} e^{i\\sin^{-1}(\\omega/Kr)}g(\\omega)\\,d\\omega",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "So the issue is not just that the variable is omega. The issue is that the line mixes the surviving measure d omega with bounds that still belong to the pre-collapse angle window. After the collapse, the remaining one-variable integral must use the locked omega-domain instead."
+        }
+      ],
+      "right": [
+        {
+          "kind": "text",
+          "value": "After collapsing the theta piece but before any change of variables, the valid one-variable form is:"
+        },
+        {
+          "kind": "math",
+          "latex": "r=\\int_{-Kr}^{Kr} e^{i\\sin^{-1}(\\omega/Kr)}g(\\omega)\\,d\\omega",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "If you want bounds minus pi over 2 to pi over 2, introduce an angle variable first:"
+        },
+        {
+          "kind": "math",
+          "latex": "u=\\sin^{-1}(\\omega/Kr),\\qquad \\omega=Kr\\sin u,\\qquad d\\omega=Kr\\cos u\\,du",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

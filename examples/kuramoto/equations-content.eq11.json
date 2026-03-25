@@ -1,0 +1,486 @@
+{
+  "workspace": {
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "=",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "K",
+        "hitBox": {
+          "id": "coupling_strength",
+          "label": "coupling strength",
+          "sequence": "K",
+          "category": "term",
+          "latex": "K"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\int_{-\\pi/2}^{\\pi/2}",
+        "hitBox": {
+          "id": "locked_phase_domain",
+          "label": "locked phase domain",
+          "sequence": "the integral from minus pi over 2 to pi over 2",
+          "category": "term",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\cos^2 \\theta",
+        "hitBox": {
+          "id": "cosine_projection",
+          "label": "cosine projection weight",
+          "sequence": "cosine squared theta",
+          "category": "term",
+          "latex": "\\cos^2 \\theta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "g",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g",
+          "category": "function",
+          "latex": "g"
+        }
+      },
+      {
+        "kind": "text",
+        "value": "("
+      },
+      {
+        "kind": "latex",
+        "value": "K",
+        "hitBox": {
+          "id": "coupling_strength",
+          "label": "coupling strength",
+          "sequence": "K",
+          "category": "term",
+          "latex": "K"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\sin \\theta",
+        "hitBox": {
+          "id": "self_consistent_argument",
+          "label": "self-consistent argument",
+          "sequence": "sine theta",
+          "category": "term",
+          "latex": "\\sin \\theta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ")"
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "d\\theta",
+        "hitBox": {
+          "id": "reduced_phase_measure",
+          "label": "reduced phase measure",
+          "sequence": "d theta",
+          "category": "term",
+          "latex": "d\\theta"
+        }
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "r"
+      },
+      {
+        "kind": "text",
+        "value": " equals ",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": "K",
+        "hitBox": {
+          "id": "coupling_strength",
+          "label": "coupling strength",
+          "sequence": "K",
+          "category": "term",
+          "latex": "K"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "the integral from minus pi over 2 to pi over 2",
+        "hitBox": {
+          "id": "locked_phase_domain",
+          "label": "locked phase domain",
+          "sequence": "the integral from minus pi over 2 to pi over 2",
+          "category": "term",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " of "
+      },
+      {
+        "kind": "text",
+        "value": "cosine squared theta",
+        "hitBox": {
+          "id": "cosine_projection",
+          "label": "cosine projection weight",
+          "sequence": "cosine squared theta",
+          "category": "term",
+          "latex": "\\cos^2 \\theta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "g",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g",
+          "category": "function",
+          "latex": "g"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " of "
+      },
+      {
+        "kind": "text",
+        "value": "K",
+        "hitBox": {
+          "id": "coupling_strength",
+          "label": "coupling strength",
+          "sequence": "K",
+          "category": "term",
+          "latex": "K"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "text",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "text",
+        "value": "sine theta",
+        "hitBox": {
+          "id": "self_consistent_argument",
+          "label": "self-consistent argument",
+          "sequence": "sine theta",
+          "category": "term",
+          "latex": "\\sin \\theta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " d theta.",
+        "hitBox": {
+          "id": "reduced_phase_measure",
+          "label": "reduced phase measure",
+          "sequence": "d theta",
+          "category": "term",
+          "latex": "d\\theta"
+        }
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 11 is the real self-consistency equation that remains after the locked part of equation 10 is collapsed and rewritten in the phase variable "
+      },
+      {
+        "kind": "text",
+        "value": "theta",
+        "hitBox": {
+          "id": "reduced_phase_variable",
+          "label": "reduced phase variable",
+          "sequence": "theta",
+          "category": "term",
+          "latex": "\\theta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". The "
+      },
+      {
+        "kind": "text",
+        "value": "cosine projection",
+        "hitBox": {
+          "id": "cosine_projection",
+          "label": "cosine projection weight",
+          "sequence": "cosine squared theta",
+          "category": "term",
+          "latex": "\\cos^2 \\theta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " keeps only the part of each locked oscillator that reinforces the mean field, while "
+      },
+      {
+        "kind": "text",
+        "value": "g",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g",
+          "category": "function",
+          "latex": "g"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " is sampled at the self-consistent argument built from "
+      },
+      {
+        "kind": "text",
+        "value": "K",
+        "hitBox": {
+          "id": "coupling_strength",
+          "label": "coupling strength",
+          "sequence": "K",
+          "category": "term",
+          "latex": "K"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", "
+      },
+      {
+        "kind": "text",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", and the phase map "
+      },
+      {
+        "kind": "text",
+        "value": "sine theta",
+        "hitBox": {
+          "id": "self_consistent_argument",
+          "label": "self-consistent argument",
+          "sequence": "sine theta",
+          "category": "term",
+          "latex": "\\sin \\theta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". For symmetric "
+      },
+      {
+        "kind": "text",
+        "value": "g",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g",
+          "category": "function",
+          "latex": "g"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", the drifting contribution cancels, so only the locked contribution survives in this reduced form."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Conceptually, equation 11 says the guessed coherence "
+      },
+      {
+        "kind": "text",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " must reproduce itself after averaging over the locked oscillators. "
+      },
+      {
+        "kind": "text",
+        "value": "K",
+        "hitBox": {
+          "id": "coupling_strength",
+          "label": "coupling strength",
+          "sequence": "K",
+          "category": "term",
+          "latex": "K"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " sets how strongly oscillators pull, while "
+      },
+      {
+        "kind": "text",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " measures how coherent the population already is. Their product controls the self-consistent scale that appears both outside the integral and inside the argument of "
+      },
+      {
+        "kind": "text",
+        "value": "g",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g",
+          "category": "function",
+          "latex": "g"
+        }
+      },
+      {
+        "kind": "text",
+        "value": "."
+      }
+    ]
+  }
+}

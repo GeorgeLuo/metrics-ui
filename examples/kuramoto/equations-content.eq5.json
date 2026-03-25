@@ -1,0 +1,292 @@
+{
+  "workspace": {
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "r e^{i\\psi}",
+        "hitBox": {
+          "id": "order_parameter_complex",
+          "label": "complex order parameter",
+          "sequence": "r times e to the i psi",
+          "category": "term",
+          "latex": "r e^{i\\psi}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "=",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\int_{-\\pi}^{\\pi}\\!\\int_{-\\infty}^{+\\infty}",
+        "hitBox": {
+          "id": "integration_domain",
+          "label": "integration domain",
+          "sequence": "the integral from minus pi to pi and the integral from minus infinity to plus infinity",
+          "category": "term",
+          "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{-\\infty}^{+\\infty}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "e^{i\\theta}",
+        "hitBox": {
+          "id": "phase_marker",
+          "label": "phase marker",
+          "sequence": "e to the i theta",
+          "category": "term",
+          "latex": "e^{i\\theta}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\rho(\\theta,\\omega,t)",
+        "hitBox": {
+          "id": "phase_frequency_density",
+          "label": "phase frequency density",
+          "sequence": "rho of theta omega t",
+          "category": "function",
+          "latex": "\\rho(\\theta,\\omega,t)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "g(\\omega)",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g of omega",
+          "category": "function",
+          "latex": "g(\\omega)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "d\\theta\\,d\\omega",
+        "hitBox": {
+          "id": "integration_measure",
+          "label": "integration measure",
+          "sequence": "d theta d omega",
+          "category": "term",
+          "latex": "d\\theta\\,d\\omega"
+        }
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "r times e to the i psi"
+      },
+      {
+        "kind": "text",
+        "value": " equals ",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": "the integral from minus pi to pi and the integral from minus infinity to plus infinity",
+        "hitBox": {
+          "id": "integration_domain",
+          "label": "integration domain",
+          "sequence": "the integral from minus pi to pi and the integral from minus infinity to plus infinity",
+          "category": "term",
+          "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{-\\infty}^{+\\infty}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " of "
+      },
+      {
+        "kind": "text",
+        "value": "e to the i theta",
+        "hitBox": {
+          "id": "phase_marker",
+          "label": "phase marker",
+          "sequence": "e to the i theta",
+          "category": "term",
+          "latex": "e^{i\\theta}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "rho of theta omega t",
+        "hitBox": {
+          "id": "phase_frequency_density",
+          "label": "phase frequency density",
+          "sequence": "rho of theta omega t",
+          "category": "function",
+          "latex": "\\rho(\\theta,\\omega,t)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "g of omega",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g of omega",
+          "category": "function",
+          "latex": "g(\\omega)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " d theta d omega."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 5 defines the "
+      },
+      {
+        "kind": "text",
+        "value": "complex order parameter",
+        "hitBox": {
+          "id": "order_parameter_complex",
+          "label": "complex order parameter",
+          "sequence": "complex order parameter",
+          "category": "term",
+          "latex": "r e^{i\\psi}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " as a population average over the "
+      },
+      {
+        "kind": "text",
+        "value": "phase marker",
+        "hitBox": {
+          "id": "phase_marker",
+          "label": "phase marker",
+          "sequence": "phase marker",
+          "category": "term",
+          "latex": "e^{i\\theta}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". The "
+      },
+      {
+        "kind": "text",
+        "value": "phase frequency density",
+        "hitBox": {
+          "id": "phase_frequency_density",
+          "label": "phase frequency density",
+          "sequence": "phase frequency density",
+          "category": "function",
+          "latex": "\\rho(\\theta,\\omega,t)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " tells where oscillators sit in phase at time t, while the "
+      },
+      {
+        "kind": "text",
+        "value": "frequency distribution",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "frequency distribution",
+          "category": "function",
+          "latex": "g(\\omega)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " weights how common each natural frequency is."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Conceptually, equation 5 turns synchronization into a single complex statistic. The magnitude "
+      },
+      {
+        "kind": "text",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_complex",
+          "label": "complex order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " measures coherence, the angle "
+      },
+      {
+        "kind": "text",
+        "value": "psi",
+        "hitBox": {
+          "id": "order_parameter_phase",
+          "label": "order parameter phase",
+          "sequence": "psi",
+          "category": "term",
+          "latex": "\\psi"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " gives the average phase, and the integral says both come from averaging every oscillator's unit-circle contribution against the full phase-frequency ensemble."
+      }
+    ]
+  }
+}

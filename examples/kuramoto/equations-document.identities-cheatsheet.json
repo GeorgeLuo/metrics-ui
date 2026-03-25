@@ -1,0 +1,189 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Identities Cheatsheet",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "A short reference sheet for algebraic and distribution identities that show up repeatedly in derivations."
+    },
+    {
+      "kind": "text",
+      "value": "These identities are written in a general form, so they can be reused outside the Kuramoto walkthroughs."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Dirac Delta",
+      "rightTitle": "Sampling Rule",
+      "left": [
+        {
+          "kind": "text",
+          "value": "The Dirac delta does not spread weight over a neighborhood. It samples the rest of the integrand at the point where its argument vanishes."
+        },
+        {
+          "kind": "text",
+          "value": "If the selected point lies outside a finite integration interval, the whole integral is zero. That support condition is often what later turns into an indicator or new integration bounds."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\infty}^{\\infty} f(x)\\,\\delta(x-a)\\,dx = f(a)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{A}^{B} f(x)\\,\\delta(x-a)\\,dx = \\begin{cases} f(a), & a \\in [A,B],\\\\ 0, & a \\notin [A,B]. \\end{cases}",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "Use this form when a derivation says a delta 'collapses' an integral."
+        }
+      ]
+    },
+    {
+      "leftTitle": "Euler Identity",
+      "rightTitle": "Complex Exponential",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Euler's identity rewrites a complex phase factor into real and imaginary parts. This is usually the step that makes symmetry arguments visible."
+        },
+        {
+          "kind": "text",
+          "value": "On a symmetric interval, the imaginary sine term often drops out when it multiplies an even weight, leaving only the cosine projection."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "e^{i\\phi} = \\cos \\phi + i\\sin \\phi",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "e^{-i\\phi} = \\cos \\phi - i\\sin \\phi",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\Re\\!\\left(e^{i\\phi}\\right) = \\cos \\phi, \\qquad \\Im\\!\\left(e^{i\\phi}\\right) = \\sin \\phi",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Substitution",
+      "rightTitle": "New Bounds",
+      "left": [
+        {
+          "kind": "text",
+          "value": "After a change of variables, the integration bounds must be rewritten in the new variable. Old x-bounds do not stay attached to du."
+        },
+        {
+          "kind": "text",
+          "value": "If u = h(x) is one-to-one on the interval, map the endpoints directly: the new lower bound is h(a) and the new upper bound is h(b)."
+        },
+        {
+          "kind": "text",
+          "value": "If the substitution is not one-to-one on the interval, split the integral into monotone pieces first. Otherwise one pair of new bounds does not describe the whole map correctly."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "u = h(x), \\qquad x = x(u), \\qquad dx = \\frac{dx}{du}\\,du",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_a^b f(x)\\,dx = \\int_{h(a)}^{h(b)} f(x(u))\\,\\frac{dx}{du}\\,du \\quad \\text{if } h \\text{ is one-to-one on } [a,b]",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\omega = Kr\\sin\\theta,\\ \\theta \\in \\left[-\\frac{\\pi}{2},\\frac{\\pi}{2}\\right] \\implies \\omega \\in [-Kr,Kr]",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "Equivalent viewpoint: solve the old support condition in terms of the remaining variable. That is why theta in a finite interval can turn into omega in minus K r to K r after the theta integral is collapsed."
+        }
+      ]
+    },
+    {
+      "leftTitle": "Trig Values",
+      "rightTitle": "Zero / One",
+      "left": [
+        {
+          "kind": "text",
+          "value": "These are the basic endpoint values that usually determine new bounds after a sine or cosine substitution."
+        },
+        {
+          "kind": "text",
+          "value": "On the locked branch from minus pi over 2 to pi over 2, sine reaches minus 1 and plus 1 at the endpoints, while cosine is 0 at the endpoints and 1 at theta equals 0."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\sin 0 = 0, \\qquad \\sin\\!\\left(\\frac{\\pi}{2}\\right)=1, \\qquad \\sin\\!\\left(-\\frac{\\pi}{2}\\right)=-1",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\cos 0 = 1, \\qquad \\cos\\!\\left(\\frac{\\pi}{2}\\right)=0, \\qquad \\cos\\!\\left(-\\frac{\\pi}{2}\\right)=0",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\sin \\theta = 1 \\iff \\theta = \\frac{\\pi}{2} \\text{ on } \\left[-\\frac{\\pi}{2},\\frac{\\pi}{2}\\right]",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\sin \\theta = -1 \\iff \\theta = -\\frac{\\pi}{2} \\text{ on } \\left[-\\frac{\\pi}{2},\\frac{\\pi}{2}\\right]",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Even / Odd",
+      "rightTitle": "Symmetry Rules",
+      "left": [
+        {
+          "kind": "text",
+          "value": "These definitions are what make symmetry cancellations precise. They show up whenever an integral is taken over a symmetric interval from minus a to plus a."
+        },
+        {
+          "kind": "text",
+          "value": "An odd integrand cancels between x and minus x, while an even integrand reinforces itself on both sides."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "f\\text{ is even } \\iff f(-x)=f(x)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "f\\text{ is odd } \\iff f(-x)=-f(x)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-A}^{A} f(x)\\,dx = 0 \\quad \\text{if } f \\text{ is odd}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-A}^{A} f(x)\\,dx = 2\\int_{0}^{A} f(x)\\,dx \\quad \\text{if } f \\text{ is even}",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

@@ -143,11 +143,52 @@ export type EquationsMathExpression =
     displayMode?: boolean;
   };
 
+export type EquationsPaneCardPresentation = "standard" | "piecewise" | "freeform";
+
+export interface EquationsPaneTextBlock {
+  kind: "text";
+  value: string;
+  visualizationFrame?: VisualizationFrameState;
+  visualizationLabel?: string;
+}
+
+export interface EquationsPaneMathBlock {
+  kind: "math";
+  latex: string;
+  displayMode?: boolean;
+}
+
+export interface EquationsPaneMappingsBlock {
+  kind: "mappings";
+  mappings: EquationsMappingEntry[];
+}
+
+export interface EquationsPaneSplitBlock {
+  kind: "split";
+  left: EquationsPaneCardBlock[];
+  right: EquationsPaneCardBlock[];
+  fractions?: [number, number];
+}
+
+export type EquationsPaneCardBlock =
+  | EquationsPaneTextBlock
+  | EquationsPaneMathBlock
+  | EquationsPaneMappingsBlock
+  | EquationsPaneSplitBlock;
+
+export interface EquationsPiecewiseRow {
+  expression: EquationsMappingEntry[];
+  condition?: EquationsMappingEntry[];
+}
+
 export interface EquationsPaneCard {
   title: string;
   body: string;
+  presentation?: EquationsPaneCardPresentation;
   math?: EquationsMathExpression;
   mappings?: EquationsMappingEntry[];
+  piecewiseRows?: EquationsPiecewiseRow[];
+  blocks?: EquationsPaneCardBlock[];
 }
 
 export interface EquationsPanePlacement {
@@ -191,6 +232,25 @@ export interface EquationsFrameGridItem extends EquationsPaneCell {
   id?: string;
 }
 
+export type EquationsDocumentPatternName = "parallel_walkthrough";
+
+export interface EquationsParallelWalkthroughStep {
+  left: EquationsPaneCardBlock[];
+  right: EquationsPaneCardBlock[];
+  leftTitle?: string;
+  rightTitle?: string;
+  fractions?: [number, number];
+}
+
+export interface EquationsParallelWalkthroughPattern {
+  pattern: "parallel_walkthrough";
+  title?: string;
+  introTitle?: string;
+  intro?: EquationsPaneCardBlock[];
+  fractions?: [number, number];
+  steps: EquationsParallelWalkthroughStep[];
+}
+
 export interface EquationsFrameGridDocument {
   spec: EquationsFrameGridSpec;
   items: EquationsFrameGridItem[];
@@ -201,7 +261,9 @@ export type EquationsHitBoxCategory =
   | "operator"
   | "function"
   | "delimiter"
-  | "summation";
+  | "summation"
+  | "branch"
+  | "condition";
 
 export interface EquationsHitBoxDefinition {
   id: string;
@@ -225,8 +287,20 @@ export interface EquationsPaneSelectedHitBox {
   hitBox: EquationsHitBoxDefinition;
 }
 
+export interface EquationsPaneSelectedTextHighlight {
+  itemId: string;
+  selectionId: string;
+  startOffset: number;
+  endOffset: number;
+  text: string;
+  contextBefore?: string;
+  contextAfter?: string;
+}
+
 export interface EquationsPaneContextState {
   selectedHitBox: EquationsPaneSelectedHitBox | null;
+  selectedTextHighlight: EquationsPaneSelectedTextHighlight | null;
+  visualizationFrame: VisualizationFrameState | null;
 }
 
 export interface EquationsPaneState {
@@ -240,8 +314,11 @@ export interface EquationsPaneState {
 export interface EquationsPaneCardPatch {
   title?: string;
   body?: string;
+  presentation?: EquationsPaneCardPresentation | null;
   math?: EquationsMathExpression | null;
   mappings?: EquationsMappingEntry[] | null;
+  piecewiseRows?: EquationsPiecewiseRow[] | null;
+  blocks?: EquationsPaneCardBlock[] | null;
 }
 
 export interface EquationsPanePlacementPatch {

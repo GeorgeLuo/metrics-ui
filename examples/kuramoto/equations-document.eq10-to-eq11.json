@@ -1,0 +1,782 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 10 -> Eq. 11",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "The point of this reduction is to turn Eq. 10 from a mixed locked-and-drifting expression into one real self-consistency relation for the synchronized part of the population."
+    },
+    {
+      "kind": "text",
+      "value": "Once it is in Eq. 11 form, the next move is simple: divide by the nonzero order parameter and expose the onset condition used in the following transformation."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "Eq. 10",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Start from Eq. 10. It writes the order parameter as a locked contribution plus a drifting contribution."
+        },
+        {
+          "kind": "text",
+          "value": "To reach Eq. 11, the derivation keeps the locked part and uses symmetry to remove the net drifting contribution."
+        }
+      ],
+      "right": [
+        {
+          "kind": "mappings",
+          "mappings": [
+            {
+              "kind": "latex",
+              "value": "r",
+              "hitBox": {
+                "id": "order_parameter_r",
+                "label": "order parameter",
+                "sequence": "r",
+                "category": "term",
+                "latex": "r"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "=",
+              "hitBox": {
+                "id": "equals",
+                "label": "equals",
+                "sequence": "equals",
+                "category": "operator",
+                "latex": "="
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}",
+              "hitBox": {
+                "id": "locked_domain",
+                "label": "locked integration domain",
+                "sequence": "the integral from minus pi over 2 to pi over 2 and the integral from minus infinity to plus infinity",
+                "category": "term",
+                "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "e^{i(\\theta-\\psi)}",
+              "hitBox": {
+                "id": "phase_factor",
+                "label": "phase factor",
+                "sequence": "e to the i times theta minus psi",
+                "category": "term",
+                "latex": "e^{i(\\theta-\\psi)}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]",
+              "hitBox": {
+                "id": "locked_constraint",
+                "label": "locked delta constraint",
+                "sequence": "delta of theta minus psi minus sine inverse of omega over K r",
+                "category": "function",
+                "latex": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "g(\\omega)",
+              "hitBox": {
+                "id": "frequency_density",
+                "label": "frequency density",
+                "sequence": "g of omega",
+                "category": "function",
+                "latex": "g(\\omega)"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "d\\theta\\,d\\omega",
+              "hitBox": {
+                "id": "locked_measure",
+                "label": "locked measure",
+                "sequence": "d theta d omega",
+                "category": "term",
+                "latex": "d\\theta\\,d\\omega"
+              }
+            },
+            {
+              "kind": "text",
+              "value": "\n"
+            },
+            {
+              "kind": "latex",
+              "value": "+",
+              "hitBox": {
+                "id": "plus",
+                "label": "plus",
+                "sequence": "plus",
+                "category": "operator",
+                "latex": "+"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}",
+              "hitBox": {
+                "id": "drift_domain",
+                "label": "drifting integration domain",
+                "sequence": "the integral from minus pi to pi and the integral over absolute value of omega greater than K r",
+                "category": "term",
+                "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "e^{i(\\theta-\\psi)}",
+              "hitBox": {
+                "id": "phase_factor",
+                "label": "phase factor",
+                "sequence": "e to the i times theta minus psi",
+                "category": "term",
+                "latex": "e^{i(\\theta-\\psi)}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}",
+              "hitBox": {
+                "id": "drift_density",
+                "label": "drifting density weight",
+                "sequence": "C g of omega over absolute value of omega minus K r sine of theta minus psi",
+                "category": "term",
+                "latex": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "d\\theta\\,d\\omega",
+              "hitBox": {
+                "id": "drift_measure",
+                "label": "drifting measure",
+                "sequence": "d theta d omega",
+                "category": "term",
+                "latex": "d\\theta\\,d\\omega"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Locked Part Only",
+      "left": [
+        {
+          "kind": "text",
+          "value": "For symmetric frequency distributions, the drifting branch contributes no net order parameter after averaging, so the derivation keeps only the locked branch."
+        },
+        {
+          "kind": "math",
+          "latex": "g(\\omega)=g(-\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "This is the standard centered case: after shifting into the rotating frame, positive and negative detunings are balanced, so the drifting oscillators do not produce a net contribution to the order parameter."
+        },
+        {
+          "kind": "text",
+          "value": "That leaves the delta-supported term from Eq. 10."
+        },
+        {
+          "kind": "text",
+          "value": "If the centered distribution is asymmetric, that cancellation is not exact, and Eq. 11 is no longer the correct reduced form by itself."
+        }
+      ],
+      "right": [
+        {
+          "kind": "mappings",
+          "mappings": [
+            {
+              "kind": "latex",
+              "value": "r",
+              "hitBox": {
+                "id": "order_parameter_r",
+                "label": "order parameter",
+                "sequence": "r",
+                "category": "term",
+                "latex": "r"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "=",
+              "hitBox": {
+                "id": "equals",
+                "label": "equals",
+                "sequence": "equals",
+                "category": "operator",
+                "latex": "="
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}",
+              "hitBox": {
+                "id": "locked_domain",
+                "label": "locked integration domain",
+                "sequence": "the integral from minus pi over 2 to pi over 2 and the integral from minus infinity to plus infinity",
+                "category": "term",
+                "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "e^{i(\\theta-\\psi)}",
+              "hitBox": {
+                "id": "phase_factor",
+                "label": "phase factor",
+                "sequence": "e to the i times theta minus psi",
+                "category": "term",
+                "latex": "e^{i(\\theta-\\psi)}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]",
+              "hitBox": {
+                "id": "locked_constraint",
+                "label": "locked delta constraint",
+                "sequence": "delta of theta minus psi minus sine inverse of omega over K r",
+                "category": "function",
+                "latex": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "g(\\omega)",
+              "hitBox": {
+                "id": "frequency_density",
+                "label": "frequency density",
+                "sequence": "g of omega",
+                "category": "function",
+                "latex": "g(\\omega)"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "d\\theta\\,d\\omega",
+              "hitBox": {
+                "id": "locked_measure",
+                "label": "locked measure",
+                "sequence": "d theta d omega",
+                "category": "term",
+                "latex": "d\\theta\\,d\\omega"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Collapse the Delta",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Use the delta identity to evaluate the theta integral at the locked phase selected by the constraint. The important point is that the delta fixes the combination theta minus psi, not theta by itself."
+        },
+        {
+          "kind": "math",
+          "latex": "\\int f(\\theta)\\,\\delta(\\theta-\\theta_*)\\,d\\theta = f(\\theta_*)",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "For the locked term, omega is treated as fixed while the theta integral is collapsed."
+        },
+        {
+          "kind": "text",
+          "value": "Because this delta is being evaluated on a finite locked interval, there is an extra assumption built into the step: the selected phase must actually fall inside the allowed theta window. If it does not, the theta integral contributes zero rather than the sampled value of the integrand."
+        },
+        {
+          "kind": "math",
+          "latex": "f(\\theta,\\omega)=e^{i(\\theta-\\psi)}g(\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\theta_*(\\omega)=\\psi+\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "So the delta piece in Eq. 10 plays the role of delta of theta minus theta star, and the rest of the locked integrand plays the role of f. When the delta fires, it enforces theta minus psi equals sine inverse of omega over K r."
+        },
+        {
+          "kind": "math",
+          "latex": "\\int e^{i(\\theta-\\psi)}g(\\omega)\\,\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right] d\\theta = e^{i(\\theta_*-\\psi)}g(\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "The theta integral disappears, but the omega integral remains. Substituting theta star equals psi plus sine inverse of omega over K r gives theta star minus psi equals sine inverse of omega over K r, so the psi terms cancel inside the exponent."
+        },
+        {
+          "kind": "math",
+          "latex": "\\theta_*(\\omega)-\\psi = \\left(\\psi+\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right)-\\psi",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "e^{i(\\theta_*-\\psi)} = e^{i\\sin^{-1}(\\omega/Kr)}",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "An equivalent shortcut is to substitute the selected locked phase directly back into f instead of looking only at the exponent."
+        },
+        {
+          "kind": "math",
+          "latex": "f(\\theta_*(\\omega),\\omega) = e^{i(\\theta_*(\\omega)-\\psi)}g(\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= e^{i\\left(\\psi+\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)-\\psi\\right)}g(\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= e^{i\\sin^{-1}(\\omega/Kr)}g(\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "You can now substitute that reduced theta integral back into the full locked term before changing the omega bounds. At that stage the omega integral is still written over the original full line, but only the locked region contributes."
+        },
+        {
+          "kind": "math",
+          "latex": "I(\\omega)=\\int_{-\\pi/2}^{\\pi/2} e^{i(\\theta-\\psi)}\\,\\delta\\!\\left(\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right)\\,d\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "=\\begin{cases}e^{i\\sin^{-1}(\\omega/Kr)},& -\\frac{\\pi}{2}\\le \\theta_*(\\omega)-\\psi\\le \\frac{\\pi}{2},\\\\ 0,& \\text{otherwise,}\\end{cases}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= e^{i\\sin^{-1}(\\omega/Kr)}\\,\\mathbf{1}_{|\\omega|\\le Kr}",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "This is why straight substitution by itself is incomplete. The sampled value is correct only on the support selected by the finite interval, and that support is what turns into the indicator and then into the new omega bounds."
+        },
+        {
+          "kind": "text",
+          "value": "Here bold 1 is the indicator function for the locked region: it equals 1 when the condition below holds, and 0 otherwise."
+        },
+        {
+          "kind": "math",
+          "latex": "\\mathbf{1}_{|\\omega|\\le Kr}=\\begin{cases}1,& |\\omega|\\le Kr,\\\\ 0,& |\\omega|>Kr.\\end{cases}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "r = \\int_{-\\infty}^{+\\infty} I(\\omega)\\,g(\\omega)\\,d\\omega",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= \\int_{-\\infty}^{+\\infty} e^{i\\sin^{-1}(\\omega/Kr)}\\,\\mathbf{1}_{|\\omega|\\le Kr}\\,g(\\omega)\\,d\\omega",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "The new omega bounds come from the old locked phase bounds. The delta-selected phase must still lie inside the allowed locked interval."
+        },
+        {
+          "kind": "math",
+          "latex": "-\\frac{\\pi}{2} \\le \\theta_* - \\psi \\le \\frac{\\pi}{2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "-\\frac{\\pi}{2} \\le \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right) \\le \\frac{\\pi}{2} \\iff -1 \\le \\frac{\\omega}{Kr} \\le 1",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\iff -Kr \\le \\omega \\le Kr",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "So only frequencies whose locked phase lands inside that interval survive the theta integration. That is why the remaining omega integral runs from minus K r to K r."
+        },
+        {
+          "kind": "text",
+          "value": "Now expand the sampled phase factor with Euler's formula instead of dropping it by hand."
+        },
+        {
+          "kind": "math",
+          "latex": "e^{i\\sin^{-1}(\\omega/Kr)} = \\cos\\!\\left(\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right) + i\\sin\\!\\left(\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= \\sqrt{1-\\left(\\frac{\\omega}{Kr}\\right)^2} + i\\,\\frac{\\omega}{Kr}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "r = \\int_{-Kr}^{Kr}\\!\\left[\\sqrt{1-\\left(\\frac{\\omega}{Kr}\\right)^2} + i\\,\\frac{\\omega}{Kr}\\right] g(\\omega)\\,d\\omega",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "Here odd in omega means the function changes sign when omega is replaced by minus omega: f of minus omega equals minus f of omega. Because g of omega is symmetric, g of minus omega equals g of omega, while omega over K r changes sign. So the imaginary part i times omega over K r times g of omega is an odd integrand.",
+          "visualizationLabel": "Open cancellation visualization",
+          "visualizationFrame": {
+            "mode": "plugin",
+            "pluginId": "kuramoto_symmetry_cancellation",
+            "name": "Kuramoto Symmetry Cancellation",
+            "captureId": "kuramoto-sim"
+          }
+        },
+        {
+          "kind": "math",
+          "latex": "\\left(\\frac{-\\omega}{Kr}\\right) g(-\\omega) = -\\left(\\frac{\\omega}{Kr}\\right) g(\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "Integrating an odd function over the symmetric interval from minus K r to K r gives zero, because the contribution at minus omega cancels the contribution at plus omega. Only the real cosine piece survives."
+        },
+        {
+          "kind": "math",
+          "latex": "r = \\int_{-Kr}^{Kr} \\sqrt{1-\\left(\\frac{\\omega}{Kr}\\right)^2}\\,g(\\omega)\\,d\\omega",
+          "displayMode": true
+        }
+      ],
+      "right": [
+        {
+          "kind": "mappings",
+          "mappings": [
+            {
+              "kind": "latex",
+              "value": "r",
+              "hitBox": {
+                "id": "order_parameter_r",
+                "label": "order parameter",
+                "sequence": "r",
+                "category": "term",
+                "latex": "r"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "=",
+              "hitBox": {
+                "id": "equals",
+                "label": "equals",
+                "sequence": "equals",
+                "category": "operator",
+                "latex": "="
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\int_{-Kr}^{Kr}",
+              "hitBox": {
+                "id": "collapsed_frequency_domain",
+                "label": "collapsed locked frequency domain",
+                "sequence": "the integral from minus K r to K r",
+                "category": "term",
+                "latex": "\\int_{-Kr}^{Kr}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\sqrt{1-\\left(\\frac{\\omega}{Kr}\\right)^2}",
+              "hitBox": {
+                "id": "cosine_from_locked_phase",
+                "label": "cosine of the locked phase",
+                "sequence": "the square root of one minus omega over K r quantity squared",
+                "category": "term",
+                "latex": "\\sqrt{1-\\left(\\frac{\\omega}{Kr}\\right)^2}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "g(\\omega)",
+              "hitBox": {
+                "id": "frequency_density",
+                "label": "frequency density",
+                "sequence": "g of omega",
+                "category": "function",
+                "latex": "g(\\omega)"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "d\\omega",
+              "hitBox": {
+                "id": "frequency_measure",
+                "label": "frequency measure",
+                "sequence": "d omega",
+                "category": "term",
+                "latex": "d\\omega"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 4",
+      "rightTitle": "Eq. 11",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Now change variables to the phase variable used in Eq. 11."
+        },
+        {
+          "kind": "math",
+          "latex": "\\omega = Kr\\sin \\theta, \\qquad d\\omega = Kr\\cos \\theta\\,d\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "The old omega bounds must now be rewritten in theta. On the locked branch, sine is one-to-one, so map the endpoints directly: omega equals minus K r gives theta equals minus pi over 2, and omega equals K r gives theta equals pi over 2."
+        },
+        {
+          "kind": "text",
+          "value": "The intuition is that on the locked branch theta stays between minus pi over 2 and pi over 2, and over exactly that interval sine runs from minus 1 to plus 1. So multiplying by K r makes omega run from minus K r to plus K r. Reaching the endpoint omega equals K r means sine theta must equal 1, which on this branch happens at theta equals pi over 2."
+        },
+        {
+          "kind": "math",
+          "latex": "\\omega=-Kr \\iff \\theta=-\\frac{\\pi}{2}, \\qquad \\omega=Kr \\iff \\theta=\\frac{\\pi}{2}",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "The square-root factor becomes a second cosine factor, so the integrand turns into the cosine-squared weight in Eq. 11."
+        }
+      ],
+      "right": [
+        {
+          "kind": "mappings",
+          "mappings": [
+            {
+              "kind": "latex",
+              "value": "r",
+              "hitBox": {
+                "id": "order_parameter_r",
+                "label": "order parameter",
+                "sequence": "r",
+                "category": "term",
+                "latex": "r"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "=",
+              "hitBox": {
+                "id": "equals",
+                "label": "equals",
+                "sequence": "equals",
+                "category": "operator",
+                "latex": "="
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "K",
+              "hitBox": {
+                "id": "coupling_strength",
+                "label": "coupling strength",
+                "sequence": "K",
+                "category": "term",
+                "latex": "K"
+              }
+            },
+            {
+              "kind": "latex",
+              "value": "r",
+              "hitBox": {
+                "id": "order_parameter_r",
+                "label": "order parameter",
+                "sequence": "r",
+                "category": "term",
+                "latex": "r"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\int_{-\\pi/2}^{\\pi/2}",
+              "hitBox": {
+                "id": "reduced_phase_domain",
+                "label": "phase domain",
+                "sequence": "the integral from minus pi over 2 to pi over 2",
+                "category": "term",
+                "latex": "\\int_{-\\pi/2}^{\\pi/2}"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "\\cos^2 \\theta",
+              "hitBox": {
+                "id": "cosine_projection",
+                "label": "cosine projection weight",
+                "sequence": "cosine squared theta",
+                "category": "term",
+                "latex": "\\cos^2 \\theta"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "g(Kr\\sin \\theta)",
+              "hitBox": {
+                "id": "reduced_distribution_sample",
+                "label": "reduced distribution sample",
+                "sequence": "g of K r sine theta",
+                "category": "function",
+                "latex": "g(Kr\\sin \\theta)"
+              }
+            },
+            {
+              "kind": "text",
+              "value": " "
+            },
+            {
+              "kind": "latex",
+              "value": "d\\theta",
+              "hitBox": {
+                "id": "reduced_phase_measure",
+                "label": "phase measure",
+                "sequence": "d theta",
+                "category": "term",
+                "latex": "d\\theta"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
