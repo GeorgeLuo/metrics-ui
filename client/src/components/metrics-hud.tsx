@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { SubappFloatingFrame } from "@/components/floating-frame";
 import type { SelectedMetric, DataPoint, CaptureSession } from "@shared/schema";
+import { DASHBOARD_STORAGE_KEYS } from "@/lib/dashboard/storage";
 import { cn } from "@/lib/utils";
 import { sanitizeMetricPathKey } from "@/lib/dashboard/metric-utils";
 
@@ -67,6 +68,7 @@ export function MetricsHUD({
       containerRef={containerRef}
       defaultPosition={HUD_DEFAULT_POSITION}
       dataTestId="metrics-hud"
+      stateStorageKey={DASHBOARD_STORAGE_KEYS.metricsHudFrame}
       className="min-w-[176px] max-w-[360px] border-0 bg-background/80 text-foreground shadow-md backdrop-blur-sm"
       headerClassName="border-b-0 px-2 py-1"
       titleClassName="font-mono tracking-tight text-muted-foreground"

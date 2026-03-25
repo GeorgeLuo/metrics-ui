@@ -827,11 +827,17 @@ export function InjectedVisualization({
       ? frame.pluginId.trim()
       : "";
   const isPluginMode = frame.mode === "plugin";
+  const emptyStateMessage =
+    runtimeError ?? (isPluginMode ? "Loading visualization plugin..." : "No visualization runtime script loaded.");
 
   useEffect(() => {
     setRenderReport(null);
     setRenderReportCount(0);
   }, [isPluginMode, pluginId]);
+
+  useEffect(() => {
+    setIsIframeReady(false);
+  }, [isPluginMode, pluginId, runtime?.runtimeScript]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1089,37 +1095,38 @@ export function InjectedVisualization({
   ]);
 
   return (
-    <div ref={containerRef} className="relative h-full min-h-[220px] w-full rounded-sm border border-slate-400/60 bg-slate-100/80 overflow-hidden">
-      <iframe
-        ref={iframeRef}
-        title={frame.name?.trim() || runtime?.name || "Injected Visualization Plugin"}
-        sandbox="allow-scripts"
-        srcDoc={srcDoc}
-        className="h-full w-full border-0 bg-transparent"
-        onLoad={() => {
-          setIsIframeReady(true);
-          const frameWindow = iframeRef.current?.contentWindow;
-          if (frameWindow && runtime) {
-            try {
-              frameWindow.postMessage(messagePayload, "*");
-              setRuntimeError((prev) =>
-                prev && prev.startsWith("Failed to post frame message:") ? null : prev,
-              );
-            } catch (error) {
-              setRuntimeError(
-                error instanceof Error
-                  ? `Failed to post frame message: ${error.message}`
-                  : "Failed to post frame message.",
-              );
+    <div ref={containerRef} className="relative h-full min-h-0 w-full rounded-sm border border-slate-400/60 bg-slate-100/80 overflow-hidden">
+      {runtime ? (
+        <iframe
+          ref={iframeRef}
+          title={frame.name?.trim() || runtime?.name || "Injected Visualization Plugin"}
+          sandbox="allow-scripts"
+          srcDoc={srcDoc}
+          className="h-full w-full border-0 bg-transparent"
+          onLoad={() => {
+            setIsIframeReady(true);
+            const frameWindow = iframeRef.current?.contentWindow;
+            if (frameWindow && runtime) {
+              try {
+                frameWindow.postMessage(messagePayload, "*");
+                setRuntimeError((prev) =>
+                  prev && prev.startsWith("Failed to post frame message:") ? null : prev,
+                );
+              } catch (error) {
+                setRuntimeError(
+                  error instanceof Error
+                    ? `Failed to post frame message: ${error.message}`
+                    : "Failed to post frame message.",
+                );
+              }
             }
-          }
-        }}
-      />
-      {!runtime ? (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center text-[11px] text-black/70">
-          {runtimeError ?? (isPluginMode ? "Loading visualization plugin..." : "No visualization plugin active.")}
+          }}
+        />
+      ) : (
+        <div className="absolute inset-0 grid place-items-center bg-slate-100/80 px-4 text-center text-[11px] text-black/70">
+          <div>{emptyStateMessage}</div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

@@ -11,16 +11,39 @@ import {
 import { ExternalLink, GripVertical, Minimize2 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { buildPopoutWindowFeatures } from "@/lib/popout-window";
+import { readStorageJson, writeStorageJson } from "@/lib/dashboard/storage";
 import { cn } from "@/lib/utils";
 
 type Point = { x: number; y: number };
+type Size = { width: number; height: number };
 type FloatingFramePositionMode = "viewport" | "container";
+type FloatingFrameStoredState = {
+  position: Point;
+  minimized: boolean;
+  size?: Size;
+};
+type FloatingFrameResizeDirection =
+  | "n"
+  | "s"
+  | "e"
+  | "w"
+  | "ne"
+  | "nw"
+  | "se"
+  | "sw";
+type FloatingFrameBounds = {
+  leftMin: number;
+  topMin: number;
+  rightMax: number;
+  bottomMax: number;
+};
 
 export interface FloatingFrameProps {
   title: string;
   children?: ReactNode;
   isVisible?: boolean;
   defaultPosition?: Point;
+  defaultSize?: Size;
   className?: string;
   contentClassName?: string;
   headerClassName?: string;
@@ -41,10 +64,56 @@ export interface FloatingFrameProps {
   containerRef?: RefObject<HTMLElement | null>;
   contentMinHeight?: number;
   dragHint?: string;
+  stateStorageKey?: string;
+  resizable?: boolean;
+  minSize?: Size;
+  resizeHint?: string;
 }
 
 const DEFAULT_POSITION: Point = { x: 24, y: 72 };
+const DEFAULT_RESIZE_MIN_SIZE: Size = { width: 260, height: 160 };
 const VIEWPORT_PADDING = 8;
+
+function isPoint(value: unknown): value is Point {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && typeof (value as Point).x === "number"
+    && Number.isFinite((value as Point).x)
+    && typeof (value as Point).y === "number"
+    && Number.isFinite((value as Point).y),
+  );
+}
+
+function isSize(value: unknown): value is Size {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && typeof (value as Size).width === "number"
+    && Number.isFinite((value as Size).width)
+    && typeof (value as Size).height === "number"
+    && Number.isFinite((value as Size).height),
+  );
+}
+
+function readFloatingFrameStoredState(storageKey: string | undefined): FloatingFrameStoredState | null {
+  if (!storageKey) {
+    return null;
+  }
+  const raw = readStorageJson<unknown>(storageKey);
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const candidate = raw as Partial<FloatingFrameStoredState>;
+  if (!isPoint(candidate.position) || typeof candidate.minimized !== "boolean") {
+    return null;
+  }
+  return {
+    position: candidate.position,
+    minimized: candidate.minimized,
+    ...(isSize(candidate.size) ? { size: candidate.size } : {}),
+  };
+}
 
 function resolveContainerNode(
   containerRef: RefObject<HTMLElement | null> | undefined,
@@ -57,6 +126,34 @@ function resolveContainerNode(
     return frame.offsetParent;
   }
   return null;
+}
+
+function getFloatingFrameBounds(
+  positionMode: FloatingFramePositionMode,
+  containerRef?: RefObject<HTMLElement | null>,
+  frame?: HTMLDivElement | null,
+): FloatingFrameBounds | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  if (positionMode === "container") {
+    const container = resolveContainerNode(containerRef, frame ?? null);
+    if (!container) {
+      return null;
+    }
+    return {
+      leftMin: 0,
+      topMin: 0,
+      rightMax: container.clientWidth,
+      bottomMax: container.clientHeight,
+    };
+  }
+  return {
+    leftMin: VIEWPORT_PADDING,
+    topMin: VIEWPORT_PADDING,
+    rightMax: window.innerWidth - VIEWPORT_PADDING,
+    bottomMax: window.innerHeight - VIEWPORT_PADDING,
+  };
 }
 
 function clampPosition(
@@ -90,11 +187,89 @@ function clampPosition(
   };
 }
 
+function clampFloatingFrameRect(
+  rect: { position: Point; size: Size },
+  minSize: Size,
+  positionMode: FloatingFramePositionMode,
+  containerRef?: RefObject<HTMLElement | null>,
+  frame?: HTMLDivElement | null,
+): { position: Point; size: Size } {
+  const bounds = getFloatingFrameBounds(positionMode, containerRef, frame);
+  if (!bounds) {
+    return rect;
+  }
+
+  const maxWidth = Math.max(minSize.width, bounds.rightMax - bounds.leftMin);
+  const maxHeight = Math.max(minSize.height, bounds.bottomMax - bounds.topMin);
+  const width = Math.min(Math.max(minSize.width, rect.size.width), maxWidth);
+  const height = Math.min(Math.max(minSize.height, rect.size.height), maxHeight);
+  const x = Math.min(Math.max(bounds.leftMin, rect.position.x), bounds.rightMax - width);
+  const y = Math.min(Math.max(bounds.topMin, rect.position.y), bounds.bottomMax - height);
+
+  return {
+    position: { x, y },
+    size: { width, height },
+  };
+}
+
+function resolveResizeRect(
+  direction: FloatingFrameResizeDirection,
+  startPosition: Point,
+  startSize: Size,
+  pointerDelta: Point,
+  minSize: Size,
+  bounds: FloatingFrameBounds,
+): { position: Point; size: Size } {
+  const startLeft = startPosition.x;
+  const startTop = startPosition.y;
+  const startRight = startPosition.x + startSize.width;
+  const startBottom = startPosition.y + startSize.height;
+
+  let nextLeft = startLeft;
+  let nextRight = startRight;
+  let nextTop = startTop;
+  let nextBottom = startBottom;
+
+  if (direction.includes("e")) {
+    nextRight = Math.min(
+      bounds.rightMax,
+      Math.max(startLeft + minSize.width, startRight + pointerDelta.x),
+    );
+  }
+  if (direction.includes("w")) {
+    nextLeft = Math.max(
+      bounds.leftMin,
+      Math.min(startRight - minSize.width, startLeft + pointerDelta.x),
+    );
+  }
+  if (direction.includes("s")) {
+    nextBottom = Math.min(
+      bounds.bottomMax,
+      Math.max(startTop + minSize.height, startBottom + pointerDelta.y),
+    );
+  }
+  if (direction.includes("n")) {
+    nextTop = Math.max(
+      bounds.topMin,
+      Math.min(startBottom - minSize.height, startTop + pointerDelta.y),
+    );
+  }
+
+  return {
+    position: { x: nextLeft, y: nextTop },
+    size: {
+      width: nextRight - nextLeft,
+      height: nextBottom - nextTop,
+    },
+  };
+}
+
 export function FloatingFrame({
   title,
   children,
   isVisible = true,
   defaultPosition = DEFAULT_POSITION,
+  defaultSize,
   className,
   contentClassName,
   headerClassName,
@@ -115,14 +290,33 @@ export function FloatingFrame({
   containerRef,
   contentMinHeight = 140,
   dragHint = "Drag this frame anywhere on the page.",
+  stateStorageKey,
+  resizable = false,
+  minSize,
+  resizeHint = "Drag the frame edge to resize.",
 }: FloatingFrameProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragOffset = useRef<Point>({ x: 0, y: 0 });
   const popoutWindowRef = useRef<Window | null>(null);
   const popoutContainerRef = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState<Point>(defaultPosition);
+  const sizeStateEnabled = resizable || isSize(defaultSize);
+  const resolvedMinSize = {
+    width: minSize?.width ?? DEFAULT_RESIZE_MIN_SIZE.width,
+    height: minSize?.height ?? Math.max(DEFAULT_RESIZE_MIN_SIZE.height, contentMinHeight + 36),
+  };
+  const [position, setPosition] = useState<Point>(() =>
+    readFloatingFrameStoredState(stateStorageKey)?.position ?? defaultPosition,
+  );
+  const [size, setSize] = useState<Size | null>(() =>
+    sizeStateEnabled
+      ? readFloatingFrameStoredState(stateStorageKey)?.size ?? defaultSize ?? null
+      : null,
+  );
   const [isDragging, setIsDragging] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(defaultMinimized);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isMinimized, setIsMinimized] = useState<boolean>(() =>
+    readFloatingFrameStoredState(stateStorageKey)?.minimized ?? defaultMinimized,
+  );
   const [isPoppedOut, setIsPoppedOut] = useState(false);
   const lastDockRequestTokenRef = useRef<number | undefined>(dockRequestToken);
 
@@ -229,22 +423,67 @@ export function FloatingFrame({
   }, [closePopout, isPoppedOut, openPopout]);
 
   useEffect(() => {
-    setPosition(defaultPosition);
-  }, [defaultPosition.x, defaultPosition.y]);
+    const stored = readFloatingFrameStoredState(stateStorageKey);
+    setPosition(stored?.position ?? defaultPosition);
+    setIsMinimized(stored?.minimized ?? defaultMinimized);
+    setSize(sizeStateEnabled ? stored?.size ?? defaultSize ?? null : null);
+  }, [
+    defaultMinimized,
+    defaultPosition.x,
+    defaultPosition.y,
+    defaultSize?.height,
+    defaultSize?.width,
+    sizeStateEnabled,
+    stateStorageKey,
+  ]);
+
+  useEffect(() => {
+    if (!stateStorageKey) {
+      return;
+    }
+    writeStorageJson(stateStorageKey, {
+      position,
+      minimized: isMinimized,
+      ...(sizeStateEnabled && size ? { size } : {}),
+    } satisfies FloatingFrameStoredState);
+  }, [isMinimized, position, size, sizeStateEnabled, stateStorageKey]);
+
+  const syncFrameBounds = useCallback(() => {
+    if (!size) {
+      setPosition((prev) => {
+        const next = clampPosition(frameRef.current, prev, positionMode, containerRef);
+        return next.x === prev.x && next.y === prev.y ? prev : next;
+      });
+      return;
+    }
+    const next = clampFloatingFrameRect(
+      { position, size },
+      resolvedMinSize,
+      positionMode,
+      containerRef,
+      frameRef.current,
+    );
+    if (next.position.x !== position.x || next.position.y !== position.y) {
+      setPosition(next.position);
+    }
+    if (next.size.width !== size.width || next.size.height !== size.height) {
+      setSize(next.size);
+    }
+  }, [containerRef, position, positionMode, resolvedMinSize, size]);
 
   useLayoutEffect(() => {
     if (!isVisible || isPoppedOut) {
       return;
     }
-    setPosition((prev) => clampPosition(frameRef.current, prev, positionMode, containerRef));
-  }, [containerRef, isVisible, isPoppedOut, positionMode]);
+    syncFrameBounds();
+  }, [isVisible, isPoppedOut, syncFrameBounds]);
 
   useEffect(() => {
     if (!isVisible || isPoppedOut) {
       return;
     }
     const handleResize = () => {
-      setPosition((prev) => clampPosition(frameRef.current, prev, positionMode, containerRef));
+      syncFrameBounds();
     };
     const container = resolveContainerNode(containerRef, frameRef.current);
     const observer =
@@ -262,7 +501,7 @@ export function FloatingFrame({
       observer?.disconnect();
       window.removeEventListener("resize", handleResize);
     };
-  }, [containerRef, isVisible, isPoppedOut, positionMode]);
+  }, [containerRef, isVisible, isPoppedOut, positionMode, syncFrameBounds]);
 
   useEffect(() => {
     if (!isPoppedOut) {
@@ -356,9 +595,91 @@ export function FloatingFrame({
     [containerRef, isPoppedOut, position.x, position.y, positionMode],
   );
 
+  const handleResizeStart = useCallback(
+    (direction: FloatingFrameResizeDirection) =>
+      (event: ReactPointerEvent<HTMLButtonElement>) => {
+        if (isPoppedOut) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+
+        const bounds = getFloatingFrameBounds(positionMode, containerRef, frameRef.current);
+        if (!bounds) {
+          return;
+        }
+        const pointerId = event.pointerId;
+        const startPosition = position;
+        const measuredSize =
+          size ?? {
+            width: frameRef.current?.offsetWidth ?? resolvedMinSize.width,
+            height: frameRef.current?.offsetHeight ?? resolvedMinSize.height,
+          };
+
+        try {
+          event.currentTarget.setPointerCapture(pointerId);
+        } catch {
+          // no-op
+        }
+        setIsResizing(true);
+
+        const handleResizeMove = (moveEvent: PointerEvent | MouseEvent) => {
+          const next = resolveResizeRect(
+            direction,
+            startPosition,
+            measuredSize,
+            {
+              x: moveEvent.clientX - event.clientX,
+              y: moveEvent.clientY - event.clientY,
+            },
+            resolvedMinSize,
+            bounds,
+          );
+          setPosition(next.position);
+          setSize(next.size);
+        };
+
+        const handleResizeEnd = () => {
+          setIsResizing(false);
+          window.removeEventListener("pointermove", handleResizeMove as EventListener);
+          window.removeEventListener("pointerup", handleResizeEnd);
+          window.removeEventListener("pointercancel", handleResizeEnd);
+          window.removeEventListener("blur", handleResizeEnd);
+          document.removeEventListener("mouseleave", handleResizeEnd);
+          try {
+            event.currentTarget.releasePointerCapture(pointerId);
+          } catch {
+            // no-op
+          }
+        };
+
+        window.addEventListener("pointermove", handleResizeMove as EventListener, { passive: true });
+        window.addEventListener("pointerup", handleResizeEnd);
+        window.addEventListener("pointercancel", handleResizeEnd);
+        window.addEventListener("blur", handleResizeEnd);
+        document.addEventListener("mouseleave", handleResizeEnd);
+      },
+    [containerRef, isPoppedOut, position, positionMode, resolvedMinSize, size],
+  );
+
   if (!isVisible) {
     return null;
   }
+
+  const resizeHandles: Array<{
+    direction: FloatingFrameResizeDirection;
+    className: string;
+    cursor: string;
+  }> = [
+    { direction: "n", className: "left-3 right-3 top-0 h-1.5", cursor: "ns-resize" },
+    { direction: "s", className: "bottom-0 left-3 right-3 h-1.5", cursor: "ns-resize" },
+    { direction: "e", className: "right-0 top-3 bottom-3 w-1.5", cursor: "ew-resize" },
+    { direction: "w", className: "left-0 top-3 bottom-3 w-1.5", cursor: "ew-resize" },
+    { direction: "ne", className: "right-0 top-0 h-3.5 w-3.5", cursor: "nesw-resize" },
+    { direction: "nw", className: "left-0 top-0 h-3.5 w-3.5", cursor: "nwse-resize" },
+    { direction: "se", className: "bottom-0 right-0 h-3.5 w-3.5", cursor: "nwse-resize" },
+    { direction: "sw", className: "bottom-0 left-0 h-3.5 w-3.5", cursor: "nesw-resize" },
+  ];
 
   const content = (
     <div
@@ -384,7 +705,14 @@ export function FloatingFrame({
           : {
               left: position.x,
               top: position.y,
-              cursor: isDragging ? "grabbing" : "default",
+              cursor: isDragging ? "grabbing" : isResizing ? "grabbing" : "default",
+              ...(size
+                ? {
+                    width: `${size.width}px`,
+                    height: isMinimized ? "auto" : `${size.height}px`,
+                    maxWidth: "none",
+                  }
+                : {}),
               ...(isMinimized
                 ? {
                     height: "auto",
@@ -463,6 +791,21 @@ export function FloatingFrame({
         >
           {children}
         </div>
+      ) : null}
+      {!isPoppedOut && resizable && !isMinimized ? (
+        <>
+          {resizeHandles.map((handle) => (
+            <button
+              key={handle.direction}
+              type="button"
+              className={cn("absolute z-20 block bg-transparent p-0", handle.className)}
+              style={{ cursor: handle.cursor }}
+              onPointerDown={handleResizeStart(handle.direction)}
+              aria-label={`Resize ${title}`}
+              data-hint={resizeHint}
+            />
+          ))}
+        </>
       ) : null}
     </div>
   );
