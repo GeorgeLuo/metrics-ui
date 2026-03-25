@@ -129,11 +129,14 @@ function resolveHintFromTarget(target: EventTarget | null): string {
   if (!isLikelyInteractive(candidate)) {
     return DEFAULT_HINT;
   }
+  const explicitHint = normalizeLabelText(candidate.getAttribute("data-hint") || "");
+  if (explicitHint) {
+    return explicitHint;
+  }
   const tag = candidate.tagName.toLowerCase();
   const role = (candidate.getAttribute("role") || "").toLowerCase();
   const intentText = [
     candidate.getAttribute("data-testid") || "",
-    candidate.getAttribute("data-hint") || "",
     candidate.getAttribute("aria-label") || "",
     candidate.getAttribute("title") || "",
     candidate.getAttribute("placeholder") || "",
