@@ -1,0 +1,84 @@
+{
+  "id": "kuramoto",
+  "label": "Kuramoto",
+  "description": "Kuramoto equations, derivations, and reference topics.",
+  "topics": [
+    {
+      "id": "kuramoto-model",
+      "label": "Kuramoto model",
+      "description": "Inspect the canonical Kuramoto evolution equation.",
+      "format": "semantic_layout",
+      "path": "./equations-content.model.json"
+    },
+    {
+      "id": "kuramoto-eq5",
+      "label": "Equation 5",
+      "description": "Inspect the complex order parameter definition.",
+      "format": "semantic_layout",
+      "path": "./equations-content.eq5.json"
+    },
+    {
+      "id": "kuramoto-eq9",
+      "label": "Equation 9",
+      "description": "Inspect the stationary density split into locked and drifting branches.",
+      "format": "semantic_layout",
+      "path": "./equations-content.eq9.json"
+    },
+    {
+      "id": "kuramoto-eq10",
+      "label": "Equation 10",
+      "description": "Inspect the self-consistency equation for the order parameter.",
+      "format": "semantic_layout",
+      "path": "./equations-content.eq10.json"
+    },
+    {
+      "id": "kuramoto-eq11",
+      "label": "Equation 11",
+      "description": "Inspect the reduced locked-oscillator self-consistency equation.",
+      "format": "semantic_layout",
+      "path": "./equations-content.eq11.json"
+    },
+    {
+      "id": "kuramoto-eq12-critical-coupling",
+      "label": "Eq. 12: Critical Coupling",
+      "description": "Physical meaning of the onset threshold K_c and the incoherent versus synchronized states.",
+      "format": "freeform",
+      "path": "./equations-document.eq12-critical-coupling.json"
+    },
+    {
+      "id": "kuramoto-eq5-eq9-to-eq10",
+      "label": "Eq. 5 + Eq. 9 -> Eq. 10",
+      "description": "Walk through how Eq. 5 and Eq. 9 combine into Eq. 10.",
+      "format": "derivation",
+      "path": "./equations-document.eq5-eq9-to-eq10.json"
+    },
+    {
+      "id": "kuramoto-eq10-variables",
+      "label": "Eq. 10 Addendum: Variables",
+      "description": "Glossary-style addendum for the variables and functions appearing in Eq. 10.",
+      "format": "freeform",
+      "path": "./equations-document.eq10-variables.json"
+    },
+    {
+      "id": "kuramoto-eq10-to-eq11",
+      "label": "Eq. 10 -> Eq. 11",
+      "description": "Walk through how the locked part of Eq. 10 reduces to Eq. 11.",
+      "format": "derivation",
+      "path": "./equations-document.eq10-to-eq11.json"
+    },
+    {
+      "id": "kuramoto-invalid-intermediate-form",
+      "label": "Theta Bounds vs Omega Bounds",
+      "description": "See why angle bounds only reappear after changing variables from omega to an angle.",
+      "format": "freeform",
+      "path": "./equations-document.invalid-intermediate-form.json"
+    },
+    {
+      "id": "identities-cheatsheet",
+      "label": "Identities Cheatsheet",
+      "description": "Quick reference for derivation identities like the Dirac delta rule, Euler's identity, and odd/even symmetry.",
+      "format": "freeform",
+      "path": "./equations-document.identities-cheatsheet.json"
+    }
+  ]
+}

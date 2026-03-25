@@ -1,0 +1,419 @@
+{
+  "workspace": {
+    "presentation": "piecewise",
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "\\rho",
+        "hitBox": {
+          "id": "density_rho",
+          "label": "stationary density",
+          "sequence": "rho",
+          "category": "term",
+          "latex": "\\rho"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "="
+      }
+    ],
+    "piecewiseRows": [
+      {
+        "expression": [
+          {
+            "kind": "latex",
+            "value": "\\delta",
+            "hitBox": {
+              "id": "locked_dirac",
+              "label": "locked delta branch",
+              "sequence": "delta",
+              "category": "branch",
+              "latex": "\\delta"
+            }
+          },
+          {
+            "kind": "latex",
+            "value": "\\left[\\theta - \\psi - \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]",
+            "hitBox": {
+              "id": "locked_phase_offset",
+              "label": "locked phase offset",
+              "sequence": "theta minus psi minus sine inverse of omega over K r",
+              "category": "term",
+              "latex": "\\left[\\theta - \\psi - \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+            }
+          },
+          {
+            "kind": "text",
+            "value": " "
+          },
+          {
+            "kind": "latex",
+            "value": "H(\\cos \\theta)",
+            "hitBox": {
+              "id": "heaviside_gate",
+              "label": "Heaviside gate",
+              "sequence": "H of cosine theta",
+              "category": "function",
+              "latex": "H(\\cos \\theta)"
+            }
+          }
+        ],
+        "condition": [
+          {
+            "kind": "latex",
+            "value": "|\\omega| < Kr",
+            "hitBox": {
+              "id": "locked_condition",
+              "label": "locking condition",
+              "sequence": "absolute value of omega less than K r",
+              "category": "condition",
+              "latex": "|\\omega| < Kr"
+            }
+          }
+        ]
+      },
+      {
+        "expression": [
+          {
+            "kind": "latex",
+            "value": "\\frac{C}{\\left|\\omega - Kr\\sin(\\theta - \\psi)\\right|}",
+            "hitBox": {
+              "id": "drifting_density",
+              "label": "drifting density branch",
+              "sequence": "C over absolute value of omega minus K r sine of theta minus psi",
+              "category": "branch",
+              "latex": "\\frac{C}{\\left|\\omega - Kr\\sin(\\theta - \\psi)\\right|}"
+            }
+          }
+        ],
+        "condition": [
+          {
+            "kind": "latex",
+            "value": "\\text{elsewhere.}",
+            "hitBox": {
+              "id": "drifting_condition",
+              "label": "elsewhere branch condition",
+              "sequence": "elsewhere",
+              "category": "condition",
+              "latex": "\\text{elsewhere.}"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "rho equals, piecewise:\n"
+      },
+      {
+        "kind": "text",
+        "value": "delta",
+        "hitBox": {
+          "id": "locked_dirac",
+          "label": "locked delta branch",
+          "sequence": "delta",
+          "category": "branch",
+          "latex": "\\delta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " of "
+      },
+      {
+        "kind": "text",
+        "value": "theta minus psi minus sine inverse of omega over K r",
+        "hitBox": {
+          "id": "locked_phase_offset",
+          "label": "locked phase offset",
+          "sequence": "theta minus psi minus sine inverse of omega over K r",
+          "category": "term",
+          "latex": "\\left[\\theta - \\psi - \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", times "
+      },
+      {
+        "kind": "text",
+        "value": "H of cosine theta",
+        "hitBox": {
+          "id": "heaviside_gate",
+          "label": "Heaviside gate",
+          "sequence": "H of cosine theta",
+          "category": "function",
+          "latex": "H(\\cos \\theta)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", when "
+      },
+      {
+        "kind": "text",
+        "value": "absolute value of omega is less than K r",
+        "hitBox": {
+          "id": "locked_condition",
+          "label": "locking condition",
+          "sequence": "absolute value of omega less than K r",
+          "category": "condition",
+          "latex": "|\\omega| < Kr"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ";\n"
+      },
+      {
+        "kind": "text",
+        "value": "C over absolute value of omega minus K r sine of theta minus psi",
+        "hitBox": {
+          "id": "drifting_density",
+          "label": "drifting density branch",
+          "sequence": "C over absolute value of omega minus K r sine of theta minus psi",
+          "category": "branch",
+          "latex": "\\frac{C}{\\left|\\omega - Kr\\sin(\\theta - \\psi)\\right|}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", "
+      },
+      {
+        "kind": "text",
+        "value": "elsewhere",
+        "hitBox": {
+          "id": "drifting_condition",
+          "label": "elsewhere branch condition",
+          "sequence": "elsewhere",
+          "category": "condition",
+          "latex": "\\text{elsewhere.}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": "."
+      },
+      {
+        "kind": "text",
+        "value": "\n\nThe equation is explicitly piecewise: the first line is the locked regime and the second line is the drifting regime."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 9 defines "
+      },
+      {
+        "kind": "text",
+        "value": "rho",
+        "hitBox": {
+          "id": "density_rho",
+          "label": "stationary density",
+          "sequence": "rho",
+          "category": "term",
+          "latex": "\\rho"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " as a piecewise stationary density. In the locked regime, a "
+      },
+      {
+        "kind": "text",
+        "value": "delta branch",
+        "hitBox": {
+          "id": "locked_dirac",
+          "label": "locked delta branch",
+          "sequence": "delta branch",
+          "category": "branch",
+          "latex": "\\delta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " places all density at the "
+      },
+      {
+        "kind": "text",
+        "value": "locked phase offset",
+        "hitBox": {
+          "id": "locked_phase_offset",
+          "label": "locked phase offset",
+          "sequence": "locked phase offset",
+          "category": "term",
+          "latex": "\\left[\\theta - \\psi - \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". The "
+      },
+      {
+        "kind": "text",
+        "value": "Heaviside gate",
+        "hitBox": {
+          "id": "heaviside_gate",
+          "label": "Heaviside gate",
+          "sequence": "Heaviside gate",
+          "category": "function",
+          "latex": "H(\\cos \\theta)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " keeps the stable cosine-positive branch and the "
+      },
+      {
+        "kind": "text",
+        "value": "locking condition",
+        "hitBox": {
+          "id": "locked_condition",
+          "label": "locking condition",
+          "sequence": "locking condition",
+          "category": "condition",
+          "latex": "|\\omega| < Kr"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " says exactly when oscillators belong there. Otherwise the "
+      },
+      {
+        "kind": "text",
+        "value": "drifting density branch",
+        "hitBox": {
+          "id": "drifting_density",
+          "label": "drifting density branch",
+          "sequence": "drifting density branch",
+          "category": "branch",
+          "latex": "\\frac{C}{\\left|\\omega - Kr\\sin(\\theta - \\psi)\\right|}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " applies "
+      },
+      {
+        "kind": "text",
+        "value": "elsewhere",
+        "hitBox": {
+          "id": "drifting_condition",
+          "label": "elsewhere branch condition",
+          "sequence": "elsewhere",
+          "category": "condition",
+          "latex": "\\text{elsewhere.}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", weighting phases inversely to their instantaneous angular speed."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Conceptually, equation 9 says a partially synchronized population must be described by two different measures at once: a "
+      },
+      {
+        "kind": "text",
+        "value": "delta branch",
+        "hitBox": {
+          "id": "locked_dirac",
+          "label": "locked delta branch",
+          "sequence": "delta branch",
+          "category": "branch",
+          "latex": "\\delta"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " for oscillators trapped at a "
+      },
+      {
+        "kind": "text",
+        "value": "locked phase offset",
+        "hitBox": {
+          "id": "locked_phase_offset",
+          "label": "locked phase offset",
+          "sequence": "locked phase offset",
+          "category": "term",
+          "latex": "\\left[\\theta - \\psi - \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " when the "
+      },
+      {
+        "kind": "text",
+        "value": "locking condition",
+        "hitBox": {
+          "id": "locked_condition",
+          "label": "locking condition",
+          "sequence": "locking condition",
+          "category": "condition",
+          "latex": "|\\omega| < Kr"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " holds, and a continuous "
+      },
+      {
+        "kind": "text",
+        "value": "drifting density branch",
+        "hitBox": {
+          "id": "drifting_density",
+          "label": "drifting density branch",
+          "sequence": "drifting density branch",
+          "category": "branch",
+          "latex": "\\frac{C}{\\left|\\omega - Kr\\sin(\\theta - \\psi)\\right|}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "text",
+        "value": "elsewhere",
+        "hitBox": {
+          "id": "drifting_condition",
+          "label": "elsewhere branch condition",
+          "sequence": "elsewhere",
+          "category": "condition",
+          "latex": "\\text{elsewhere.}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". The "
+      },
+      {
+        "kind": "text",
+        "value": "Heaviside gate",
+        "hitBox": {
+          "id": "heaviside_gate",
+          "label": "Heaviside gate",
+          "sequence": "Heaviside gate",
+          "category": "function",
+          "latex": "H(\\cos \\theta)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " encodes which locked solution is stable."
+      }
+    ]
+  }
+}

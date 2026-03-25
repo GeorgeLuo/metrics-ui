@@ -1,0 +1,114 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 12: Critical Coupling",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "Eq. 12 is where the derivation stops being only algebra and starts making a physical prediction: it tells us when incoherence gives way to partial synchronization."
+    },
+    {
+      "kind": "text",
+      "value": "The key number is K sub c, the critical coupling. Below it the oscillators wash each other out, at it the synchronized branch first appears, and above it a macroscopic locked cluster forms."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "Incoherent State",
+      "left": [
+        {
+          "kind": "text",
+          "value": "The order parameter r measures how much the phase vectors line up. If the oscillators are spread all around the circle, their vectors cancel in the average and r equals 0."
+        },
+        {
+          "kind": "text",
+          "value": "Physically, K less than K sub c means coupling is too weak to overcome the spread in natural frequencies. Oscillators keep drifting relative to one another, so there is no macroscopic phase coherence."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "1 = K\\int_{-\\pi/2}^{\\pi/2} \\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "K < K_c \\implies r = 0",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Threshold K_c",
+      "left": [
+        {
+          "kind": "text",
+          "value": "The synchronized branch bifurcates from r equals 0, so to find the onset threshold we set r to 0 in Eq. 12."
+        },
+        {
+          "kind": "text",
+          "value": "At r equals 0, the argument of g becomes 0 everywhere, so only g of 0 survives. That is why the threshold depends on g of 0 rather than the whole shape of the distribution.",
+          "visualizationLabel": "Open Eq. 12 state visualization",
+          "visualizationFrame": {
+            "mode": "plugin",
+            "pluginId": "kuramoto_critical_coupling_states",
+            "name": "Kuramoto Critical Coupling States"
+          }
+        },
+        {
+          "kind": "text",
+          "value": "Physically, g of 0 is the density of oscillators near zero detuning in the rotating frame. If many oscillators already sit near that center, they are easier to lock, so the threshold K sub c is smaller."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r=0 \\implies g(Kr\\sin\\theta)=g(0)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1 = K\\,g(0)\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,d\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "K_c = \\frac{2}{\\pi g(0)}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Partially Synchronized State",
+      "left": [
+        {
+          "kind": "text",
+          "value": "When K is greater than K sub c, coupling is strong enough to create a coherent locked group. The phase vectors no longer cancel completely, so the order parameter becomes positive."
+        },
+        {
+          "kind": "text",
+          "value": "This does not mean every oscillator is identical or locked. It means enough of the population forms an aligned cluster that the average phase vector has nonzero length."
+        },
+        {
+          "kind": "text",
+          "value": "So K sub c is the minimum coupling needed for macroscopic order to appear."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "K > K_c \\implies r > 0",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "r = 0 \\text{ means incoherence}, \\qquad r > 0 \\text{ means partial synchronization}",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

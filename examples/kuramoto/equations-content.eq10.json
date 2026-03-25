@@ -1,0 +1,453 @@
+{
+  "workspace": {
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "=",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}",
+        "hitBox": {
+          "id": "locked_domain",
+          "label": "locked integration domain",
+          "sequence": "the integral from minus pi over 2 to pi over 2 and the integral from minus infinity to plus infinity",
+          "category": "term",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "e^{i(\\theta-\\psi)}",
+        "hitBox": {
+          "id": "phase_factor",
+          "label": "phase factor",
+          "sequence": "e to the i times theta minus psi",
+          "category": "term",
+          "latex": "e^{i(\\theta-\\psi)}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]",
+        "hitBox": {
+          "id": "locked_constraint",
+          "label": "locked delta constraint",
+          "sequence": "delta of theta minus psi minus sine inverse of omega over K r",
+          "category": "function",
+          "latex": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "g(\\omega)",
+        "hitBox": {
+          "id": "frequency_density",
+          "label": "frequency density",
+          "sequence": "g of omega",
+          "category": "function",
+          "latex": "g(\\omega)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "d\\theta\\,d\\omega",
+        "hitBox": {
+          "id": "locked_measure",
+          "label": "locked measure",
+          "sequence": "d theta d omega",
+          "category": "term",
+          "latex": "d\\theta\\,d\\omega"
+        }
+      },
+      {
+        "kind": "text",
+        "value": "\n"
+      },
+      {
+        "kind": "latex",
+        "value": "+",
+        "hitBox": {
+          "id": "plus",
+          "label": "plus",
+          "sequence": "plus",
+          "category": "operator",
+          "latex": "+"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}",
+        "hitBox": {
+          "id": "drift_domain",
+          "label": "drifting integration domain",
+          "sequence": "the integral from minus pi to pi and the integral over absolute value of omega greater than K r",
+          "category": "term",
+          "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "e^{i(\\theta-\\psi)}",
+        "hitBox": {
+          "id": "phase_factor",
+          "label": "phase factor",
+          "sequence": "e to the i times theta minus psi",
+          "category": "term",
+          "latex": "e^{i(\\theta-\\psi)}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}",
+        "hitBox": {
+          "id": "drift_density",
+          "label": "drifting density weight",
+          "sequence": "C g of omega over absolute value of omega minus K r sine of theta minus psi",
+          "category": "term",
+          "latex": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "d\\theta\\,d\\omega",
+        "hitBox": {
+          "id": "drift_measure",
+          "label": "drifting measure",
+          "sequence": "d theta d omega",
+          "category": "term",
+          "latex": "d\\theta\\,d\\omega"
+        }
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "r"
+      },
+      {
+        "kind": "text",
+        "value": " equals ",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": "the integral from minus pi over 2 to pi over 2 and the integral from minus infinity to plus infinity",
+        "hitBox": {
+          "id": "locked_domain",
+          "label": "locked integration domain",
+          "sequence": "the integral from minus pi over 2 to pi over 2 and the integral from minus infinity to plus infinity",
+          "category": "term",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " of "
+      },
+      {
+        "kind": "text",
+        "value": "e to the i times theta minus psi",
+        "hitBox": {
+          "id": "phase_factor",
+          "label": "phase factor",
+          "sequence": "e to the i times theta minus psi",
+          "category": "term",
+          "latex": "e^{i(\\theta-\\psi)}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "delta of theta minus psi minus sine inverse of omega over K r",
+        "hitBox": {
+          "id": "locked_constraint",
+          "label": "locked delta constraint",
+          "sequence": "delta of theta minus psi minus sine inverse of omega over K r",
+          "category": "function",
+          "latex": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "g of omega",
+        "hitBox": {
+          "id": "frequency_density",
+          "label": "frequency density",
+          "sequence": "g of omega",
+          "category": "function",
+          "latex": "g(\\omega)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " d theta d omega;\n"
+      },
+      {
+        "kind": "text",
+        "value": "plus",
+        "hitBox": {
+          "id": "plus",
+          "label": "plus",
+          "sequence": "plus",
+          "category": "operator",
+          "latex": "+"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " the integral from minus pi to pi and the integral over absolute value of omega greater than K r",
+        "hitBox": {
+          "id": "drift_domain",
+          "label": "drifting integration domain",
+          "sequence": "the integral from minus pi to pi and the integral over absolute value of omega greater than K r",
+          "category": "term",
+          "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " of "
+      },
+      {
+        "kind": "text",
+        "value": "e to the i times theta minus psi",
+        "hitBox": {
+          "id": "phase_factor",
+          "label": "phase factor",
+          "sequence": "e to the i times theta minus psi",
+          "category": "term",
+          "latex": "e^{i(\\theta-\\psi)}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "C g of omega over absolute value of omega minus K r sine of theta minus psi",
+        "hitBox": {
+          "id": "drift_density",
+          "label": "drifting density weight",
+          "sequence": "C g of omega over absolute value of omega minus K r sine of theta minus psi",
+          "category": "term",
+          "latex": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " d theta d omega."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 10 evaluates the "
+      },
+      {
+        "kind": "text",
+        "value": "order parameter r",
+        "hitBox": {
+          "id": "order_parameter_r",
+          "label": "order parameter",
+          "sequence": "order parameter r",
+          "category": "term",
+          "latex": "r"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " as the sum of a "
+      },
+      {
+        "kind": "text",
+        "value": "locked contribution",
+        "hitBox": {
+          "id": "locked_domain",
+          "label": "locked integration domain",
+          "sequence": "locked contribution",
+          "category": "term",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " and a "
+      },
+      {
+        "kind": "text",
+        "value": "drifting contribution",
+        "hitBox": {
+          "id": "drift_domain",
+          "label": "drifting integration domain",
+          "sequence": "drifting contribution",
+          "category": "term",
+          "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". Both integrals weight oscillators by the same "
+      },
+      {
+        "kind": "text",
+        "value": "phase factor",
+        "hitBox": {
+          "id": "phase_factor",
+          "label": "phase factor",
+          "sequence": "phase factor",
+          "category": "term",
+          "latex": "e^{i(\\theta-\\psi)}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". The locked term uses a "
+      },
+      {
+        "kind": "text",
+        "value": "delta constraint",
+        "hitBox": {
+          "id": "locked_constraint",
+          "label": "locked delta constraint",
+          "sequence": "delta constraint",
+          "category": "function",
+          "latex": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " that collapses the phase integral onto the locked solution, while the drifting term uses the "
+      },
+      {
+        "kind": "text",
+        "value": "continuous density weight",
+        "hitBox": {
+          "id": "drift_density",
+          "label": "drifting density weight",
+          "sequence": "continuous density weight",
+          "category": "term",
+          "latex": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": "."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Conceptually, equation 10 says synchronization is measured by integrating the same complex phase marker over two regimes. The "
+      },
+      {
+        "kind": "text",
+        "value": "locked domain",
+        "hitBox": {
+          "id": "locked_domain",
+          "label": "locked integration domain",
+          "sequence": "locked domain",
+          "category": "term",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " contributes through a discrete locked state, and the "
+      },
+      {
+        "kind": "text",
+        "value": "drifting domain",
+        "hitBox": {
+          "id": "drift_domain",
+          "label": "drifting integration domain",
+          "sequence": "drifting domain",
+          "category": "term",
+          "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " contributes through a continuous orbit-density correction. When the frequency distribution is symmetric, the paper notes that the second drifting term vanishes."
+      }
+    ]
+  }
+}

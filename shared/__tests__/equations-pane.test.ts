@@ -220,10 +220,107 @@ test("mergeEquationsPaneStatePatch preserves equations context", () => {
           latex: String.raw`\omega_{i}`,
         },
       },
+      selectedTextHighlight: {
+        itemId: "workspace",
+        selectionId: "workspace::block:0",
+        startOffset: 4,
+        endOffset: 16,
+        text: "locked phase",
+        contextBefore: "the ",
+        contextAfter: " offset",
+      },
     },
   });
 
   assert.equal(next.context.selectedHitBox?.itemId, "workspace");
   assert.equal(next.context.selectedHitBox?.hitBox.id, "omega_i");
   assert.equal(next.context.selectedHitBox?.hitBox.latex, String.raw`\omega_{i}`);
+  assert.equal(next.context.selectedTextHighlight?.itemId, "workspace");
+  assert.equal(next.context.selectedTextHighlight?.selectionId, "workspace::block:0");
+  assert.equal(next.context.selectedTextHighlight?.startOffset, 4);
+  assert.equal(next.context.selectedTextHighlight?.endOffset, 16);
+  assert.equal(next.context.selectedTextHighlight?.text, "locked phase");
+});
+
+test("mergeEquationsPaneStatePatch preserves freeform blocks", () => {
+  const next = mergeEquationsPaneStatePatch(DEFAULT_EQUATIONS_PANE_STATE, {
+    content: {
+      workspace: {
+        presentation: "freeform",
+        blocks: [
+          {
+            kind: "text",
+            value: "Explain the derivation.",
+          },
+          {
+            kind: "mappings",
+            mappings: [
+              {
+                kind: "latex",
+                value: String.raw`r e^{i\psi}`,
+                hitBox: {
+                  id: "order_parameter_complex",
+                  label: "complex order parameter",
+                  sequence: "r times e to the i psi",
+                  category: "term",
+                  latex: String.raw`r e^{i\psi}`,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(next.content.workspace.presentation, "freeform");
+  assert.equal(next.content.workspace.blocks?.length, 2);
+  assert.equal(next.content.workspace.blocks?.[0]?.kind, "text");
+  assert.equal(next.content.workspace.blocks?.[1]?.kind, "mappings");
+});
+
+test("mergeEquationsPaneStatePatch preserves split freeform blocks", () => {
+  const next = mergeEquationsPaneStatePatch(DEFAULT_EQUATIONS_PANE_STATE, {
+    content: {
+      workspace: {
+        presentation: "freeform",
+        blocks: [
+          {
+            kind: "split",
+            fractions: [3, 4],
+            left: [
+              {
+                kind: "text",
+                value: "Explain the phase shift.",
+              },
+            ],
+            right: [
+              {
+                kind: "mappings",
+                mappings: [
+                  {
+                    kind: "latex",
+                    value: String.raw`e^{-i\psi} e^{i\theta}`,
+                    hitBox: {
+                      id: "phase_shift",
+                      label: "phase shift",
+                      sequence: "e to the minus i psi times e to the i theta",
+                      category: "term",
+                      latex: String.raw`e^{-i\psi} e^{i\theta}`,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(next.content.workspace.presentation, "freeform");
+  assert.equal(next.content.workspace.blocks?.[0]?.kind, "split");
+  assert.deepEqual(next.content.workspace.blocks?.[0]?.fractions, [3, 4]);
+  assert.equal(next.content.workspace.blocks?.[0]?.left[0]?.kind, "text");
+  assert.equal(next.content.workspace.blocks?.[0]?.right[0]?.kind, "mappings");
 });
