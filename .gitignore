@@ -6,3 +6,5 @@ vite.config.ts.*
 *.tar.gz
 .local/
 .logs/
+.metrics-ui-data/
+server-data/

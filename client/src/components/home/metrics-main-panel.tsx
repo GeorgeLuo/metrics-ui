@@ -14,6 +14,7 @@ import type {
   SelectedMetric,
   VisualizationFrameState,
 } from "@shared/schema";
+import { DASHBOARD_STORAGE_KEYS } from "@/lib/dashboard/storage";
 
 type MetricsMainPanelProps = {
   chart: ChartViewProps;
@@ -102,15 +103,20 @@ export function MetricsMainPanel({
         />
         <ViewportFloatingFrame
           title="Visualization Frame"
-          className="w-[360px] h-[320px]"
+          defaultSize={{ width: 360, height: 320 }}
+          className=""
           contentClassName="!px-2 !py-2"
           dataTestId="visualization-floating-frame"
+          stateStorageKey={DASHBOARD_STORAGE_KEYS.visualizationFloatingFrame}
           popoutable
           popoutWindowName="metrics-ui-visualization-frame"
           popoutWindowTitle="Metrics UI - Visualization Frame"
           contentFill
           onPopoutChange={onVisualizationPopoutChange}
           dockRequestToken={visualizationDockRequestToken}
+          resizable
+          minSize={{ width: 280, height: 220 }}
+          resizeHint="Drag an edge or corner to resize this visualization."
         >
           <InjectedVisualization
             frame={visualizationFrame}
