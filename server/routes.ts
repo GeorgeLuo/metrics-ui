@@ -19,6 +19,9 @@ import {
   normalizeEquationsPaneState,
 } from "@shared/equations-pane";
 import {
+  normalizeVisualizationFrameState,
+} from "@shared/visualization-frame-state";
+import {
   ComponentManager,
   EntityManager,
   System,
@@ -645,33 +648,10 @@ let dashboardStateWriteTimer: NodeJS.Timeout | null = null;
 function buildVisualizationStateFromPersistedState(
   state: PersistableDashboardState,
 ): VisualizationState {
-  const visualizationFrameRaw = state.visualizationFrame;
   const visualizationFrame =
-    visualizationFrameRaw && typeof visualizationFrameRaw === "object"
-      ? (() => {
-          const mode: VisualizationState["visualizationFrame"]["mode"] =
-            (visualizationFrameRaw as { mode?: unknown }).mode === "plugin" ? "plugin" : "builtin";
-          return {
-            mode,
-            pluginId:
-              typeof (visualizationFrameRaw as { pluginId?: unknown }).pluginId === "string"
-                ? String((visualizationFrameRaw as { pluginId: string }).pluginId)
-                : undefined,
-            name:
-              typeof (visualizationFrameRaw as { name?: unknown }).name === "string"
-                ? String((visualizationFrameRaw as { name: string }).name)
-                : undefined,
-            captureId:
-              typeof (visualizationFrameRaw as { captureId?: unknown }).captureId === "string"
-                ? String((visualizationFrameRaw as { captureId: string }).captureId)
-                : undefined,
-            updatedAt:
-              typeof (visualizationFrameRaw as { updatedAt?: unknown }).updatedAt === "string"
-                ? String((visualizationFrameRaw as { updatedAt: string }).updatedAt)
-                : undefined,
-          };
-        })()
-      : { mode: "builtin" as const };
+    normalizeVisualizationFrameState(state.visualizationFrame, {
+      fallback: { mode: "builtin" },
+    }) ?? { mode: "builtin" as const };
 
   const playback =
     state.playback && typeof state.playback === "object"
@@ -872,21 +852,9 @@ function extractPersistableDashboardState(payload: VisualizationState): Persista
     state.subtitles = payload.subtitles;
   }
   if (payload.visualizationFrame && typeof payload.visualizationFrame === "object") {
-    const mode = payload.visualizationFrame.mode === "plugin" ? "plugin" : "builtin";
-    const nextFrame: VisualizationState["visualizationFrame"] = { mode };
-    if (typeof payload.visualizationFrame.pluginId === "string") {
-      nextFrame.pluginId = payload.visualizationFrame.pluginId;
-    }
-    if (typeof payload.visualizationFrame.name === "string") {
-      nextFrame.name = payload.visualizationFrame.name;
-    }
-    if (typeof payload.visualizationFrame.captureId === "string") {
-      nextFrame.captureId = payload.visualizationFrame.captureId;
-    }
-    if (typeof payload.visualizationFrame.updatedAt === "string") {
-      nextFrame.updatedAt = payload.visualizationFrame.updatedAt;
-    }
-    state.visualizationFrame = nextFrame;
+    state.visualizationFrame = normalizeVisualizationFrameState(payload.visualizationFrame, {
+      fallback: { mode: "builtin" },
+    }) ?? { mode: "builtin" };
   }
   if (payload.equationsPane && typeof payload.equationsPane === "object") {
     state.equationsPane = normalizeEquationsPaneState(payload.equationsPane);
@@ -2476,21 +2444,16 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
       }
     }
   } else if (command.type === "set_visualization_frame") {
-    const nextMode = command.mode === "plugin" ? "plugin" : "builtin";
     const previous = state.visualizationFrame ?? { mode: "builtin" };
-    const nextFrame: VisualizationState["visualizationFrame"] = {
-      mode: nextMode,
+    const nextFrame = normalizeVisualizationFrameState({
+      mode: command.mode,
+      pluginId: command.pluginId,
+      name: command.name,
+      captureId: command.captureId,
       updatedAt: new Date().toISOString(),
-    };
-    if (nextMode === "plugin" && typeof command.pluginId === "string" && command.pluginId.trim().length > 0) {
-      nextFrame.pluginId = command.pluginId.trim();
-    }
-    if (typeof command.name === "string" && command.name.trim().length > 0) {
-      nextFrame.name = command.name.trim();
-    }
-    if (typeof command.captureId === "string" && command.captureId.trim().length > 0) {
-      nextFrame.captureId = command.captureId.trim();
-    }
+    }, {
+      fallback: { mode: "builtin" },
+    }) ?? { mode: "builtin" as const };
     if (JSON.stringify(previous) !== JSON.stringify(nextFrame)) {
       state.visualizationFrame = nextFrame;
       changed = true;
@@ -5517,6 +5480,7 @@ export async function registerRoutes(
 
   registerSourceSeriesRoutes({
     app,
+    projectRoot: process.cwd(),
     uploadMiddleware: upload.single("file"),
     hashFile,
     loadUploadIndex,
