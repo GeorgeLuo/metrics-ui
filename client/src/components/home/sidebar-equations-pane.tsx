@@ -1,5 +1,5 @@
 import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import {
   Select,
@@ -60,53 +60,79 @@ export function SidebarEquationsPane({
   selectedTopicId,
   onTopicSelect,
 }: SidebarEquationsPaneProps) {
+  const [isCatalogOpen, setIsCatalogOpen] = useState(true);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
   const activeTopicOption = topicOptions.find(
     (option) => option.id === selectedTopicId,
   ) ?? null;
   const catalogSourceBlank = isInlineFieldBlank(topicCatalogSourceInput);
 
+  useEffect(() => {
+    if (topicCatalogSourceError) {
+      setIsCatalogOpen(true);
+    }
+  }, [topicCatalogSourceError]);
+
   return (
     <div
       className="flex flex-col flex-1 min-h-0 overflow-y-auto gap-2 overscroll-contain"
       data-testid={sidebarMode === "analysis" ? "equations-sidebar-catalog" : "equations-sidebar-setup"}
     >
-      <SidebarGroup>
-        <SidebarGroupLabel>Catalog</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <div className="flex flex-col gap-2 px-2 py-2">
-            <Input
-              value={topicCatalogSourceInput}
-              onChange={(event) => onTopicCatalogSourceInputChange(event.target.value)}
-              onBlur={onTopicCatalogSourceCommit}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  onTopicCatalogSourceCommit();
-                }
-              }}
-              className={`${inlineEditTextClass} w-full ${catalogSourceBlank ? inlineEditEmptyClass : ""}`}
-              aria-label="Equations topic catalog source"
-              placeholder="/examples/.../equations-topic-catalog.json"
-            />
-            <div className="text-[11px] leading-relaxed text-muted-foreground">
-              {topicCatalogEntries.find((catalog) => catalog.source === topicCatalogSourceInput.trim())?.description
-                ?? "Enter the catalog JSON source path for this topic collection."}
-            </div>
-            {topicCatalogSourceError ? (
-              <div className="text-[11px] leading-relaxed text-destructive">
-                {topicCatalogSourceError}
+      <Collapsible open={isCatalogOpen} onOpenChange={setIsCatalogOpen}>
+        <SidebarGroup>
+          <SidebarGroupLabel asChild>
+            <CollapsibleTrigger
+              className="flex w-full items-center justify-between"
+              data-hint="Show or hide the equations topic catalog source input."
+            >
+              <span>Catalog</span>
+              <ChevronDown
+                className={`h-3 w-3 text-muted-foreground transition-transform ${isCatalogOpen ? "rotate-180" : ""}`}
+              />
+            </CollapsibleTrigger>
+          </SidebarGroupLabel>
+          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+            <SidebarGroupContent>
+              <div className="flex flex-col gap-2 px-2 py-2">
+                <Input
+                  value={topicCatalogSourceInput}
+                  onChange={(event) => onTopicCatalogSourceInputChange(event.target.value)}
+                  onBlur={onTopicCatalogSourceCommit}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onTopicCatalogSourceCommit();
+                    }
+                  }}
+                  className={`${inlineEditTextClass} w-full ${catalogSourceBlank ? inlineEditEmptyClass : ""}`}
+                  aria-label="Equations topic catalog source"
+                  placeholder="/examples/.../equations-topic-catalog.json"
+                  data-hint="Set the absolute path to the bundled equations topic catalog artifact."
+                />
+                <div className="text-[11px] leading-relaxed text-muted-foreground">
+                  {topicCatalogEntries.find((catalog) => catalog.source === topicCatalogSourceInput.trim())?.description
+                    ?? "Enter the catalog JSON source path for this topic collection."}
+                </div>
+                {topicCatalogSourceError ? (
+                  <div className="text-[11px] leading-relaxed text-destructive">
+                    {topicCatalogSourceError}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-        </SidebarGroupContent>
-      </SidebarGroup>
+            </SidebarGroupContent>
+          </CollapsibleContent>
+        </SidebarGroup>
+      </Collapsible>
       <SidebarGroup>
         <SidebarGroupLabel>Topic</SidebarGroupLabel>
         <SidebarGroupContent>
           <div className="flex flex-col gap-2 px-2 py-2">
             <Select value={selectedTopicId} onValueChange={onTopicSelect}>
-              <SelectTrigger className="h-8 text-xs" aria-label="Select equations topic">
+              <SelectTrigger
+                className="h-8 text-xs"
+                aria-label="Select equations topic"
+                data-hint="Choose which topic document to load into the equations workspace."
+              >
                 <SelectValue placeholder="Choose a topic" />
               </SelectTrigger>
               <SelectContent>
@@ -145,6 +171,7 @@ export function SidebarEquationsPane({
                         ].join(" ")}
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => onTopicSelect(option.id)}
+                        data-hint={`Reopen the recent topic "${option.label}".`}
                       >
                         {option.label}
                       </button>
@@ -159,7 +186,10 @@ export function SidebarEquationsPane({
       <Collapsible open={isDebugOpen} onOpenChange={setIsDebugOpen}>
         <SidebarGroup>
           <SidebarGroupLabel asChild>
-            <CollapsibleTrigger className="flex w-full items-center justify-between">
+            <CollapsibleTrigger
+              className="flex w-full items-center justify-between"
+              data-hint="Show authoring and inspection controls for debugging equations layout and interaction surfaces."
+            >
               <span>Debug</span>
               <ChevronDown
                 className={`h-3 w-3 text-muted-foreground transition-transform ${isDebugOpen ? "rotate-180" : ""}`}
@@ -168,7 +198,10 @@ export function SidebarEquationsPane({
           </SidebarGroupLabel>
           <CollapsibleContent forceMount className="data-[state=closed]:hidden">
             <SidebarGroupContent className="flex flex-col gap-2">
-              <div className="flex items-start justify-between gap-3 px-2 py-2">
+              <div
+                className="flex items-start justify-between gap-3 px-2 py-2"
+                data-hint="Reveal every mapped hit-box segment so you can inspect what is clickable and how the equation has been segmented."
+              >
                 <div className="min-w-0">
                   <div className="text-xs text-foreground leading-none">Show signal blocks</div>
                   <div className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
@@ -180,9 +213,13 @@ export function SidebarEquationsPane({
                   onCheckedChange={onEquationsSignalBlocksDebugChange}
                   aria-label="Toggle equation signal block visibility"
                   data-testid="switch-equations-signal-blocks-debug"
+                  data-hint="Turn on hit-box outlines to debug mapped term boundaries and click targets."
                 />
               </div>
-              <div className="flex items-start justify-between gap-3 px-2 py-2">
+              <div
+                className="flex items-start justify-between gap-3 px-2 py-2"
+                data-hint="Reveal the FrameGrid structure and sizing overlays so you can debug card placement, spans, and layout fit."
+              >
                 <div className="min-w-0">
                   <div className="text-xs text-foreground leading-none">Layout debug</div>
                   <div className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
@@ -194,6 +231,7 @@ export function SidebarEquationsPane({
                   onCheckedChange={onFrameGridLayoutDebugChange}
                   aria-label="Toggle FrameGrid layout debug"
                   data-testid="switch-framegrid-layout-debug"
+                  data-hint="Turn on grid guides and sizing overlays to inspect the equations layout."
                 />
               </div>
             </SidebarGroupContent>
