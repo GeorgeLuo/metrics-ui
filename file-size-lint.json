@@ -1,0 +1,73 @@
+{
+  "rules": [
+    {
+      "name": "equations-panel-entry",
+      "include": [
+        "client/src/components/home/equations-main-panel.tsx"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 650
+    },
+    {
+      "name": "equations-panel-modules",
+      "include": [
+        "client/src/components/home/equations-main-panel"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 750
+    },
+    {
+      "name": "equations-sidebar",
+      "include": [
+        "client/src/components/home/sidebar-equations-pane.tsx"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 250
+    },
+    {
+      "name": "equations-topic-infra",
+      "include": [
+        "client/src/lib/equations",
+        "shared/equations-validation.ts",
+        "shared/equations-mappings.ts",
+        "shared/equations-pane.ts"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "shared-schema",
+      "include": [
+        "shared/schema.ts"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 1000
+    },
+    {
+      "name": "home-page",
+      "include": [
+        "client/src/pages/home.tsx"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 6500
+    }
+  ]
+}
