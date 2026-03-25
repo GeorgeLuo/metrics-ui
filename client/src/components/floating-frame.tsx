@@ -449,11 +449,11 @@ export function FloatingFrame({
   }, [isMinimized, position, size, sizeStateEnabled, stateStorageKey]);
 
   const syncFrameBounds = useCallback(() => {
-    if (!size) {
-      setPosition((prev) => {
-        const next = clampPosition(frameRef.current, prev, positionMode, containerRef);
-        return next.x === prev.x && next.y === prev.y ? prev : next;
-      });
+    if (isMinimized || !size) {
+      const next = clampPosition(frameRef.current, position, positionMode, containerRef);
+      if (next.x !== position.x || next.y !== position.y) {
+        setPosition(next);
+      }
       return;
     }
     const next = clampFloatingFrameRect(
@@ -469,7 +469,7 @@ export function FloatingFrame({
     if (next.size.width !== size.width || next.size.height !== size.height) {
       setSize(next.size);
     }
-  }, [containerRef, position, positionMode, resolvedMinSize, size]);
+  }, [containerRef, isMinimized, position, positionMode, resolvedMinSize, size]);
 
   useLayoutEffect(() => {
     if (!isVisible || isPoppedOut) {
@@ -546,8 +546,16 @@ export function FloatingFrame({
   }, [closePopout, dockRequestToken, isPoppedOut]);
 
   const handleDragStart = useCallback(
-    (event: ReactPointerEvent<HTMLButtonElement>) => {
+    (event: ReactPointerEvent<HTMLElement>) => {
       if (isPoppedOut) {
+        return;
+      }
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (
+        target
+        && target !== event.currentTarget
+        && target.closest("button, a, input, select, textarea, [role='button'], [data-floating-frame-control='true']")
+      ) {
         return;
       }
       event.preventDefault();
@@ -723,21 +731,23 @@ export function FloatingFrame({
       }
       data-testid={dataTestId}
     >
-      <div className={cn("flex items-center justify-between gap-2 border-b border-slate-400/60 px-2 py-1.5", headerClassName)}>
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 border-b border-slate-400/60 px-2 py-1.5",
+          !isPoppedOut ? "cursor-grab active:cursor-grabbing" : "",
+          headerClassName,
+        )}
+        onPointerDown={!isPoppedOut ? handleDragStart : undefined}
+        data-hint={!isPoppedOut ? dragHint : undefined}
+      >
         <div className="flex items-center gap-1.5 min-w-0">
           {!isPoppedOut ? (
-            <button
-              type="button"
-              className={cn(
-                "cursor-grab active:cursor-grabbing p-0.5 text-black/70 hover:text-black",
-                dragHandleClassName,
-              )}
-              onPointerDown={handleDragStart}
-              aria-label={`Drag ${title}`}
-              data-hint={dragHint}
+            <span
+              className={cn("p-0.5 text-black/70 hover:text-black", dragHandleClassName)}
+              aria-hidden="true"
             >
               <GripVertical className="w-3 h-3" />
-            </button>
+            </span>
           ) : null}
           <div className={cn("truncate text-xs text-black", titleClassName)}>{title}</div>
         </div>
@@ -749,6 +759,7 @@ export function FloatingFrame({
               onClick={handlePopoutToggle}
               aria-label={isPoppedOut ? `Dock ${title}` : `Pop out ${title}`}
               data-hint={isPoppedOut ? "Dock this frame back into the dashboard." : "Pop this frame into a linked window."}
+              data-floating-frame-control="true"
             >
               {isPoppedOut ? <Minimize2 className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
             </button>
@@ -764,6 +775,7 @@ export function FloatingFrame({
               onClick={() => setIsMinimized((prev) => !prev)}
               aria-label={isMinimized ? `Expand ${title}` : `Minimize ${title}`}
               data-hint={isMinimized ? "Expand this floating frame." : "Minimize this floating frame."}
+              data-floating-frame-control="true"
             >
               {isMinimized ? (
                 <span
