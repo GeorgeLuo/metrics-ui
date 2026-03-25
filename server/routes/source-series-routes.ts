@@ -28,6 +28,7 @@ type SeriesResult = {
 
 type RegisterSourceSeriesRoutesOptions = {
   app: Express;
+  projectRoot: string;
   uploadMiddleware: RequestHandler;
   hashFile: (filePath: string) => Promise<string>;
   loadUploadIndex: () => UploadIndex;
@@ -61,6 +62,7 @@ type RegisterSourceSeriesRoutesOptions = {
 
 export function registerSourceSeriesRoutes({
   app,
+  projectRoot,
   uploadMiddleware,
   hashFile,
   loadUploadIndex,
@@ -80,6 +82,64 @@ export function registerSourceSeriesRoutes({
   extractSeriesFromFramesBatch,
   extractSeriesBatchFromSource,
 }: RegisterSourceSeriesRoutesOptions) {
+  const listEquationsTopicCatalogs = () => {
+    const examplesRoot = path.join(projectRoot, "examples");
+    const catalogFiles: string[] = [];
+
+    const walk = (directory: string) => {
+      const entries = fs.readdirSync(directory, { withFileTypes: true });
+      entries.forEach((entry) => {
+        const nextPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+          walk(nextPath);
+          return;
+        }
+        if (entry.isFile() && entry.name === "equations-topic-catalog.json") {
+          catalogFiles.push(nextPath);
+        }
+      });
+    };
+
+    if (fs.existsSync(examplesRoot)) {
+      walk(examplesRoot);
+    }
+
+    return catalogFiles.flatMap((filePath) => {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(filePath, "utf-8")) as {
+          id?: unknown;
+          label?: unknown;
+          description?: unknown;
+        };
+        const id = typeof parsed.id === "string" ? parsed.id.trim() : "";
+        const label = typeof parsed.label === "string" ? parsed.label.trim() : "";
+        const description = typeof parsed.description === "string" ? parsed.description.trim() : "";
+        if (!id || !label) {
+          return [];
+        }
+        return [{
+          id,
+          label,
+          description,
+          source: filePath,
+        }];
+      } catch {
+        return [];
+      }
+    }).sort((left, right) => left.label.localeCompare(right.label));
+  };
+
+  app.get("/api/equations/topic-catalogs", (_req, res) => {
+    try {
+      return res.json({
+        catalogs: listEquationsTopicCatalogs(),
+      });
+    } catch (error) {
+      console.error("Equations topic catalog index error:", error);
+      return res.status(500).json({ error: "Failed to list equations topic catalogs." });
+    }
+  });
+
   app.post("/api/upload", uploadMiddleware, async (req, res) => {
     try {
       if (!req.file) {

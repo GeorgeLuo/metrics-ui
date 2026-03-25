@@ -56,6 +56,8 @@
   --shadow-2xl: none;
   --tracking-normal: -0.01em;
   --spacing: 0.25rem;
+  --equations-highlight-fill: rgb(14 165 233 / 0.28);
+  --equations-highlight-stroke: rgb(14 165 233 / 0.16);
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -114,6 +116,8 @@
   --chart-3: 0 0% 55%;
   --chart-4: 0 0% 40%;
   --chart-5: 0 0% 25%;
+  --equations-highlight-fill: rgb(250 204 21 / 0.28);
+  --equations-highlight-stroke: rgb(250 204 21 / 0.22);
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -134,6 +138,10 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  ::highlight(equations-selected-text) {
+    background-color: var(--equations-highlight-fill);
   }
 
   /* Intentionally suppress focus ring/outline visuals across the dashboard. */

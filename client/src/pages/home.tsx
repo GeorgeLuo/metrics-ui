@@ -54,6 +54,12 @@ import {
   type LiveStreamEntry,
   type LiveStreamStatus,
 } from "@/hooks/home/use-live-streams";
+import {
+  EQUATIONS_TOPIC_CATALOGS,
+  getDefaultEquationsTopicCatalogId,
+  getEquationsTopicOptionById,
+  identifyEquationsTopic,
+} from "@/lib/equations/topic-catalog";
 import { useWindowAndAxes } from "@/hooks/home/use-window-and-axes";
 import { compactRecord } from "@shared/compact";
 import {
@@ -114,6 +120,10 @@ import {
   mergeEquationsPaneStatePatch,
   normalizeEquationsPaneState,
 } from "@shared/equations-pane";
+import {
+  cloneVisualizationFrameState,
+  normalizeVisualizationFrameState,
+} from "@shared/visualization-frame-state";
 
 const INITIAL_WINDOW_SIZE = 50;
 const DEFAULT_POLL_SECONDS = 2;
@@ -124,6 +134,7 @@ const PERF_SAMPLE_MAX = 200;
 const EVENT_LOOP_INTERVAL_MS = 100;
 const COMPONENT_UPDATE_THROTTLE_MS = 250;
 const STREAM_IDLE_MS = 1500;
+const RECENT_EQUATIONS_TOPIC_LIMIT = 5;
 const INLINE_EDIT_BASE_CLASS =
   "h-auto p-0 text-xs md:text-xs font-mono text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0";
 const INLINE_EDIT_TEXT_CLASS = `${INLINE_EDIT_BASE_CLASS} text-left`;
@@ -160,6 +171,13 @@ interface LiveStatusStream {
   pollIntervalMs?: unknown;
   lastError?: unknown;
 }
+
+type EquationsTopicCatalogSourceEntry = {
+  id: string;
+  label: string;
+  description: string;
+  source: string;
+};
 
 type UiEventLevel = "info" | "error";
 
@@ -212,30 +230,35 @@ function computeSampleStats(samples: number[]) {
   };
 }
 
-function isInlineFieldBlank(value: string): boolean {
-  return value.trim().length === 0;
+function normalizeRecentEquationsTopicIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const next: string[] = [];
+  value.forEach((entry) => {
+    if (typeof entry !== "string") {
+      return;
+    }
+    const topic = getEquationsTopicOptionById(entry);
+    const canonicalId = topic?.id;
+    if (!canonicalId || seen.has(canonicalId)) {
+      return;
+    }
+    seen.add(canonicalId);
+    next.push(canonicalId);
+  });
+
+  return next.slice(0, RECENT_EQUATIONS_TOPIC_LIMIT);
 }
 
-function normalizeVisualizationFrameState(value: unknown): VisualizationFrameState {
-  if (!value || typeof value !== "object") {
-    return { mode: "builtin" };
-  }
-  const raw = value as Partial<VisualizationFrameState>;
-  const mode = raw.mode === "plugin" ? "plugin" : "builtin";
-  const next: VisualizationFrameState = { mode };
-  if (mode === "plugin" && typeof raw.pluginId === "string") {
-    next.pluginId = raw.pluginId;
-  }
-  if (typeof raw.name === "string") {
-    next.name = raw.name;
-  }
-  if (typeof raw.captureId === "string") {
-    next.captureId = raw.captureId;
-  }
-  if (typeof raw.updatedAt === "string") {
-    next.updatedAt = raw.updatedAt;
-  }
-  return next;
+function normalizeEquationsTopicCatalogSource(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isInlineFieldBlank(value: string): boolean {
+  return value.trim().length === 0;
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {
@@ -406,7 +429,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [subtitles, setSubtitles] = useState<SubtitleOverlay[]>([]);
   const [visualizationFrame, setVisualizationFrame] = useState<VisualizationFrameState>(() =>
-    normalizeVisualizationFrameState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame)),
+    normalizeVisualizationFrameState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.visualizationFrame), {
+      fallback: { mode: "builtin" },
+    }) ?? { mode: "builtin" },
   );
   const [equationsPane, setEquationsPane] = useState<VisualizationState["equationsPane"]>(() =>
     normalizeEquationsPaneState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsPane)),
@@ -417,6 +442,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   });
   const [frameGridLayoutDebug, setFrameGridLayoutDebug] = useState(() => (
     readStorageString(DASHBOARD_STORAGE_KEYS.frameGridLayoutDebug) === "1"
+  ));
+  const [equationsSignalBlocksDebug, setEquationsSignalBlocksDebug] = useState(() => (
+    readStorageString(DASHBOARD_STORAGE_KEYS.equationsSignalBlocksDebug) === "1"
   ));
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("setup");
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
@@ -1839,6 +1867,13 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   }, [frameGridLayoutDebug]);
 
   useEffect(() => {
+    writeStorageString(
+      DASHBOARD_STORAGE_KEYS.equationsSignalBlocksDebug,
+      equationsSignalBlocksDebug ? "1" : "0",
+    );
+  }, [equationsSignalBlocksDebug]);
+
+  useEffect(() => {
     if (sidebarApp !== "metrics" || sidebarMode !== "analysis") {
       setHighlightedMetricKey(null);
     }
@@ -2530,7 +2565,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           name: typeof next.name === "string" ? next.name : undefined,
           captureId: typeof next.captureId === "string" ? next.captureId : undefined,
           updatedAt: new Date().toISOString(),
-        });
+        }, { fallback: { mode: "builtin" } }) ?? { mode: "builtin" };
         if (JSON.stringify(prev) === JSON.stringify(normalized)) {
           return prev;
         }
@@ -2924,7 +2959,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         setSubtitles(state.subtitles);
       }
       if (state.visualizationFrame && typeof state.visualizationFrame === "object") {
-        setVisualizationFrame(normalizeVisualizationFrameState(state.visualizationFrame));
+        setVisualizationFrame(
+          normalizeVisualizationFrameState(state.visualizationFrame, {
+            fallback: { mode: "builtin" },
+          }) ?? { mode: "builtin" },
+        );
       }
       if (state.equationsPane && typeof state.equationsPane === "object") {
         setEquationsPane(normalizeEquationsPaneState(state.equationsPane));
@@ -4900,6 +4939,30 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     }
     return activeSourceCaptures[0];
   }, [captures, visualizationFrame.captureId]);
+  const equationsVisualizationCapture = useMemo(() => {
+    const frame = equationsPane.context.visualizationFrame;
+    if (!frame) {
+      return null;
+    }
+
+    const activeSourceCaptures = captures.filter(
+      (capture) => capture.isActive && !isDerivedCaptureSource(capture.source ?? ""),
+    );
+    if (activeSourceCaptures.length === 0) {
+      return null;
+    }
+    const pinnedCaptureId =
+      typeof frame.captureId === "string" && frame.captureId.trim().length > 0
+        ? frame.captureId.trim()
+        : "";
+    if (pinnedCaptureId) {
+      const pinned = activeSourceCaptures.find((capture) => capture.id === pinnedCaptureId);
+      if (pinned) {
+        return pinned;
+      }
+    }
+    return activeSourceCaptures[0];
+  }, [captures, equationsPane.context.visualizationFrame]);
 
   const rebuildCaptureStats = useCallback((capture: CaptureSession): CaptureStats => {
     const stats = createEmptyCaptureStats();
@@ -5362,6 +5425,216 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     sendMessageRef.current = sendMessage;
   }, [sendMessage]);
 
+  const selectedTopicId = useMemo(
+    () => identifyEquationsTopic(equationsPane) ?? "__custom__",
+    [equationsPane],
+  );
+  const [activeEquationsTopicCatalogSource, setActiveEquationsTopicCatalogSource] = useState<string>(() =>
+    normalizeEquationsTopicCatalogSource(
+      readStorageString(DASHBOARD_STORAGE_KEYS.equationsTopicCatalogSource),
+    ));
+  const [equationsTopicCatalogEntries, setEquationsTopicCatalogEntries] = useState<
+    EquationsTopicCatalogSourceEntry[]
+  >([]);
+  const [topicCatalogSourceInput, setTopicCatalogSourceInput] = useState<string>(
+    activeEquationsTopicCatalogSource,
+  );
+  const [topicCatalogSourceError, setTopicCatalogSourceError] = useState<string | null>(null);
+  const [recentEquationsTopicIds, setRecentEquationsTopicIds] = useState<string[]>(() =>
+    normalizeRecentEquationsTopicIds(
+      readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsRecentTopics),
+    ));
+
+  const selectedTopicOption = useMemo(
+    () => (selectedTopicId === "__custom__" ? null : getEquationsTopicOptionById(selectedTopicId)),
+    [selectedTopicId],
+  );
+  const selectedTopicCatalogEntry = useMemo(() => {
+    if (selectedTopicOption) {
+      return equationsTopicCatalogEntries.find((entry) => entry.id === selectedTopicOption.catalogId) ?? null;
+    }
+    if (activeEquationsTopicCatalogSource) {
+      return equationsTopicCatalogEntries.find((entry) => entry.source === activeEquationsTopicCatalogSource) ?? null;
+    }
+    return null;
+  }, [activeEquationsTopicCatalogSource, equationsTopicCatalogEntries, selectedTopicOption]);
+  const selectedTopicCatalog = useMemo(() => {
+    if (selectedTopicOption) {
+      return EQUATIONS_TOPIC_CATALOGS.find((catalog) => catalog.id === selectedTopicOption.catalogId) ?? null;
+    }
+    if (selectedTopicCatalogEntry) {
+      return EQUATIONS_TOPIC_CATALOGS.find((catalog) => catalog.id === selectedTopicCatalogEntry.id) ?? null;
+    }
+    const defaultCatalogId = getDefaultEquationsTopicCatalogId();
+    return defaultCatalogId
+      ? EQUATIONS_TOPIC_CATALOGS.find((catalog) => catalog.id === defaultCatalogId) ?? null
+      : null;
+  }, [selectedTopicCatalogEntry, selectedTopicOption]);
+  const selectedTopicCatalogSource = selectedTopicCatalogEntry?.source ?? activeEquationsTopicCatalogSource;
+  const topicOptionsForSelectedCatalog = useMemo(
+    () => selectedTopicCatalog?.topics ?? [],
+    [selectedTopicCatalog],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/equations/topic-catalogs")
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Catalog index request failed (${response.status})`);
+        }
+        const payload = await response.json() as { catalogs?: unknown };
+        const catalogs = Array.isArray(payload.catalogs) ? payload.catalogs : [];
+        const normalized = catalogs.flatMap((entry) => {
+          if (!entry || typeof entry !== "object") {
+            return [];
+          }
+          const raw = entry as Partial<EquationsTopicCatalogSourceEntry>;
+          const id = typeof raw.id === "string" ? raw.id.trim() : "";
+          const label = typeof raw.label === "string" ? raw.label.trim() : "";
+          const description = typeof raw.description === "string" ? raw.description.trim() : "";
+          const source = typeof raw.source === "string" ? raw.source.trim() : "";
+          if (!id || !label || !source) {
+            return [];
+          }
+          return [{
+            id,
+            label,
+            description,
+            source,
+          }];
+        });
+        if (!cancelled) {
+          setEquationsTopicCatalogEntries(normalized);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load equations topic catalog index:", error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    writeStorageJson(DASHBOARD_STORAGE_KEYS.equationsRecentTopics, recentEquationsTopicIds);
+  }, [recentEquationsTopicIds]);
+
+  useEffect(() => {
+    writeStorageString(
+      DASHBOARD_STORAGE_KEYS.equationsTopicCatalogSource,
+      selectedTopicCatalogSource,
+    );
+  }, [selectedTopicCatalogSource]);
+
+  useEffect(() => {
+    if (selectedTopicCatalogEntry && selectedTopicCatalogEntry.source !== activeEquationsTopicCatalogSource) {
+      setActiveEquationsTopicCatalogSource(selectedTopicCatalogEntry.source);
+    }
+    if (selectedTopicCatalogEntry) {
+      setTopicCatalogSourceError(null);
+    }
+  }, [
+    activeEquationsTopicCatalogSource,
+    selectedTopicCatalogEntry,
+  ]);
+
+  useEffect(() => {
+    if (selectedTopicCatalogSource) {
+      setTopicCatalogSourceInput(selectedTopicCatalogSource);
+    }
+  }, [selectedTopicCatalogSource]);
+
+  useEffect(() => {
+    if (selectedTopicId === "__custom__" || !getEquationsTopicOptionById(selectedTopicId)) {
+      return;
+    }
+
+    setRecentEquationsTopicIds((current) => {
+      const next = [
+        selectedTopicId,
+        ...current.filter((id) => id !== selectedTopicId && getEquationsTopicOptionById(id)),
+      ].slice(0, RECENT_EQUATIONS_TOPIC_LIMIT);
+
+      return current.length === next.length && current.every((id, index) => id === next[index])
+        ? current
+        : next;
+    });
+  }, [selectedTopicId]);
+
+  const recentEquationTopics = useMemo(
+    () =>
+      recentEquationsTopicIds.flatMap((topicId) => {
+        const topic = getEquationsTopicOptionById(topicId);
+        return topic ? [topic] : [];
+      }),
+    [recentEquationsTopicIds],
+  );
+
+  const handleTopicSelect = useCallback((topicId: string) => {
+    const topic = getEquationsTopicOptionById(topicId);
+    if (!topic) {
+      return;
+    }
+
+    const preservedVisualizationFrame = equationsPane.context.visualizationFrame
+      ? cloneVisualizationFrameState(equationsPane.context.visualizationFrame)
+      : null;
+
+    const patch = topic.payload.kind === "semantic_layout"
+      ? {
+          content: topic.payload.content,
+          context: {
+            selectedHitBox: null,
+            selectedTextHighlight: null,
+            visualizationFrame: preservedVisualizationFrame,
+          },
+        }
+      : {
+          document: topic.payload.document,
+          context: {
+            selectedHitBox: null,
+            selectedTextHighlight: null,
+            visualizationFrame: preservedVisualizationFrame,
+          },
+        };
+    handleSetEquationsPane(patch, { replace: true });
+    sendMessage({
+      type: "set_equations_pane",
+      replace: true,
+      ...patch,
+    });
+  }, [equationsPane.context.visualizationFrame, handleSetEquationsPane, sendMessage]);
+
+  const handleTopicCatalogSourceCommit = useCallback(() => {
+    const source = topicCatalogSourceInput.trim();
+    const catalogEntry = equationsTopicCatalogEntries.find((entry) => entry.source === source);
+    if (!catalogEntry) {
+      setTopicCatalogSourceError("Catalog artifact not found. Use the full absolute path to a bundled equations-topic-catalog.json file.");
+      return;
+    }
+
+    const catalog = EQUATIONS_TOPIC_CATALOGS.find((entry) => entry.id === catalogEntry.id) ?? null;
+    if (!catalog) {
+      setTopicCatalogSourceError("Catalog metadata was found, but the topic payload bundle is unavailable.");
+      return;
+    }
+
+    setTopicCatalogSourceError(null);
+    setTopicCatalogSourceInput(catalogEntry.source);
+    setActiveEquationsTopicCatalogSource(catalogEntry.source);
+    if (selectedTopicOption?.catalogId === catalog.id) {
+      return;
+    }
+
+    const firstTopic = catalog.topics[0];
+    if (firstTopic) {
+      handleTopicSelect(firstTopic.id);
+    }
+  }, [equationsTopicCatalogEntries, handleTopicSelect, selectedTopicOption, topicCatalogSourceInput]);
+
   const handleEquationHitBoxSelect = useCallback(
     (selectedHitBox: VisualizationState["equationsPane"]["context"]["selectedHitBox"]) => {
       handleSetEquationsPane({
@@ -5373,6 +5646,46 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         type: "set_equations_pane",
         context: {
           selectedHitBox,
+        },
+      });
+    },
+    [handleSetEquationsPane, sendMessage],
+  );
+
+  const handleEquationTextHighlightSelect = useCallback(
+    (
+      selectedTextHighlight: VisualizationState["equationsPane"]["context"]["selectedTextHighlight"],
+    ) => {
+      handleSetEquationsPane({
+        context: {
+          selectedTextHighlight,
+        },
+      });
+      sendMessage({
+        type: "set_equations_pane",
+        context: {
+          selectedTextHighlight,
+        },
+      });
+    },
+    [handleSetEquationsPane, sendMessage],
+  );
+
+  const handleEquationVisualizationFrameSelect = useCallback(
+    (frame: VisualizationFrameState) => {
+      const nextFrame: VisualizationFrameState = {
+        ...cloneVisualizationFrameState(frame),
+        updatedAt: new Date().toISOString(),
+      };
+      handleSetEquationsPane({
+        context: {
+          visualizationFrame: nextFrame,
+        },
+      });
+      sendMessage({
+        type: "set_equations_pane",
+        context: {
+          visualizationFrame: nextFrame,
         },
       });
     },
@@ -5842,7 +6155,20 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                   sidebarMode={sidebarMode}
                   frameGridLayoutDebug={frameGridLayoutDebug}
                   onFrameGridLayoutDebugChange={setFrameGridLayoutDebug}
-                  equationHitBoxClick={equationsPane.context.selectedHitBox}
+                  equationsSignalBlocksDebug={equationsSignalBlocksDebug}
+                  onEquationsSignalBlocksDebugChange={setEquationsSignalBlocksDebug}
+                  topicCatalogEntries={equationsTopicCatalogEntries}
+                  topicCatalogSourceInput={topicCatalogSourceInput}
+                  onTopicCatalogSourceInputChange={setTopicCatalogSourceInput}
+                  onTopicCatalogSourceCommit={handleTopicCatalogSourceCommit}
+                  topicCatalogSourceError={topicCatalogSourceError}
+                  inlineEditTextClass={INLINE_EDIT_TEXT_CLASS}
+                  inlineEditEmptyClass={INLINE_EDIT_EMPTY_CLASS}
+                  isInlineFieldBlank={isInlineFieldBlank}
+                  topicOptions={topicOptionsForSelectedCatalog}
+                  recentTopicOptions={recentEquationTopics}
+                  selectedTopicId={selectedTopicId}
+                  onTopicSelect={handleTopicSelect}
                 />
               )}
             </div>
@@ -5906,9 +6232,16 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               sidebarMode={sidebarMode}
               equationsPane={equationsPane}
               frameGridLayoutDebug={frameGridLayoutDebug}
+              equationsSignalBlocksDebug={equationsSignalBlocksDebug}
+              visualizationFrame={equationsPane.context.visualizationFrame}
+              visualizationCapture={equationsVisualizationCapture}
+              currentTick={playbackState.currentTick}
+              onVisualizationDebugChange={handleVisualizationDebugChange}
               onFrameGridDebugChange={handleEquationsFrameDebugChange}
               equationHitBoxClick={equationsPane.context.selectedHitBox}
               onEquationHitBoxSelect={handleEquationHitBoxSelect}
+              onEquationTextHighlightSelect={handleEquationTextHighlightSelect}
+              onVisualizationFrameSelect={handleEquationVisualizationFrameSelect}
             />
           )}
         </div>

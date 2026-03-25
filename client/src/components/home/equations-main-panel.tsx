@@ -1,234 +1,144 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import katex from "katex";
+import { Check, Copy } from "lucide-react";
 import type {
-  EquationsMappingEntry,
+  CaptureSession,
   EquationsPaneCard,
+  VisualizationFrameState,
   VisualizationState,
 } from "@shared/schema";
 import { resolveEquationsMathExpression } from "@shared/equations-math";
 import { buildEquationsFrameGridDocument } from "@shared/equations-framegrid-document";
 import type { EquationHitBoxClickSignal } from "@/components/home/equation-interaction.types";
-import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
+import { InjectedVisualization, type InjectedVisualizationDebug } from "@/components/injected-visualization";
 import { SubappFloatingFrame } from "@/components/floating-frame";
 import { FrameGrid, type FrameGridDebugSnapshot } from "@/components/frame-grid";
+import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
+import { DASHBOARD_STORAGE_KEYS } from "@/lib/dashboard/storage";
+import {
+  type CardVariant,
+  collectFreeformBlockFormulaBySelectionId,
+  FreeformCardContent,
+  MappedCardContent,
+  PiecewiseEquationContent,
+  renderCardAsLatex,
+} from "./equations-main-panel/card-content";
+import { FitToCellContent, type FitAlign, type FitMode } from "./equations-main-panel/fit-to-cell-content";
+import {
+  type SelectionEndpoints,
+  type TextHighlightOverlayLayer,
+  areSelectedTextHighlightsEqual,
+  areTextHighlightOverlayLayersEqual,
+  buildSelectionEndpointsFromSelection,
+  buildSelectionHighlight,
+  resolveTextHighlightOverlayLayers,
+} from "./equations-main-panel/text-highlight";
 
 type EquationsMainPanelProps = {
   sidebarMode: SidebarMode;
   equationsPane: VisualizationState["equationsPane"];
   frameGridLayoutDebug?: boolean;
+  equationsSignalBlocksDebug?: boolean;
+  visualizationFrame: VisualizationFrameState | null;
+  visualizationCapture: CaptureSession | null;
+  currentTick: number;
+  onVisualizationDebugChange?: (debug: InjectedVisualizationDebug) => void;
   onFrameGridDebugChange?: (debug: FrameGridDebugSnapshot) => void;
   equationHitBoxClick?: EquationHitBoxClickSignal | null;
   onEquationHitBoxSelect?: (signal: EquationHitBoxClickSignal | null) => void;
+  onEquationTextHighlightSelect?: (
+    highlight: VisualizationState["equationsPane"]["context"]["selectedTextHighlight"],
+  ) => void;
+  onVisualizationFrameSelect?: (frame: VisualizationFrameState) => void;
 };
 
-type FitMode = "intrinsic" | "wrap";
-type FitAlign = "center" | "start";
-type CardVariant = "equation" | "literal" | "representation" | "framing";
+type PendingTextHighlightGesture = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+  hadExistingHighlight: boolean;
+};
 
-function FitToCellContent({
-  children,
-  mode,
-  align,
-}: {
-  children: ReactNode;
-  mode: FitMode;
-  align: FitAlign;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const content = contentRef.current;
-    if (!container || !content) {
-      return;
-    }
-
-    let frame = 0;
-    const scheduleMeasure = () => {
-      if (frame !== 0) {
-        window.cancelAnimationFrame(frame);
-      }
-      frame = window.requestAnimationFrame(() => {
-        frame = 0;
-        const availableWidth = container.clientWidth;
-        const availableHeight = container.clientHeight;
-        const naturalWidth = content.scrollWidth;
-        const naturalHeight = content.scrollHeight;
-
-        if (
-          availableWidth <= 0
-          || availableHeight <= 0
-          || naturalWidth <= 0
-          || naturalHeight <= 0
-        ) {
-          setScale(1);
-          return;
-        }
-
-        const widthScale = mode === "wrap" ? 1 : availableWidth / naturalWidth;
-        const nextScale = Math.min(1, widthScale, availableHeight / naturalHeight);
-        setScale((current) => (Math.abs(current - nextScale) < 0.01 ? current : nextScale));
-      });
-    };
-
-    scheduleMeasure();
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", scheduleMeasure);
-      return () => {
-        if (frame !== 0) {
-          window.cancelAnimationFrame(frame);
-        }
-        window.removeEventListener("resize", scheduleMeasure);
-      };
-    }
-
-    const observer = new ResizeObserver(scheduleMeasure);
-    observer.observe(container);
-    observer.observe(content);
-
-    return () => {
-      if (frame !== 0) {
-        window.cancelAnimationFrame(frame);
-      }
-      observer.disconnect();
-    };
-  }, [align, mode]);
-
-  return (
-    <div ref={containerRef} className="relative flex-1 min-h-0 min-w-0 overflow-hidden">
-      <div
-        ref={contentRef}
-        className={[
-          "absolute",
-          align === "center" ? "left-1/2 top-1/2" : "left-0 top-0",
-          mode === "intrinsic" ? "w-max max-w-none" : "w-full",
-        ].join(" ")}
-        style={{
-          width: mode === "wrap" ? `${100 / Math.max(scale, 0.01)}%` : undefined,
-          transform:
-            align === "center"
-              ? `translate(-50%, -50%) scale(${scale})`
-              : `scale(${scale})`,
-          transformOrigin: align === "center" ? "center center" : "top left",
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function renderMappingLatex(
-  entry: EquationsMappingEntry,
-  options?: { preferDisplayStyle?: boolean },
-): string | null {
-  if (entry.kind !== "latex") {
-    return null;
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (
+    typeof navigator !== "undefined"
+    && navigator.clipboard
+    && typeof navigator.clipboard.writeText === "function"
+  ) {
+    await navigator.clipboard.writeText(text);
+    return;
   }
-  const latex = options?.preferDisplayStyle && entry.displayMode === undefined
-    ? `{\\displaystyle ${entry.value}}`
-    : entry.value;
-  return katex.renderToString(latex, {
-    displayMode: entry.displayMode ?? false,
-    output: "htmlAndMathml",
-    throwOnError: false,
-    trust: false,
-  });
-}
 
-function MappedCardContent({
-  itemId,
-  mappings,
-  variant,
-  selectedHitBox,
-  onSelect,
-}: {
-  itemId: string;
-  mappings: EquationsMappingEntry[];
-  variant: CardVariant;
-  selectedHitBox?: EquationHitBoxClickSignal | null;
-  onSelect?: (signal: EquationHitBoxClickSignal | null) => void;
-}) {
-  const selectedHitBoxId = selectedHitBox?.hitBox.id ?? null;
-  const selectedItemId = selectedHitBox?.itemId ?? null;
-  const containerClassName = [
-    "max-w-full whitespace-pre-wrap break-words",
-    variant === "literal"
-      ? "font-mono text-[11px] leading-5 text-foreground/78"
-      : variant === "equation"
-        ? "text-center leading-[2.2] text-foreground"
-        : "text-[13px] leading-5 text-foreground/82",
-  ].join(" ");
+  if (typeof document === "undefined") {
+    throw new Error("Clipboard is unavailable in this environment.");
+  }
 
-  return (
-    <div className={containerClassName}>
-      {mappings.map((entry, index) => {
-        const markup = renderMappingLatex(entry, {
-          preferDisplayStyle: variant === "equation",
-        });
-        const hitBox = entry.hitBox;
-        const isActive = Boolean(hitBox && hitBox.id === selectedHitBoxId);
-        const isSameSelection = Boolean(
-          hitBox
-          && hitBox.id === selectedHitBoxId
-          && itemId === selectedItemId,
-        );
-        const content = markup ? (
-          <span
-            className="inline-block align-middle"
-            dangerouslySetInnerHTML={{ __html: markup }}
-          />
-        ) : (
-          <span className="whitespace-pre-wrap">{entry.value}</span>
-        );
-
-        if (!hitBox) {
-          return (
-            <span key={`${itemId}-mapping-${index}`} className="inline">
-              {content}
-            </span>
-          );
-        }
-
-        return (
-          <button
-            key={`${itemId}-mapping-${index}`}
-            type="button"
-            className={[
-              "inline-flex items-center align-middle rounded-sm bg-transparent px-0.5 py-0.5 text-inherit transition-colors",
-              "focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-1 focus-visible:ring-ring/60",
-              isSameSelection
-                ? "bg-accent/34 ring-inset ring-1 ring-ring/55"
-                : isActive
-                  ? "bg-accent/18 ring-inset ring-1 ring-ring/30"
-                  : "hover:bg-accent/14",
-            ].join(" ")}
-            onClick={() => onSelect?.(isSameSelection ? null : { itemId, hitBox })}
-            aria-label={`Select equation mapping ${hitBox.label}`}
-          >
-            {content}
-          </button>
-        );
-      })}
-    </div>
-  );
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "absolute";
+  textarea.style.left = "-9999px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+  const success = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  if (!success) {
+    throw new Error("Clipboard copy command failed.");
+  }
 }
 
 export function EquationsMainPanel({
   sidebarMode,
   equationsPane,
   frameGridLayoutDebug = false,
+  equationsSignalBlocksDebug = false,
+  visualizationFrame,
+  visualizationCapture,
+  currentTick,
+  onVisualizationDebugChange,
   onFrameGridDebugChange,
   equationHitBoxClick,
   onEquationHitBoxSelect,
+  onEquationTextHighlightSelect,
+  onVisualizationFrameSelect,
 }: EquationsMainPanelProps) {
   const contentAreaRef = useRef<HTMLElement | null>(null);
+  const interactionSignalCopyResetTimerRef = useRef<number | null>(null);
+  const pendingTextHighlightGestureRef = useRef<PendingTextHighlightGesture | null>(null);
+  const [interactionSignalCopyState, setInteractionSignalCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [selectedTextHighlightOverlayLayers, setSelectedTextHighlightOverlayLayers] = useState<TextHighlightOverlayLayer[]>([]);
+
   const frameGridDocument = buildEquationsFrameGridDocument(equationsPane, {
     detailsFallbackBody: sidebarMode === "analysis" ? "Library" : "Setup",
   });
+
+  const freeformBlockFormulaBySelectionId = new Map<string, string>();
+  frameGridDocument.items.forEach((item) => {
+    const itemId = item.id ?? "workspace";
+    const blocks = Array.isArray(item.blocks) ? item.blocks : [];
+    collectFreeformBlockFormulaBySelectionId(itemId, blocks, freeformBlockFormulaBySelectionId);
+  });
+
+  const workspaceItem = frameGridDocument.items.find((item) => item.id === "workspace");
+  const selectedDocumentItem = equationHitBoxClick
+    ? frameGridDocument.items.find((item) => item.id === equationHitBoxClick.itemId)
+    : null;
+  const fallbackFormulaLatex = workspaceItem
+    ? renderCardAsLatex(workspaceItem)
+    : renderCardAsLatex(equationsPane.content.workspace);
+  const selectedFormulaLatex = equationHitBoxClick
+    ? freeformBlockFormulaBySelectionId.get(equationHitBoxClick.itemId)
+      ?? (selectedDocumentItem ? renderCardAsLatex(selectedDocumentItem) : fallbackFormulaLatex)
+    : fallbackFormulaLatex;
+  const selectedHitBoxLatex = equationHitBoxClick
+    ? equationHitBoxClick.hitBox.latex.trim()
+      || equationHitBoxClick.hitBox.sequence.trim()
+      || equationHitBoxClick.hitBox.label.trim()
+    : "";
   const selectedHitBoxLatexMarkup = equationHitBoxClick
     && equationHitBoxClick.hitBox.latex.trim().length > 0
     ? katex.renderToString(equationHitBoxClick.hitBox.latex, {
@@ -238,18 +148,185 @@ export function EquationsMainPanel({
         trust: false,
       })
     : null;
+  const interactionSignalClipboardText = [
+    selectedFormulaLatex.trim().length > 0 ? `Formula: ${selectedFormulaLatex}` : null,
+    selectedHitBoxLatex.length > 0 ? `Partial: ${selectedHitBoxLatex}` : null,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join("\n");
+  const visualizationDockRequestToken = visualizationFrame?.updatedAt
+    ? Date.parse(visualizationFrame.updatedAt)
+    : undefined;
 
-  const getCardVariant = (itemId: string) => {
+  const updateSelectedTextHighlightOverlayLayers = (nextLayers: TextHighlightOverlayLayer[]) => {
+    setSelectedTextHighlightOverlayLayers((current) => (
+      areTextHighlightOverlayLayersEqual(current, nextLayers) ? current : nextLayers
+    ));
+  };
+
+  const clearSelectedTextHighlight = () => {
+    updateSelectedTextHighlightOverlayLayers([]);
+    if (equationsPane.context.selectedTextHighlight !== null) {
+      onEquationTextHighlightSelect?.(null);
+    }
+  };
+
+  const refreshSelectedTextHighlightOverlay = () => {
+    const container = contentAreaRef.current;
+    const highlight = equationsPane.context.selectedTextHighlight;
+    if (!container || !highlight) {
+      updateSelectedTextHighlightOverlayLayers([]);
+      return;
+    }
+
+    updateSelectedTextHighlightOverlayLayers(
+      resolveTextHighlightOverlayLayers(container, highlight),
+    );
+  };
+
+  const commitSelectedTextHighlight = (
+    range: Range,
+    selectionEndpoints?: SelectionEndpoints | null,
+  ) => {
+    const container = contentAreaRef.current;
+    if (!container) {
+      return;
+    }
+
+    const highlight = buildSelectionHighlight(range, selectionEndpoints);
+    if (!highlight) {
+      return;
+    }
+
+    const overlayLayers = resolveTextHighlightOverlayLayers(container, highlight);
+    if (overlayLayers.length === 0) {
+      return;
+    }
+
+    updateSelectedTextHighlightOverlayLayers(overlayLayers);
+    if (!areSelectedTextHighlightsEqual(equationsPane.context.selectedTextHighlight, highlight)) {
+      onEquationTextHighlightSelect?.(highlight);
+    }
+  };
+
+  const reconcileBrowserSelection = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const pendingGesture = pendingTextHighlightGestureRef.current;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      if (
+        pendingGesture?.hadExistingHighlight
+        && !pendingGesture.moved
+        && equationsPane.context.selectedTextHighlight !== null
+      ) {
+        clearSelectedTextHighlight();
+      }
+      pendingTextHighlightGestureRef.current = null;
+      return;
+    }
+
+    const container = contentAreaRef.current;
+    const range = selection.getRangeAt(0).cloneRange();
+    if (!container || !container.contains(range.commonAncestorContainer)) {
+      pendingTextHighlightGestureRef.current = null;
+      selection.removeAllRanges();
+      return;
+    }
+
+    const browserSelectionEndpoints = buildSelectionEndpointsFromSelection(selection);
+    commitSelectedTextHighlight(range, browserSelectionEndpoints);
+    pendingTextHighlightGestureRef.current = null;
+    selection.removeAllRanges();
+  };
+
+  const handlePanelPointerDownCapture = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    pendingTextHighlightGestureRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      hadExistingHighlight: equationsPane.context.selectedTextHighlight !== null,
+    };
+  };
+
+  const handlePanelPointerMoveCapture = (event: ReactPointerEvent<HTMLElement>) => {
+    const pendingGesture = pendingTextHighlightGestureRef.current;
+    if (!pendingGesture || pendingGesture.pointerId !== event.pointerId || pendingGesture.moved) {
+      return;
+    }
+
+    if (
+      Math.abs(event.clientX - pendingGesture.startX) > 3
+      || Math.abs(event.clientY - pendingGesture.startY) > 3
+    ) {
+      pendingGesture.moved = true;
+    }
+  };
+
+  useEffect(() => {
+    setInteractionSignalCopyState("idle");
+    if (interactionSignalCopyResetTimerRef.current !== null) {
+      window.clearTimeout(interactionSignalCopyResetTimerRef.current);
+      interactionSignalCopyResetTimerRef.current = null;
+    }
+  }, [interactionSignalClipboardText]);
+
+  useEffect(() => () => {
+    if (interactionSignalCopyResetTimerRef.current !== null) {
+      window.clearTimeout(interactionSignalCopyResetTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSelectedTextHighlightOverlay();
+    window.addEventListener("resize", refreshSelectedTextHighlightOverlay);
+    return () => {
+      window.removeEventListener("resize", refreshSelectedTextHighlightOverlay);
+    };
+  }, [equationsPane, sidebarMode, equationsSignalBlocksDebug]);
+
+  const handleCopyInteractionSignal = async () => {
+    if (!interactionSignalClipboardText) {
+      return;
+    }
+
+    try {
+      await copyTextToClipboard(interactionSignalClipboardText);
+      setInteractionSignalCopyState("copied");
+    } catch {
+      setInteractionSignalCopyState("error");
+    }
+
+    if (interactionSignalCopyResetTimerRef.current !== null) {
+      window.clearTimeout(interactionSignalCopyResetTimerRef.current);
+    }
+    interactionSignalCopyResetTimerRef.current = window.setTimeout(() => {
+      setInteractionSignalCopyState("idle");
+      interactionSignalCopyResetTimerRef.current = null;
+    }, 1500);
+  };
+
+  const getCardVariant = (itemId: string): CardVariant => {
     if (itemId === "workspace") {
       return "equation";
     }
     if (itemId === "details") {
       return "literal";
     }
-    if (itemId === "notes" || itemId === "footer") {
-      return "representation";
+    if (itemId === "notes") {
+      return "meaning";
     }
-    return "framing";
+    if (itemId === "footer") {
+      return "concept";
+    }
+    return "meaning";
   };
 
   const renderCard = (
@@ -259,13 +336,20 @@ export function EquationsMainPanel({
   ) => {
     const math = resolveEquationsMathExpression(card.math);
     const mappings = Array.isArray(card.mappings) ? card.mappings : [];
+    const piecewiseRows = Array.isArray(card.piecewiseRows) ? card.piecewiseRows : [];
+    const blocks = Array.isArray(card.blocks) ? card.blocks : [];
     const hasMappings = mappings.length > 0;
+    const hasPiecewiseRows = piecewiseRows.length > 0;
+    const hasBlocks = blocks.length > 0;
     const body = card.body.trim().length > 0 ? card.body : options?.fallbackBody ?? "";
     const title = card.title.trim().length > 0 ? card.title : "";
-    const variant: CardVariant = getCardVariant(itemId);
+    const variant = getCardVariant(itemId);
     const isEquationCard = variant === "equation";
     const isLiteralCard = variant === "literal";
-    const mathMarkup = !hasMappings && math
+    const presentation = card.presentation ?? "standard";
+    const isFreeformCard = presentation === "freeform";
+    const isPiecewiseEquation = isEquationCard && presentation === "piecewise";
+    const mathMarkup = !hasMappings && !hasPiecewiseRows && !hasBlocks && math
       ? katex.renderToString(math.latex, {
           displayMode: math.displayMode,
           output: "htmlAndMathml",
@@ -273,16 +357,17 @@ export function EquationsMainPanel({
           trust: false,
         })
       : null;
-    const fitMode: FitMode = isEquationCard ? "intrinsic" : "wrap";
-    const fitAlign: FitAlign = isEquationCard ? "center" : "start";
+    const fitMode: FitMode = isEquationCard && !isFreeformCard ? "intrinsic" : "wrap";
+    const fitAlign: FitAlign = isEquationCard && !isFreeformCard ? "center" : "start";
 
     return (
       <article
         className={[
-          "h-full w-full rounded-xl p-4 md:p-5",
+          "relative h-full w-full rounded-xl p-4 md:p-5",
           "overflow-hidden backdrop-blur-[2px]",
-          isEquationCard ? "bg-background/88" : "bg-card/78",
+          isEquationCard || isFreeformCard ? "bg-background/88" : "bg-card/78",
         ].join(" ")}
+        data-equations-item-id={itemId}
       >
         <div className="flex h-full w-full min-h-0 flex-col gap-3">
           {title ? (
@@ -294,34 +379,66 @@ export function EquationsMainPanel({
             <div
               className={[
                 "flex flex-col gap-3",
-                isEquationCard ? "items-center justify-center text-center" : "items-start text-left",
+                isPiecewiseEquation
+                  ? "items-start justify-center text-left"
+                  : isFreeformCard
+                    ? "items-start text-left"
+                  : isEquationCard
+                    ? "items-center justify-center text-center"
+                    : "items-start text-left",
               ].join(" ")}
             >
               {mathMarkup ? (
                 <div
-                  className="max-w-full overflow-x-auto text-foreground"
+                  className="relative max-w-full overflow-x-auto text-foreground"
+                  data-equations-selection-root="1"
+                  data-equations-item-id={itemId}
+                  data-equations-selection-id={itemId}
                   dangerouslySetInnerHTML={{ __html: mathMarkup }}
                 />
               ) : null}
-              {hasMappings ? (
+              {isPiecewiseEquation && hasPiecewiseRows ? (
+                <PiecewiseEquationContent
+                  itemId={itemId}
+                  lhsMappings={mappings}
+                  rows={piecewiseRows}
+                  showAllSignalBlocks={equationsSignalBlocksDebug}
+                  selectedHitBox={equationHitBoxClick}
+                  onSelect={onEquationHitBoxSelect}
+                />
+              ) : isFreeformCard && hasBlocks ? (
+                <FreeformCardContent
+                  itemId={itemId}
+                  blocks={blocks}
+                  showAllSignalBlocks={equationsSignalBlocksDebug}
+                  selectedHitBox={equationHitBoxClick}
+                  onSelect={onEquationHitBoxSelect}
+                  onVisualizationLinkSelect={onVisualizationFrameSelect}
+                />
+              ) : hasMappings ? (
                 <MappedCardContent
                   itemId={itemId}
                   mappings={mappings}
                   variant={variant}
+                  presentation={presentation}
+                  showAllSignalBlocks={equationsSignalBlocksDebug}
                   selectedHitBox={equationHitBoxClick}
                   onSelect={onEquationHitBoxSelect}
                 />
               ) : null}
-              {!hasMappings && body ? (
+              {!hasMappings && !hasPiecewiseRows && !hasBlocks && body ? (
                 <div
                   className={[
-                    "whitespace-pre-line break-words",
+                    "relative whitespace-pre-line break-words",
                     isLiteralCard
                       ? "font-mono text-[11px] leading-5 text-foreground/78"
                       : isEquationCard
                         ? "max-w-[32ch] text-sm leading-relaxed text-muted-foreground"
                         : "text-[13px] leading-5 text-foreground/82",
                   ].join(" ")}
+                  data-equations-selection-root="1"
+                  data-equations-item-id={itemId}
+                  data-equations-selection-id={itemId}
                 >
                   {body}
                 </div>
@@ -339,7 +456,39 @@ export function EquationsMainPanel({
         ref={contentAreaRef}
         className="relative flex-1 min-h-0"
         data-testid="equations-main-panel"
+        onPointerDownCapture={handlePanelPointerDownCapture}
+        onPointerMoveCapture={handlePanelPointerMoveCapture}
+        onMouseUp={() => {
+          window.requestAnimationFrame(() => {
+            reconcileBrowserSelection();
+          });
+        }}
+        onKeyUp={() => {
+          window.requestAnimationFrame(() => {
+            reconcileBrowserSelection();
+          });
+        }}
       >
+        {selectedTextHighlightOverlayLayers.map((layer, layerIndex) => createPortal(
+          <div className="pointer-events-none absolute inset-0 z-10" aria-hidden="true">
+            {layer.rects.map((rect, rectIndex) => (
+              <div
+                key={`equations-highlight-${layerIndex}-${rectIndex}`}
+                className="absolute rounded-[2px] border"
+                style={{
+                  left: `${rect.left}px`,
+                  top: `${rect.top}px`,
+                  width: `${rect.width}px`,
+                  height: `${rect.height}px`,
+                  backgroundColor: "var(--equations-highlight-fill)",
+                  borderColor: "var(--equations-highlight-stroke)",
+                }}
+              />
+            ))}
+          </div>,
+          layer.host,
+          `equations-highlight-layer-${layerIndex}`,
+        ))}
         <FrameGrid
           spec={frameGridDocument.spec}
           debugId="equations-main"
@@ -365,6 +514,7 @@ export function EquationsMainPanel({
           containerRef={contentAreaRef}
           defaultPosition={{ x: 16, y: 16 }}
           dataTestId="equations-interaction-signal-window"
+          stateStorageKey={DASHBOARD_STORAGE_KEYS.equationsInteractionSignalFrame}
           className="w-[280px] min-w-[220px] max-w-[calc(100%-16px)] border border-border/60 bg-background/95 text-foreground shadow-lg backdrop-blur-sm"
           headerClassName="border-b border-border/50 bg-muted/40"
           titleClassName="text-xs text-foreground"
@@ -378,20 +528,69 @@ export function EquationsMainPanel({
             <div className="flex flex-col gap-2" data-testid="equation-click-signal">
               {selectedHitBoxLatexMarkup ? (
                 <div
-                  className="rounded-sm border border-border/50 bg-background/60 px-2 py-2 text-foreground"
-                  dangerouslySetInnerHTML={{ __html: selectedHitBoxLatexMarkup }}
-                />
+                  className="group/interaction-signal relative w-full overflow-hidden rounded-sm border border-border/50 bg-background/60 px-2 py-2 text-foreground"
+                >
+                  <button
+                    type="button"
+                    onClick={handleCopyInteractionSignal}
+                    className={[
+                      "absolute right-1 top-1 left-auto z-20 flex h-6 w-6 items-center justify-center rounded-sm border border-border/50 bg-background/85 p-0",
+                      "text-muted-foreground opacity-0 transition-opacity hover:bg-background",
+                      "group-hover/interaction-signal:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/60",
+                      interactionSignalCopyState === "error" ? "text-destructive" : "hover:text-foreground",
+                    ].join(" ")}
+                    aria-label="Copy selected interaction signal to clipboard"
+                    title="Copy selected interaction signal to clipboard"
+                  >
+                    {interactionSignalCopyState === "copied" ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                  <div className="w-full overflow-x-auto" dangerouslySetInnerHTML={{ __html: selectedHitBoxLatexMarkup }} />
+                </div>
               ) : null}
-              <div className="font-mono text-sm leading-relaxed text-foreground">
-                {equationHitBoxClick.hitBox.sequence}
-              </div>
             </div>
           ) : (
-            <div className="text-xs text-muted-foreground leading-relaxed">
+            <div className="text-xs leading-relaxed text-muted-foreground">
               Equation interaction metadata appears here when the active document provides it.
             </div>
           )}
         </SubappFloatingFrame>
+        {visualizationFrame ? (
+          <SubappFloatingFrame
+            title="Visualization Frame"
+            containerRef={contentAreaRef}
+            defaultPosition={{ x: 20, y: 170 }}
+            defaultSize={{ width: 340, height: 300 }}
+            dataTestId="equations-visualization-frame"
+            stateStorageKey={DASHBOARD_STORAGE_KEYS.equationsVisualizationFloatingFrame}
+            className="border border-border/60 bg-background/95 text-foreground shadow-lg backdrop-blur-sm"
+            headerClassName="border-b border-border/50 bg-muted/40"
+            titleClassName="text-xs text-foreground"
+            dragHandleClassName="text-muted-foreground hover:text-foreground"
+            controlButtonClassName="text-muted-foreground hover:text-foreground"
+            contentClassName="!px-2 !py-2"
+            contentMinHeight={0}
+            contentFill
+            dragHint="Drag this visualization within the equations area."
+            popoutable
+            popoutWindowName="metrics-ui-equations-visualization-frame"
+            popoutWindowTitle="Metrics UI - Equations Visualization Frame"
+            dockRequestToken={Number.isFinite(visualizationDockRequestToken) ? visualizationDockRequestToken : undefined}
+            resizable
+            minSize={{ width: 280, height: 220 }}
+            resizeHint="Drag an edge or corner to resize this visualization."
+          >
+            <InjectedVisualization
+              frame={visualizationFrame}
+              capture={visualizationCapture}
+              currentTick={currentTick}
+              onDebugChange={onVisualizationDebugChange}
+            />
+          </SubappFloatingFrame>
+        ) : null}
       </section>
     </main>
   );
