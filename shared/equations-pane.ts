@@ -8,9 +8,11 @@ import type {
   EquationsPaneDimensions,
   EquationsPanePlacement,
   EquationsPaneSelectedHitBox,
+  EquationsPaneSelectedTextHighlight,
   EquationsPanePlacementPatch,
   EquationsPaneState,
   EquationsPaneStatePatch,
+  VisualizationFrameState,
 } from "./schema";
 import {
   cloneEquationsMathExpression,
@@ -18,15 +20,23 @@ import {
 } from "./equations-math";
 import {
   cloneEquationsHitBoxDefinition,
+  cloneEquationsPaneCardBlock,
   cloneEquationsMappingEntry,
+  cloneEquationsPiecewiseRow,
   normalizeEquationsHitBoxDefinition,
+  normalizeEquationsPaneCardBlocks,
   normalizeEquationsMappingEntries,
+  normalizeEquationsPiecewiseRows,
 } from "./equations-mappings";
 import {
   cloneEquationsFrameGridDocument,
   DEFAULT_EQUATIONS_FRAMEGRID_DOCUMENT,
   normalizeEquationsFrameGridDocument,
 } from "./equations-framegrid-document";
+import {
+  cloneVisualizationFrameState,
+  normalizeVisualizationFrameState,
+} from "./visualization-frame-state";
 
 export const DEFAULT_EQUATIONS_PANE_STATE: EquationsPaneState = {
   dimensions: {
@@ -61,6 +71,8 @@ export const DEFAULT_EQUATIONS_PANE_STATE: EquationsPaneState = {
   cells: [],
   context: {
     selectedHitBox: null,
+    selectedTextHighlight: null,
+    visualizationFrame: null,
   },
 };
 
@@ -80,8 +92,11 @@ function cloneCard(card: EquationsPaneCard): EquationsPaneCard {
   return {
     title: card.title,
     body: card.body,
+    ...(card.presentation ? { presentation: card.presentation } : {}),
     ...(card.math ? { math: cloneEquationsMathExpression(card.math) } : {}),
     ...(card.mappings ? { mappings: card.mappings.map(cloneEquationsMappingEntry) } : {}),
+    ...(card.piecewiseRows ? { piecewiseRows: card.piecewiseRows.map(cloneEquationsPiecewiseRow) } : {}),
+    ...(card.blocks ? { blocks: card.blocks.map(cloneEquationsPaneCardBlock) } : {}),
   };
 }
 
@@ -99,8 +114,11 @@ function cloneCell(cell: EquationsPaneCell): EquationsPaneCell {
     id: cell.id,
     title: cell.title,
     body: cell.body,
+    ...(cell.presentation ? { presentation: cell.presentation } : {}),
     ...(cell.math ? { math: cloneEquationsMathExpression(cell.math) } : {}),
     ...(cell.mappings ? { mappings: cell.mappings.map(cloneEquationsMappingEntry) } : {}),
+    ...(cell.piecewiseRows ? { piecewiseRows: cell.piecewiseRows.map(cloneEquationsPiecewiseRow) } : {}),
+    ...(cell.blocks ? { blocks: cell.blocks.map(cloneEquationsPaneCardBlock) } : {}),
     col: cell.col,
     row: cell.row,
     colSpan: cell.colSpan,
@@ -117,10 +135,34 @@ function cloneSelectedHitBox(
   };
 }
 
+function cloneSelectedTextHighlight(
+  selectedTextHighlight: EquationsPaneSelectedTextHighlight,
+): EquationsPaneSelectedTextHighlight {
+  return {
+    itemId: selectedTextHighlight.itemId,
+    selectionId: selectedTextHighlight.selectionId,
+    startOffset: selectedTextHighlight.startOffset,
+    endOffset: selectedTextHighlight.endOffset,
+    text: selectedTextHighlight.text,
+    ...(selectedTextHighlight.contextBefore !== undefined
+      ? { contextBefore: selectedTextHighlight.contextBefore }
+      : {}),
+    ...(selectedTextHighlight.contextAfter !== undefined
+      ? { contextAfter: selectedTextHighlight.contextAfter }
+      : {}),
+  };
+}
+
 function cloneContext(context: EquationsPaneContextState): EquationsPaneContextState {
   return {
     selectedHitBox: context.selectedHitBox
       ? cloneSelectedHitBox(context.selectedHitBox)
+      : null,
+    selectedTextHighlight: context.selectedTextHighlight
+      ? cloneSelectedTextHighlight(context.selectedTextHighlight)
+      : null,
+    visualizationFrame: context.visualizationFrame
+      ? cloneVisualizationFrameState(context.visualizationFrame)
       : null,
   };
 }
@@ -160,8 +202,11 @@ function cloneDocumentToCells(document: EquationsFrameGridDocument): EquationsPa
     id: item.id,
     title: item.title,
     body: item.body,
+    ...(item.presentation ? { presentation: item.presentation } : {}),
     ...(item.math ? { math: cloneEquationsMathExpression(item.math) } : {}),
     ...(item.mappings ? { mappings: item.mappings.map(cloneEquationsMappingEntry) } : {}),
+    ...(item.piecewiseRows ? { piecewiseRows: item.piecewiseRows.map(cloneEquationsPiecewiseRow) } : {}),
+    ...(item.blocks ? { blocks: item.blocks.map(cloneEquationsPaneCardBlock) } : {}),
     col: item.col,
     row: item.row,
     colSpan: item.colSpan,
@@ -208,8 +253,11 @@ function mergeDocumentContent(
     return {
       title: item.title,
       body: item.body,
+      ...(item.presentation ? { presentation: item.presentation } : {}),
       ...(item.math ? { math: cloneEquationsMathExpression(item.math) } : {}),
       ...(item.mappings ? { mappings: item.mappings.map(cloneEquationsMappingEntry) } : {}),
+      ...(item.piecewiseRows ? { piecewiseRows: item.piecewiseRows.map(cloneEquationsPiecewiseRow) } : {}),
+      ...(item.blocks ? { blocks: item.blocks.map(cloneEquationsPaneCardBlock) } : {}),
     };
   };
 
@@ -238,11 +286,32 @@ function mergeCard(base: EquationsPaneCard, patch: unknown): EquationsPaneCard {
     : base.mappings
       ? base.mappings.map(cloneEquationsMappingEntry)
       : undefined;
+  const hasPiecewiseRows = Object.prototype.hasOwnProperty.call(raw, "piecewiseRows");
+  const nextPiecewiseRows = hasPiecewiseRows
+    ? normalizeEquationsPiecewiseRows(raw.piecewiseRows)
+    : base.piecewiseRows
+      ? base.piecewiseRows.map(cloneEquationsPiecewiseRow)
+      : undefined;
+  const hasBlocks = Object.prototype.hasOwnProperty.call(raw, "blocks");
+  const nextBlocks = hasBlocks
+    ? normalizeEquationsPaneCardBlocks(raw.blocks)
+    : base.blocks
+      ? base.blocks.map(cloneEquationsPaneCardBlock)
+      : undefined;
+  const hasPresentation = Object.prototype.hasOwnProperty.call(raw, "presentation");
+  const nextPresentation = hasPresentation
+    ? raw.presentation === "piecewise" || raw.presentation === "freeform"
+      ? raw.presentation
+      : undefined
+    : base.presentation;
   return {
     title: typeof raw.title === "string" ? raw.title : base.title,
     body: typeof raw.body === "string" ? raw.body : base.body,
+    ...(nextPresentation ? { presentation: nextPresentation } : {}),
     ...(nextMath ? { math: nextMath } : {}),
     ...(nextMappings ? { mappings: nextMappings } : {}),
+    ...(nextPiecewiseRows ? { piecewiseRows: nextPiecewiseRows } : {}),
+    ...(nextBlocks ? { blocks: nextBlocks } : {}),
   };
 }
 
@@ -261,6 +330,44 @@ function normalizeSelectedHitBox(value: unknown): EquationsPaneSelectedHitBox | 
   };
 }
 
+function normalizeSelectedTextHighlight(value: unknown): EquationsPaneSelectedTextHighlight | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = value as Partial<EquationsPaneSelectedTextHighlight>;
+  const itemId = typeof raw.itemId === "string" ? raw.itemId.trim() : "";
+  const selectionId = typeof raw.selectionId === "string" ? raw.selectionId.trim() : "";
+  const startOffset =
+    typeof raw.startOffset === "number" && Number.isInteger(raw.startOffset) && raw.startOffset >= 0
+      ? raw.startOffset
+      : null;
+  const endOffset =
+    typeof raw.endOffset === "number" && Number.isInteger(raw.endOffset) && raw.endOffset >= 0
+      ? raw.endOffset
+      : null;
+  const text = typeof raw.text === "string" ? raw.text.trim() : "";
+  if (!itemId || !selectionId || startOffset === null || endOffset === null || endOffset < startOffset || !text) {
+    return null;
+  }
+  const contextBefore =
+    typeof raw.contextBefore === "string" && raw.contextBefore.length > 0
+      ? raw.contextBefore
+      : undefined;
+  const contextAfter =
+    typeof raw.contextAfter === "string" && raw.contextAfter.length > 0
+      ? raw.contextAfter
+      : undefined;
+  return {
+    itemId,
+    selectionId,
+    startOffset,
+    endOffset,
+    text,
+    ...(contextBefore !== undefined ? { contextBefore } : {}),
+    ...(contextAfter !== undefined ? { contextAfter } : {}),
+  };
+}
+
 function mergeContext(
   base: EquationsPaneContextState,
   patch: unknown,
@@ -270,11 +377,23 @@ function mergeContext(
   }
   const raw = patch as Partial<EquationsPaneContextState>;
   const hasSelectedHitBox = Object.prototype.hasOwnProperty.call(raw, "selectedHitBox");
+  const hasSelectedTextHighlight = Object.prototype.hasOwnProperty.call(raw, "selectedTextHighlight");
+  const hasVisualizationFrame = Object.prototype.hasOwnProperty.call(raw, "visualizationFrame");
   return {
     selectedHitBox: hasSelectedHitBox
       ? normalizeSelectedHitBox(raw.selectedHitBox)
       : base.selectedHitBox
         ? cloneSelectedHitBox(base.selectedHitBox)
+        : null,
+    selectedTextHighlight: hasSelectedTextHighlight
+      ? normalizeSelectedTextHighlight(raw.selectedTextHighlight)
+      : base.selectedTextHighlight
+        ? cloneSelectedTextHighlight(base.selectedTextHighlight)
+        : null,
+    visualizationFrame: hasVisualizationFrame
+      ? normalizeVisualizationFrameState(raw.visualizationFrame)
+      : base.visualizationFrame
+        ? cloneVisualizationFrameState(base.visualizationFrame)
         : null,
   };
 }
@@ -346,6 +465,8 @@ function normalizeCellArray(
     const rowSpan = isFinitePositiveInteger(raw.rowSpan) ? raw.rowSpan : 1;
     const math = normalizeEquationsMathExpression(raw.math);
     const mappings = normalizeEquationsMappingEntries(raw.mappings);
+    const piecewiseRows = normalizeEquationsPiecewiseRows(raw.piecewiseRows);
+    const blocks = normalizeEquationsPaneCardBlocks(raw.blocks);
     if (col + colSpan > gridCols || row + rowSpan > gridRows) {
       return;
     }
@@ -353,8 +474,13 @@ function normalizeCellArray(
       id: typeof raw.id === "string" && raw.id.trim().length > 0 ? raw.id.trim() : `cell-${index}`,
       title: typeof raw.title === "string" ? raw.title : "",
       body: typeof raw.body === "string" ? raw.body : "",
+      ...(raw.presentation === "piecewise" || raw.presentation === "freeform"
+        ? { presentation: raw.presentation }
+        : {}),
       ...(math ? { math } : {}),
       ...(mappings ? { mappings } : {}),
+      ...(piecewiseRows ? { piecewiseRows } : {}),
+      ...(blocks ? { blocks } : {}),
       col,
       row,
       colSpan,

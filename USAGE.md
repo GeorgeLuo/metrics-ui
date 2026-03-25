@@ -474,12 +474,20 @@ simeval ui equations-pane \
 
 simeval ui equations-pane \
   --dimensions-file ./equations-layout.json \
-  --content-file ./equations-content.json \
+  --content-file ./examples/kuramoto/equations-content.model.json \
   --ui ws://127.0.0.1:5050/ws/control
 
 simeval ui equations-pane \
-  --document-file ./examples/kuramoto/equations-framegrid.json \
+  --content-file ./examples/kuramoto/equations-content.eq9.json \
   --ui ws://127.0.0.1:5050/ws/control
+
+simeval ui equations-pane \
+  --document-file ./examples/kuramoto/equations-document.eq5-eq9-to-eq10.json \
+  --ui ws://127.0.0.1:5050/ws/control
+
+simeval ui equations-pane validate \
+  --document-file ./examples/kuramoto/equations-document.eq10-variables.json \
+  --ui-dir ./Stream-Metrics-UI
 
 simeval ui equations-pane \
   --context '{"selectedHitBox":{"itemId":"workspace","hitBox":{"id":"omega_i","label":"ω_i","sequence":"ω_i","category":"term","latex":"\\omega_{i}"}}}' \
@@ -661,6 +669,9 @@ simeval ui bootstrap-verify \
 Use the Kuramoto spec to restore a comparison dashboard for oscillator phases plus simulation/evaluation order parameter overlays.
 
 - Spec artifact: `examples/kuramoto/view-spec.json`
+- Equations content files:
+  - `examples/kuramoto/equations-content.model.json`
+  - `examples/kuramoto/equations-content.eq9.json`
 - Update the two capture `source` paths in the spec before running.
 - Helper script (auto-wires local capture paths): `examples/kuramoto/bootstrap-ui.sh`
 
@@ -684,5 +695,17 @@ Verify-only:
 simeval ui bootstrap-verify \
   --spec /path/to/Stream-Metrics-UI/examples/kuramoto/view-spec.json \
   --verify-only true \
+  --ui ws://127.0.0.1:5050/ws/control
+```
+
+Switch equations content explicitly:
+
+```bash
+simeval ui equations-pane \
+  --content-file /path/to/Stream-Metrics-UI/examples/kuramoto/equations-content.model.json \
+  --ui ws://127.0.0.1:5050/ws/control
+
+simeval ui equations-pane \
+  --content-file /path/to/Stream-Metrics-UI/examples/kuramoto/equations-content.eq9.json \
   --ui ws://127.0.0.1:5050/ws/control
 ```
