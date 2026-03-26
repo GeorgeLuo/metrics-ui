@@ -288,16 +288,17 @@ function MappedSequence({
             role="button"
             tabIndex={0}
             className={[
-              "select-text cursor-pointer align-middle rounded-sm bg-transparent px-0.5 py-0.5 text-inherit transition-colors",
-              "focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-1 focus-visible:ring-ring/60",
+              "select-text cursor-pointer align-middle rounded-md border px-0.5 py-0.5 text-inherit transition-colors",
+              "border-emerald-500/35 bg-emerald-500/[0.035]",
+              "focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-1 focus-visible:ring-emerald-500/60",
               showAllSignalBlocks
-                ? "bg-amber-500/12 ring-inset ring-1 ring-amber-600/70"
+                ? "rounded-md border border-emerald-500/80 bg-emerald-500/10 shadow-[0_0_0_1px_rgba(16,185,129,0.18)] dark:border-emerald-300/90 dark:bg-emerald-300/12 dark:shadow-[0_0_0_1px_rgba(110,231,183,0.24)]"
                 : "",
               isSameSelection
-                ? "bg-accent/34 ring-inset ring-1 ring-ring/55"
+                ? "border-emerald-600/80 bg-emerald-500/14 ring-inset ring-1 ring-emerald-600/45 dark:border-emerald-300/95 dark:bg-emerald-300/16 dark:ring-emerald-300/45"
                 : isActive
-                  ? "bg-accent/18 ring-inset ring-1 ring-ring/30"
-                  : "hover:bg-accent/14",
+                  ? "border-emerald-500/60 bg-emerald-500/10 ring-inset ring-1 ring-emerald-500/30 dark:border-emerald-300/75 dark:bg-emerald-300/12 dark:ring-emerald-300/30"
+                  : "hover:border-emerald-500/55 hover:bg-emerald-500/08 dark:hover:border-emerald-300/65 dark:hover:bg-emerald-300/10",
             ].join(" ")}
             onClick={() => {
               if (typeof window !== "undefined") {
