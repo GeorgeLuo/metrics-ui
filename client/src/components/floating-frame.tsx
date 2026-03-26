@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { ExternalLink, GripVertical, Minimize2 } from "lucide-react";
+import { ExternalLink, GripVertical, Minimize2, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import { buildPopoutWindowFeatures } from "@/lib/popout-window";
 import { readStorageJson, writeStorageJson } from "@/lib/dashboard/storage";
@@ -53,6 +53,7 @@ export interface FloatingFrameProps {
   headerRight?: ReactNode;
   dataTestId?: string;
   minimizable?: boolean;
+  closeable?: boolean;
   defaultMinimized?: boolean;
   popoutable?: boolean;
   popoutWindowName?: string;
@@ -68,6 +69,8 @@ export interface FloatingFrameProps {
   resizable?: boolean;
   minSize?: Size;
   resizeHint?: string;
+  onClose?: () => void;
+  closeHint?: string;
 }
 
 const DEFAULT_POSITION: Point = { x: 24, y: 72 };
@@ -279,6 +282,7 @@ export function FloatingFrame({
   headerRight,
   dataTestId = "floating-frame",
   minimizable = true,
+  closeable = false,
   defaultMinimized = false,
   popoutable = false,
   popoutWindowName = "metrics-ui-floating-frame",
@@ -294,6 +298,8 @@ export function FloatingFrame({
   resizable = false,
   minSize,
   resizeHint = "Drag the frame edge to resize.",
+  onClose,
+  closeHint = "Close this floating frame.",
 }: FloatingFrameProps) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const dragOffset = useRef<Point>({ x: 0, y: 0 });
@@ -421,6 +427,13 @@ export function FloatingFrame({
     }
     openPopout();
   }, [closePopout, isPoppedOut, openPopout]);
+
+  const handleClose = useCallback(() => {
+    if (isPoppedOut) {
+      closePopout();
+    }
+    onClose?.();
+  }, [closePopout, isPoppedOut, onClose]);
 
   useEffect(() => {
     const stored = readFloatingFrameStoredState(stateStorageKey);
@@ -766,6 +779,18 @@ export function FloatingFrame({
             </button>
           ) : null}
           {headerRight}
+          {closeable ? (
+            <button
+              type="button"
+              className={cn("relative z-30 p-0.5 text-black/70 hover:text-black", controlButtonClassName)}
+              onClick={handleClose}
+              aria-label={`Close ${title}`}
+              data-hint={closeHint}
+              data-floating-frame-control="true"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          ) : null}
           {minimizable && !isPoppedOut ? (
             <button
               type="button"

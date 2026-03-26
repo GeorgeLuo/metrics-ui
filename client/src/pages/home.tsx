@@ -5672,11 +5672,13 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   );
 
   const handleEquationVisualizationFrameSelect = useCallback(
-    (frame: VisualizationFrameState) => {
-      const nextFrame: VisualizationFrameState = {
-        ...cloneVisualizationFrameState(frame),
-        updatedAt: new Date().toISOString(),
-      };
+    (frame: VisualizationFrameState | null) => {
+      const nextFrame = frame
+        ? {
+            ...cloneVisualizationFrameState(frame),
+            updatedAt: new Date().toISOString(),
+          }
+        : null;
       handleSetEquationsPane({
         context: {
           visualizationFrame: nextFrame,
