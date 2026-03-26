@@ -34,6 +34,39 @@
       "maxLines": 250
     },
     {
+      "name": "frame-grid-components",
+      "include": [
+        "client/src/components/frame-grid"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "websocket-hooks",
+      "include": [
+        "client/src/hooks/ws"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "dashboard-lib",
+      "include": [
+        "client/src/lib/dashboard"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 550
+    },
+    {
       "name": "equations-topic-infra",
       "include": [
         "client/src/lib/equations",
@@ -42,6 +75,76 @@
         "shared/equations-pane.ts"
       ],
       "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "server-route-modules",
+      "include": [
+        "server/routes"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "shared-tests",
+      "include": [
+        "shared/__tests__"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "visualization-plugins",
+      "include": [
+        "examples/visualization-plugins"
+      ],
+      "extensions": [
+        ".js",
+        ".mjs"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "derivation-plugins",
+      "include": [
+        "examples/derivation-plugins"
+      ],
+      "extensions": [
+        ".js",
+        ".mjs"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "repo-scripts",
+      "include": [
+        "scripts"
+      ],
+      "extensions": [
+        ".js",
+        ".mjs",
+        ".ts",
+        ".tsx"
+      ],
+      "maxLines": 550
+    },
+    {
+      "name": "build-scripts",
+      "include": [
+        "script"
+      ],
+      "extensions": [
+        ".js",
+        ".mjs",
         ".ts",
         ".tsx"
       ],
