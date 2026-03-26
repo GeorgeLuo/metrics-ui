@@ -204,8 +204,13 @@ export default {
   };
 
   const unsubscribe = window.MetricsUIBridge.onFrame(onFrame);
-  window.addEventListener("resize", resize);
-  resize();
+  const unsubscribeResize = typeof window.MetricsUIBridge.onResize === "function"
+    ? window.MetricsUIBridge.onResize(resize)
+    : (() => {
+        window.addEventListener("resize", resize);
+        resize();
+        return () => window.removeEventListener("resize", resize);
+      })();
 
   if (window.MetricsUIBridge && typeof window.MetricsUIBridge.report === "function") {
     window.MetricsUIBridge.report({ kind: "init", hasVisualSignal: true, visualSignal: "canvas" });
@@ -213,6 +218,7 @@ export default {
 
   window.addEventListener("beforeunload", () => {
     try { unsubscribe(); } catch (_error) {}
+    try { unsubscribeResize(); } catch (_error) {}
     try { shell.dispose(); } catch (_error) {}
   });
 })();

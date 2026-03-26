@@ -401,14 +401,20 @@ export default {
     : () => {};
 
   setupNavigation();
-  window.addEventListener("resize", resize);
-  resize();
+  const unsubscribeResize = window.MetricsUIBridge && typeof window.MetricsUIBridge.onResize === "function"
+    ? window.MetricsUIBridge.onResize(resize)
+    : (() => {
+        window.addEventListener("resize", resize);
+        resize();
+        return () => window.removeEventListener("resize", resize);
+      })();
   loadModels();
   report({ kind: "init", hasVisualSignal: true, visualSignal: "canvas" });
   animationHandle = window.requestAnimationFrame(render);
 
   window.addEventListener("beforeunload", () => {
     try { unsubscribe(); } catch (_error) {}
+    try { unsubscribeResize(); } catch (_error) {}
     try { window.cancelAnimationFrame(animationHandle); } catch (_error) {}
     try { shell.dispose(); } catch (_error) {}
   });

@@ -550,7 +550,7 @@ export function FloatingFrame({
       if (isPoppedOut) {
         return;
       }
-      const target = event.target instanceof HTMLElement ? event.target : null;
+      const target = event.target instanceof Element ? event.target : null;
       if (
         target
         && target !== event.currentTarget
@@ -692,6 +692,7 @@ export function FloatingFrame({
   const content = (
     <div
       ref={frameRef}
+      data-floating-frame-root="true"
       className={cn(
         contentFill ? "flex flex-col" : "",
         isPoppedOut
@@ -751,11 +752,11 @@ export function FloatingFrame({
           ) : null}
           <div className={cn("truncate text-xs text-black", titleClassName)}>{title}</div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="relative z-30 flex items-center gap-1.5 shrink-0">
           {popoutable ? (
             <button
               type="button"
-              className={cn("p-0.5 text-black/70 hover:text-black", controlButtonClassName)}
+              className={cn("relative z-30 p-0.5 text-black/70 hover:text-black", controlButtonClassName)}
               onClick={handlePopoutToggle}
               aria-label={isPoppedOut ? `Dock ${title}` : `Pop out ${title}`}
               data-hint={isPoppedOut ? "Dock this frame back into the dashboard." : "Pop this frame into a linked window."}
@@ -769,7 +770,7 @@ export function FloatingFrame({
             <button
               type="button"
               className={cn(
-                "inline-flex items-center justify-center self-center shrink-0 leading-none p-0.5 text-black/70 hover:text-black",
+                "relative z-30 inline-flex items-center justify-center self-center shrink-0 leading-none p-0.5 text-black/70 hover:text-black",
                 controlButtonClassName,
               )}
               onClick={() => setIsMinimized((prev) => !prev)}

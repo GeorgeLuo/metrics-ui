@@ -515,9 +515,14 @@ export default {
 
   const unsubscribe = typeof bridge.onFrame === "function" ? bridge.onFrame(onFrame) : () => {};
 
-  resize();
+  const unsubscribeResize = typeof bridge.onResize === "function"
+    ? bridge.onResize(resize)
+    : (() => {
+        resize();
+        window.addEventListener("resize", resize);
+        return () => window.removeEventListener("resize", resize);
+      })();
   state.rafId = window.requestAnimationFrame(animate);
-  window.addEventListener("resize", resize);
 
   report({
     kind: "init",
@@ -528,7 +533,7 @@ export default {
 
   window.addEventListener("beforeunload", () => {
     try {
-      window.removeEventListener("resize", resize);
+      unsubscribeResize();
     } catch (_error) {}
     try {
       if (state.rafId) {
