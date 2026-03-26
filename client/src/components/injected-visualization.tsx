@@ -184,10 +184,51 @@ ${JSON.stringify(importMap, null, 2)}
     <script>
       (() => {
         const listeners = new Set();
+        const dataListeners = new Set();
+        const resizeListeners = new Set();
+        const disposeListeners = new Set();
         let currentFrame = null;
+        let currentResize = null;
         let probeTimer = null;
+        let resizeObserver = null;
         let lastDispatchReportAt = 0;
         const metricsUiApiBase = ${JSON.stringify(apiBase)};
+
+        const getRootSize = () => {
+          const root = document.getElementById("metrics-ui-visual-root");
+          if (!root) {
+            return { width: 0, height: 0 };
+          }
+          const rect = root.getBoundingClientRect();
+          return {
+            width: Math.max(0, Math.round(rect.width)),
+            height: Math.max(0, Math.round(rect.height)),
+          };
+        };
+
+        const dispatchResize = () => {
+          currentResize = getRootSize();
+          resizeListeners.forEach((handler) => {
+            try {
+              handler(currentResize);
+            } catch (error) {
+              safePost({
+                kind: "resize_listener_error",
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Visualization resize listener failed.",
+              });
+            }
+          });
+        };
+
+        const scheduleResizeDispatch = () => {
+          dispatchResize();
+          window.requestAnimationFrame(() => {
+            dispatchResize();
+          });
+        };
 
         const safePost = (payload) => {
           try {
@@ -622,6 +663,7 @@ ${JSON.stringify(importMap, null, 2)}
         window.MetricsUIBridge = {
           apiBase: metricsUiApiBase,
           getFrame: () => currentFrame,
+          getSize: () => currentResize ?? getRootSize(),
           onFrame: (handler) => {
             if (typeof handler !== "function") {
               return () => {};
@@ -631,6 +673,34 @@ ${JSON.stringify(importMap, null, 2)}
               try { handler(currentFrame); } catch (_error) {}
             }
             return () => listeners.delete(handler);
+          },
+          onData: (handler) => {
+            if (typeof handler !== "function") {
+              return () => {};
+            }
+            dataListeners.add(handler);
+            if (currentFrame) {
+              try { handler(currentFrame); } catch (_error) {}
+            }
+            return () => dataListeners.delete(handler);
+          },
+          onResize: (handler) => {
+            if (typeof handler !== "function") {
+              return () => {};
+            }
+            resizeListeners.add(handler);
+            const next = currentResize ?? getRootSize();
+            try {
+              handler(next);
+            } catch (_error) {}
+            return () => resizeListeners.delete(handler);
+          },
+          onDispose: (handler) => {
+            if (typeof handler !== "function") {
+              return () => {};
+            }
+            disposeListeners.add(handler);
+            return () => disposeListeners.delete(handler);
           },
           report: (payload) => {
             if (payload && typeof payload === "object" && !Array.isArray(payload)) {
@@ -687,6 +757,19 @@ ${JSON.stringify(importMap, null, 2)}
               });
             }
           });
+          dataListeners.forEach((handler) => {
+            try {
+              handler(currentFrame);
+            } catch (error) {
+              safePost({
+                kind: "data_listener_error",
+                error:
+                  error instanceof Error
+                    ? error.message
+                    : "Visualization data listener failed.",
+              });
+            }
+          });
         });
 
         window.addEventListener("error", (event) => {
@@ -713,6 +796,21 @@ ${JSON.stringify(importMap, null, 2)}
 
         const startProbe = () => {
           probeDom();
+          scheduleResizeDispatch();
+          if (resizeObserver !== null) {
+            try {
+              resizeObserver.disconnect();
+            } catch (_error) {}
+          }
+          if (typeof ResizeObserver !== "undefined") {
+            const root = document.getElementById("metrics-ui-visual-root");
+            if (root) {
+              resizeObserver = new ResizeObserver(() => {
+                scheduleResizeDispatch();
+              });
+              resizeObserver.observe(root);
+            }
+          }
           if (probeTimer !== null) {
             window.clearInterval(probeTimer);
           }
@@ -724,6 +822,20 @@ ${JSON.stringify(importMap, null, 2)}
         } else {
           startProbe();
         }
+
+        window.addEventListener("resize", scheduleResizeDispatch);
+        window.addEventListener("beforeunload", () => {
+          disposeListeners.forEach((handler) => {
+            try {
+              handler();
+            } catch (_error) {}
+          });
+          if (resizeObserver !== null) {
+            try {
+              resizeObserver.disconnect();
+            } catch (_error) {}
+          }
+        });
       })();
     </script>
   </head>

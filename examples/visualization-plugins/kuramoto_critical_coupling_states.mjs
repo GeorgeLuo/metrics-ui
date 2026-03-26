@@ -417,8 +417,13 @@ export default {
     draw(performance.now());
   };
 
-  resize();
-  window.addEventListener("resize", handleResize);
+  const unsubscribeResize = typeof bridge.onResize === "function"
+    ? bridge.onResize(handleResize)
+    : (() => {
+        resize();
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+      })();
   state.rafId = window.requestAnimationFrame(animate);
 
   report({
@@ -437,7 +442,7 @@ export default {
   });
 
   bridge.onDispose(() => {
-    window.removeEventListener("resize", handleResize);
+    try { unsubscribeResize(); } catch (_error) {}
     if (state.rafId) {
       window.cancelAnimationFrame(state.rafId);
       state.rafId = 0;

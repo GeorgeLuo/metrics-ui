@@ -386,14 +386,20 @@ export default {
   };
 
   const unsubscribe = bridge.onFrame(onFrame);
-  window.addEventListener("resize", resize);
-  resize();
+  const unsubscribeResize = typeof bridge.onResize === "function"
+    ? bridge.onResize(resize)
+    : (() => {
+        window.addEventListener("resize", resize);
+        resize();
+        return () => window.removeEventListener("resize", resize);
+      })();
   if (typeof bridge.report === "function") {
     bridge.report({ kind: "init", hasVisualSignal: true, visualSignal: "canvas" });
   }
 
   window.addEventListener("beforeunload", () => {
     try { unsubscribe(); } catch (_error) {}
+    try { unsubscribeResize(); } catch (_error) {}
     try { if (shell && typeof shell.dispose === "function") shell.dispose(); } catch (_error) {}
   });
 })();

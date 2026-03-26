@@ -247,6 +247,11 @@ export function EquationsMainPanel({
       return;
     }
 
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("[data-floating-frame-root='true']")) {
+      return;
+    }
+
     pendingTextHighlightGestureRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
