@@ -1,0 +1,123 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 13: Lorentzian Frequency Distribution",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "Eq. 13 is not a new self-consistency equation, and it is not derived from Eq. 12. It is a concrete choice for the natural-frequency distribution g of omega."
+    },
+    {
+      "kind": "text",
+      "value": "The point of the Lorentzian example is that it makes the integrals above explicitly computable, so the Kuramoto model no longer gives only an onset threshold K sub c but also a closed-form synchronized branch."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "What Eq. 13 Says",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Eq. 13 chooses g of omega to be a Lorentzian centered at zero. So the population has the most oscillators near zero detuning, with fewer oscillators as absolute value of omega grows.",
+          "visualizationLabel": "Open Lorentzian distribution visualization",
+          "visualizationFrame": {
+            "mode": "plugin",
+            "pluginId": "kuramoto_lorentzian_distribution",
+            "name": "Kuramoto Lorentzian Distribution"
+          }
+        },
+        {
+          "kind": "text",
+          "value": "The parameter gamma sets the spread. Larger gamma means a broader distribution of natural frequencies, so the oscillators are more heterogeneous."
+        },
+        {
+          "kind": "text",
+          "value": "Unlike a Gaussian, the Lorentzian has heavier tails, so large detunings remain comparatively more common."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "g(\\omega)=\\frac{\\gamma/\\pi}{\\gamma^2+\\omega^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "g(0)=\\frac{1}{\\pi\\gamma}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "g(\\gamma)=\\frac{1}{2\\pi\\gamma}=\\frac{g(0)}{2}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Why Gamma Sets K_c",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Eq. 12 already says the onset threshold depends only on g of 0: K sub c equals 2 over pi times g of 0."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 13 enters only now: we substitute the Lorentzian choice for g into Eq. 12. For the Lorentzian, g of 0 is 1 over pi gamma, so the threshold becomes K sub c equals 2 gamma."
+        },
+        {
+          "kind": "text",
+          "value": "Physically, broader frequency spread means it is harder to synchronize the population, so increasing gamma increases the critical coupling."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "K_c=\\frac{2}{\\pi g(0)}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "g(0)=\\frac{1}{\\pi\\gamma}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "K_c=\\frac{2}{\\pi\\,(1/(\\pi\\gamma))}=2\\gamma",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Why This Example Is Special",
+      "left": [
+        {
+          "kind": "text",
+          "value": "For a general frequency distribution, Eq. 11 usually only gives implicit information about r, and near K sub c one often settles for the square-root scaling law in Eq. 14."
+        },
+        {
+          "kind": "text",
+          "value": "For the Lorentzian, Kuramoto could evaluate the integrals exactly. That produces a closed-form branch for the synchronized state."
+        },
+        {
+          "kind": "text",
+          "value": "So Eq. 13 matters because it turns the general threshold story into an explicit solved example: below K sub c there is incoherence, and above K sub c the order parameter follows a simple square-root law."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r=\\sqrt{1-\\frac{K_c}{K}}, \\qquad K>K_c=2\\gamma",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "K<K_c \\implies r=0, \\qquad K>K_c \\implies r>0",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

@@ -223,7 +223,7 @@
         "hitBox": {
           "id": "theta_dot_i",
           "label": "phase velocity",
-          "sequence": "The phase velocity of oscillator i",
+          "sequence": "angle [of] i dot",
           "category": "term",
           "latex": "\\dot{\\theta}_{i}"
         }
@@ -238,7 +238,7 @@
         "hitBox": {
           "id": "equals",
           "label": "equals",
-          "sequence": "set by",
+          "sequence": "equals",
           "category": "operator",
           "latex": "="
         }
@@ -253,7 +253,7 @@
         "hitBox": {
           "id": "omega_i",
           "label": "natural frequency",
-          "sequence": "natural frequency",
+          "sequence": "omega sub i",
           "category": "term",
           "latex": "\\omega_{i}"
         }
@@ -268,7 +268,7 @@
         "hitBox": {
           "id": "coupling_scale",
           "label": "coupling scale",
-          "sequence": "a coupling strength scaled by population size",
+          "sequence": "K over N",
           "category": "term",
           "latex": "\\frac{K}{N}"
         }
@@ -283,7 +283,7 @@
         "hitBox": {
           "id": "population_sum",
           "label": "population sum",
-          "sequence": "across the population",
+          "sequence": "the sum from j equals 1 to N",
           "category": "summation",
           "latex": "\\sum_{j=1}^{N}"
         }
@@ -298,7 +298,7 @@
         "hitBox": {
           "id": "sine_interaction",
           "label": "sine interaction",
-          "sequence": "sine interaction",
+          "sequence": "sine",
           "category": "function",
           "latex": "\\sin"
         }
@@ -313,7 +313,7 @@
         "hitBox": {
           "id": "phase_difference",
           "label": "phase difference",
-          "sequence": "the phase difference between oscillators",
+          "sequence": "angle [of] j minus angle [of] i",
           "category": "term",
           "latex": "\\left(\\theta_{j} - \\theta_{i}\\right)"
         }
@@ -332,7 +332,7 @@
         "hitBox": {
           "id": "theta_dot_i",
           "label": "phase velocity",
-          "sequence": "local phase change",
+          "sequence": "angle [of] i dot",
           "category": "term",
           "latex": "\\dot{\\theta}_{i}"
         }
@@ -347,7 +347,7 @@
         "hitBox": {
           "id": "omega_i",
           "label": "natural frequency",
-          "sequence": "intrinsic tendencies",
+          "sequence": "omega sub i",
           "category": "term",
           "latex": "\\omega_{i}"
         }
@@ -362,7 +362,7 @@
         "hitBox": {
           "id": "coupling_scale",
           "label": "coupling scale",
-          "sequence": "shared coupling",
+          "sequence": "K over N",
           "category": "term",
           "latex": "\\frac{K}{N}"
         }
@@ -377,7 +377,7 @@
         "hitBox": {
           "id": "population_sum",
           "label": "population sum",
-          "sequence": "over many neighbors",
+          "sequence": "the sum from j equals 1 to N",
           "category": "summation",
           "latex": "\\sum_{j=1}^{N}"
         }
@@ -392,7 +392,7 @@
         "hitBox": {
           "id": "sine_interaction",
           "label": "sine interaction",
-          "sequence": "phase-sensitive interaction",
+          "sequence": "sine",
           "category": "function",
           "latex": "\\sin"
         }
@@ -407,7 +407,7 @@
         "hitBox": {
           "id": "phase_difference",
           "label": "phase difference",
-          "sequence": "relative phase",
+          "sequence": "angle [of] j minus angle [of] i",
           "category": "term",
           "latex": "\\left(\\theta_{j} - \\theta_{i}\\right)"
         }

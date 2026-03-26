@@ -232,7 +232,7 @@
         "hitBox": {
           "id": "locked_dirac",
           "label": "locked delta branch",
-          "sequence": "delta branch",
+          "sequence": "delta",
           "category": "branch",
           "latex": "\\delta"
         }
@@ -247,7 +247,7 @@
         "hitBox": {
           "id": "locked_phase_offset",
           "label": "locked phase offset",
-          "sequence": "locked phase offset",
+          "sequence": "theta minus psi minus sine inverse of omega over K r",
           "category": "term",
           "latex": "\\left[\\theta - \\psi - \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
         }
@@ -262,7 +262,7 @@
         "hitBox": {
           "id": "heaviside_gate",
           "label": "Heaviside gate",
-          "sequence": "Heaviside gate",
+          "sequence": "H of cosine theta",
           "category": "function",
           "latex": "H(\\cos \\theta)"
         }
@@ -277,7 +277,7 @@
         "hitBox": {
           "id": "locked_condition",
           "label": "locking condition",
-          "sequence": "locking condition",
+          "sequence": "absolute value of omega less than K r",
           "category": "condition",
           "latex": "|\\omega| < Kr"
         }
@@ -292,7 +292,7 @@
         "hitBox": {
           "id": "drifting_density",
           "label": "drifting density branch",
-          "sequence": "drifting density branch",
+          "sequence": "C over absolute value of omega minus K r sine of theta minus psi",
           "category": "branch",
           "latex": "\\frac{C}{\\left|\\omega - Kr\\sin(\\theta - \\psi)\\right|}"
         }
@@ -330,7 +330,7 @@
         "hitBox": {
           "id": "locked_dirac",
           "label": "locked delta branch",
-          "sequence": "delta branch",
+          "sequence": "delta",
           "category": "branch",
           "latex": "\\delta"
         }
@@ -345,7 +345,7 @@
         "hitBox": {
           "id": "locked_phase_offset",
           "label": "locked phase offset",
-          "sequence": "locked phase offset",
+          "sequence": "theta minus psi minus sine inverse of omega over K r",
           "category": "term",
           "latex": "\\left[\\theta - \\psi - \\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
         }
@@ -360,7 +360,7 @@
         "hitBox": {
           "id": "locked_condition",
           "label": "locking condition",
-          "sequence": "locking condition",
+          "sequence": "absolute value of omega less than K r",
           "category": "condition",
           "latex": "|\\omega| < Kr"
         }
@@ -375,7 +375,7 @@
         "hitBox": {
           "id": "drifting_density",
           "label": "drifting density branch",
-          "sequence": "drifting density branch",
+          "sequence": "C over absolute value of omega minus K r sine of theta minus psi",
           "category": "branch",
           "latex": "\\frac{C}{\\left|\\omega - Kr\\sin(\\theta - \\psi)\\right|}"
         }
@@ -405,7 +405,7 @@
         "hitBox": {
           "id": "heaviside_gate",
           "label": "Heaviside gate",
-          "sequence": "Heaviside gate",
+          "sequence": "H of cosine theta",
           "category": "function",
           "latex": "H(\\cos \\theta)"
         }
