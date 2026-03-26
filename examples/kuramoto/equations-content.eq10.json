@@ -326,7 +326,7 @@
         "hitBox": {
           "id": "order_parameter_r",
           "label": "order parameter",
-          "sequence": "order parameter r",
+          "sequence": "r",
           "category": "term",
           "latex": "r"
         }
@@ -341,7 +341,7 @@
         "hitBox": {
           "id": "locked_domain",
           "label": "locked integration domain",
-          "sequence": "locked contribution",
+          "sequence": "the integral from minus pi over 2 to pi over 2 and the integral from minus infinity to plus infinity",
           "category": "term",
           "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
         }
@@ -356,7 +356,7 @@
         "hitBox": {
           "id": "drift_domain",
           "label": "drifting integration domain",
-          "sequence": "drifting contribution",
+          "sequence": "the integral from minus pi to pi and the integral over absolute value of omega greater than K r",
           "category": "term",
           "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}"
         }
@@ -371,7 +371,7 @@
         "hitBox": {
           "id": "phase_factor",
           "label": "phase factor",
-          "sequence": "phase factor",
+          "sequence": "e to the i times theta minus psi",
           "category": "term",
           "latex": "e^{i(\\theta-\\psi)}"
         }
@@ -386,7 +386,7 @@
         "hitBox": {
           "id": "locked_constraint",
           "label": "locked delta constraint",
-          "sequence": "delta constraint",
+          "sequence": "delta of theta minus psi minus sine inverse of omega over K r",
           "category": "function",
           "latex": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
         }
@@ -401,7 +401,7 @@
         "hitBox": {
           "id": "drift_density",
           "label": "drifting density weight",
-          "sequence": "continuous density weight",
+          "sequence": "C g of omega over absolute value of omega minus K r sine of theta minus psi",
           "category": "term",
           "latex": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}"
         }
@@ -424,7 +424,7 @@
         "hitBox": {
           "id": "locked_domain",
           "label": "locked integration domain",
-          "sequence": "locked domain",
+          "sequence": "the integral from minus pi over 2 to pi over 2 and the integral from minus infinity to plus infinity",
           "category": "term",
           "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
         }
@@ -439,7 +439,7 @@
         "hitBox": {
           "id": "drift_domain",
           "label": "drifting integration domain",
-          "sequence": "drifting domain",
+          "sequence": "the integral from minus pi to pi and the integral over absolute value of omega greater than K r",
           "category": "term",
           "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}"
         }
