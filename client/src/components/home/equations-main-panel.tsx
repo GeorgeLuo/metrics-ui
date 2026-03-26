@@ -50,7 +50,7 @@ type EquationsMainPanelProps = {
   onEquationTextHighlightSelect?: (
     highlight: VisualizationState["equationsPane"]["context"]["selectedTextHighlight"],
   ) => void;
-  onVisualizationFrameSelect?: (frame: VisualizationFrameState) => void;
+  onVisualizationFrameSelect?: (frame: VisualizationFrameState | null) => void;
 };
 
 type PendingTextHighlightGesture = {
@@ -584,8 +584,11 @@ export function EquationsMainPanel({
             popoutWindowTitle="Metrics UI - Equations Visualization Frame"
             dockRequestToken={Number.isFinite(visualizationDockRequestToken) ? visualizationDockRequestToken : undefined}
             resizable
+            closeable
             minSize={{ width: 280, height: 220 }}
             resizeHint="Drag an edge or corner to resize this visualization."
+            closeHint="Close this equations visualization."
+            onClose={() => onVisualizationFrameSelect?.(null)}
           >
             <InjectedVisualization
               frame={visualizationFrame}
