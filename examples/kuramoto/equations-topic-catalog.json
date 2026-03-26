@@ -39,11 +39,25 @@
       "path": "./equations-content.eq11.json"
     },
     {
+      "id": "kuramoto-eq13",
+      "label": "Equation 13",
+      "description": "Inspect the Lorentzian choice for the natural-frequency distribution.",
+      "format": "semantic_layout",
+      "path": "./equations-content.eq13.json"
+    },
+    {
       "id": "kuramoto-eq12-critical-coupling",
       "label": "Eq. 12: Critical Coupling",
       "description": "Physical meaning of the onset threshold K_c and the incoherent versus synchronized states.",
       "format": "freeform",
       "path": "./equations-document.eq12-critical-coupling.json"
+    },
+    {
+      "id": "kuramoto-eq13-lorentzian-frequency-distribution",
+      "label": "Eq. 13 Addendum: Lorentzian Frequency Distribution",
+      "description": "Explain why the Lorentzian choice for g of omega is special and how it yields K_c = 2 gamma and an explicit synchronized branch.",
+      "format": "freeform",
+      "path": "./equations-document.eq13-lorentzian-frequency-distribution.json"
     },
     {
       "id": "kuramoto-eq5-eq9-to-eq10",

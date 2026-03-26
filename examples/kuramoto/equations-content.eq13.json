@@ -1,0 +1,142 @@
+{
+  "workspace": {
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "g(\\omega)",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g of omega",
+          "category": "function",
+          "latex": "g(\\omega)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "=",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\frac{\\gamma/\\pi}{\\gamma^2 + \\omega^2}",
+        "hitBox": {
+          "id": "lorentzian_density",
+          "label": "Lorentzian density",
+          "sequence": "gamma over pi divided by gamma squared plus omega squared",
+          "category": "term",
+          "latex": "\\frac{\\gamma/\\pi}{\\gamma^2 + \\omega^2}"
+        }
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "g of omega"
+      },
+      {
+        "kind": "text",
+        "value": " equals ",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": "gamma over pi divided by gamma squared plus omega squared",
+        "hitBox": {
+          "id": "lorentzian_density",
+          "label": "Lorentzian density",
+          "sequence": "gamma over pi divided by gamma squared plus omega squared",
+          "category": "term",
+          "latex": "\\frac{\\gamma/\\pi}{\\gamma^2 + \\omega^2}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": "."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 13 does not follow from Eq. 12. It chooses the "
+      },
+      {
+        "kind": "text",
+        "value": "frequency distribution",
+        "hitBox": {
+          "id": "frequency_distribution",
+          "label": "frequency distribution",
+          "sequence": "g of omega",
+          "category": "function",
+          "latex": "g(\\omega)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " to be a "
+      },
+      {
+        "kind": "text",
+        "value": "Lorentzian density",
+        "hitBox": {
+          "id": "lorentzian_density",
+          "label": "Lorentzian density",
+          "sequence": "gamma over pi divided by gamma squared plus omega squared",
+          "category": "term",
+          "latex": "\\frac{\\gamma/\\pi}{\\gamma^2 + \\omega^2}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". After making that choice, you substitute it into Eq. 12 and Eq. 11. The parameter gamma controls the width of the distribution, so larger gamma means a broader spread of natural frequencies."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Conceptually, equation 13 matters because this particular "
+      },
+      {
+        "kind": "text",
+        "value": "Lorentzian density",
+        "hitBox": {
+          "id": "lorentzian_density",
+          "label": "Lorentzian density",
+          "sequence": "gamma over pi divided by gamma squared plus omega squared",
+          "category": "term",
+          "latex": "\\frac{\\gamma/\\pi}{\\gamma^2 + \\omega^2}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " is an explicit example for g of omega. Once that example is substituted into Eq. 12 and Eq. 11, Kuramoto can evaluate the self-consistency integrals exactly, giving the explicit threshold K sub c equals 2 gamma and the closed-form synchronized branch."
+      }
+    ]
+  }
+}
