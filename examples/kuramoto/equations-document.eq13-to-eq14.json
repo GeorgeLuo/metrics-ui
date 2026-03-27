@@ -1,0 +1,224 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 13 -> Eq. 14",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This transition is slightly subtle. Eq. 13 gives a special Lorentzian choice for g of omega, and with that choice Kuramoto could evaluate the self-consistency integral exactly."
+    },
+    {
+      "kind": "text",
+      "value": "Eq. 14 is then the general near-threshold scaling law. So this topic shows both pieces: first the exact Lorentzian calculation, then how it matches the universal square-root behavior near K sub c."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "Substitute Eq. 13 into Eq. 11",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Start from the nonzero branch in Eq. 11. In that equation, the distribution is not evaluated at a free omega anymore. It is evaluated at omega equals K r sine theta."
+        },
+        {
+          "kind": "text",
+          "value": "So before using Eq. 13, rewrite the Lorentzian at that specific argument: g of K r sine theta."
+        },
+        {
+          "kind": "text",
+          "value": "Only after that substitution does omega disappear. The denominator becomes gamma squared plus K squared r squared sine squared theta, and the whole problem reduces to one explicit integral in theta."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "1 = K\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "g(\\omega)=\\frac{\\gamma/\\pi}{\\gamma^2+\\omega^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "g(Kr\\sin\\theta)=\\frac{\\gamma/\\pi}{\\gamma^2 + K^2 r^2 \\sin^2\\theta}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1 = \\frac{K\\gamma}{\\pi}\\int_{-\\pi/2}^{\\pi/2}\\frac{\\cos^2\\theta}{\\gamma^2 + K^2 r^2 \\sin^2\\theta}\\,d\\theta",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Kuramoto's Exact Evaluation",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Kuramoto's exact result comes from evaluating that theta integral explicitly, not from a small-r approximation."
+        },
+        {
+          "kind": "text",
+          "value": "The key trick is to rewrite the integrand into a standard form involving one denominator a plus b sine squared theta. Then the remaining definite integral can be done exactly."
+        },
+        {
+          "kind": "text",
+          "value": "This is the precise sense in which the Lorentzian is special: it turns the implicit integral equation into something one can solve in closed form."
+        },
+        {
+          "kind": "text",
+          "value": "Once that integral is evaluated, the whole self-consistency condition collapses to an algebraic equation for r."
+        },
+        {
+          "kind": "text",
+          "value": "The algebraic rewrite is not dividing both sides of a denominator. It is replacing cosine squared theta by 1 minus sine squared theta, then rewriting that numerator so the whole fraction splits into a standard integral minus 1."
+        },
+        {
+          "kind": "text",
+          "value": "A clean way to see where the factor 1 over b comes from is to solve for constants A and B in the form A over a plus b sine squared theta plus B. Matching the constant term and the sine-squared term forces B to equal minus 1 over b."
+        },
+        {
+          "kind": "text",
+          "value": "The missing visual step is that after substituting A and B, the numerator already has 1 over b in both terms. Splitting the fraction gives one term minus 1 over b, and only then do we factor that common 1 over b outside."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\cos^2\\theta = 1-\\sin^2\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{\\cos^2\\theta}{a+b\\sin^2\\theta} = \\frac{1-\\sin^2\\theta}{a+b\\sin^2\\theta}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1-\\sin^2\\theta}{a+b\\sin^2\\theta} = \\frac{A}{a+b\\sin^2\\theta}+B",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1-\\sin^2\\theta = A + B\\left(a+b\\sin^2\\theta\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1 = A+Ba, \\qquad -1 = Bb \\implies B=-\\frac{1}{b}, \\quad A=\\frac{a+b}{b}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1-\\sin^2\\theta = \\frac{a+b}{b} - \\frac{a+b\\sin^2\\theta}{b}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1-\\sin^2\\theta}{a+b\\sin^2\\theta} = \\frac{\\frac{a+b}{b} - \\frac{a+b\\sin^2\\theta}{b}}{a+b\\sin^2\\theta}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= \\frac{a+b}{b\\left(a+b\\sin^2\\theta\\right)} - \\frac{1}{b}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{\\cos^2\\theta}{a+b\\sin^2\\theta} = \\frac{1}{b}\\left(\\frac{a+b}{a+b\\sin^2\\theta}-1\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "a=\\gamma^2, \\qquad b=K^2 r^2",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} = \\frac{\\pi}{\\sqrt{a(a+b)}}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{\\cos^2\\theta}{\\gamma^2 + K^2 r^2 \\sin^2\\theta}\\,d\\theta = \\frac{\\pi}{\\gamma K^2 r^2}\\left(\\sqrt{\\gamma^2 + K^2 r^2}-\\gamma\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1 = \\frac{\\sqrt{\\gamma^2 + K^2 r^2}-\\gamma}{K r^2}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Exact Branch for the Lorentzian",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Now the rest is algebra. Rearranging isolates the square root, and squaring gives an equation that is linear in r squared."
+        },
+        {
+          "kind": "text",
+          "value": "Using K sub c equals 2 gamma from Eq. 12 to Eq. 13, the final answer becomes a closed-form branch valid for every K greater than K sub c."
+        },
+        {
+          "kind": "text",
+          "value": "This is the exact result the paper attributes to Kuramoto for the Lorentzian example."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\gamma + K r^2 = \\sqrt{\\gamma^2 + K^2 r^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "K(1-r^2)=2\\gamma = K_c",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "r = \\sqrt{1-\\frac{K_c}{K}}, \\qquad K > K_c = 2\\gamma",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 4",
+      "rightTitle": "How This Connects to Eq. 14",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Eq. 14 is the general near-threshold law, not another exact Lorentzian formula. The paper gets it by expanding the right-hand side of Eq. 11 for small K r and a general frequency distribution."
+        },
+        {
+          "kind": "text",
+          "value": "For the Lorentzian, that general asymptotic law matches the exact branch near K sub c. So the exact result and Eq. 14 are consistent: the exact formula is stronger, and Eq. 14 is its universal small-amplitude limit."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r \\sim \\sqrt{\\frac{-16\\,(K-K_c)}{\\pi K_c^4 g''(0)}} \\qquad \\text{as } K \\to K_c",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "g''(0) = -\\frac{2}{\\pi \\gamma^3}, \\qquad K_c = 2\\gamma \\implies r \\sim \\sqrt{\\frac{K-K_c}{K_c}}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "r = \\sqrt{1-\\frac{K_c}{K}} = \\sqrt{\\frac{K-K_c}{K}} \\sim \\sqrt{\\frac{K-K_c}{K_c}}",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

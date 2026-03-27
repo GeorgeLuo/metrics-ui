@@ -1,0 +1,279 @@
+{
+  "pattern": "reference_sections",
+  "title": "Integrand Rewrite Cheatsheet",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This cheatsheet is for a common calculus move: rewrite an awkward integrand into simpler pieces before trying to integrate it."
+    },
+    {
+      "kind": "text",
+      "value": "The pattern is usually: identify a repeated inner expression, treat it like a temporary variable, decompose the fraction into a standard form, then integrate the resulting easier terms."
+    }
+  ],
+  "sections": [
+    {
+      "title": "Strategy",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Look for an inner expression that appears in both the numerator and denominator. Call that repeated piece u, even if you do not literally substitute variables yet."
+        },
+        {
+          "kind": "text",
+          "value": "Then guess a decomposition whose pieces are easier to integrate, often one standard denominator term plus one constant term."
+        },
+        {
+          "kind": "text",
+          "value": "Solve for the unknown coefficients by multiplying through and matching the constant and u terms."
+        }
+      ],
+      "referenceTitle": "General Template",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "u = h(x)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{\\alpha+\\beta u}{a+bu} = \\frac{A}{a+bu}+B",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\alpha+\\beta u = A + B(a+bu)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\text{match coefficients of } 1 \\text{ and } u \\text{ to solve for } A,B",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Example 1",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Start with a very plain example in an ordinary variable x. This is the same algebraic shape as the harder trigonometric example, just stripped down."
+        },
+        {
+          "kind": "text",
+          "value": "The whole trick is to write the fraction as A over 2 plus 3 x plus B, then solve for A and B."
+        }
+      ],
+      "referenceTitle": "Plain Algebra",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "\\frac{1-x}{2+3x} = \\frac{A}{2+3x}+B",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1-x = A + B(2+3x)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1 = A+2B, \\qquad -1 = 3B",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "B=-\\frac{1}{3}, \\qquad A=\\frac{5}{3}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1-x}{2+3x} = \\frac{5/3}{2+3x} - \\frac{1}{3}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int \\frac{1-x}{2+3x}\\,dx = \\frac{5}{3}\\int\\frac{dx}{2+3x} - \\frac{1}{3}\\int dx",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int \\frac{dx}{2+3x} = \\frac{1}{3}\\ln|2+3x| + C",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int \\frac{1-x}{2+3x}\\,dx = \\frac{5}{9}\\ln|2+3x| - \\frac{x}{3} + C",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Example 2",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Now use the same method when the repeated inner expression is sine squared theta. The algebra is identical once you treat u as sine squared theta."
+        },
+        {
+          "kind": "text",
+          "value": "This is the exact move behind the Lorentzian Kuramoto calculation."
+        },
+        {
+          "kind": "text",
+          "value": "The identity used here is the Pythagorean trig identity. Start from sine squared theta plus cosine squared theta equals 1, then rearrange to cosine squared theta equals 1 minus sine squared theta."
+        },
+        {
+          "kind": "text",
+          "value": "The important part is that 1 over b does not appear out of nowhere. First it shows up in the rewritten numerator, then the fraction is split into two terms, and only then is the common factor 1 over b pulled outside."
+        }
+      ],
+      "referenceTitle": "Trig Version",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "\\sin^2\\theta + \\cos^2\\theta = 1",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\cos^2\\theta = 1-\\sin^2\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "u = \\sin^2\\theta, \\qquad \\cos^2\\theta = 1-u",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{\\cos^2\\theta}{a+b\\sin^2\\theta} = \\frac{1-u}{a+bu}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1-u}{a+bu} = \\frac{A}{a+bu}+B",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1-u = A + B(a+bu)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1 = A+Ba, \\qquad -1 = Bb \\implies B=-\\frac{1}{b}, \\quad A=\\frac{a+b}{b}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1-u = \\frac{a+b}{b} - \\frac{a+bu}{b}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1-u}{a+bu} = \\frac{\\frac{a+b}{b} - \\frac{a+bu}{b}}{a+bu}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= \\frac{a+b}{b(a+bu)} - \\frac{1}{b}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{\\cos^2\\theta}{a+b\\sin^2\\theta} = \\frac{1}{b}\\left(\\frac{a+b}{a+b\\sin^2\\theta}-1\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int \\frac{\\cos^2\\theta}{a+b\\sin^2\\theta}\\,d\\theta = \\frac{a+b}{b}\\int \\frac{d\\theta}{a+b\\sin^2\\theta} - \\frac{1}{b}\\int d\\theta",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Example 3",
+      "content": [
+        {
+          "kind": "text",
+          "value": "In the Kuramoto derivation, the Lorentzian substitution produces a denominator gamma squared plus K squared r squared sine squared theta."
+        },
+        {
+          "kind": "text",
+          "value": "Set a equal to gamma squared and b equal to K squared r squared. Then the trig rewrite from Example 2 applies immediately."
+        },
+        {
+          "kind": "text",
+          "value": "That is why the exact integral becomes manageable: the hard-looking integrand is reduced to one standard integral and one constant integral."
+        },
+        {
+          "kind": "text",
+          "value": "The highlighted identity is itself a standard definite integral. A quick way to derive it is the tangent substitution t equals tan theta, which converts the finite interval from minus pi over 2 to pi over 2 into the whole real line."
+        },
+        {
+          "kind": "text",
+          "value": "Once you strip away the trig, the core identity is even simpler: it is just the standard whole-line integral of one over alpha plus beta t squared. You get it by scaling t so the denominator becomes 1 plus y squared."
+        }
+      ],
+      "referenceTitle": "Kuramoto Lorentzian Case",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "a=\\gamma^2, \\qquad b=K^2r^2",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{\\cos^2\\theta}{\\gamma^2+K^2r^2\\sin^2\\theta} = \\frac{1}{K^2r^2}\\left(\\frac{\\gamma^2+K^2r^2}{\\gamma^2+K^2r^2\\sin^2\\theta}-1\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} = \\frac{\\pi}{\\sqrt{a(a+b)}} \\qquad (a>0,\\ a+b>0)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\infty}^{\\infty}\\frac{dt}{\\alpha+\\beta t^2} = \\frac{\\pi}{\\sqrt{\\alpha\\beta}} \\qquad (\\alpha>0,\\ \\beta>0)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "y = t\\sqrt{\\frac{\\beta}{\\alpha}} \\quad \\Rightarrow \\quad dt = \\sqrt{\\frac{\\alpha}{\\beta}}\\,dy",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\infty}^{\\infty}\\frac{dt}{\\alpha+\\beta t^2} = \\frac{1}{\\sqrt{\\alpha\\beta}}\\int_{-\\infty}^{\\infty}\\frac{dy}{1+y^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= \\frac{\\pi}{\\sqrt{\\alpha\\beta}}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "t=\\tan\\theta, \\qquad d\\theta = \\frac{dt}{1+t^2}, \\qquad \\sin^2\\theta = \\frac{t^2}{1+t^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} = \\int_{-\\infty}^{\\infty}\\frac{dt}{a+(a+b)t^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "= \\frac{\\pi}{\\sqrt{a(a+b)}}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{\\cos^2\\theta}{\\gamma^2+K^2r^2\\sin^2\\theta}\\,d\\theta = \\frac{\\pi}{\\gamma K^2r^2}\\left(\\sqrt{\\gamma^2+K^2r^2}-\\gamma\\right)",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}
