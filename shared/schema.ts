@@ -232,7 +232,10 @@ export interface EquationsFrameGridItem extends EquationsPaneCell {
   id?: string;
 }
 
-export type EquationsDocumentPatternName = "parallel_walkthrough";
+export type EquationsDocumentPatternName =
+  | "parallel_walkthrough"
+  | "reference_sections"
+  | "glossary_reference";
 
 export interface EquationsParallelWalkthroughStep {
   left: EquationsPaneCardBlock[];
@@ -249,6 +252,38 @@ export interface EquationsParallelWalkthroughPattern {
   intro?: EquationsPaneCardBlock[];
   fractions?: [number, number];
   steps: EquationsParallelWalkthroughStep[];
+}
+
+export interface EquationsReferenceSection {
+  title: string;
+  content: EquationsPaneCardBlock[];
+  referenceTitle?: string;
+  reference?: EquationsPaneCardBlock[];
+  fractions?: [number, number];
+}
+
+export interface EquationsReferenceSectionsPattern {
+  pattern: "reference_sections";
+  title?: string;
+  introTitle?: string;
+  intro?: EquationsPaneCardBlock[];
+  sections: EquationsReferenceSection[];
+}
+
+export interface EquationsGlossaryReferenceEntry {
+  term: string;
+  body: EquationsPaneCardBlock[];
+  referenceTitle?: string;
+  reference?: EquationsPaneCardBlock[];
+  fractions?: [number, number];
+}
+
+export interface EquationsGlossaryReferencePattern {
+  pattern: "glossary_reference";
+  title?: string;
+  introTitle?: string;
+  intro?: EquationsPaneCardBlock[];
+  entries: EquationsGlossaryReferenceEntry[];
 }
 
 export interface EquationsFrameGridDocument {

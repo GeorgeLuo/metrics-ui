@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   validateEquationsDerivationDocumentSource,
+  validateEquationsGlossaryReferenceDocumentSource,
   validateEquationsPaneStatePatchInput,
+  validateEquationsReferenceSectionsDocumentSource,
   validateEquationsSemanticLayoutSource,
 } from "../equations-validation";
 
@@ -216,6 +218,101 @@ test("validateEquationsDerivationDocumentSource accepts header plus body derivat
             kind: "math",
             latex: "A=B",
             displayMode: true,
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.notEqual(report.status, "error");
+});
+
+test("validateEquationsReferenceSectionsDocumentSource requires sections", () => {
+  const report = validateEquationsReferenceSectionsDocumentSource({
+    pattern: "reference_sections",
+    title: "Reference",
+    sections: [],
+  });
+
+  assert.equal(report.status, "error");
+  assert.ok(
+    report.diagnostics.some((entry) =>
+      entry.ruleId === "reference_sections_required",
+    ),
+  );
+});
+
+test("validateEquationsReferenceSectionsDocumentSource accepts structured sections", () => {
+  const report = validateEquationsReferenceSectionsDocumentSource({
+    pattern: "reference_sections",
+    title: "Reference",
+    intro: [
+      {
+        kind: "text",
+        value: "Header text.",
+      },
+    ],
+    sections: [
+      {
+        title: "Section 1",
+        content: [
+          {
+            kind: "text",
+            value: "Body text.",
+          },
+        ],
+        referenceTitle: "Formula",
+        reference: [
+          {
+            kind: "math",
+            latex: "r = 0",
+            displayMode: true,
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.notEqual(report.status, "error");
+});
+
+test("validateEquationsGlossaryReferenceDocumentSource requires entries", () => {
+  const report = validateEquationsGlossaryReferenceDocumentSource({
+    pattern: "glossary_reference",
+    title: "Glossary",
+    entries: [],
+  });
+
+  assert.equal(report.status, "error");
+  assert.ok(
+    report.diagnostics.some((entry) =>
+      entry.ruleId === "glossary_entries_required",
+    ),
+  );
+});
+
+test("validateEquationsGlossaryReferenceDocumentSource accepts glossary entries", () => {
+  const report = validateEquationsGlossaryReferenceDocumentSource({
+    pattern: "glossary_reference",
+    title: "Glossary",
+    entries: [
+      {
+        term: "r",
+        body: [
+          {
+            kind: "text",
+            value: "Order parameter magnitude.",
+          },
+        ],
+        reference: [
+          {
+            kind: "mappings",
+            mappings: [
+              {
+                kind: "latex",
+                value: "r",
+              },
+            ],
           },
         ],
       },

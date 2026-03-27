@@ -474,3 +474,83 @@ test("normalizeEquationsFrameGridDocument expands parallel walkthrough intro int
   assert.equal(document.items[1]?.row, 1);
   assert.equal(document.items[1]?.rowSpan, 5);
 });
+
+test("normalizeEquationsFrameGridDocument expands reference sections into a workspace document", () => {
+  const document = normalizeEquationsFrameGridDocument({
+    pattern: "reference_sections",
+    title: "Reference",
+    sections: [
+      {
+        title: "Section 1",
+        content: [
+          {
+            kind: "text",
+            value: "Explain the idea.",
+          },
+        ],
+        referenceTitle: "Formula",
+        reference: [
+          {
+            kind: "math",
+            latex: String.raw`r = 0`,
+            displayMode: true,
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(document.spec.grid, [1, 1]);
+  assert.equal(document.items.length, 1);
+  assert.equal(document.items[0]?.title, "Reference");
+  assert.equal(document.items[0]?.presentation, "freeform");
+  assert.equal(document.items[0]?.blocks?.[0]?.kind, "split");
+  assert.equal(document.items[0]?.blocks?.[0]?.left[0]?.kind, "text");
+  assert.equal(document.items[0]?.blocks?.[0]?.left[0]?.value, "Section 1");
+  assert.equal(document.items[0]?.blocks?.[0]?.right[0]?.kind, "text");
+  assert.equal(document.items[0]?.blocks?.[0]?.right[0]?.value, "Formula");
+});
+
+test("normalizeEquationsFrameGridDocument expands glossary reference intro into a header band", () => {
+  const document = normalizeEquationsFrameGridDocument({
+    pattern: "glossary_reference",
+    title: "Glossary",
+    intro: [
+      {
+        kind: "text",
+        value: "Header text.",
+      },
+    ],
+    entries: [
+      {
+        term: "r",
+        body: [
+          {
+            kind: "text",
+            value: "Order parameter magnitude.",
+          },
+        ],
+        referenceTitle: "Reference",
+        reference: [
+          {
+            kind: "mappings",
+            mappings: [
+              {
+                kind: "latex",
+                value: "r",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(document.spec.grid, [1, 6]);
+  assert.equal(document.items.length, 2);
+  assert.equal(document.items[0]?.id, "header");
+  assert.equal(document.items[1]?.id, "workspace");
+  assert.equal(document.items[1]?.blocks?.[0]?.kind, "split");
+  assert.equal(document.items[1]?.blocks?.[0]?.left[0]?.kind, "text");
+  assert.equal(document.items[1]?.blocks?.[0]?.left[0]?.value, "r");
+});

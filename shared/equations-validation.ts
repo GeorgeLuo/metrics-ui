@@ -502,3 +502,181 @@ export function validateEquationsDerivationDocumentSource(
 
   return buildValidationReport(diagnostics);
 }
+
+export function validateEquationsReferenceSectionsDocumentSource(
+  value: unknown,
+  options?: { rules?: EquationsValidationRule[] },
+): EquationsValidationReport {
+  const diagnostics: EquationsValidationDiagnostic[] = [];
+  const rules = createActiveRuleVisitors(options?.rules ?? DEFAULT_EQUATIONS_VALIDATION_RULES);
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    diagnostics.push({
+      severity: "error",
+      ruleId: "reference_sections_source_shape",
+      path: "document",
+      message: "Reference section topics must be document objects with a sections array.",
+    });
+    return buildValidationReport(diagnostics);
+  }
+
+  const raw = value as {
+    pattern?: unknown;
+    intro?: unknown;
+    sections?: unknown;
+  };
+  if (raw.pattern !== "reference_sections") {
+    diagnostics.push({
+      severity: "error",
+      ruleId: "reference_sections_pattern_required",
+      path: "document.pattern",
+      message: "Reference section topics must use the reference_sections document pattern.",
+    });
+  }
+  if (!Array.isArray(raw.sections) || raw.sections.length === 0) {
+    diagnostics.push({
+      severity: "error",
+      ruleId: "reference_sections_required",
+      path: "document.sections",
+      message: "Reference section topics must define at least one section.",
+    });
+  } else {
+    raw.sections.forEach((section, index) => {
+      if (!section || typeof section !== "object" || Array.isArray(section)) {
+        diagnostics.push({
+          severity: "error",
+          ruleId: "reference_section_shape",
+          path: `document.sections[${index}]`,
+          message: "Each reference section must be an object with title and content.",
+        });
+        return;
+      }
+      const rawSection = section as { title?: unknown; content?: unknown };
+      if (typeof rawSection.title !== "string" || rawSection.title.trim().length === 0) {
+        diagnostics.push({
+          severity: "error",
+          ruleId: "reference_section_title_required",
+          path: `document.sections[${index}].title`,
+          message: "Each reference section must define a non-empty title.",
+        });
+      }
+      if (!Array.isArray(rawSection.content) || rawSection.content.length === 0) {
+        diagnostics.push({
+          severity: "error",
+          ruleId: "reference_section_content_required",
+          path: `document.sections[${index}].content`,
+          message: "Each reference section must define non-empty content blocks.",
+        });
+      }
+    });
+  }
+
+  const document = normalizeEquationsFrameGridDocument(value);
+  const hasIntro = Array.isArray(raw.intro) && raw.intro.length > 0;
+  const expectedItemCount = hasIntro ? 2 : 1;
+  if (
+    document.items.length !== expectedItemCount
+    || (hasIntro && document.items[0]?.id !== "header")
+    || document.items[expectedItemCount - 1]?.id !== "workspace"
+  ) {
+    diagnostics.push({
+      severity: "error",
+      ruleId: "reference_sections_document_layout",
+      path: "document.items",
+      message: "Reference section topics must normalize to a workspace item with an optional header item.",
+    });
+  } else {
+    validateDocumentItems(document.items, "document.items", rules, diagnostics);
+  }
+
+  return buildValidationReport(diagnostics);
+}
+
+export function validateEquationsGlossaryReferenceDocumentSource(
+  value: unknown,
+  options?: { rules?: EquationsValidationRule[] },
+): EquationsValidationReport {
+  const diagnostics: EquationsValidationDiagnostic[] = [];
+  const rules = createActiveRuleVisitors(options?.rules ?? DEFAULT_EQUATIONS_VALIDATION_RULES);
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    diagnostics.push({
+      severity: "error",
+      ruleId: "glossary_reference_source_shape",
+      path: "document",
+      message: "Glossary topics must be document objects with an entries array.",
+    });
+    return buildValidationReport(diagnostics);
+  }
+
+  const raw = value as {
+    pattern?: unknown;
+    intro?: unknown;
+    entries?: unknown;
+  };
+  if (raw.pattern !== "glossary_reference") {
+    diagnostics.push({
+      severity: "error",
+      ruleId: "glossary_reference_pattern_required",
+      path: "document.pattern",
+      message: "Glossary topics must use the glossary_reference document pattern.",
+    });
+  }
+  if (!Array.isArray(raw.entries) || raw.entries.length === 0) {
+    diagnostics.push({
+      severity: "error",
+      ruleId: "glossary_entries_required",
+      path: "document.entries",
+      message: "Glossary topics must define at least one glossary entry.",
+    });
+  } else {
+    raw.entries.forEach((entry, index) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        diagnostics.push({
+          severity: "error",
+          ruleId: "glossary_entry_shape",
+          path: `document.entries[${index}]`,
+          message: "Each glossary entry must be an object with term and body.",
+        });
+        return;
+      }
+      const rawEntry = entry as { term?: unknown; body?: unknown };
+      if (typeof rawEntry.term !== "string" || rawEntry.term.trim().length === 0) {
+        diagnostics.push({
+          severity: "error",
+          ruleId: "glossary_entry_term_required",
+          path: `document.entries[${index}].term`,
+          message: "Each glossary entry must define a non-empty term.",
+        });
+      }
+      if (!Array.isArray(rawEntry.body) || rawEntry.body.length === 0) {
+        diagnostics.push({
+          severity: "error",
+          ruleId: "glossary_entry_body_required",
+          path: `document.entries[${index}].body`,
+          message: "Each glossary entry must define non-empty body blocks.",
+        });
+      }
+    });
+  }
+
+  const document = normalizeEquationsFrameGridDocument(value);
+  const hasIntro = Array.isArray(raw.intro) && raw.intro.length > 0;
+  const expectedItemCount = hasIntro ? 2 : 1;
+  if (
+    document.items.length !== expectedItemCount
+    || (hasIntro && document.items[0]?.id !== "header")
+    || document.items[expectedItemCount - 1]?.id !== "workspace"
+  ) {
+    diagnostics.push({
+      severity: "error",
+      ruleId: "glossary_reference_document_layout",
+      path: "document.items",
+      message: "Glossary topics must normalize to a workspace item with an optional header item.",
+    });
+  } else {
+    validateDocumentItems(document.items, "document.items", rules, diagnostics);
+  }
+
+  return buildValidationReport(diagnostics);
+}

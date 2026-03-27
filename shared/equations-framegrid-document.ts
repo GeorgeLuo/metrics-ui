@@ -1,11 +1,15 @@
 import type {
   EquationsFrameGridDocument,
   EquationsFrameGridItem,
+  EquationsGlossaryReferenceEntry,
+  EquationsGlossaryReferencePattern,
   EquationsPaneCard,
   EquationsPaneCell,
   EquationsParallelWalkthroughPattern,
   EquationsParallelWalkthroughStep,
   EquationsPanePlacement,
+  EquationsReferenceSection,
+  EquationsReferenceSectionsPattern,
   EquationsPaneState,
   FrameGridFitMode,
 } from "./schema";
@@ -144,6 +148,14 @@ function normalizeOptionalString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function normalizeNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function normalizeParallelWalkthroughStep(
   value: unknown,
 ): EquationsParallelWalkthroughStep | null {
@@ -185,6 +197,144 @@ function prependTitleBlock(
   ];
 }
 
+function buildPatternDocumentFromWorkspaceBlocks(
+  title: string | undefined,
+  introTitle: string | undefined,
+  intro: ReturnType<typeof normalizeEquationsPaneCardBlocks>,
+  blocks: ReturnType<typeof normalizeEquationsPaneCardBlocks>,
+  fallback: EquationsFrameGridDocument,
+): EquationsFrameGridDocument {
+  if (intro && intro.length > 0) {
+    return {
+      spec: {
+        frameAspect: [4, 3],
+        frameBorderDiv: [0, 0],
+        grid: [1, 6],
+        cellBorderDiv: [0, 0],
+        fitMode: "contain",
+      },
+      items: [
+        {
+          id: "header",
+          title: introTitle ?? "",
+          body: "",
+          presentation: "freeform",
+          blocks: intro,
+          col: 0,
+          row: 0,
+          colSpan: 1,
+          rowSpan: 1,
+        },
+        {
+          id: "workspace",
+          title: title ?? fallback.items[0]?.title ?? "Reference",
+          body: "",
+          presentation: "freeform",
+          blocks,
+          col: 0,
+          row: 1,
+          colSpan: 1,
+          rowSpan: 5,
+        },
+      ],
+    };
+  }
+
+  return {
+    spec: {
+      frameAspect: [4, 3],
+      frameBorderDiv: [0, 0],
+      grid: [1, 1],
+      cellBorderDiv: [0, 0],
+      fitMode: "contain",
+    },
+    items: [
+      {
+        id: "workspace",
+        title: title ?? fallback.items[0]?.title ?? "Reference",
+        body: "",
+        presentation: "freeform",
+        blocks,
+        col: 0,
+        row: 0,
+        colSpan: 1,
+        rowSpan: 1,
+      },
+    ],
+  };
+}
+
+type SectionedWorkspaceEntry = {
+  title: string;
+  content: ReturnType<typeof normalizeEquationsPaneCardBlocks>;
+  referenceTitle?: string;
+  reference?: ReturnType<typeof normalizeEquationsPaneCardBlocks>;
+  fractions?: [number, number];
+};
+
+function buildSectionedWorkspaceBlocks(
+  entries: SectionedWorkspaceEntry[],
+  defaultReferenceTitle: string,
+): ReturnType<typeof normalizeEquationsPaneCardBlocks> {
+  return entries.flatMap((entry) => {
+    const contentBlocks = prependTitleBlock(entry.title, entry.content);
+    const referenceBlocks = entry.reference;
+    if (referenceBlocks && referenceBlocks.length > 0) {
+      return [{
+        kind: "split" as const,
+        left: contentBlocks,
+        right: prependTitleBlock(entry.referenceTitle ?? defaultReferenceTitle, referenceBlocks),
+        ...(entry.fractions ? { fractions: entry.fractions } : {}),
+      }];
+    }
+    return contentBlocks;
+  });
+}
+
+function normalizeReferenceSection(
+  value: unknown,
+): SectionedWorkspaceEntry | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = value as Partial<EquationsReferenceSection>;
+  const title = normalizeNonEmptyString(raw.title);
+  const content = normalizeEquationsPaneCardBlocks(raw.content);
+  if (!title || !content || content.length === 0) {
+    return null;
+  }
+  const reference = normalizeEquationsPaneCardBlocks(raw.reference);
+  return {
+    title,
+    content,
+    ...(normalizeNonEmptyString(raw.referenceTitle) ? { referenceTitle: normalizeNonEmptyString(raw.referenceTitle) } : {}),
+    ...(reference && reference.length > 0 ? { reference } : {}),
+    ...(normalizeOptionalPositiveNumberTuple2(raw.fractions) ? { fractions: normalizeOptionalPositiveNumberTuple2(raw.fractions) } : {}),
+  };
+}
+
+function normalizeGlossaryReferenceEntry(
+  value: unknown,
+): SectionedWorkspaceEntry | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = value as Partial<EquationsGlossaryReferenceEntry>;
+  const title = normalizeNonEmptyString(raw.term);
+  const content = normalizeEquationsPaneCardBlocks(raw.body);
+  if (!title || !content || content.length === 0) {
+    return null;
+  }
+  const reference = normalizeEquationsPaneCardBlocks(raw.reference);
+  return {
+    title,
+    content,
+    ...(normalizeNonEmptyString(raw.referenceTitle) ? { referenceTitle: normalizeNonEmptyString(raw.referenceTitle) } : {}),
+    ...(reference && reference.length > 0 ? { reference } : {}),
+    ...(normalizeOptionalPositiveNumberTuple2(raw.fractions) ? { fractions: normalizeOptionalPositiveNumberTuple2(raw.fractions) } : {}),
+  };
+}
+
 function normalizeParallelWalkthroughDocument(
   value: unknown,
   fallback: EquationsFrameGridDocument,
@@ -214,64 +364,69 @@ function normalizeParallelWalkthroughDocument(
     fractions: step.fractions ?? documentFractions,
   }));
 
-  if (intro && intro.length > 0) {
-    return {
-      spec: {
-        frameAspect: [4, 3],
-        frameBorderDiv: [0, 0],
-        grid: [1, 6],
-        cellBorderDiv: [0, 0],
-        fitMode: "contain",
-      },
-      items: [
-        {
-          id: "header",
-          title: introTitle ?? "",
-          body: "",
-          presentation: "freeform",
-          blocks: intro,
-          col: 0,
-          row: 0,
-          colSpan: 1,
-          rowSpan: 1,
-        },
-        {
-          id: "workspace",
-          title: typeof raw.title === "string" ? raw.title : fallback.items[0]?.title ?? "Walkthrough",
-          body: "",
-          presentation: "freeform",
-          blocks,
-          col: 0,
-          row: 1,
-          colSpan: 1,
-          rowSpan: 5,
-        },
-      ],
-    };
+  return buildPatternDocumentFromWorkspaceBlocks(
+    typeof raw.title === "string" ? raw.title : undefined,
+    introTitle,
+    intro,
+    blocks,
+    fallback,
+  );
+}
+
+function normalizeReferenceSectionsDocument(
+  value: unknown,
+  fallback: EquationsFrameGridDocument,
+): EquationsFrameGridDocument | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = value as Partial<EquationsReferenceSectionsPattern>;
+  if (raw.pattern !== "reference_sections" || !Array.isArray(raw.sections)) {
+    return null;
   }
 
-  return {
-    spec: {
-      frameAspect: [4, 3],
-      frameBorderDiv: [0, 0],
-      grid: [1, 1],
-      cellBorderDiv: [0, 0],
-      fitMode: "contain",
-    },
-    items: [
-      {
-        id: "workspace",
-        title: typeof raw.title === "string" ? raw.title : fallback.items[0]?.title ?? "Walkthrough",
-        body: "",
-        presentation: "freeform",
-        blocks,
-        col: 0,
-        row: 0,
-        colSpan: 1,
-        rowSpan: 1,
-      },
-    ],
-  };
+  const sections = raw.sections
+    .map((section) => normalizeReferenceSection(section))
+    .filter((section): section is SectionedWorkspaceEntry => section !== null);
+  if (sections.length === 0) {
+    return null;
+  }
+
+  return buildPatternDocumentFromWorkspaceBlocks(
+    typeof raw.title === "string" ? raw.title : undefined,
+    normalizeOptionalString(raw.introTitle),
+    normalizeEquationsPaneCardBlocks(raw.intro),
+    buildSectionedWorkspaceBlocks(sections, "Reference"),
+    fallback,
+  );
+}
+
+function normalizeGlossaryReferenceDocument(
+  value: unknown,
+  fallback: EquationsFrameGridDocument,
+): EquationsFrameGridDocument | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const raw = value as Partial<EquationsGlossaryReferencePattern>;
+  if (raw.pattern !== "glossary_reference" || !Array.isArray(raw.entries)) {
+    return null;
+  }
+
+  const entries = raw.entries
+    .map((entry) => normalizeGlossaryReferenceEntry(entry))
+    .filter((entry): entry is SectionedWorkspaceEntry => entry !== null);
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return buildPatternDocumentFromWorkspaceBlocks(
+    typeof raw.title === "string" ? raw.title : undefined,
+    normalizeOptionalString(raw.introTitle),
+    normalizeEquationsPaneCardBlocks(raw.intro),
+    buildSectionedWorkspaceBlocks(entries, "Reference"),
+    fallback,
+  );
 }
 
 function cloneDocumentItem(item: EquationsFrameGridItem): EquationsFrameGridItem {
@@ -334,6 +489,16 @@ export function normalizeEquationsFrameGridDocument(
   const patternDocument = normalizeParallelWalkthroughDocument(value, fallback);
   if (patternDocument) {
     return patternDocument;
+  }
+
+  const referenceSectionsDocument = normalizeReferenceSectionsDocument(value, fallback);
+  if (referenceSectionsDocument) {
+    return referenceSectionsDocument;
+  }
+
+  const glossaryReferenceDocument = normalizeGlossaryReferenceDocument(value, fallback);
+  if (glossaryReferenceDocument) {
+    return glossaryReferenceDocument;
   }
 
   const raw = value && typeof value === "object"
