@@ -77,7 +77,7 @@
       "id": "kuramoto-eq10-variables",
       "label": "Eq. 10 Addendum: Variables",
       "description": "Glossary-style addendum for the variables and functions appearing in Eq. 10.",
-      "format": "freeform",
+      "format": "glossary_reference",
       "path": "./equations-document.eq10-variables.json"
     },
     {

@@ -158,6 +158,14 @@ export interface EquationsPaneMathBlock {
   displayMode?: boolean;
 }
 
+export type EquationsPaneCardSlotId = "workspace" | "details" | "notes" | "footer";
+
+export interface EquationsPaneTopicReferenceBlock {
+  kind: "topic_reference";
+  topicId: string;
+  slot?: EquationsPaneCardSlotId;
+}
+
 export interface EquationsPaneMappingsBlock {
   kind: "mappings";
   mappings: EquationsMappingEntry[];
@@ -173,6 +181,7 @@ export interface EquationsPaneSplitBlock {
 export type EquationsPaneCardBlock =
   | EquationsPaneTextBlock
   | EquationsPaneMathBlock
+  | EquationsPaneTopicReferenceBlock
   | EquationsPaneMappingsBlock
   | EquationsPaneSplitBlock;
 

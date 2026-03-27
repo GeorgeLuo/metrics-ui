@@ -321,3 +321,30 @@ test("validateEquationsGlossaryReferenceDocumentSource accepts glossary entries"
 
   assert.notEqual(report.status, "error");
 });
+
+test("validateEquationsGlossaryReferenceDocumentSource accepts topic reference blocks", () => {
+  const report = validateEquationsGlossaryReferenceDocumentSource({
+    pattern: "glossary_reference",
+    title: "Glossary",
+    entries: [
+      {
+        term: "Eq. 10",
+        body: [
+          {
+            kind: "text",
+            value: "Canonical equation surface.",
+          },
+        ],
+        reference: [
+          {
+            kind: "topic_reference",
+            topicId: "kuramoto-eq10",
+            slot: "workspace",
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.notEqual(report.status, "error");
+});

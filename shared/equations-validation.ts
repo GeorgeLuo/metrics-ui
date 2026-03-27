@@ -231,6 +231,10 @@ function validateBlocks(
       );
       return;
     }
+    if (block.kind === "topic_reference") {
+      validateText(block.topicId, `${blockPath}.topicId`, "text_block", rules, diagnostics);
+      return;
+    }
     if (block.kind === "mappings") {
       validateMappings(block.mappings, `${blockPath}.mappings`, rules, diagnostics);
       return;

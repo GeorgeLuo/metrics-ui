@@ -554,3 +554,36 @@ test("normalizeEquationsFrameGridDocument expands glossary reference intro into 
   assert.equal(document.items[1]?.blocks?.[0]?.left[0]?.kind, "text");
   assert.equal(document.items[1]?.blocks?.[0]?.left[0]?.value, "r");
 });
+
+test("normalizeEquationsFrameGridDocument preserves topic reference blocks in glossary references", () => {
+  const document = normalizeEquationsFrameGridDocument({
+    pattern: "glossary_reference",
+    title: "Glossary",
+    entries: [
+      {
+        term: "Eq. 10",
+        body: [
+          {
+            kind: "text",
+            value: "Canonical equation surface.",
+          },
+        ],
+        reference: [
+          {
+            kind: "topic_reference",
+            topicId: "kuramoto-eq10",
+            slot: "workspace",
+          },
+        ],
+      },
+    ],
+  });
+
+  const split = document.items[0]?.blocks?.[0];
+  assert.equal(split?.kind, "split");
+  assert.equal(split?.right[1]?.kind, "topic_reference");
+  if (split?.right[1]?.kind === "topic_reference") {
+    assert.equal(split.right[1].topicId, "kuramoto-eq10");
+    assert.equal(split.right[1].slot, "workspace");
+  }
+});
