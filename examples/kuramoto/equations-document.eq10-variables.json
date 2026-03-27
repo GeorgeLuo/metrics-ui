@@ -1,12 +1,10 @@
 {
-  "pattern": "parallel_walkthrough",
+  "pattern": "glossary_reference",
   "title": "Eq. 10 Addendum: Variables",
-  "fractions": [5, 7],
-  "steps": [
+  "entries": [
     {
-      "leftTitle": "Overview",
-      "rightTitle": "Eq. 10",
-      "left": [
+      "term": "Overview",
+      "body": [
         {
           "kind": "text",
           "value": "This addendum names the main variables and functions that appear in Eq. 10."
@@ -16,194 +14,18 @@
           "value": "The equation balances the locked contribution and the drifting contribution to the order parameter r."
         }
       ],
-      "right": [
+      "referenceTitle": "Eq. 10",
+      "reference": [
         {
-          "kind": "mappings",
-          "mappings": [
-            {
-              "kind": "latex",
-              "value": "r",
-              "hitBox": {
-                "id": "order_parameter_r",
-                "label": "order parameter",
-                "sequence": "r",
-                "category": "term",
-                "latex": "r"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "=",
-              "hitBox": {
-                "id": "equals",
-                "label": "equals",
-                "sequence": "equals",
-                "category": "operator",
-                "latex": "="
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}",
-              "hitBox": {
-                "id": "locked_domain",
-                "label": "locked integration domain",
-                "sequence": "the integral from minus pi over 2 to pi over 2 and the integral from minus infinity to plus infinity",
-                "category": "term",
-                "latex": "\\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty}"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "e^{i(\\theta-\\psi)}",
-              "hitBox": {
-                "id": "phase_factor",
-                "label": "phase factor",
-                "sequence": "e to the i times theta minus psi",
-                "category": "term",
-                "latex": "e^{i(\\theta-\\psi)}"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]",
-              "hitBox": {
-                "id": "locked_constraint",
-                "label": "locked delta constraint",
-                "sequence": "delta of theta minus psi minus sine inverse of omega over K r",
-                "category": "function",
-                "latex": "\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "g(\\omega)",
-              "hitBox": {
-                "id": "frequency_density",
-                "label": "frequency density",
-                "sequence": "g of omega",
-                "category": "function",
-                "latex": "g(\\omega)"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "d\\theta\\,d\\omega",
-              "hitBox": {
-                "id": "locked_measure",
-                "label": "locked measure",
-                "sequence": "d theta d omega",
-                "category": "term",
-                "latex": "d\\theta\\,d\\omega"
-              }
-            },
-            {
-              "kind": "text",
-              "value": "\n"
-            },
-            {
-              "kind": "latex",
-              "value": "+",
-              "hitBox": {
-                "id": "plus",
-                "label": "plus",
-                "sequence": "plus",
-                "category": "operator",
-                "latex": "+"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}",
-              "hitBox": {
-                "id": "drift_domain",
-                "label": "drifting integration domain",
-                "sequence": "the integral from minus pi to pi and the integral over absolute value of omega greater than K r",
-                "category": "term",
-                "latex": "\\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr}"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "e^{i(\\theta-\\psi)}",
-              "hitBox": {
-                "id": "phase_factor",
-                "label": "phase factor",
-                "sequence": "e to the i times theta minus psi",
-                "category": "term",
-                "latex": "e^{i(\\theta-\\psi)}"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}",
-              "hitBox": {
-                "id": "drift_density",
-                "label": "drifting density weight",
-                "sequence": "C g of omega over absolute value of omega minus K r sine of theta minus psi",
-                "category": "term",
-                "latex": "\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}"
-              }
-            },
-            {
-              "kind": "text",
-              "value": " "
-            },
-            {
-              "kind": "latex",
-              "value": "d\\theta\\,d\\omega",
-              "hitBox": {
-                "id": "drift_measure",
-                "label": "drifting measure",
-                "sequence": "d theta d omega",
-                "category": "term",
-                "latex": "d\\theta\\,d\\omega"
-              }
-            }
-          ]
+          "kind": "topic_reference",
+          "topicId": "kuramoto-eq10",
+          "slot": "workspace"
         }
       ]
     },
     {
-      "leftTitle": "r",
-      "rightTitle": "Order Parameter",
-      "left": [
+      "term": "r",
+      "body": [
         {
           "kind": "math",
           "latex": "r",
@@ -218,7 +40,8 @@
           "value": "Eq. 10 is self-consistent because r appears both on the left and inside the locking scale Kr on the right."
         }
       ],
-      "right": [
+      "referenceTitle": "Order Parameter",
+      "reference": [
         {
           "kind": "mappings",
           "mappings": [
@@ -253,9 +76,8 @@
       ]
     },
     {
-      "leftTitle": "Psi and Theta",
-      "rightTitle": "Phases",
-      "left": [
+      "term": "Psi and Theta",
+      "body": [
         {
           "kind": "math",
           "latex": "\\psi,\\theta",
@@ -270,7 +92,8 @@
           "value": "The equation depends on the phase difference theta minus psi, not on the two phases separately."
         }
       ],
-      "right": [
+      "referenceTitle": "Phases",
+      "reference": [
         {
           "kind": "mappings",
           "mappings": [
@@ -305,9 +128,8 @@
       ]
     },
     {
-      "leftTitle": "Omega",
-      "rightTitle": "Natural Frequency",
-      "left": [
+      "term": "Omega",
+      "body": [
         {
           "kind": "math",
           "latex": "\\omega",
@@ -322,7 +144,8 @@
           "value": "Conditions involving omega decide whether an oscillator is locked or drifting."
         }
       ],
-      "right": [
+      "referenceTitle": "Natural Frequency",
+      "reference": [
         {
           "kind": "mappings",
           "mappings": [
@@ -372,9 +195,8 @@
       ]
     },
     {
-      "leftTitle": "K",
-      "rightTitle": "Coupling Strength",
-      "left": [
+      "term": "K",
+      "body": [
         {
           "kind": "math",
           "latex": "K",
@@ -393,7 +215,8 @@
           "value": "K and r play different roles. K is a fixed model parameter that sets how strongly oscillators pull on one another, while r is the emergent coherence level that tells how aligned the population already is."
         }
       ],
-      "right": [
+      "referenceTitle": "Coupling Strength",
+      "reference": [
         {
           "kind": "mappings",
           "mappings": [
@@ -443,9 +266,8 @@
       ]
     },
     {
-      "leftTitle": "g(omega)",
-      "rightTitle": "Frequency Density",
-      "left": [
+      "term": "g(omega)",
+      "body": [
         {
           "kind": "math",
           "latex": "g(\\omega)",
@@ -460,7 +282,8 @@
           "value": "It is external population data, not a variable solved for by Eq. 10."
         }
       ],
-      "right": [
+      "referenceTitle": "Frequency Density",
+      "reference": [
         {
           "kind": "mappings",
           "mappings": [
@@ -480,9 +303,8 @@
       ]
     },
     {
-      "leftTitle": "C",
-      "rightTitle": "Drift Normalization",
-      "left": [
+      "term": "C",
+      "body": [
         {
           "kind": "math",
           "latex": "C",
@@ -497,7 +319,8 @@
           "value": "So C is not a new order parameter. It is part of the density formula for oscillators that are not locked."
         }
       ],
-      "right": [
+      "referenceTitle": "Drift Normalization",
+      "reference": [
         {
           "kind": "mappings",
           "mappings": [

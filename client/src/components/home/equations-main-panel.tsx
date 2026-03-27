@@ -5,6 +5,7 @@ import { Check, Copy } from "lucide-react";
 import type {
   CaptureSession,
   EquationsPaneCard,
+  EquationsPaneTopicReferenceBlock,
   VisualizationFrameState,
   VisualizationState,
 } from "@shared/schema";
@@ -16,6 +17,7 @@ import { SubappFloatingFrame, ViewportFloatingFrame } from "@/components/floatin
 import { FrameGrid, type FrameGridDebugSnapshot } from "@/components/frame-grid";
 import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
 import { DASHBOARD_STORAGE_KEYS } from "@/lib/dashboard/storage";
+import { getEquationsTopicOptionById } from "@/lib/equations/topic-catalog";
 import {
   type CardVariant,
   collectFreeformBlockFormulaBySelectionId,
@@ -334,6 +336,22 @@ export function EquationsMainPanel({
     return "meaning";
   };
 
+  const resolveTopicReference = (
+    block: EquationsPaneTopicReferenceBlock,
+  ) => {
+    const topic = getEquationsTopicOptionById(block.topicId);
+    if (!topic || topic.payload.kind !== "semantic_layout") {
+      return null;
+    }
+    const slot = block.slot ?? "workspace";
+    return {
+      topicId: topic.topicId,
+      slot,
+      card: topic.payload.content[slot],
+      variant: getCardVariant(slot),
+    };
+  };
+
   const renderCard = (
     itemId: string,
     card: EquationsPaneCard,
@@ -419,6 +437,7 @@ export function EquationsMainPanel({
                   selectedHitBox={equationHitBoxClick}
                   onSelect={onEquationHitBoxSelect}
                   onVisualizationLinkSelect={onVisualizationFrameSelect}
+                  resolveTopicReference={resolveTopicReference}
                 />
               ) : hasMappings ? (
                 <MappedCardContent

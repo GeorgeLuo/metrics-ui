@@ -154,6 +154,13 @@ export function cloneEquationsPaneCardBlock(
       ...(typeof block.displayMode === "boolean" ? { displayMode: block.displayMode } : {}),
     };
   }
+  if (block.kind === "topic_reference") {
+    return {
+      kind: "topic_reference",
+      topicId: block.topicId,
+      ...(block.slot ? { slot: block.slot } : {}),
+    };
+  }
   if (block.kind === "split") {
     return {
       kind: "split",
@@ -201,6 +208,22 @@ export function normalizeEquationsPaneCardBlock(
       kind: "math",
       latex: raw.latex,
       ...(typeof raw.displayMode === "boolean" ? { displayMode: raw.displayMode } : {}),
+    };
+  }
+  if (raw.kind === "topic_reference") {
+    const topicId = typeof (raw as { topicId?: unknown }).topicId === "string"
+      ? (raw as { topicId: string }).topicId.trim()
+      : "";
+    const slot = (raw as { slot?: unknown }).slot;
+    if (topicId.length === 0) {
+      return null;
+    }
+    return {
+      kind: "topic_reference",
+      topicId,
+      ...(slot === "workspace" || slot === "details" || slot === "notes" || slot === "footer"
+        ? { slot }
+        : {}),
     };
   }
   if (raw.kind === "mappings") {

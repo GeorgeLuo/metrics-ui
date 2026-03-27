@@ -6,6 +6,7 @@ import type {
   EquationsPaneCard,
   EquationsPaneCardBlock,
   EquationsPaneCardPresentation,
+  EquationsPaneCardSlotId,
   EquationsPiecewiseRow,
   VisualizationFrameState,
 } from "@shared/schema";
@@ -14,6 +15,12 @@ import type { EquationHitBoxClickSignal } from "@/components/home/equation-inter
 import { FitToWidthContent } from "./fit-to-cell-content";
 
 export type CardVariant = "equation" | "literal" | "meaning" | "concept";
+export type ResolvedTopicReference = {
+  topicId: string;
+  slot: EquationsPaneCardSlotId;
+  card: EquationsPaneCard;
+  variant: CardVariant;
+};
 
 type FreeformBlockPathSegment = number | "left" | "right";
 
@@ -128,6 +135,9 @@ function renderBlockAsLatex(block: EquationsPaneCardBlock): string {
   }
   if (block.kind === "math") {
     return block.latex.trim();
+  }
+  if (block.kind === "topic_reference") {
+    return "";
   }
   if (block.kind === "split") {
     return [
@@ -446,6 +456,8 @@ export function FreeformCardContent({
   selectedHitBox,
   onSelect,
   onVisualizationLinkSelect,
+  resolveTopicReference,
+  topicReferenceDepth = 0,
 }: {
   itemId: string;
   blocks: EquationsPaneCardBlock[];
@@ -453,7 +465,120 @@ export function FreeformCardContent({
   selectedHitBox?: EquationHitBoxClickSignal | null;
   onSelect?: (signal: EquationHitBoxClickSignal | null) => void;
   onVisualizationLinkSelect?: (frame: VisualizationFrameState) => void;
+  resolveTopicReference?: (block: Extract<EquationsPaneCardBlock, { kind: "topic_reference" }>) => ResolvedTopicReference | null;
+  topicReferenceDepth?: number;
 }) {
+  const renderReferencedCard = (
+    reference: ResolvedTopicReference,
+    referenceItemId: string,
+  ): ReactNode => {
+    const card = reference.card;
+    const math = resolveEquationsMathExpression(card.math);
+    const mappings = Array.isArray(card.mappings) ? card.mappings : [];
+    const piecewiseRows = Array.isArray(card.piecewiseRows) ? card.piecewiseRows : [];
+    const blocks = Array.isArray(card.blocks) ? card.blocks : [];
+    const hasMappings = mappings.length > 0;
+    const hasPiecewiseRows = piecewiseRows.length > 0;
+    const hasBlocks = blocks.length > 0;
+    const presentation = card.presentation ?? "standard";
+    const isEquationCard = reference.variant === "equation";
+    const isLiteralCard = reference.variant === "literal";
+    const isFreeformCard = presentation === "freeform";
+    const isPiecewiseEquation = isEquationCard && presentation === "piecewise";
+
+    if (isPiecewiseEquation && hasPiecewiseRows) {
+      return (
+        <PiecewiseEquationContent
+          itemId={referenceItemId}
+          lhsMappings={mappings}
+          rows={piecewiseRows}
+          showAllSignalBlocks={showAllSignalBlocks}
+          selectedHitBox={selectedHitBox}
+          onSelect={onSelect}
+        />
+      );
+    }
+
+    if (isFreeformCard && hasBlocks) {
+      return (
+        <FreeformCardContent
+          itemId={referenceItemId}
+          blocks={blocks}
+          showAllSignalBlocks={showAllSignalBlocks}
+          selectedHitBox={selectedHitBox}
+          onSelect={onSelect}
+          onVisualizationLinkSelect={onVisualizationLinkSelect}
+          resolveTopicReference={resolveTopicReference}
+          topicReferenceDepth={topicReferenceDepth + 1}
+        />
+      );
+    }
+
+    if (hasMappings) {
+      return (
+        <MappedCardContent
+          itemId={referenceItemId}
+          mappings={mappings}
+          variant={reference.variant}
+          presentation={presentation}
+          showAllSignalBlocks={showAllSignalBlocks}
+          selectedHitBox={selectedHitBox}
+          onSelect={onSelect}
+        />
+      );
+    }
+
+    if (math) {
+      const mathMarkup = katex.renderToString(math.latex, {
+        displayMode: math.displayMode,
+        output: "htmlAndMathml",
+        throwOnError: false,
+        trust: false,
+      });
+      const mathContent = (
+        <div
+          className="relative flow-root max-w-full overflow-visible py-1 text-foreground"
+          data-equations-selection-root="1"
+          data-equations-item-id={referenceItemId}
+          data-equations-selection-id={referenceItemId}
+          dangerouslySetInnerHTML={{ __html: mathMarkup }}
+        />
+      );
+
+      if (isMultiLineDisplayMath(math.latex, math.displayMode)) {
+        return <div className="max-w-full text-foreground">{mathContent}</div>;
+      }
+
+      return (
+        <FitToWidthContent className="text-foreground" contentClassName="py-1">
+          {mathContent}
+        </FitToWidthContent>
+      );
+    }
+
+    if (card.body.trim().length > 0) {
+      return (
+        <div
+          className={[
+            "relative whitespace-pre-line break-words",
+            isLiteralCard
+              ? "font-mono text-[11px] leading-5 text-foreground/78"
+              : isEquationCard
+                ? "max-w-[32ch] text-sm leading-relaxed text-muted-foreground"
+                : "text-[13px] leading-5 text-foreground/82",
+          ].join(" ")}
+          data-equations-selection-root="1"
+          data-equations-item-id={referenceItemId}
+          data-equations-selection-id={referenceItemId}
+        >
+          {card.body}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   const renderBlockStack = (
     entries: EquationsPaneCardBlock[],
     path: FreeformBlockPathSegment[],
@@ -542,6 +667,39 @@ export function FreeformCardContent({
           );
         }
 
+        if (block.kind === "topic_reference") {
+          if (topicReferenceDepth >= 3) {
+            return (
+              <div
+                key={`${itemId}-${nextPath.join("-")}-topic-reference-depth`}
+                className="text-[12px] leading-5 text-muted-foreground"
+              >
+                Topic reference depth limit reached.
+              </div>
+            );
+          }
+          const reference = resolveTopicReference?.(block) ?? null;
+          if (!reference) {
+            return (
+              <div
+                key={`${itemId}-${nextPath.join("-")}-topic-reference-missing`}
+                className="text-[12px] leading-5 text-muted-foreground"
+              >
+                Referenced topic unavailable.
+              </div>
+            );
+          }
+          const referenceItemId = `${buildFreeformBlockSelectionId(itemId, nextPath)}::topic:${reference.topicId}:${reference.slot}`;
+          return (
+            <div
+              key={`${itemId}-${nextPath.join("-")}-topic-reference`}
+              className="rounded-lg border border-border/60 bg-background/55 p-3"
+            >
+              {renderReferencedCard(reference, referenceItemId)}
+            </div>
+          );
+        }
+
         if (block.kind === "split") {
           const leftSelectionId = buildFreeformBlockSelectionId(itemId, [...nextPath, "left"]);
           const rightSelectionId = buildFreeformBlockSelectionId(itemId, [...nextPath, "right"]);
@@ -581,9 +739,9 @@ export function FreeformCardContent({
         return (
           <MappedSequence
             key={`${itemId}-${nextPath.join("-")}-mappings`}
-            itemId={blockSelectionItemId}
-            mappings={block.mappings}
-            variant={formulaLike ? "equation" : "meaning"}
+              itemId={blockSelectionItemId}
+              mappings={block.mappings}
+              variant={formulaLike ? "equation" : "meaning"}
             containerClassName={[
               "max-w-full whitespace-pre-wrap break-words",
               formulaLike
