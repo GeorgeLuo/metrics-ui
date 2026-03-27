@@ -47,17 +47,24 @@
     },
     {
       "id": "kuramoto-eq12-critical-coupling",
-      "label": "Eq. 12: Critical Coupling",
-      "description": "Physical meaning of the onset threshold K_c and the incoherent versus synchronized states.",
-      "format": "freeform",
+      "label": "Eq. 12 -> Eq. 13",
+      "description": "Follow the onset condition in Eq. 12 through the Lorentzian specialization that produces Eq. 13.",
+      "format": "derivation",
       "path": "./equations-document.eq12-critical-coupling.json"
     },
     {
       "id": "kuramoto-eq13-lorentzian-frequency-distribution",
       "label": "Eq. 13 Addendum: Lorentzian Frequency Distribution",
       "description": "Explain why the Lorentzian choice for g of omega is special and how it yields K_c = 2 gamma and an explicit synchronized branch.",
-      "format": "freeform",
+      "format": "reference_sections",
       "path": "./equations-document.eq13-lorentzian-frequency-distribution.json"
+    },
+    {
+      "id": "kuramoto-eq13-to-eq14",
+      "label": "Eq. 13 -> Eq. 14",
+      "description": "Show Kuramoto's exact Lorentzian calculation and how it connects to the general near-threshold scaling law.",
+      "format": "derivation",
+      "path": "./equations-document.eq13-to-eq14.json"
     },
     {
       "id": "kuramoto-eq5-eq9-to-eq10",
@@ -84,15 +91,22 @@
       "id": "kuramoto-invalid-intermediate-form",
       "label": "Theta Bounds vs Omega Bounds",
       "description": "See why angle bounds only reappear after changing variables from omega to an angle.",
-      "format": "freeform",
+      "format": "reference_sections",
       "path": "./equations-document.invalid-intermediate-form.json"
     },
     {
       "id": "identities-cheatsheet",
       "label": "Identities Cheatsheet",
       "description": "Quick reference for derivation identities like the Dirac delta rule, Euler's identity, and odd/even symmetry.",
-      "format": "freeform",
+      "format": "reference_sections",
       "path": "./equations-document.identities-cheatsheet.json"
+    },
+    {
+      "id": "integrand-rewrite-cheatsheet",
+      "label": "Integrand Rewrite Cheatsheet",
+      "description": "Worked examples of rewriting an integrand into standard forms before integrating.",
+      "format": "reference_sections",
+      "path": "./equations-document.integrand-rewrite-cheatsheet.json"
     }
   ]
 }

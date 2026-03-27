@@ -1,12 +1,10 @@
 {
-  "pattern": "parallel_walkthrough",
+  "pattern": "reference_sections",
   "title": "Theta Bounds vs Omega Bounds",
-  "fractions": [5, 7],
-  "steps": [
+  "sections": [
     {
-      "leftTitle": "Why The Shortcut Fails",
-      "rightTitle": "Correct Form",
-      "left": [
+      "title": "Why The Shortcut Fails",
+      "content": [
         {
           "kind": "text",
           "value": "Everywhere else in this walkthrough, Eq. 10 is kept in the paper's compact order. Under that same convention, the bounds minus pi over 2 to pi over 2 are the old angle bounds carried by the pre-collapse expression."
@@ -25,7 +23,8 @@
           "value": "So the issue is not just that the variable is omega. The issue is that the line mixes the surviving measure d omega with bounds that still belong to the pre-collapse angle window. After the collapse, the remaining one-variable integral must use the locked omega-domain instead."
         }
       ],
-      "right": [
+      "referenceTitle": "Correct Form",
+      "reference": [
         {
           "kind": "text",
           "value": "After collapsing the theta piece but before any change of variables, the valid one-variable form is:"
@@ -44,7 +43,8 @@
           "latex": "u=\\sin^{-1}(\\omega/Kr),\\qquad \\omega=Kr\\sin u,\\qquad d\\omega=Kr\\cos u\\,du",
           "displayMode": true
         }
-      ]
+      ],
+      "fractions": [5, 7]
     }
   ]
 }

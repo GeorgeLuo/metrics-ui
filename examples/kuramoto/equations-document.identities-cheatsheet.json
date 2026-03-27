@@ -1,5 +1,5 @@
 {
-  "pattern": "parallel_walkthrough",
+  "pattern": "reference_sections",
   "title": "Identities Cheatsheet",
   "intro": [
     {
@@ -11,12 +11,10 @@
       "value": "These identities are written in a general form, so they can be reused outside the Kuramoto walkthroughs."
     }
   ],
-  "fractions": [5, 7],
-  "steps": [
+  "sections": [
     {
-      "leftTitle": "Dirac Delta",
-      "rightTitle": "Sampling Rule",
-      "left": [
+      "title": "Dirac Delta",
+      "content": [
         {
           "kind": "text",
           "value": "The Dirac delta does not spread weight over a neighborhood. It samples the rest of the integrand at the point where its argument vanishes."
@@ -26,7 +24,8 @@
           "value": "If the selected point lies outside a finite integration interval, the whole integral is zero. That support condition is often what later turns into an indicator or new integration bounds."
         }
       ],
-      "right": [
+      "referenceTitle": "Sampling Rule",
+      "reference": [
         {
           "kind": "math",
           "latex": "\\int_{-\\infty}^{\\infty} f(x)\\,\\delta(x-a)\\,dx = f(a)",
@@ -44,9 +43,8 @@
       ]
     },
     {
-      "leftTitle": "Euler Identity",
-      "rightTitle": "Complex Exponential",
-      "left": [
+      "title": "Euler Identity",
+      "content": [
         {
           "kind": "text",
           "value": "Euler's identity rewrites a complex phase factor into real and imaginary parts. This is usually the step that makes symmetry arguments visible."
@@ -56,7 +54,8 @@
           "value": "On a symmetric interval, the imaginary sine term often drops out when it multiplies an even weight, leaving only the cosine projection."
         }
       ],
-      "right": [
+      "referenceTitle": "Complex Exponential",
+      "reference": [
         {
           "kind": "math",
           "latex": "e^{i\\phi} = \\cos \\phi + i\\sin \\phi",
@@ -75,9 +74,8 @@
       ]
     },
     {
-      "leftTitle": "Substitution",
-      "rightTitle": "New Bounds",
-      "left": [
+      "title": "Substitution",
+      "content": [
         {
           "kind": "text",
           "value": "After a change of variables, the integration bounds must be rewritten in the new variable. Old x-bounds do not stay attached to du."
@@ -91,7 +89,8 @@
           "value": "If the substitution is not one-to-one on the interval, split the integral into monotone pieces first. Otherwise one pair of new bounds does not describe the whole map correctly."
         }
       ],
-      "right": [
+      "referenceTitle": "New Bounds",
+      "reference": [
         {
           "kind": "math",
           "latex": "u = h(x), \\qquad x = x(u), \\qquad dx = \\frac{dx}{du}\\,du",
@@ -114,9 +113,8 @@
       ]
     },
     {
-      "leftTitle": "Trig Values",
-      "rightTitle": "Zero / One",
-      "left": [
+      "title": "Trig Values",
+      "content": [
         {
           "kind": "text",
           "value": "These are the basic endpoint values that usually determine new bounds after a sine or cosine substitution."
@@ -126,7 +124,8 @@
           "value": "On the locked branch from minus pi over 2 to pi over 2, sine reaches minus 1 and plus 1 at the endpoints, while cosine is 0 at the endpoints and 1 at theta equals 0."
         }
       ],
-      "right": [
+      "referenceTitle": "Zero / One",
+      "reference": [
         {
           "kind": "math",
           "latex": "\\sin 0 = 0, \\qquad \\sin\\!\\left(\\frac{\\pi}{2}\\right)=1, \\qquad \\sin\\!\\left(-\\frac{\\pi}{2}\\right)=-1",
@@ -150,9 +149,79 @@
       ]
     },
     {
-      "leftTitle": "Even / Odd",
-      "rightTitle": "Symmetry Rules",
-      "left": [
+      "title": "Cosine Squared",
+      "content": [
+        {
+          "kind": "text",
+          "value": "When a derivation leaves a cosine-squared weight, the standard move is to rewrite it with the double-angle identity and then integrate term by term."
+        },
+        {
+          "kind": "text",
+          "value": "This is exactly the identity used in the onset step from Eq. 12 to the critical coupling formula."
+        }
+      ],
+      "referenceTitle": "Common Integral",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "\\cos^2\\theta = \\frac{1+\\cos(2\\theta)}{2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2} \\cos^2\\theta\\,d\\theta = \\frac{\\pi}{2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-A}^{A} \\cos^2\\theta\\,d\\theta = A + \\frac{\\sin(2A)}{2}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Integrand Rewrite",
+      "content": [
+        {
+          "kind": "text",
+          "value": "When the numerator and denominator share the same inner expression, treat that repeated piece like a temporary variable and rewrite the integrand into simpler parts."
+        },
+        {
+          "kind": "text",
+          "value": "A common move is to assume a form like A over a plus b u plus B, then solve for A and B by matching coefficients. This is the same general idea as partial fractions: rewrite first, integrate second."
+        },
+        {
+          "kind": "text",
+          "value": "The goal is usually to reduce the integrand to one standard integral plus one easy constant term."
+        }
+      ],
+      "referenceTitle": "Match a Standard Form",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "u = h(x)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{\\alpha+\\beta u}{a+bu} = \\frac{A}{a+bu}+B",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\alpha+\\beta u = A + B(a+bu)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\text{match coefficients to solve for } A \\text{ and } B",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Even / Odd",
+      "content": [
         {
           "kind": "text",
           "value": "These definitions are what make symmetry cancellations precise. They show up whenever an integral is taken over a symmetric interval from minus a to plus a."
@@ -162,7 +231,8 @@
           "value": "An odd integrand cancels between x and minus x, while an even integrand reinforces itself on both sides."
         }
       ],
-      "right": [
+      "referenceTitle": "Symmetry Rules",
+      "reference": [
         {
           "kind": "math",
           "latex": "f\\text{ is even } \\iff f(-x)=f(x)",

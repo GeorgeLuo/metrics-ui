@@ -1,40 +1,44 @@
 {
   "pattern": "parallel_walkthrough",
-  "title": "Eq. 12: Critical Coupling",
+  "title": "Eq. 12 -> Eq. 13",
   "intro": [
     {
       "kind": "text",
-      "value": "Eq. 12 is where the derivation stops being only algebra and starts making a physical prediction: it tells us when incoherence gives way to partial synchronization."
+      "value": "Eq. 12 is the onset condition for the nonzero synchronized branch, and Eq. 13 is the first concrete choice of frequency distribution used to evaluate that condition explicitly."
     },
     {
       "kind": "text",
-      "value": "The key number is K sub c, the critical coupling. Below it the oscillators wash each other out, at it the synchronized branch first appears, and above it a macroscopic locked cluster forms."
+      "value": "So this transition has two parts: first identify the critical coupling K sub c from the general threshold equation, then choose a specific g of omega so that the threshold becomes an explicit number."
     }
   ],
   "fractions": [5, 7],
   "steps": [
     {
       "leftTitle": "Step 1",
-      "rightTitle": "Incoherent State",
+      "rightTitle": "Branch Split",
       "left": [
         {
           "kind": "text",
-          "value": "The order parameter r measures how much the phase vectors line up. If the oscillators are spread all around the circle, their vectors cancel in the average and r equals 0."
+          "value": "Equation 11 still contains both possibilities: the trivial incoherent state r equals 0, and a nonzero synchronized branch with r greater than 0."
         },
         {
           "kind": "text",
-          "value": "Physically, K less than K sub c means coupling is too weak to overcome the spread in natural frequencies. Oscillators keep drifting relative to one another, so there is no macroscopic phase coherence."
+          "value": "Eq. 12 comes only from the second branch. We get it by dividing Eq. 11 by r, which is valid only when r is nonzero."
+        },
+        {
+          "kind": "text",
+          "value": "So the statement K less than K sub c implies r equals 0 is not read directly off Eq. 12 by itself. It comes from comparing the trivial incoherent branch with the nonzero branch that Eq. 12 describes."
         }
       ],
       "right": [
         {
           "kind": "math",
-          "latex": "1 = K\\int_{-\\pi/2}^{\\pi/2} \\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta",
+          "latex": "r = Kr\\int_{-\\pi/2}^{\\pi/2} \\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta",
           "displayMode": true
         },
         {
           "kind": "math",
-          "latex": "K < K_c \\implies r = 0",
+          "latex": "r = 0 \\quad \\text{or} \\quad 1 = K\\int_{-\\pi/2}^{\\pi/2} \\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta \\;(r>0)",
           "displayMode": true
         }
       ]
@@ -45,7 +49,7 @@
       "left": [
         {
           "kind": "text",
-          "value": "The synchronized branch bifurcates from r equals 0, so to find the onset threshold we set r to 0 in Eq. 12."
+          "value": "The nonzero synchronized branch bifurcates from r equals 0, so to find the onset threshold we take the limit as r goes to 0 from the positive side in Eq. 12."
         },
         {
           "kind": "text",
@@ -60,6 +64,10 @@
         {
           "kind": "text",
           "value": "Physically, g of 0 is the density of oscillators near zero detuning in the rotating frame. If many oscillators already sit near that center, they are easier to lock, so the threshold K sub c is smaller."
+        },
+        {
+          "kind": "text",
+          "value": "At that point we do evaluate the remaining integral, but only after taking the onset limit. We are not solving Eq. 12 for arbitrary r here. We first replace g of K r sine theta by g of 0, then integrate cosine squared theta from minus pi over 2 to pi over 2."
         }
       ],
       "right": [
@@ -75,6 +83,11 @@
         },
         {
           "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,d\\theta = \\frac{\\pi}{2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
           "latex": "K_c = \\frac{2}{\\pi g(0)}",
           "displayMode": true
         }
@@ -82,7 +95,7 @@
     },
     {
       "leftTitle": "Step 3",
-      "rightTitle": "Partially Synchronized State",
+      "rightTitle": "Physical Meaning of K_c",
       "left": [
         {
           "kind": "text",
@@ -100,12 +113,52 @@
       "right": [
         {
           "kind": "math",
+          "latex": "K < K_c \\implies r = 0",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
           "latex": "K > K_c \\implies r > 0",
           "displayMode": true
         },
         {
           "kind": "math",
           "latex": "r = 0 \\text{ means incoherence}, \\qquad r > 0 \\text{ means partial synchronization}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 4",
+      "rightTitle": "From Eq. 12 to Eq. 13",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Eq. 12 is still general because it only tells us that the threshold depends on g of 0. To go further, we must choose an explicit frequency distribution."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 13 makes that choice: it takes g of omega to be a Lorentzian. Then g of 0 becomes 1 over pi gamma, so the threshold becomes K sub c equals 2 gamma."
+        },
+        {
+          "kind": "text",
+          "value": "So Eq. 13 is not derived from Eq. 12. It is substituted into Eq. 12."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "K_c = \\frac{2}{\\pi g(0)}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "g(\\omega)=\\frac{\\gamma/\\pi}{\\gamma^2+\\omega^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "g(0)=\\frac{1}{\\pi\\gamma} \\implies K_c = 2\\gamma",
           "displayMode": true
         }
       ]
