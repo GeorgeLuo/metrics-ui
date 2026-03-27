@@ -516,6 +516,7 @@ export function EquationsMainPanel({
         </FrameGrid>
         <SubappFloatingFrame
           title="Interaction Signal"
+          isVisible={Boolean(equationHitBoxClick)}
           containerRef={contentAreaRef}
           defaultPosition={{ x: 16, y: 16 }}
           dataTestId="equations-interaction-signal-window"
@@ -528,6 +529,9 @@ export function EquationsMainPanel({
           contentClassName="!px-2 !py-2 text-foreground"
           contentMinHeight={0}
           dragHint="Drag this signal window within the equations area."
+          closeable
+          closeHint="Close this interaction signal window."
+          onClose={() => onEquationHitBoxSelect?.(null)}
         >
           {equationHitBoxClick ? (
             <div className="flex flex-col gap-2" data-testid="equation-click-signal">
