@@ -8,6 +8,8 @@ import { normalizeEquationsPaneState } from "@shared/equations-pane";
 import {
   validateEquationsDerivationDocumentSource,
   validateEquationsFrameGridDocument,
+  validateEquationsGlossaryReferenceDocumentSource,
+  validateEquationsReferenceSectionsDocumentSource,
   validateEquationsSemanticLayoutSource,
 } from "@shared/equations-validation";
 
@@ -15,7 +17,7 @@ type EquationsTopicDefinition = {
   id: string;
   label: string;
   description: string;
-  format: "semantic_layout" | "derivation" | "freeform";
+  format: "semantic_layout" | "derivation" | "reference_sections" | "glossary_reference" | "freeform";
   path: string;
 };
 
@@ -33,10 +35,12 @@ export type EquationsTopicOption = {
   catalogLabel: string;
   label: string;
   description: string;
-  format: "semantic_layout" | "derivation" | "freeform";
+  format: "semantic_layout" | "derivation" | "reference_sections" | "glossary_reference" | "freeform";
   payload:
     | { kind: "semantic_layout"; content: EquationsPaneContent }
     | { kind: "derivation"; document: EquationsFrameGridDocument }
+    | { kind: "reference_sections"; document: EquationsFrameGridDocument }
+    | { kind: "glossary_reference"; document: EquationsFrameGridDocument }
     | { kind: "freeform"; document: EquationsFrameGridDocument };
 };
 
@@ -86,6 +90,10 @@ function normalizeTopicDefinition(value: unknown): EquationsTopicDefinition | nu
     ? "freeform"
     : raw.format === "derivation"
       ? "derivation"
+      : raw.format === "reference_sections"
+        ? "reference_sections"
+        : raw.format === "glossary_reference"
+          ? "glossary_reference"
     : raw.format === "semantic_layout"
       ? "semantic_layout"
       : raw.kind === "document"
@@ -229,6 +237,32 @@ function buildTopicOption(
       console.warn(
         formatValidationSummary(
           `[equations-topic-catalog] Skipping derivation topic ${catalog.id}:${definition.id}`,
+          report.diagnostics.map((entry) => `${entry.path}: ${entry.message}`),
+        ),
+      );
+      return null;
+    }
+  }
+
+  if (definition.format === "reference_sections") {
+    const report = validateEquationsReferenceSectionsDocumentSource(moduleValue);
+    if (report.status === "error") {
+      console.warn(
+        formatValidationSummary(
+          `[equations-topic-catalog] Skipping reference sections topic ${catalog.id}:${definition.id}`,
+          report.diagnostics.map((entry) => `${entry.path}: ${entry.message}`),
+        ),
+      );
+      return null;
+    }
+  }
+
+  if (definition.format === "glossary_reference") {
+    const report = validateEquationsGlossaryReferenceDocumentSource(moduleValue);
+    if (report.status === "error") {
+      console.warn(
+        formatValidationSummary(
+          `[equations-topic-catalog] Skipping glossary topic ${catalog.id}:${definition.id}`,
           report.diagnostics.map((entry) => `${entry.path}: ${entry.message}`),
         ),
       );
