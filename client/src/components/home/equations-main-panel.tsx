@@ -38,6 +38,8 @@ import {
   areTextHighlightOverlayLayersEqual,
   buildSelectionEndpointsFromSelection,
   buildSelectionHighlight,
+  findEquationsHighlightSurface,
+  isWithinEquationsHighlightSurface,
   resolveTextHighlightOverlayLayers,
 } from "./equations-main-panel/text-highlight";
 
@@ -243,7 +245,7 @@ export function EquationsMainPanel({
 
     const container = contentAreaRef.current;
     const range = selection.getRangeAt(0).cloneRange();
-    if (!container || !container.contains(range.commonAncestorContainer)) {
+    if (!container || !isWithinEquationsHighlightSurface(container, range.commonAncestorContainer)) {
       pendingTextHighlightGestureRef.current = null;
       selection.removeAllRanges();
       return;
@@ -261,7 +263,9 @@ export function EquationsMainPanel({
     }
 
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest("[data-floating-frame-root='true']")) {
+    const isInsideFloatingFrame = Boolean(target?.closest("[data-floating-frame-root='true']"));
+    const isInsideHighlightableFrame = Boolean(findEquationsHighlightSurface(target));
+    if (isInsideFloatingFrame && !isInsideHighlightableFrame) {
       return;
     }
 
@@ -613,6 +617,7 @@ export function EquationsMainPanel({
         ref={contentAreaRef}
         className="relative flex-1 min-h-0"
         data-testid="equations-main-panel"
+        data-equations-highlight-surface="1"
         onPointerDownCapture={handlePanelPointerDownCapture}
         onPointerMoveCapture={handlePanelPointerMoveCapture}
         onMouseUp={() => {
@@ -773,6 +778,7 @@ export function EquationsMainPanel({
               dragHandleClassName="text-muted-foreground hover:text-foreground"
               controlButtonClassName="text-muted-foreground hover:text-foreground"
               contentClassName="!px-2 !py-2"
+              contentSelectable
               contentMinHeight={0}
               contentFill
               dragHint="Drag this reference anywhere in the web app viewport."
@@ -785,7 +791,10 @@ export function EquationsMainPanel({
               onClose={() => onReferenceFrameSelect?.(null)}
             >
               {resolvedReferenceFrame ? (
-                <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
+                <div
+                  className="flex h-full min-h-0 flex-col gap-2 overflow-hidden"
+                  data-equations-highlight-surface="1"
+                >
                   <div className="px-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                     {resolvedReferenceFrame.sourceLabel}
                     {resolvedReferenceFrame.itemTitle.trim().length > 0

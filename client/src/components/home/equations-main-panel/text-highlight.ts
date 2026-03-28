@@ -27,6 +27,7 @@ export type SelectionEndpoints = {
 const TEXT_HIGHLIGHT_CONTEXT_CHARS = 64;
 const TEXT_HIGHLIGHT_RECT_EPSILON = 0.01;
 const EQUATIONS_SCOPE_FILTER_SELECTION_MARKER = "::scope-filter:";
+export const EQUATIONS_HIGHLIGHT_SURFACE_SELECTOR = "[data-equations-highlight-surface='1']";
 
 function collapseSelectionText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -46,6 +47,32 @@ function trimTrailingContext(value: string): string {
     return collapsed;
   }
   return collapsed.slice(0, TEXT_HIGHLIGHT_CONTEXT_CHARS);
+}
+
+export function findEquationsHighlightSurface(node: Node | null): HTMLElement | null {
+  if (!node) {
+    return null;
+  }
+
+  if (node instanceof Element) {
+    return node.closest<HTMLElement>(EQUATIONS_HIGHLIGHT_SURFACE_SELECTOR);
+  }
+
+  return node.parentElement?.closest<HTMLElement>(EQUATIONS_HIGHLIGHT_SURFACE_SELECTOR) ?? null;
+}
+
+export function isWithinEquationsHighlightSurface(
+  primarySurface: HTMLElement | null,
+  node: Node | null,
+): boolean {
+  if (!node) {
+    return false;
+  }
+
+  return Boolean(
+    (primarySurface && primarySurface.contains(node))
+    || findEquationsHighlightSurface(node),
+  );
 }
 
 function findSelectionRoot(node: Node | null): HTMLElement | null {
@@ -406,17 +433,31 @@ function findHighlightRootElement(
     highlight.selectionId === `${highlight.itemId}::item`
     || parseScopeFilteredSelectionId(highlight.itemId, highlight.selectionId)
   ) {
-    return container.querySelector<HTMLElement>(
+    const localMatch = container.querySelector<HTMLElement>(
       `[data-equations-item-id="${escapeAttributeSelector(highlight.itemId)}"]`,
     );
+    if (localMatch) {
+      return localMatch;
+    }
+    return typeof document !== "undefined"
+      ? document.querySelector<HTMLElement>(
+          `[data-equations-item-id="${escapeAttributeSelector(highlight.itemId)}"]`,
+        )
+      : null;
   }
 
-  return container.querySelector<HTMLElement>(
-    [
-      `[data-equations-item-id="${escapeAttributeSelector(highlight.itemId)}"]`,
-      `[data-equations-selection-id="${escapeAttributeSelector(highlight.selectionId)}"]`,
-    ].join(""),
-  );
+  const selector = [
+    `[data-equations-item-id="${escapeAttributeSelector(highlight.itemId)}"]`,
+    `[data-equations-selection-id="${escapeAttributeSelector(highlight.selectionId)}"]`,
+  ].join("");
+  const localMatch = container.querySelector<HTMLElement>(selector);
+  if (localMatch) {
+    return localMatch;
+  }
+
+  return typeof document !== "undefined"
+    ? document.querySelector<HTMLElement>(selector)
+    : null;
 }
 
 export function buildSelectionHighlight(
