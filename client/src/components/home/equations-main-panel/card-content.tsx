@@ -298,8 +298,7 @@ function MappedSequence({
             role="button"
             tabIndex={0}
             className={[
-              "select-text cursor-pointer align-middle rounded-md border px-0.5 py-0.5 text-inherit transition-colors",
-              "border-emerald-500/35 bg-emerald-500/[0.035]",
+              "select-text cursor-pointer align-middle rounded-md border border-transparent px-0.5 py-0.5 text-inherit transition-colors",
               "focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-1 focus-visible:ring-emerald-500/60",
               showAllSignalBlocks
                 ? "rounded-md border border-emerald-500/80 bg-emerald-500/10 shadow-[0_0_0_1px_rgba(16,185,129,0.18)] dark:border-emerald-300/90 dark:bg-emerald-300/12 dark:shadow-[0_0_0_1px_rgba(110,231,183,0.24)]"
