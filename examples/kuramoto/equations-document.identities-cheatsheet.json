@@ -248,6 +248,26 @@
           "kind": "math",
           "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} = \\int_{-\\infty}^{\\infty}\\frac{dt}{a+(a+b)t^2}",
           "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "y=t\\sqrt{\\frac{a+b}{a}} \\quad \\Rightarrow \\quad dt=\\sqrt{\\frac{a}{a+b}}\\,dy",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\infty}^{\\infty}\\frac{dt}{a+(a+b)t^2} = \\frac{1}{\\sqrt{a(a+b)}}\\int_{-\\infty}^{\\infty}\\frac{dy}{1+y^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int \\frac{dy}{1+y^2} = \\tan^{-1}(y) + C",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1}{\\sqrt{a(a+b)}}\\left[\\tan^{-1}(y)\\right]_{-\\infty}^{\\infty} = \\frac{\\pi}{\\sqrt{a(a+b)}}",
+          "displayMode": true
         }
       ]
     },
