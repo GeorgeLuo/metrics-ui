@@ -120,6 +120,7 @@ import {
   mergeEquationsPaneStatePatch,
   normalizeEquationsPaneState,
 } from "@shared/equations-pane";
+import { cloneEquationsReferenceFrameState } from "@shared/equations-reference-frame-state";
 import {
   cloneVisualizationFrameState,
   normalizeVisualizationFrameState,
@@ -5582,6 +5583,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     const preservedVisualizationFrame = equationsPane.context.visualizationFrame
       ? cloneVisualizationFrameState(equationsPane.context.visualizationFrame)
       : null;
+    const preservedReferenceFrame = equationsPane.context.referenceFrame
+      ? cloneEquationsReferenceFrameState(equationsPane.context.referenceFrame)
+      : null;
 
     const patch = topic.payload.kind === "semantic_layout"
       ? {
@@ -5590,6 +5594,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             selectedHitBox: null,
             selectedTextHighlight: null,
             visualizationFrame: preservedVisualizationFrame,
+            referenceFrame: preservedReferenceFrame,
           },
         }
       : {
@@ -5598,6 +5603,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             selectedHitBox: null,
             selectedTextHighlight: null,
             visualizationFrame: preservedVisualizationFrame,
+            referenceFrame: preservedReferenceFrame,
           },
         };
     handleSetEquationsPane(patch, { replace: true });
@@ -5606,7 +5612,12 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       replace: true,
       ...patch,
     });
-  }, [equationsPane.context.visualizationFrame, handleSetEquationsPane, sendMessage]);
+  }, [
+    equationsPane.context.referenceFrame,
+    equationsPane.context.visualizationFrame,
+    handleSetEquationsPane,
+    sendMessage,
+  ]);
 
   const handleTopicCatalogSourceCommit = useCallback(() => {
     const source = topicCatalogSourceInput.trim();
@@ -5688,6 +5699,29 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         type: "set_equations_pane",
         context: {
           visualizationFrame: nextFrame,
+        },
+      });
+    },
+    [handleSetEquationsPane, sendMessage],
+  );
+
+  const handleEquationReferenceFrameSelect = useCallback(
+    (frame: VisualizationState["equationsPane"]["context"]["referenceFrame"]) => {
+      const nextFrame = frame
+        ? {
+            ...cloneEquationsReferenceFrameState(frame),
+            updatedAt: new Date().toISOString(),
+          }
+        : null;
+      handleSetEquationsPane({
+        context: {
+          referenceFrame: nextFrame,
+        },
+      });
+      sendMessage({
+        type: "set_equations_pane",
+        context: {
+          referenceFrame: nextFrame,
         },
       });
     },
@@ -6236,6 +6270,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               frameGridLayoutDebug={frameGridLayoutDebug}
               equationsSignalBlocksDebug={equationsSignalBlocksDebug}
               visualizationFrame={equationsPane.context.visualizationFrame}
+              referenceFrame={equationsPane.context.referenceFrame}
               visualizationCapture={equationsVisualizationCapture}
               currentTick={playbackState.currentTick}
               onVisualizationDebugChange={handleVisualizationDebugChange}
@@ -6244,6 +6279,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onEquationHitBoxSelect={handleEquationHitBoxSelect}
               onEquationTextHighlightSelect={handleEquationTextHighlightSelect}
               onVisualizationFrameSelect={handleEquationVisualizationFrameSelect}
+              onReferenceFrameSelect={handleEquationReferenceFrameSelect}
             />
           )}
         </div>

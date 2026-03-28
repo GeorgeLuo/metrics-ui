@@ -134,7 +134,19 @@ export interface VisualizationFrameState {
   updatedAt?: string;
 }
 
+export interface EquationsReferenceFrameState {
+  topicId: string;
+  itemId?: string;
+  anchorId?: string;
+  title?: string;
+  updatedAt?: string;
+}
+
 export type SidebarAppState = "metrics" | "equations";
+
+export interface EquationsPaneAnchoredBlock {
+  anchorId?: string;
+}
 
 export type EquationsMathExpression =
   {
@@ -145,14 +157,16 @@ export type EquationsMathExpression =
 
 export type EquationsPaneCardPresentation = "standard" | "piecewise" | "freeform";
 
-export interface EquationsPaneTextBlock {
+export interface EquationsPaneTextBlock extends EquationsPaneAnchoredBlock {
   kind: "text";
   value: string;
   visualizationFrame?: VisualizationFrameState;
   visualizationLabel?: string;
+  referenceFrame?: EquationsReferenceFrameState;
+  referenceLabel?: string;
 }
 
-export interface EquationsPaneMathBlock {
+export interface EquationsPaneMathBlock extends EquationsPaneAnchoredBlock {
   kind: "math";
   latex: string;
   displayMode?: boolean;
@@ -160,18 +174,18 @@ export interface EquationsPaneMathBlock {
 
 export type EquationsPaneCardSlotId = "workspace" | "details" | "notes" | "footer";
 
-export interface EquationsPaneTopicReferenceBlock {
+export interface EquationsPaneTopicReferenceBlock extends EquationsPaneAnchoredBlock {
   kind: "topic_reference";
   topicId: string;
   slot?: EquationsPaneCardSlotId;
 }
 
-export interface EquationsPaneMappingsBlock {
+export interface EquationsPaneMappingsBlock extends EquationsPaneAnchoredBlock {
   kind: "mappings";
   mappings: EquationsMappingEntry[];
 }
 
-export interface EquationsPaneSplitBlock {
+export interface EquationsPaneSplitBlock extends EquationsPaneAnchoredBlock {
   kind: "split";
   left: EquationsPaneCardBlock[];
   right: EquationsPaneCardBlock[];
@@ -265,6 +279,7 @@ export interface EquationsParallelWalkthroughPattern {
 
 export interface EquationsReferenceSection {
   title: string;
+  anchorId?: string;
   content: EquationsPaneCardBlock[];
   referenceTitle?: string;
   reference?: EquationsPaneCardBlock[];
@@ -281,6 +296,7 @@ export interface EquationsReferenceSectionsPattern {
 
 export interface EquationsGlossaryReferenceEntry {
   term: string;
+  anchorId?: string;
   body: EquationsPaneCardBlock[];
   referenceTitle?: string;
   reference?: EquationsPaneCardBlock[];
@@ -345,6 +361,7 @@ export interface EquationsPaneContextState {
   selectedHitBox: EquationsPaneSelectedHitBox | null;
   selectedTextHighlight: EquationsPaneSelectedTextHighlight | null;
   visualizationFrame: VisualizationFrameState | null;
+  referenceFrame: EquationsReferenceFrameState | null;
 }
 
 export interface EquationsPaneState {

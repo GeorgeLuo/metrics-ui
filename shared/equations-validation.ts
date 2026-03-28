@@ -213,10 +213,28 @@ function validateBlocks(
 ) {
   blocks.forEach((block, index) => {
     const blockPath = `${path}[${index}]`;
+    if (typeof block.anchorId === "string") {
+      validateText(block.anchorId, `${blockPath}.anchorId`, "text_block", rules, diagnostics);
+    }
     if (block.kind === "text") {
       validateText(block.value, `${blockPath}.value`, "text_block", rules, diagnostics);
       if (typeof block.visualizationLabel === "string") {
         validateText(block.visualizationLabel, `${blockPath}.visualizationLabel`, "text_block", rules, diagnostics);
+      }
+      if (block.referenceFrame) {
+        validateText(block.referenceFrame.topicId, `${blockPath}.referenceFrame.topicId`, "text_block", rules, diagnostics);
+        if (typeof block.referenceFrame.itemId === "string") {
+          validateText(block.referenceFrame.itemId, `${blockPath}.referenceFrame.itemId`, "text_block", rules, diagnostics);
+        }
+        if (typeof block.referenceFrame.anchorId === "string") {
+          validateText(block.referenceFrame.anchorId, `${blockPath}.referenceFrame.anchorId`, "text_block", rules, diagnostics);
+        }
+        if (typeof block.referenceFrame.title === "string") {
+          validateText(block.referenceFrame.title, `${blockPath}.referenceFrame.title`, "text_block", rules, diagnostics);
+        }
+      }
+      if (typeof block.referenceLabel === "string") {
+        validateText(block.referenceLabel, `${blockPath}.referenceLabel`, "text_block", rules, diagnostics);
       }
       return;
     }
@@ -555,13 +573,24 @@ export function validateEquationsReferenceSectionsDocumentSource(
         });
         return;
       }
-      const rawSection = section as { title?: unknown; content?: unknown };
+      const rawSection = section as { title?: unknown; anchorId?: unknown; content?: unknown };
       if (typeof rawSection.title !== "string" || rawSection.title.trim().length === 0) {
         diagnostics.push({
           severity: "error",
           ruleId: "reference_section_title_required",
           path: `document.sections[${index}].title`,
           message: "Each reference section must define a non-empty title.",
+        });
+      }
+      if (
+        rawSection.anchorId !== undefined
+        && (typeof rawSection.anchorId !== "string" || rawSection.anchorId.trim().length === 0)
+      ) {
+        diagnostics.push({
+          severity: "error",
+          ruleId: "reference_section_anchor_invalid",
+          path: `document.sections[${index}].anchorId`,
+          message: "Reference section anchors must be non-empty strings.",
         });
       }
       if (!Array.isArray(rawSection.content) || rawSection.content.length === 0) {
@@ -644,13 +673,24 @@ export function validateEquationsGlossaryReferenceDocumentSource(
         });
         return;
       }
-      const rawEntry = entry as { term?: unknown; body?: unknown };
+      const rawEntry = entry as { term?: unknown; anchorId?: unknown; body?: unknown };
       if (typeof rawEntry.term !== "string" || rawEntry.term.trim().length === 0) {
         diagnostics.push({
           severity: "error",
           ruleId: "glossary_entry_term_required",
           path: `document.entries[${index}].term`,
           message: "Each glossary entry must define a non-empty term.",
+        });
+      }
+      if (
+        rawEntry.anchorId !== undefined
+        && (typeof rawEntry.anchorId !== "string" || rawEntry.anchorId.trim().length === 0)
+      ) {
+        diagnostics.push({
+          severity: "error",
+          ruleId: "glossary_entry_anchor_invalid",
+          path: `document.entries[${index}].anchorId`,
+          message: "Glossary entry anchors must be non-empty strings.",
         });
       }
       if (!Array.isArray(rawEntry.body) || rawEntry.body.length === 0) {

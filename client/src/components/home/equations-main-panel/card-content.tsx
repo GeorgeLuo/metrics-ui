@@ -8,6 +8,7 @@ import type {
   EquationsPaneCardPresentation,
   EquationsPaneCardSlotId,
   EquationsPiecewiseRow,
+  EquationsReferenceFrameState,
   VisualizationFrameState,
 } from "@shared/schema";
 import { resolveEquationsMathExpression } from "@shared/equations-math";
@@ -39,7 +40,7 @@ function splitTrailingInlineSegment(value: string): {
   };
 }
 
-function InlineVisualizationLauncher({
+function InlineFrameLauncher({
   label,
   onClick,
 }: {
@@ -455,6 +456,7 @@ export function FreeformCardContent({
   selectedHitBox,
   onSelect,
   onVisualizationLinkSelect,
+  onReferenceFrameSelect,
   resolveTopicReference,
   topicReferenceDepth = 0,
 }: {
@@ -464,6 +466,7 @@ export function FreeformCardContent({
   selectedHitBox?: EquationHitBoxClickSignal | null;
   onSelect?: (signal: EquationHitBoxClickSignal | null) => void;
   onVisualizationLinkSelect?: (frame: VisualizationFrameState) => void;
+  onReferenceFrameSelect?: (frame: EquationsReferenceFrameState | null) => void;
   resolveTopicReference?: (block: Extract<EquationsPaneCardBlock, { kind: "topic_reference" }>) => ResolvedTopicReference | null;
   topicReferenceDepth?: number;
 }) {
@@ -507,6 +510,7 @@ export function FreeformCardContent({
           selectedHitBox={selectedHitBox}
           onSelect={onSelect}
           onVisualizationLinkSelect={onVisualizationLinkSelect}
+          onReferenceFrameSelect={onReferenceFrameSelect}
           resolveTopicReference={resolveTopicReference}
           topicReferenceDepth={topicReferenceDepth + 1}
         />
@@ -588,7 +592,9 @@ export function FreeformCardContent({
         if (block.kind === "text") {
           const selectionId = buildFreeformBlockSelectionId(itemId, nextPath);
           const visualizationFrame = block.visualizationFrame;
-          const { leadingText, trailingText } = visualizationFrame
+          const referenceFrame = block.referenceFrame;
+          const hasInlineLauncher = Boolean(visualizationFrame || referenceFrame);
+          const { leadingText, trailingText } = hasInlineLauncher
             ? splitTrailingInlineSegment(block.value)
             : { leadingText: block.value, trailingText: "" };
           return (
@@ -599,31 +605,47 @@ export function FreeformCardContent({
               data-equations-item-id={itemId}
               data-equations-selection-id={selectionId}
             >
-              {visualizationFrame && trailingText ? (
+              {hasInlineLauncher && trailingText ? (
                 <>
                   <span>{leadingText}</span>
                   <span className="inline-flex items-baseline whitespace-nowrap">
                     {trailingText}
-                    <InlineVisualizationLauncher
-                      label={block.visualizationLabel}
-                      onClick={() => {
-                        onVisualizationLinkSelect?.(visualizationFrame);
-                      }}
-                    />
+                    {visualizationFrame ? (
+                      <InlineFrameLauncher
+                        label={block.visualizationLabel}
+                        onClick={() => {
+                          onVisualizationLinkSelect?.(visualizationFrame);
+                        }}
+                      />
+                    ) : null}
+                    {referenceFrame ? (
+                      <InlineFrameLauncher
+                        label={block.referenceLabel}
+                        onClick={() => {
+                          onReferenceFrameSelect?.(referenceFrame);
+                        }}
+                      />
+                    ) : null}
                   </span>
                 </>
               ) : (
                 <span>{block.value}</span>
               )}
-              {visualizationFrame ? (
-                !trailingText ? (
-                  <InlineVisualizationLauncher
-                    label={block.visualizationLabel}
-                    onClick={() => {
-                      onVisualizationLinkSelect?.(visualizationFrame);
-                    }}
-                  />
-                ) : null
+              {!trailingText && visualizationFrame ? (
+                <InlineFrameLauncher
+                  label={block.visualizationLabel}
+                  onClick={() => {
+                    onVisualizationLinkSelect?.(visualizationFrame);
+                  }}
+                />
+              ) : null}
+              {!trailingText && referenceFrame ? (
+                <InlineFrameLauncher
+                  label={block.referenceLabel}
+                  onClick={() => {
+                    onReferenceFrameSelect?.(referenceFrame);
+                  }}
+                />
               ) : null}
             </div>
           );

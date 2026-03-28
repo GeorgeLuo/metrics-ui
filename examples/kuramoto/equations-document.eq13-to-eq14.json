@@ -63,7 +63,14 @@
         },
         {
           "kind": "text",
-          "value": "The key trick is to rewrite the integrand into a standard form involving one denominator a plus b sine squared theta. Then the remaining definite integral can be done exactly."
+          "value": "The key trick is to rewrite the integrand into a standard form involving one denominator a plus b sine squared theta. Then the remaining definite integral can be done exactly.",
+          "referenceFrame": {
+            "topicId": "identities-cheatsheet",
+            "itemId": "workspace",
+            "anchorId": "standard-integral-section",
+            "title": "Standard Integral Reference"
+          },
+          "referenceLabel": "Open the supporting standard-integral reference"
         },
         {
           "kind": "text",
@@ -140,7 +147,8 @@
         {
           "kind": "math",
           "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} = \\frac{\\pi}{\\sqrt{a(a+b)}}",
-          "displayMode": true
+          "displayMode": true,
+          "anchorId": "standard-sine-squared-integral"
         },
         {
           "kind": "math",
