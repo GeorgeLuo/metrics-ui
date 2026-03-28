@@ -5,12 +5,16 @@ import { Check, Copy } from "lucide-react";
 import type {
   CaptureSession,
   EquationsPaneCard,
+  EquationsPaneCardBlock,
+  EquationsPaneCardSlotId,
+  EquationsReferenceFrameState,
   EquationsPaneTopicReferenceBlock,
   VisualizationFrameState,
   VisualizationState,
 } from "@shared/schema";
 import { resolveEquationsMathExpression } from "@shared/equations-math";
 import { buildEquationsFrameGridDocument } from "@shared/equations-framegrid-document";
+import { cloneEquationsPaneCardBlock } from "@shared/equations-mappings";
 import type { EquationHitBoxClickSignal } from "@/components/home/equation-interaction.types";
 import { InjectedVisualization, type InjectedVisualizationDebug } from "@/components/injected-visualization";
 import { SubappFloatingFrame, ViewportFloatingFrame } from "@/components/floating-frame";
@@ -43,6 +47,7 @@ type EquationsMainPanelProps = {
   frameGridLayoutDebug?: boolean;
   equationsSignalBlocksDebug?: boolean;
   visualizationFrame: VisualizationFrameState | null;
+  referenceFrame: VisualizationState["equationsPane"]["context"]["referenceFrame"];
   visualizationCapture: CaptureSession | null;
   currentTick: number;
   onVisualizationDebugChange?: (debug: InjectedVisualizationDebug) => void;
@@ -53,6 +58,7 @@ type EquationsMainPanelProps = {
     highlight: VisualizationState["equationsPane"]["context"]["selectedTextHighlight"],
   ) => void;
   onVisualizationFrameSelect?: (frame: VisualizationFrameState | null) => void;
+  onReferenceFrameSelect?: (frame: EquationsReferenceFrameState | null) => void;
 };
 
 type PendingTextHighlightGesture = {
@@ -99,6 +105,7 @@ export function EquationsMainPanel({
   frameGridLayoutDebug = false,
   equationsSignalBlocksDebug = false,
   visualizationFrame,
+  referenceFrame,
   visualizationCapture,
   currentTick,
   onVisualizationDebugChange,
@@ -107,6 +114,7 @@ export function EquationsMainPanel({
   onEquationHitBoxSelect,
   onEquationTextHighlightSelect,
   onVisualizationFrameSelect,
+  onReferenceFrameSelect,
 }: EquationsMainPanelProps) {
   const contentAreaRef = useRef<HTMLElement | null>(null);
   const interactionSignalCopyResetTimerRef = useRef<number | null>(null);
@@ -158,6 +166,9 @@ export function EquationsMainPanel({
     .join("\n");
   const visualizationDockRequestToken = visualizationFrame?.updatedAt
     ? Date.parse(visualizationFrame.updatedAt)
+    : undefined;
+  const referenceDockRequestToken = referenceFrame?.updatedAt
+    ? Date.parse(referenceFrame.updatedAt)
     : undefined;
 
   const updateSelectedTextHighlightOverlayLayers = (nextLayers: TextHighlightOverlayLayer[]) => {
@@ -336,6 +347,44 @@ export function EquationsMainPanel({
     return "meaning";
   };
 
+  const normalizeTopicSlot = (value?: string): EquationsPaneCardSlotId => {
+    if (value === "details" || value === "notes" || value === "footer") {
+      return value;
+    }
+    return "workspace";
+  };
+
+  const findAnchoredBlock = (
+    blocks: EquationsPaneCardBlock[],
+    anchorId: string,
+  ): EquationsPaneCardBlock | null => {
+    for (const block of blocks) {
+      if (block.anchorId === anchorId) {
+        return block;
+      }
+      if (block.kind === "split") {
+        const leftMatch = findAnchoredBlock(block.left, anchorId);
+        if (leftMatch) {
+          return leftMatch;
+        }
+        const rightMatch = findAnchoredBlock(block.right, anchorId);
+        if (rightMatch) {
+          return rightMatch;
+        }
+      }
+    }
+    return null;
+  };
+
+  const buildCardFromReferencedBlock = (
+    block: EquationsPaneCardBlock,
+  ): EquationsPaneCard => ({
+    title: "",
+    body: "",
+    presentation: "freeform",
+    blocks: [cloneEquationsPaneCardBlock(block)],
+  });
+
   const resolveTopicReference = (
     block: EquationsPaneTopicReferenceBlock,
   ) => {
@@ -349,6 +398,86 @@ export function EquationsMainPanel({
       slot,
       card: topic.payload.content[slot],
       variant: getCardVariant(slot),
+    };
+  };
+
+  const resolveReferenceFrame = (
+    frame: EquationsReferenceFrameState | null,
+  ): {
+    frameTitle: string;
+    sourceLabel: string;
+    itemId: string;
+    itemTitle: string;
+    card: EquationsPaneCard;
+  } | null => {
+    if (!frame) {
+      return null;
+    }
+
+    const topic = getEquationsTopicOptionById(frame.topicId);
+    if (!topic) {
+      return null;
+    }
+
+    if (topic.payload.kind === "semantic_layout") {
+      const slot = normalizeTopicSlot(frame.itemId);
+      const card = topic.payload.content[slot];
+      if (frame.anchorId) {
+        const blocks = Array.isArray(card.blocks) ? card.blocks : [];
+        const anchoredBlock = findAnchoredBlock(blocks, frame.anchorId);
+        if (!anchoredBlock) {
+          return null;
+        }
+        return {
+          frameTitle: frame.title?.trim() || topic.label,
+          sourceLabel: topic.label,
+          itemId: `reference:${topic.topicId}:${slot}:anchor:${frame.anchorId}`,
+          itemTitle: card.title,
+          card: buildCardFromReferencedBlock(anchoredBlock),
+        };
+      }
+
+      return {
+        frameTitle: frame.title?.trim() || topic.label,
+        sourceLabel: topic.label,
+        itemId: `reference:${topic.topicId}:${slot}`,
+        itemTitle: card.title,
+        card,
+      };
+    }
+
+    const document = topic.payload.document;
+    const requestedItemId = typeof frame.itemId === "string" && frame.itemId.trim().length > 0
+      ? frame.itemId.trim()
+      : null;
+    const item = requestedItemId
+      ? document.items.find((entry) => entry.id === requestedItemId)
+      : document.items.find((entry) => entry.id === "workspace") ?? document.items[0] ?? null;
+    if (!item) {
+      return null;
+    }
+
+    if (frame.anchorId) {
+      const blocks = Array.isArray(item.blocks) ? item.blocks : [];
+      const anchoredBlock = findAnchoredBlock(blocks, frame.anchorId);
+      if (!anchoredBlock) {
+        return null;
+      }
+      return {
+        frameTitle: frame.title?.trim() || topic.label,
+        sourceLabel: topic.label,
+        itemId: `reference:${topic.topicId}:${item.id ?? "workspace"}:anchor:${frame.anchorId}`,
+        itemTitle: item.title,
+        card: buildCardFromReferencedBlock(anchoredBlock),
+      };
+    }
+
+    return {
+      frameTitle: frame.title?.trim() || topic.label,
+      sourceLabel: topic.label,
+      itemId: `reference:${topic.topicId}:${item.id ?? "workspace"}`,
+      itemTitle: item.title,
+      card: item,
     };
   };
 
@@ -437,6 +566,7 @@ export function EquationsMainPanel({
                   selectedHitBox={equationHitBoxClick}
                   onSelect={onEquationHitBoxSelect}
                   onVisualizationLinkSelect={onVisualizationFrameSelect}
+                  onReferenceFrameSelect={onReferenceFrameSelect}
                   resolveTopicReference={resolveTopicReference}
                 />
               ) : hasMappings ? (
@@ -476,6 +606,9 @@ export function EquationsMainPanel({
 
   return (
     <main className="flex-1 flex flex-col px-4 pt-4 pb-1 gap-4 overflow-hidden min-h-0">
+      {/*
+        Resolve once per render so the frame and its close/open behavior stay purely state-driven.
+      */}
       <section
         ref={contentAreaRef}
         className="relative flex-1 min-h-0"
@@ -621,6 +754,56 @@ export function EquationsMainPanel({
             />
           </ViewportFloatingFrame>
         ) : null}
+        {(() => {
+          const resolvedReferenceFrame = resolveReferenceFrame(referenceFrame);
+          if (!referenceFrame) {
+            return null;
+          }
+
+          return (
+            <ViewportFloatingFrame
+              title={resolvedReferenceFrame?.frameTitle ?? "Reference Frame"}
+              defaultPosition={{ x: 80, y: 220 }}
+              defaultSize={{ width: 420, height: 320 }}
+              dataTestId="equations-reference-frame"
+              stateStorageKey={DASHBOARD_STORAGE_KEYS.equationsReferenceFloatingFrame}
+              className="border border-border/60 bg-background/95 text-foreground shadow-lg backdrop-blur-sm"
+              headerClassName="border-b border-border/50 bg-muted/40"
+              titleClassName="text-xs text-foreground"
+              dragHandleClassName="text-muted-foreground hover:text-foreground"
+              controlButtonClassName="text-muted-foreground hover:text-foreground"
+              contentClassName="!px-2 !py-2"
+              contentMinHeight={0}
+              contentFill
+              dragHint="Drag this reference anywhere in the web app viewport."
+              dockRequestToken={Number.isFinite(referenceDockRequestToken) ? referenceDockRequestToken : undefined}
+              resizable
+              closeable
+              minSize={{ width: 300, height: 220 }}
+              resizeHint="Drag an edge or corner to resize this reference."
+              closeHint="Close this equations reference."
+              onClose={() => onReferenceFrameSelect?.(null)}
+            >
+              {resolvedReferenceFrame ? (
+                <div className="flex h-full min-h-0 flex-col gap-2 overflow-hidden">
+                  <div className="px-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                    {resolvedReferenceFrame.sourceLabel}
+                    {resolvedReferenceFrame.itemTitle.trim().length > 0
+                      ? ` / ${resolvedReferenceFrame.itemTitle}`
+                      : ""}
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-auto">
+                    {renderCard(resolvedReferenceFrame.itemId, resolvedReferenceFrame.card)}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center px-4 text-center text-xs leading-relaxed text-muted-foreground">
+                  Referenced topic block unavailable.
+                </div>
+              )}
+            </ViewportFloatingFrame>
+          );
+        })()}
       </section>
     </main>
   );

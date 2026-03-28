@@ -220,6 +220,38 @@
       ]
     },
     {
+      "title": "Standard Integral",
+      "anchorId": "standard-integral-section",
+      "content": [
+        {
+          "kind": "text",
+          "value": "This is a common definite-integral result, not a basic trig identity. It usually comes from the substitution t equals tangent theta, which turns the denominator into a quadratic in t."
+        },
+        {
+          "kind": "text",
+          "value": "It is the standard form used in the Lorentzian evaluation from Eq. 13 to Eq. 14 after the integrand has been rewritten."
+        }
+      ],
+      "referenceTitle": "Sine-Squared Denominator",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} = \\frac{\\pi}{\\sqrt{a(a+b)}} \\qquad (a>0,\\ a+b>0)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "t=\\tan\\theta, \\qquad d\\theta = \\frac{dt}{1+t^2}, \\qquad \\sin^2\\theta = \\frac{t^2}{1+t^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} = \\int_{-\\infty}^{\\infty}\\frac{dt}{a+(a+b)t^2}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
       "title": "Even / Odd",
       "content": [
         {

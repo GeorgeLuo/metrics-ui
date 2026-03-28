@@ -11,6 +11,7 @@ export const DASHBOARD_STORAGE_KEYS = {
   frameGridLayoutDebug: "metrics-ui-framegrid-layout-debug",
   equationsSignalBlocksDebug: "metrics-ui-equations-signal-blocks-debug",
   equationsVisualizationFloatingFrame: "metrics-ui-equations-visualization-floating-frame",
+  equationsReferenceFloatingFrame: "metrics-ui-equations-reference-floating-frame",
   metricsHudFrame: "metrics-ui-metrics-hud-frame",
   visualizationFloatingFrame: "metrics-ui-visualization-floating-frame",
   equationsInteractionSignalFrame: "metrics-ui-equations-interaction-signal-frame",

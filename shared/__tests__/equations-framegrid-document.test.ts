@@ -511,6 +511,54 @@ test("normalizeEquationsFrameGridDocument expands reference sections into a work
   assert.equal(document.items[0]?.blocks?.[0]?.right[0]?.value, "Formula");
 });
 
+test("normalizeEquationsFrameGridDocument preserves anchors and reference launchers in reference sections", () => {
+  const document = normalizeEquationsFrameGridDocument({
+    pattern: "reference_sections",
+    title: "Reference",
+    sections: [
+      {
+        title: "Section 1",
+        anchorId: "section-anchor",
+        content: [
+          {
+            kind: "text",
+            value: "Open the exact derivation block.",
+            referenceFrame: {
+              topicId: "kuramoto-eq13-to-eq14",
+              itemId: "workspace",
+              anchorId: "standard-sine-squared-integral",
+              title: "Eq. 13 -> Eq. 14",
+            },
+            referenceLabel: "Open anchored block",
+          },
+        ],
+        reference: [
+          {
+            kind: "math",
+            latex: String.raw`\int_{-\pi/2}^{\pi/2}\frac{d\theta}{a+b\sin^2\theta}`,
+            displayMode: true,
+            anchorId: "standard-sine-squared-integral",
+          },
+        ],
+      },
+    ],
+  });
+
+  const split = document.items[0]?.blocks?.[0];
+  assert.equal(split?.kind, "split");
+  assert.equal(split?.anchorId, "section-anchor");
+  assert.equal(split?.left[1]?.kind, "text");
+  if (split?.left[1]?.kind === "text") {
+    assert.equal(split.left[1].referenceFrame?.topicId, "kuramoto-eq13-to-eq14");
+    assert.equal(split.left[1].referenceFrame?.anchorId, "standard-sine-squared-integral");
+    assert.equal(split.left[1].referenceLabel, "Open anchored block");
+  }
+  assert.equal(split?.right[1]?.kind, "math");
+  if (split?.right[1]?.kind === "math") {
+    assert.equal(split.right[1].anchorId, "standard-sine-squared-integral");
+  }
+});
+
 test("normalizeEquationsFrameGridDocument expands glossary reference intro into a header band", () => {
   const document = normalizeEquationsFrameGridDocument({
     pattern: "glossary_reference",

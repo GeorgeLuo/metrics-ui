@@ -34,6 +34,10 @@ import {
   normalizeEquationsFrameGridDocument,
 } from "./equations-framegrid-document";
 import {
+  cloneEquationsReferenceFrameState,
+  normalizeEquationsReferenceFrameState,
+} from "./equations-reference-frame-state";
+import {
   cloneVisualizationFrameState,
   normalizeVisualizationFrameState,
 } from "./visualization-frame-state";
@@ -73,6 +77,7 @@ export const DEFAULT_EQUATIONS_PANE_STATE: EquationsPaneState = {
     selectedHitBox: null,
     selectedTextHighlight: null,
     visualizationFrame: null,
+    referenceFrame: null,
   },
 };
 
@@ -163,6 +168,9 @@ function cloneContext(context: EquationsPaneContextState): EquationsPaneContextS
       : null,
     visualizationFrame: context.visualizationFrame
       ? cloneVisualizationFrameState(context.visualizationFrame)
+      : null,
+    referenceFrame: context.referenceFrame
+      ? cloneEquationsReferenceFrameState(context.referenceFrame)
       : null,
   };
 }
@@ -379,6 +387,7 @@ function mergeContext(
   const hasSelectedHitBox = Object.prototype.hasOwnProperty.call(raw, "selectedHitBox");
   const hasSelectedTextHighlight = Object.prototype.hasOwnProperty.call(raw, "selectedTextHighlight");
   const hasVisualizationFrame = Object.prototype.hasOwnProperty.call(raw, "visualizationFrame");
+  const hasReferenceFrame = Object.prototype.hasOwnProperty.call(raw, "referenceFrame");
   return {
     selectedHitBox: hasSelectedHitBox
       ? normalizeSelectedHitBox(raw.selectedHitBox)
@@ -394,6 +403,11 @@ function mergeContext(
       ? normalizeVisualizationFrameState(raw.visualizationFrame)
       : base.visualizationFrame
         ? cloneVisualizationFrameState(base.visualizationFrame)
+        : null,
+    referenceFrame: hasReferenceFrame
+      ? normalizeEquationsReferenceFrameState(raw.referenceFrame)
+      : base.referenceFrame
+        ? cloneEquationsReferenceFrameState(base.referenceFrame)
         : null,
   };
 }

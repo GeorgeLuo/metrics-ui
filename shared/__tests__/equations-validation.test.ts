@@ -276,6 +276,41 @@ test("validateEquationsReferenceSectionsDocumentSource accepts structured sectio
   assert.notEqual(report.status, "error");
 });
 
+test("validateEquationsReferenceSectionsDocumentSource accepts anchored reference launchers", () => {
+  const report = validateEquationsReferenceSectionsDocumentSource({
+    pattern: "reference_sections",
+    title: "Reference",
+    sections: [
+      {
+        title: "Section 1",
+        anchorId: "section-anchor",
+        content: [
+          {
+            kind: "text",
+            value: "Open the exact derivation block.",
+            referenceFrame: {
+              topicId: "kuramoto-eq13-to-eq14",
+              itemId: "workspace",
+              anchorId: "standard-sine-squared-integral",
+              title: "Eq. 13 -> Eq. 14",
+            },
+            referenceLabel: "Open anchored block",
+          },
+        ],
+        reference: [
+          {
+            kind: "math",
+            latex: "r = 0",
+            displayMode: true,
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.notEqual(report.status, "error");
+});
+
 test("validateEquationsGlossaryReferenceDocumentSource requires entries", () => {
   const report = validateEquationsGlossaryReferenceDocumentSource({
     pattern: "glossary_reference",

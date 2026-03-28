@@ -6,6 +6,10 @@ import type {
   EquationsPiecewiseRow,
 } from "./schema";
 import {
+  cloneEquationsReferenceFrameState,
+  normalizeEquationsReferenceFrameState,
+} from "./equations-reference-frame-state";
+import {
   cloneVisualizationFrameState,
   normalizeVisualizationFrameState,
 } from "./visualization-frame-state";
@@ -24,6 +28,12 @@ function normalizePositiveNumberTuple2(value: unknown): [number, number] | undef
     return [value[0], value[1]];
   }
   return undefined;
+}
+
+function normalizeAnchorId(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
 }
 
 function isEquationsHitBoxCategory(value: unknown): value is EquationsHitBoxCategory {
@@ -140,17 +150,24 @@ export function cloneEquationsPaneCardBlock(
     const visualizationFrame = block.visualizationFrame
       ? cloneVisualizationFrameState(block.visualizationFrame)
       : undefined;
+    const referenceFrame = block.referenceFrame
+      ? cloneEquationsReferenceFrameState(block.referenceFrame)
+      : undefined;
     return {
       kind: "text",
       value: block.value,
+      ...(typeof block.anchorId === "string" ? { anchorId: block.anchorId } : {}),
       ...(visualizationFrame ? { visualizationFrame } : {}),
       ...(typeof block.visualizationLabel === "string" ? { visualizationLabel: block.visualizationLabel } : {}),
+      ...(referenceFrame ? { referenceFrame } : {}),
+      ...(typeof block.referenceLabel === "string" ? { referenceLabel: block.referenceLabel } : {}),
     };
   }
   if (block.kind === "math") {
     return {
       kind: "math",
       latex: block.latex,
+      ...(typeof block.anchorId === "string" ? { anchorId: block.anchorId } : {}),
       ...(typeof block.displayMode === "boolean" ? { displayMode: block.displayMode } : {}),
     };
   }
@@ -158,12 +175,14 @@ export function cloneEquationsPaneCardBlock(
     return {
       kind: "topic_reference",
       topicId: block.topicId,
+      ...(typeof block.anchorId === "string" ? { anchorId: block.anchorId } : {}),
       ...(block.slot ? { slot: block.slot } : {}),
     };
   }
   if (block.kind === "split") {
     return {
       kind: "split",
+      ...(typeof block.anchorId === "string" ? { anchorId: block.anchorId } : {}),
       left: block.left.map(cloneEquationsPaneCardBlock),
       right: block.right.map(cloneEquationsPaneCardBlock),
       ...(block.fractions ? { fractions: [...block.fractions] as [number, number] } : {}),
@@ -171,6 +190,7 @@ export function cloneEquationsPaneCardBlock(
   }
   return {
     kind: "mappings",
+    ...(typeof block.anchorId === "string" ? { anchorId: block.anchorId } : {}),
     mappings: block.mappings.map(cloneEquationsMappingEntry),
   };
 }
@@ -186,27 +206,40 @@ export function normalizeEquationsPaneCardBlock(
     if (typeof raw.value !== "string") {
       return null;
     }
+    const anchorId = normalizeAnchorId((raw as { anchorId?: unknown }).anchorId);
     const visualizationFrame = normalizeVisualizationFrameState(
       (raw as { visualizationFrame?: unknown }).visualizationFrame,
+    );
+    const referenceFrame = normalizeEquationsReferenceFrameState(
+      (raw as { referenceFrame?: unknown }).referenceFrame,
     );
     const visualizationLabel = typeof (raw as { visualizationLabel?: unknown }).visualizationLabel === "string"
       && (raw as { visualizationLabel: string }).visualizationLabel.trim().length > 0
       ? (raw as { visualizationLabel: string }).visualizationLabel.trim()
       : undefined;
+    const referenceLabel = typeof (raw as { referenceLabel?: unknown }).referenceLabel === "string"
+      && (raw as { referenceLabel: string }).referenceLabel.trim().length > 0
+      ? (raw as { referenceLabel: string }).referenceLabel.trim()
+      : undefined;
     return {
       kind: "text",
       value: raw.value,
+      ...(anchorId ? { anchorId } : {}),
       ...(visualizationFrame ? { visualizationFrame } : {}),
       ...(visualizationFrame && visualizationLabel ? { visualizationLabel } : {}),
+      ...(referenceFrame ? { referenceFrame } : {}),
+      ...(referenceFrame && referenceLabel ? { referenceLabel } : {}),
     };
   }
   if (raw.kind === "math") {
     if (typeof raw.latex !== "string" || raw.latex.trim().length === 0) {
       return null;
     }
+    const anchorId = normalizeAnchorId((raw as { anchorId?: unknown }).anchorId);
     return {
       kind: "math",
       latex: raw.latex,
+      ...(anchorId ? { anchorId } : {}),
       ...(typeof raw.displayMode === "boolean" ? { displayMode: raw.displayMode } : {}),
     };
   }
@@ -215,12 +248,14 @@ export function normalizeEquationsPaneCardBlock(
       ? (raw as { topicId: string }).topicId.trim()
       : "";
     const slot = (raw as { slot?: unknown }).slot;
+    const anchorId = normalizeAnchorId((raw as { anchorId?: unknown }).anchorId);
     if (topicId.length === 0) {
       return null;
     }
     return {
       kind: "topic_reference",
       topicId,
+      ...(anchorId ? { anchorId } : {}),
       ...(slot === "workspace" || slot === "details" || slot === "notes" || slot === "footer"
         ? { slot }
         : {}),
@@ -231,8 +266,10 @@ export function normalizeEquationsPaneCardBlock(
     if (!mappings || mappings.length === 0) {
       return null;
     }
+    const anchorId = normalizeAnchorId((raw as { anchorId?: unknown }).anchorId);
     return {
       kind: "mappings",
+      ...(anchorId ? { anchorId } : {}),
       mappings,
     };
   }
@@ -242,9 +279,11 @@ export function normalizeEquationsPaneCardBlock(
     if (!left || left.length === 0 || !right || right.length === 0) {
       return null;
     }
+    const anchorId = normalizeAnchorId((raw as { anchorId?: unknown }).anchorId);
     const fractions = normalizePositiveNumberTuple2(raw.fractions);
     return {
       kind: "split",
+      ...(anchorId ? { anchorId } : {}),
       left,
       right,
       ...(fractions ? { fractions } : {}),

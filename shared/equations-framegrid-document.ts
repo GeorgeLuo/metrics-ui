@@ -266,6 +266,7 @@ function buildPatternDocumentFromWorkspaceBlocks(
 
 type SectionedWorkspaceEntry = {
   title: string;
+  anchorId?: string;
   content: ReturnType<typeof normalizeEquationsPaneCardBlocks>;
   referenceTitle?: string;
   reference?: ReturnType<typeof normalizeEquationsPaneCardBlocks>;
@@ -282,6 +283,7 @@ function buildSectionedWorkspaceBlocks(
     if (referenceBlocks && referenceBlocks.length > 0) {
       return [{
         kind: "split" as const,
+        ...(entry.anchorId ? { anchorId: entry.anchorId } : {}),
         left: contentBlocks,
         right: prependTitleBlock(entry.referenceTitle ?? defaultReferenceTitle, referenceBlocks),
         ...(entry.fractions ? { fractions: entry.fractions } : {}),
@@ -304,8 +306,10 @@ function normalizeReferenceSection(
     return null;
   }
   const reference = normalizeEquationsPaneCardBlocks(raw.reference);
+  const anchorId = normalizeNonEmptyString(raw.anchorId);
   return {
     title,
+    ...(anchorId ? { anchorId } : {}),
     content,
     ...(normalizeNonEmptyString(raw.referenceTitle) ? { referenceTitle: normalizeNonEmptyString(raw.referenceTitle) } : {}),
     ...(reference && reference.length > 0 ? { reference } : {}),
@@ -326,8 +330,10 @@ function normalizeGlossaryReferenceEntry(
     return null;
   }
   const reference = normalizeEquationsPaneCardBlocks(raw.reference);
+  const anchorId = normalizeNonEmptyString(raw.anchorId);
   return {
     title,
+    ...(anchorId ? { anchorId } : {}),
     content,
     ...(normalizeNonEmptyString(raw.referenceTitle) ? { referenceTitle: normalizeNonEmptyString(raw.referenceTitle) } : {}),
     ...(reference && reference.length > 0 ? { reference } : {}),
