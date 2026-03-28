@@ -315,17 +315,17 @@ export function HintingPanel() {
 
   return (
     <div
-      className="select-none border-t border-border/60 shrink-0 box-border px-4 py-1 w-full min-w-0 overflow-x-hidden"
+      className="select-none border-t border-border/60 shrink-0 box-border h-11 px-4 py-1 w-full min-w-0 overflow-hidden"
       data-testid="hinting-panel"
     >
-      <div className="w-full min-w-0">
+      <div className="flex h-full w-full min-w-0 items-center">
         <div
           className={`min-w-0 w-full ${UI_TEXT_ROLE.panelBody} leading-4 text-foreground/75`}
           data-hint-ignore="true"
           title={hint}
         >
           <span
-            className="block min-w-0 whitespace-pre-wrap break-words italic"
+            className="block min-w-0 line-clamp-2 break-words italic"
           >
             {hint}
           </span>
