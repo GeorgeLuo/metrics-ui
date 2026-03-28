@@ -46,6 +46,7 @@ export interface FloatingFrameProps {
   defaultSize?: Size;
   className?: string;
   contentClassName?: string;
+  contentSelectable?: boolean;
   headerClassName?: string;
   titleClassName?: string;
   dragHandleClassName?: string;
@@ -275,6 +276,7 @@ export function FloatingFrame({
   defaultSize,
   className,
   contentClassName,
+  contentSelectable = false,
   headerClassName,
   titleClassName,
   dragHandleClassName,
@@ -822,6 +824,7 @@ export function FloatingFrame({
         <div
           className={cn(
             "px-3 py-2 text-xs text-black",
+            contentSelectable ? "select-text" : "",
             contentFill ? "flex-1 min-h-0 h-0" : "",
             contentClassName,
           )}
