@@ -1,6 +1,7 @@
 import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import type { EquationsPaneSelectedTextHighlight } from "@shared/schema";
 import {
   Select,
   SelectContent,
@@ -21,6 +22,16 @@ type EquationsTopicCatalogSourceEntry = {
   source: string;
 };
 
+type EquationsDocumentDebugSummary = {
+  sourceKind: "semantic_layout" | "document";
+  topicFormat: string;
+  topicLabel: string | null;
+  catalogLabel: string | null;
+  grid: [number, number];
+  frameAspect: [number, number];
+  itemCount: number;
+};
+
 type SidebarEquationsPaneProps = {
   sidebarMode: SidebarMode;
   frameGridLayoutDebug: boolean;
@@ -39,7 +50,20 @@ type SidebarEquationsPaneProps = {
   recentTopicOptions: EquationsTopicOption[];
   selectedTopicId: string;
   onTopicSelect: (id: string) => void;
+  selectedTextHighlights: EquationsPaneSelectedTextHighlight[];
+  hiddenTextHighlightIds: number[];
+  onToggleTextHighlightHidden: (highlightId: number) => void;
+  onDeleteTextHighlight: (highlightId: number) => void;
+  documentDebugSummary: EquationsDocumentDebugSummary;
 };
+
+function formatHighlightPreview(text: string): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= 56) {
+    return collapsed;
+  }
+  return `${collapsed.slice(0, 24)}...${collapsed.slice(-24)}`;
+}
 
 export function SidebarEquationsPane({
   sidebarMode,
@@ -59,6 +83,11 @@ export function SidebarEquationsPane({
   recentTopicOptions,
   selectedTopicId,
   onTopicSelect,
+  selectedTextHighlights,
+  hiddenTextHighlightIds,
+  onToggleTextHighlightHidden,
+  onDeleteTextHighlight,
+  documentDebugSummary,
 }: SidebarEquationsPaneProps) {
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
@@ -183,6 +212,71 @@ export function SidebarEquationsPane({
           </div>
         </SidebarGroupContent>
       </SidebarGroup>
+      {selectedTextHighlights.length > 0 ? (
+        <SidebarGroup>
+          <SidebarGroupLabel>Highlights</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="flex flex-col gap-1.5 px-2 py-2">
+              {selectedTextHighlights.map((highlight) => {
+                const label = `H${highlight.highlightId ?? "?"}`;
+                const preview = formatHighlightPreview(highlight.text);
+                const details = `${highlight.selectionId} [${highlight.startOffset}-${highlight.endOffset}]`;
+                const highlightId = highlight.highlightId ?? null;
+                const isHidden = highlightId !== null && hiddenTextHighlightIds.includes(highlightId);
+                return (
+                  <div
+                    key={`${label}-${highlight.selectionId}-${highlight.startOffset}-${highlight.endOffset}`}
+                    className={[
+                      "rounded-sm border px-2 py-1.5",
+                      isHidden
+                        ? "border-border/40 bg-background/20 opacity-70"
+                        : "border-border/60 bg-background/35",
+                    ].join(" ")}
+                    data-hint={`Selected text highlight ${label}: ${details}`}
+                    title={details}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                        {label}
+                      </div>
+                      <div className="ml-auto flex items-center gap-1">
+                        {highlightId !== null ? (
+                          <button
+                            type="button"
+                            onClick={() => onToggleTextHighlightHidden(highlightId)}
+                            aria-label={`${isHidden ? "Show" : "Hide"} highlight ${label}`}
+                            aria-pressed={!isHidden}
+                            className={`h-3 w-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${
+                              !isHidden
+                                ? "bg-yellow-400/90 hover:bg-yellow-400"
+                                : "bg-yellow-400/20 hover:bg-yellow-400/30"
+                            }`}
+                            data-hint={`${isHidden ? "Show" : "Hide"} equations highlight ${label} without deleting it.`}
+                            title={`${isHidden ? "Show" : "Hide"} ${label}`}
+                          />
+                        ) : null}
+                        {highlightId !== null ? (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteTextHighlight(highlightId)}
+                            aria-label={`Delete highlight ${label}`}
+                            className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
+                            data-hint={`Delete equations highlight ${label}.`}
+                            title={`Delete ${label}`}
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className={`mt-0.5 text-[11px] leading-snug ${isHidden ? "text-muted-foreground" : "text-foreground"}`}>
+                      {preview}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ) : null}
       <Collapsible open={isDebugOpen} onOpenChange={setIsDebugOpen}>
         <SidebarGroup>
           <SidebarGroupLabel asChild>
@@ -233,6 +327,21 @@ export function SidebarEquationsPane({
                   data-testid="switch-framegrid-layout-debug"
                   data-hint="Turn on grid guides and sizing overlays to inspect the equations layout."
                 />
+              </div>
+              <div
+                className="px-2 py-2"
+                data-hint="Inspect the current equations document source, format, grid, frame aspect, and item count."
+              >
+                <div className="text-xs text-foreground leading-none">Document</div>
+                <div className="mt-1 rounded-sm border border-border/60 bg-background/35 px-2 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                  <div><span className="text-foreground">Source:</span> {documentDebugSummary.sourceKind}</div>
+                  <div><span className="text-foreground">Format:</span> {documentDebugSummary.topicFormat}</div>
+                  <div><span className="text-foreground">Topic:</span> {documentDebugSummary.topicLabel ?? "custom / unmatched"}</div>
+                  <div><span className="text-foreground">Catalog:</span> {documentDebugSummary.catalogLabel ?? "none"}</div>
+                  <div><span className="text-foreground">Grid:</span> {documentDebugSummary.grid[0]} × {documentDebugSummary.grid[1]}</div>
+                  <div><span className="text-foreground">Frame Aspect:</span> {documentDebugSummary.frameAspect[0]} : {documentDebugSummary.frameAspect[1]}</div>
+                  <div><span className="text-foreground">Items:</span> {documentDebugSummary.itemCount}</div>
+                </div>
               </div>
             </SidebarGroupContent>
           </CollapsibleContent>

@@ -75,7 +75,7 @@ export const DEFAULT_EQUATIONS_PANE_STATE: EquationsPaneState = {
   cells: [],
   context: {
     selectedHitBox: null,
-    selectedTextHighlight: null,
+    selectedTextHighlights: [],
     visualizationFrame: null,
     referenceFrame: null,
   },
@@ -144,6 +144,9 @@ function cloneSelectedTextHighlight(
   selectedTextHighlight: EquationsPaneSelectedTextHighlight,
 ): EquationsPaneSelectedTextHighlight {
   return {
+    ...(typeof selectedTextHighlight.highlightId === "number"
+      ? { highlightId: selectedTextHighlight.highlightId }
+      : {}),
     itemId: selectedTextHighlight.itemId,
     selectionId: selectedTextHighlight.selectionId,
     startOffset: selectedTextHighlight.startOffset,
@@ -158,14 +161,18 @@ function cloneSelectedTextHighlight(
   };
 }
 
+function cloneSelectedTextHighlights(
+  selectedTextHighlights: EquationsPaneSelectedTextHighlight[],
+): EquationsPaneSelectedTextHighlight[] {
+  return selectedTextHighlights.map(cloneSelectedTextHighlight);
+}
+
 function cloneContext(context: EquationsPaneContextState): EquationsPaneContextState {
   return {
     selectedHitBox: context.selectedHitBox
       ? cloneSelectedHitBox(context.selectedHitBox)
       : null,
-    selectedTextHighlight: context.selectedTextHighlight
-      ? cloneSelectedTextHighlight(context.selectedTextHighlight)
-      : null,
+    selectedTextHighlights: cloneSelectedTextHighlights(context.selectedTextHighlights),
     visualizationFrame: context.visualizationFrame
       ? cloneVisualizationFrameState(context.visualizationFrame)
       : null,
@@ -343,6 +350,10 @@ function normalizeSelectedTextHighlight(value: unknown): EquationsPaneSelectedTe
     return null;
   }
   const raw = value as Partial<EquationsPaneSelectedTextHighlight>;
+  const highlightId =
+    typeof raw.highlightId === "number" && Number.isInteger(raw.highlightId) && raw.highlightId > 0
+      ? raw.highlightId
+      : undefined;
   const itemId = typeof raw.itemId === "string" ? raw.itemId.trim() : "";
   const selectionId = typeof raw.selectionId === "string" ? raw.selectionId.trim() : "";
   const startOffset =
@@ -366,6 +377,7 @@ function normalizeSelectedTextHighlight(value: unknown): EquationsPaneSelectedTe
       ? raw.contextAfter
       : undefined;
   return {
+    ...(highlightId !== undefined ? { highlightId } : {}),
     itemId,
     selectionId,
     startOffset,
@@ -376,6 +388,54 @@ function normalizeSelectedTextHighlight(value: unknown): EquationsPaneSelectedTe
   };
 }
 
+function getNextSelectedTextHighlightId(
+  current: EquationsPaneSelectedTextHighlight[],
+): number {
+  return current.reduce((maxValue, highlight) => (
+    typeof highlight.highlightId === "number" && highlight.highlightId > maxValue
+      ? highlight.highlightId
+      : maxValue
+  ), 0) + 1;
+}
+
+function normalizeSelectedTextHighlights(
+  value: unknown,
+  options?: { startingId?: number },
+): EquationsPaneSelectedTextHighlight[] {
+  const normalized = Array.isArray(value)
+    ? value
+      .map((entry) => normalizeSelectedTextHighlight(entry))
+      .filter((entry): entry is EquationsPaneSelectedTextHighlight => Boolean(entry))
+    : (() => {
+        const singleHighlight = normalizeSelectedTextHighlight(value);
+        return singleHighlight ? [singleHighlight] : [];
+      })();
+
+  const usedIds = new Set<number>();
+  let nextId = options?.startingId && options.startingId > 0
+    ? options.startingId
+    : 1;
+
+  return normalized.map((highlight) => {
+    const candidateId = highlight.highlightId;
+    if (typeof candidateId === "number" && candidateId > 0 && !usedIds.has(candidateId)) {
+      usedIds.add(candidateId);
+      if (candidateId >= nextId) {
+        nextId = candidateId + 1;
+      }
+      return highlight;
+    }
+
+    const assignedId = nextId;
+    usedIds.add(assignedId);
+    nextId += 1;
+    return {
+      ...highlight,
+      highlightId: assignedId,
+    };
+  });
+}
+
 function mergeContext(
   base: EquationsPaneContextState,
   patch: unknown,
@@ -383,9 +443,12 @@ function mergeContext(
   if (!patch || typeof patch !== "object") {
     return cloneContext(base);
   }
-  const raw = patch as Partial<EquationsPaneContextState>;
+  const raw = patch as Partial<EquationsPaneContextState> & {
+    selectedTextHighlight?: EquationsPaneSelectedTextHighlight | null;
+  };
   const hasSelectedHitBox = Object.prototype.hasOwnProperty.call(raw, "selectedHitBox");
-  const hasSelectedTextHighlight = Object.prototype.hasOwnProperty.call(raw, "selectedTextHighlight");
+  const hasSelectedTextHighlights = Object.prototype.hasOwnProperty.call(raw, "selectedTextHighlights");
+  const hasLegacySelectedTextHighlight = Object.prototype.hasOwnProperty.call(raw, "selectedTextHighlight");
   const hasVisualizationFrame = Object.prototype.hasOwnProperty.call(raw, "visualizationFrame");
   const hasReferenceFrame = Object.prototype.hasOwnProperty.call(raw, "referenceFrame");
   return {
@@ -394,11 +457,15 @@ function mergeContext(
       : base.selectedHitBox
         ? cloneSelectedHitBox(base.selectedHitBox)
         : null,
-    selectedTextHighlight: hasSelectedTextHighlight
-      ? normalizeSelectedTextHighlight(raw.selectedTextHighlight)
-      : base.selectedTextHighlight
-        ? cloneSelectedTextHighlight(base.selectedTextHighlight)
-        : null,
+    selectedTextHighlights: hasSelectedTextHighlights
+      ? normalizeSelectedTextHighlights(raw.selectedTextHighlights, {
+        startingId: getNextSelectedTextHighlightId(base.selectedTextHighlights),
+      })
+      : hasLegacySelectedTextHighlight
+        ? normalizeSelectedTextHighlights(raw.selectedTextHighlight, {
+          startingId: getNextSelectedTextHighlightId(base.selectedTextHighlights),
+        })
+        : cloneSelectedTextHighlights(base.selectedTextHighlights),
     visualizationFrame: hasVisualizationFrame
       ? normalizeVisualizationFrameState(raw.visualizationFrame)
       : base.visualizationFrame

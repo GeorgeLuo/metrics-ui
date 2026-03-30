@@ -447,6 +447,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const [equationsSignalBlocksDebug, setEquationsSignalBlocksDebug] = useState(() => (
     readStorageString(DASHBOARD_STORAGE_KEYS.equationsSignalBlocksDebug) === "1"
   ));
+  const [hiddenEquationTextHighlightIds, setHiddenEquationTextHighlightIds] = useState<number[]>([]);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("setup");
   const [isCaptureSourceOpen, setIsCaptureSourceOpen] = useState(true);
   const [highlightedMetricKey, setHighlightedMetricKey] = useState<string | null>(null);
@@ -1873,6 +1874,12 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       equationsSignalBlocksDebug ? "1" : "0",
     );
   }, [equationsSignalBlocksDebug]);
+
+  useEffect(() => {
+    setHiddenEquationTextHighlightIds((current) => current.filter((highlightId) => (
+      equationsPane.context.selectedTextHighlights.some((highlight) => highlight.highlightId === highlightId)
+    )));
+  }, [equationsPane.context.selectedTextHighlights]);
 
   useEffect(() => {
     if (sidebarApp !== "metrics" || sidebarMode !== "analysis") {
@@ -5476,6 +5483,27 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     () => selectedTopicCatalog?.topics ?? [],
     [selectedTopicCatalog],
   );
+  const equationsDocumentDebugSummary = useMemo(() => ({
+    sourceKind: equationsPane.document ? "document" as const : "semantic_layout" as const,
+    topicFormat: selectedTopicOption?.format ?? (equationsPane.document ? "document" : "semantic_layout"),
+    topicLabel: selectedTopicOption?.label ?? null,
+    catalogLabel: selectedTopicCatalog?.label ?? null,
+    grid: equationsPane.document?.spec.grid ?? equationsPane.dimensions.grid,
+    frameAspect: equationsPane.document?.spec.frameAspect ?? equationsPane.dimensions.frameAspect,
+    itemCount: equationsPane.document
+      ? equationsPane.document.items.length
+      : equationsPane.cells.length > 0
+        ? equationsPane.cells.length
+        : 4,
+  }), [
+    equationsPane.cells.length,
+    equationsPane.dimensions.frameAspect,
+    equationsPane.dimensions.grid,
+    equationsPane.document,
+    selectedTopicCatalog?.label,
+    selectedTopicOption?.format,
+    selectedTopicOption?.label,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -5592,7 +5620,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           content: topic.payload.content,
           context: {
             selectedHitBox: null,
-            selectedTextHighlight: null,
+            selectedTextHighlights: [],
             visualizationFrame: preservedVisualizationFrame,
             referenceFrame: preservedReferenceFrame,
           },
@@ -5601,7 +5629,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           document: topic.payload.document,
           context: {
             selectedHitBox: null,
-            selectedTextHighlight: null,
+            selectedTextHighlights: [],
             visualizationFrame: preservedVisualizationFrame,
             referenceFrame: preservedReferenceFrame,
           },
@@ -5663,24 +5691,40 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     [handleSetEquationsPane, sendMessage],
   );
 
-  const handleEquationTextHighlightSelect = useCallback(
+  const handleEquationTextHighlightsSelect = useCallback(
     (
-      selectedTextHighlight: VisualizationState["equationsPane"]["context"]["selectedTextHighlight"],
+      selectedTextHighlights: VisualizationState["equationsPane"]["context"]["selectedTextHighlights"],
     ) => {
       handleSetEquationsPane({
         context: {
-          selectedTextHighlight,
+          selectedTextHighlights,
         },
       });
       sendMessage({
         type: "set_equations_pane",
         context: {
-          selectedTextHighlight,
+          selectedTextHighlights,
         },
       });
     },
     [handleSetEquationsPane, sendMessage],
   );
+
+  const handleToggleEquationTextHighlightHidden = useCallback((highlightId: number) => {
+    setHiddenEquationTextHighlightIds((current) => (
+      current.includes(highlightId)
+        ? current.filter((entry) => entry !== highlightId)
+        : [...current, highlightId]
+    ));
+  }, []);
+
+  const handleDeleteEquationTextHighlight = useCallback((highlightId: number) => {
+    const nextHighlights = equationsPane.context.selectedTextHighlights.filter(
+      (highlight) => highlight.highlightId !== highlightId,
+    );
+    setHiddenEquationTextHighlightIds((current) => current.filter((entry) => entry !== highlightId));
+    handleEquationTextHighlightsSelect(nextHighlights);
+  }, [equationsPane.context.selectedTextHighlights, handleEquationTextHighlightsSelect]);
 
   const handleEquationVisualizationFrameSelect = useCallback(
     (frame: VisualizationFrameState | null) => {
@@ -6205,6 +6249,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                   recentTopicOptions={recentEquationTopics}
                   selectedTopicId={selectedTopicId}
                   onTopicSelect={handleTopicSelect}
+                  selectedTextHighlights={equationsPane.context.selectedTextHighlights}
+                  hiddenTextHighlightIds={hiddenEquationTextHighlightIds}
+                  onToggleTextHighlightHidden={handleToggleEquationTextHighlightHidden}
+                  onDeleteTextHighlight={handleDeleteEquationTextHighlight}
+                  documentDebugSummary={equationsDocumentDebugSummary}
                 />
               )}
             </div>
@@ -6277,7 +6326,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onFrameGridDebugChange={handleEquationsFrameDebugChange}
               equationHitBoxClick={equationsPane.context.selectedHitBox}
               onEquationHitBoxSelect={handleEquationHitBoxSelect}
-              onEquationTextHighlightSelect={handleEquationTextHighlightSelect}
+              onEquationTextHighlightsSelect={handleEquationTextHighlightsSelect}
+              hiddenTextHighlightIds={hiddenEquationTextHighlightIds}
               onVisualizationFrameSelect={handleEquationVisualizationFrameSelect}
               onReferenceFrameSelect={handleEquationReferenceFrameSelect}
             />
