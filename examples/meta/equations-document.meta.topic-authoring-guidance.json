@@ -1,0 +1,156 @@
+{
+  "pattern": "reference_sections",
+  "title": "Topic Authoring Guidance",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This is the canonical guidance for constructing equations topic artifacts in the UI."
+    },
+    {
+      "kind": "text",
+      "value": "Use these rules as a soft linter when authoring or generating topics. The schema validator enforces structure, but these rules govern clarity, sequencing, and presentation."
+    }
+  ],
+  "sections": [
+    {
+      "title": "Format Selection",
+      "anchorId": "format-selection",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Choose the strictest format that fits the material. Use freeform only when the other formats genuinely do not fit."
+        },
+        {
+          "kind": "text",
+          "value": "A topic should feel native to its format instead of restaging layout decisions manually in the artifact."
+        }
+      ],
+      "referenceTitle": "Current Formats",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "semantic_layout: fixed four-slot equation reference with equation, literal, meaning, and concept."
+        },
+        {
+          "kind": "text",
+          "value": "derivation: equation-to-equation transition with a header and explicit body steps."
+        },
+        {
+          "kind": "text",
+          "value": "reference_sections: cheatsheets, addenda, and sectioned references."
+        },
+        {
+          "kind": "text",
+          "value": "glossary_reference: term-by-term reference material."
+        },
+        {
+          "kind": "text",
+          "value": "freeform: only for cases that truly do not fit the stricter formats."
+        }
+      ]
+    },
+    {
+      "title": "Derivation Sequencing",
+      "anchorId": "derivation-sequencing",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Show one conceptual move per displayed step. Readers should be able to say whether a line is a substitution step, a rewrite step, an evaluation step, or a solve step."
+        },
+        {
+          "kind": "text",
+          "value": "Direct substitutions must appear as their own explicit step before rearrangement or simplification."
+        },
+        {
+          "kind": "text",
+          "value": "If a non-obvious manipulation follows, add a short bridge sentence in the left column before showing the transformed expression on the right."
+        }
+      ],
+      "referenceTitle": "Preferred Flow",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "1. Source equation"
+        },
+        {
+          "kind": "text",
+          "value": "2. Direct substitution"
+        },
+        {
+          "kind": "text",
+          "value": "3. Rewritten intermediate form"
+        },
+        {
+          "kind": "text",
+          "value": "4. Simplification or standard-form reduction"
+        },
+        {
+          "kind": "text",
+          "value": "5. Evaluation"
+        },
+        {
+          "kind": "text",
+          "value": "6. Final algebraic solve"
+        }
+      ]
+    },
+    {
+      "title": "Step Layering",
+      "anchorId": "step-layering",
+      "content": [
+        {
+          "kind": "text",
+          "value": "In derivations, the left column should name the move and explain why it is being made. The right column should show the immediate mathematical result of that move."
+        },
+        {
+          "kind": "text",
+          "value": "Do not collapse substitution, cleanup, and evaluation into one displayed step when readers need to inspect the transition."
+        }
+      ],
+      "referenceTitle": "Column Roles",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Left: operation, rationale, or caution."
+        },
+        {
+          "kind": "text",
+          "value": "Right: displayed equations, rewritten forms, or evaluated result."
+        },
+        {
+          "kind": "text",
+          "value": "Keep the right column as the visible math rail, not a place for extra narrative."
+        }
+      ]
+    },
+    {
+      "title": "Reference Reuse",
+      "anchorId": "reference-reuse",
+      "content": [
+        {
+          "kind": "text",
+          "value": "When a topic needs to point at another canonical explanation, reference the source artifact instead of copying the content."
+        },
+        {
+          "kind": "text",
+          "value": "Use anchor ids on sections or blocks whenever you expect another topic to open that exact part later."
+        }
+      ],
+      "referenceTitle": "Reuse Preferences",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Prefer topic references over visual restaging."
+        },
+        {
+          "kind": "text",
+          "value": "Prefer anchored references over opening an unrelated topic from the top."
+        },
+        {
+          "kind": "text",
+          "value": "Use anchorId for stable cross-topic links."
+        }
+      ]
+    }
+  ]
+}
