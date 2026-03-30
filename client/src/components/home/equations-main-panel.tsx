@@ -32,14 +32,18 @@ import {
 } from "./equations-main-panel/card-content";
 import { FitToCellContent, type FitAlign, type FitMode } from "./equations-main-panel/fit-to-cell-content";
 import {
+  appendSelectedTextHighlight,
   type SelectionEndpoints,
-  type TextHighlightOverlayLayer,
-  areSelectedTextHighlightsEqual,
-  areTextHighlightOverlayLayersEqual,
+  type TextHighlightOverlayEntry,
+  areSelectedTextHighlightCollectionsEqual,
+  areTextHighlightOverlayEntriesEqual,
   buildSelectionEndpointsFromSelection,
   buildSelectionHighlight,
+  findTextHighlightKeyAtPoint,
   findEquationsHighlightSurface,
   isWithinEquationsHighlightSurface,
+  removeSelectedTextHighlightByKey,
+  resolveTextHighlightOverlayEntries,
   resolveTextHighlightOverlayLayers,
 } from "./equations-main-panel/text-highlight";
 
@@ -56,9 +60,10 @@ type EquationsMainPanelProps = {
   onFrameGridDebugChange?: (debug: FrameGridDebugSnapshot) => void;
   equationHitBoxClick?: EquationHitBoxClickSignal | null;
   onEquationHitBoxSelect?: (signal: EquationHitBoxClickSignal | null) => void;
-  onEquationTextHighlightSelect?: (
-    highlight: VisualizationState["equationsPane"]["context"]["selectedTextHighlight"],
+  onEquationTextHighlightsSelect?: (
+    highlights: VisualizationState["equationsPane"]["context"]["selectedTextHighlights"],
   ) => void;
+  hiddenTextHighlightIds?: number[];
   onVisualizationFrameSelect?: (frame: VisualizationFrameState | null) => void;
   onReferenceFrameSelect?: (frame: EquationsReferenceFrameState | null) => void;
 };
@@ -68,7 +73,7 @@ type PendingTextHighlightGesture = {
   startX: number;
   startY: number;
   moved: boolean;
-  hadExistingHighlight: boolean;
+  clickedHighlightKey: string | null;
 };
 
 async function copyTextToClipboard(text: string): Promise<void> {
@@ -114,7 +119,8 @@ export function EquationsMainPanel({
   onFrameGridDebugChange,
   equationHitBoxClick,
   onEquationHitBoxSelect,
-  onEquationTextHighlightSelect,
+  onEquationTextHighlightsSelect,
+  hiddenTextHighlightIds = [],
   onVisualizationFrameSelect,
   onReferenceFrameSelect,
 }: EquationsMainPanelProps) {
@@ -122,11 +128,14 @@ export function EquationsMainPanel({
   const interactionSignalCopyResetTimerRef = useRef<number | null>(null);
   const pendingTextHighlightGestureRef = useRef<PendingTextHighlightGesture | null>(null);
   const [interactionSignalCopyState, setInteractionSignalCopyState] = useState<"idle" | "copied" | "error">("idle");
-  const [selectedTextHighlightOverlayLayers, setSelectedTextHighlightOverlayLayers] = useState<TextHighlightOverlayLayer[]>([]);
+  const [selectedTextHighlightOverlayEntries, setSelectedTextHighlightOverlayEntries] = useState<TextHighlightOverlayEntry[]>([]);
 
   const frameGridDocument = buildEquationsFrameGridDocument(equationsPane, {
     detailsFallbackBody: sidebarMode === "analysis" ? "Library" : "Setup",
   });
+  const visibleTextHighlights = equationsPane.context.selectedTextHighlights.filter((highlight) => (
+    typeof highlight.highlightId !== "number" || !hiddenTextHighlightIds.includes(highlight.highlightId)
+  ));
 
   const freeformBlockFormulaBySelectionId = new Map<string, string>();
   frameGridDocument.items.forEach((item) => {
@@ -173,29 +182,44 @@ export function EquationsMainPanel({
     ? Date.parse(referenceFrame.updatedAt)
     : undefined;
 
-  const updateSelectedTextHighlightOverlayLayers = (nextLayers: TextHighlightOverlayLayer[]) => {
-    setSelectedTextHighlightOverlayLayers((current) => (
-      areTextHighlightOverlayLayersEqual(current, nextLayers) ? current : nextLayers
+  const updateSelectedTextHighlightOverlayEntries = (nextEntries: TextHighlightOverlayEntry[]) => {
+    setSelectedTextHighlightOverlayEntries((current) => (
+      areTextHighlightOverlayEntriesEqual(current, nextEntries) ? current : nextEntries
     ));
   };
 
-  const clearSelectedTextHighlight = () => {
-    updateSelectedTextHighlightOverlayLayers([]);
-    if (equationsPane.context.selectedTextHighlight !== null) {
-      onEquationTextHighlightSelect?.(null);
+  const removeSelectedTextHighlight = (highlightKey: string) => {
+    const nextHighlights = removeSelectedTextHighlightByKey(
+      equationsPane.context.selectedTextHighlights,
+      highlightKey,
+    );
+    if (
+      areSelectedTextHighlightCollectionsEqual(
+        equationsPane.context.selectedTextHighlights,
+        nextHighlights,
+      )
+    ) {
+      return;
     }
+
+    updateSelectedTextHighlightOverlayEntries(
+      contentAreaRef.current
+        ? resolveTextHighlightOverlayEntries(contentAreaRef.current, nextHighlights)
+        : [],
+    );
+    onEquationTextHighlightsSelect?.(nextHighlights);
   };
 
   const refreshSelectedTextHighlightOverlay = () => {
     const container = contentAreaRef.current;
-    const highlight = equationsPane.context.selectedTextHighlight;
-    if (!container || !highlight) {
-      updateSelectedTextHighlightOverlayLayers([]);
+    const highlights = visibleTextHighlights;
+    if (!container || highlights.length === 0) {
+      updateSelectedTextHighlightOverlayEntries([]);
       return;
     }
 
-    updateSelectedTextHighlightOverlayLayers(
-      resolveTextHighlightOverlayLayers(container, highlight),
+    updateSelectedTextHighlightOverlayEntries(
+      resolveTextHighlightOverlayEntries(container, highlights),
     );
   };
 
@@ -218,9 +242,23 @@ export function EquationsMainPanel({
       return;
     }
 
-    updateSelectedTextHighlightOverlayLayers(overlayLayers);
-    if (!areSelectedTextHighlightsEqual(equationsPane.context.selectedTextHighlight, highlight)) {
-      onEquationTextHighlightSelect?.(highlight);
+    const nextHighlights = appendSelectedTextHighlight(
+      equationsPane.context.selectedTextHighlights,
+      highlight,
+    );
+    const nextOverlayEntries = resolveTextHighlightOverlayEntries(container, nextHighlights);
+    if (nextOverlayEntries.length === 0) {
+      return;
+    }
+
+    updateSelectedTextHighlightOverlayEntries(nextOverlayEntries);
+    if (
+      !areSelectedTextHighlightCollectionsEqual(
+        equationsPane.context.selectedTextHighlights,
+        nextHighlights,
+      )
+    ) {
+      onEquationTextHighlightsSelect?.(nextHighlights);
     }
   };
 
@@ -232,12 +270,8 @@ export function EquationsMainPanel({
     const pendingGesture = pendingTextHighlightGestureRef.current;
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      if (
-        pendingGesture?.hadExistingHighlight
-        && !pendingGesture.moved
-        && equationsPane.context.selectedTextHighlight !== null
-      ) {
-        clearSelectedTextHighlight();
+      if (pendingGesture?.clickedHighlightKey && !pendingGesture.moved) {
+        removeSelectedTextHighlight(pendingGesture.clickedHighlightKey);
       }
       pendingTextHighlightGestureRef.current = null;
       return;
@@ -274,7 +308,11 @@ export function EquationsMainPanel({
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
-      hadExistingHighlight: equationsPane.context.selectedTextHighlight !== null,
+      clickedHighlightKey: findTextHighlightKeyAtPoint(
+        selectedTextHighlightOverlayEntries,
+        event.clientX,
+        event.clientY,
+      ),
     };
   };
 
@@ -312,7 +350,7 @@ export function EquationsMainPanel({
     return () => {
       window.removeEventListener("resize", refreshSelectedTextHighlightOverlay);
     };
-  }, [equationsPane, sidebarMode, equationsSignalBlocksDebug]);
+  }, [equationsPane, sidebarMode, equationsSignalBlocksDebug, hiddenTextHighlightIds]);
 
   const handleCopyInteractionSignal = async () => {
     if (!interactionSignalClipboardText) {
@@ -631,12 +669,13 @@ export function EquationsMainPanel({
           });
         }}
       >
-        {selectedTextHighlightOverlayLayers.map((layer, layerIndex) => createPortal(
+        {selectedTextHighlightOverlayEntries.flatMap((entry) => entry.layers.map((layer, layerIndex) => createPortal(
           <div className="pointer-events-none absolute inset-0 z-10" aria-hidden="true">
             {layer.rects.map((rect, rectIndex) => (
               <div
-                key={`equations-highlight-${layerIndex}-${rectIndex}`}
+                key={`equations-highlight-${entry.key}-${layerIndex}-${rectIndex}`}
                 className="absolute rounded-[2px] border"
+                data-equations-highlight-key={entry.key}
                 style={{
                   left: `${rect.left}px`,
                   top: `${rect.top}px`,
@@ -649,8 +688,8 @@ export function EquationsMainPanel({
             ))}
           </div>,
           layer.host,
-          `equations-highlight-layer-${layerIndex}`,
-        ))}
+          `equations-highlight-layer-${entry.key}-${layerIndex}`,
+        )))}
         <FrameGrid
           spec={frameGridDocument.spec}
           debugId="equations-main"

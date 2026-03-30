@@ -348,6 +348,7 @@ export interface EquationsPaneSelectedHitBox {
 }
 
 export interface EquationsPaneSelectedTextHighlight {
+  highlightId?: number;
   itemId: string;
   selectionId: string;
   startOffset: number;
@@ -359,7 +360,7 @@ export interface EquationsPaneSelectedTextHighlight {
 
 export interface EquationsPaneContextState {
   selectedHitBox: EquationsPaneSelectedHitBox | null;
-  selectedTextHighlight: EquationsPaneSelectedTextHighlight | null;
+  selectedTextHighlights: EquationsPaneSelectedTextHighlight[];
   visualizationFrame: VisualizationFrameState | null;
   referenceFrame: EquationsReferenceFrameState | null;
 }

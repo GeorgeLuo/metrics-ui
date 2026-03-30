@@ -17,6 +17,12 @@ export type TextHighlightOverlayLayer = {
   rects: TextHighlightOverlayRect[];
 };
 
+export type TextHighlightOverlayEntry = {
+  key: string;
+  highlight: EquationsPaneSelectedTextHighlight;
+  layers: TextHighlightOverlayLayer[];
+};
+
 export type SelectionEndpoints = {
   anchorNode: Node | null;
   anchorOffset: number;
@@ -28,6 +34,43 @@ const TEXT_HIGHLIGHT_CONTEXT_CHARS = 64;
 const TEXT_HIGHLIGHT_RECT_EPSILON = 0.01;
 const EQUATIONS_SCOPE_FILTER_SELECTION_MARKER = "::scope-filter:";
 export const EQUATIONS_HIGHLIGHT_SURFACE_SELECTOR = "[data-equations-highlight-surface='1']";
+
+export function getSelectedTextHighlightKey(
+  highlight: EquationsPaneSelectedTextHighlight,
+): string {
+  if (typeof highlight.highlightId === "number" && highlight.highlightId > 0) {
+    return `highlight:${highlight.highlightId}`;
+  }
+  return [
+    highlight.itemId,
+    highlight.selectionId,
+    highlight.startOffset,
+    highlight.endOffset,
+  ].join("::");
+}
+
+function areSelectedTextHighlightContentsEqual(
+  current: EquationsPaneSelectedTextHighlight | null,
+  next: EquationsPaneSelectedTextHighlight | null,
+): boolean {
+  if (current === next) {
+    return true;
+  }
+
+  if (!current || !next) {
+    return false;
+  }
+
+  return (
+    current.itemId === next.itemId
+    && current.selectionId === next.selectionId
+    && current.startOffset === next.startOffset
+    && current.endOffset === next.endOffset
+    && current.text === next.text
+    && current.contextBefore === next.contextBefore
+    && current.contextAfter === next.contextAfter
+  );
+}
 
 function collapseSelectionText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
@@ -678,6 +721,24 @@ export function resolveTextHighlightOverlayLayers(
   return buildTextHighlightOverlayLayers(ranges, container);
 }
 
+export function resolveTextHighlightOverlayEntries(
+  container: HTMLElement,
+  highlights: EquationsPaneSelectedTextHighlight[],
+): TextHighlightOverlayEntry[] {
+  return highlights.flatMap((highlight) => {
+    const layers = resolveTextHighlightOverlayLayers(container, highlight);
+    if (layers.length === 0) {
+      return [];
+    }
+
+    return [{
+      key: getSelectedTextHighlightKey(highlight),
+      highlight,
+      layers,
+    }];
+  });
+}
+
 function areTextHighlightRectsEqual(
   current: TextHighlightOverlayRect[],
   next: TextHighlightOverlayRect[],
@@ -711,25 +772,98 @@ export function areTextHighlightOverlayLayersEqual(
   });
 }
 
+export function areTextHighlightOverlayEntriesEqual(
+  current: TextHighlightOverlayEntry[],
+  next: TextHighlightOverlayEntry[],
+): boolean {
+  if (current.length !== next.length) {
+    return false;
+  }
+
+  return current.every((entry, index) => {
+    const candidate = next[index];
+    return (
+      entry.key === candidate.key
+      && areSelectedTextHighlightsEqual(entry.highlight, candidate.highlight)
+      && areTextHighlightOverlayLayersEqual(entry.layers, candidate.layers)
+    );
+  });
+}
+
 export function areSelectedTextHighlightsEqual(
   current: EquationsPaneSelectedTextHighlight | null,
   next: EquationsPaneSelectedTextHighlight | null,
 ): boolean {
-  if (current === next) {
-    return true;
-  }
+  return (
+    areSelectedTextHighlightContentsEqual(current, next)
+    && current?.highlightId === next?.highlightId
+  );
+}
 
-  if (!current || !next) {
+export function areSelectedTextHighlightCollectionsEqual(
+  current: EquationsPaneSelectedTextHighlight[],
+  next: EquationsPaneSelectedTextHighlight[],
+): boolean {
+  if (current.length !== next.length) {
     return false;
   }
 
-  return (
-    current.itemId === next.itemId
-    && current.selectionId === next.selectionId
-    && current.startOffset === next.startOffset
-    && current.endOffset === next.endOffset
-    && current.text === next.text
-    && current.contextBefore === next.contextBefore
-    && current.contextAfter === next.contextAfter
-  );
+  return current.every((highlight, index) => (
+    areSelectedTextHighlightsEqual(highlight, next[index] ?? null)
+  ));
+}
+
+export function appendSelectedTextHighlight(
+  current: EquationsPaneSelectedTextHighlight[],
+  next: EquationsPaneSelectedTextHighlight,
+): EquationsPaneSelectedTextHighlight[] {
+  if (current.some((highlight) => areSelectedTextHighlightContentsEqual(highlight, next))) {
+    return current;
+  }
+
+  const nextHighlightId = current.reduce((maxValue, highlight) => (
+    typeof highlight.highlightId === "number" && highlight.highlightId > maxValue
+      ? highlight.highlightId
+      : maxValue
+  ), 0) + 1;
+
+  return [...current, {
+    ...next,
+    highlightId: typeof next.highlightId === "number" && next.highlightId > 0
+      ? next.highlightId
+      : nextHighlightId,
+  }];
+}
+
+export function removeSelectedTextHighlightByKey(
+  current: EquationsPaneSelectedTextHighlight[],
+  highlightKey: string,
+): EquationsPaneSelectedTextHighlight[] {
+  return current.filter((highlight) => getSelectedTextHighlightKey(highlight) !== highlightKey);
+}
+
+export function findTextHighlightKeyAtPoint(
+  overlays: TextHighlightOverlayEntry[],
+  clientX: number,
+  clientY: number,
+): string | null {
+  for (let overlayIndex = overlays.length - 1; overlayIndex >= 0; overlayIndex -= 1) {
+    const overlay = overlays[overlayIndex];
+    for (let layerIndex = overlay.layers.length - 1; layerIndex >= 0; layerIndex -= 1) {
+      const layer = overlay.layers[layerIndex];
+      const hostRect = layer.host.getBoundingClientRect();
+      for (let rectIndex = layer.rects.length - 1; rectIndex >= 0; rectIndex -= 1) {
+        const rect = layer.rects[rectIndex];
+        const left = hostRect.left + rect.left;
+        const top = hostRect.top + rect.top;
+        const right = left + rect.width;
+        const bottom = top + rect.height;
+        if (clientX >= left && clientX <= right && clientY >= top && clientY <= bottom) {
+          return overlay.key;
+        }
+      }
+    }
+  }
+
+  return null;
 }

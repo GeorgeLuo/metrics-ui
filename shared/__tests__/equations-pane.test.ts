@@ -220,26 +220,49 @@ test("mergeEquationsPaneStatePatch preserves equations context", () => {
           latex: String.raw`\omega_{i}`,
         },
       },
-      selectedTextHighlight: {
-        itemId: "workspace",
-        selectionId: "workspace::block:0",
-        startOffset: 4,
-        endOffset: 16,
-        text: "locked phase",
-        contextBefore: "the ",
-        contextAfter: " offset",
-      },
+      selectedTextHighlights: [
+        {
+          highlightId: 7,
+          itemId: "workspace",
+          selectionId: "workspace::block:0",
+          startOffset: 4,
+          endOffset: 16,
+          text: "locked phase",
+          contextBefore: "the ",
+          contextAfter: " offset",
+        },
+      ],
     },
   });
 
   assert.equal(next.context.selectedHitBox?.itemId, "workspace");
   assert.equal(next.context.selectedHitBox?.hitBox.id, "omega_i");
   assert.equal(next.context.selectedHitBox?.hitBox.latex, String.raw`\omega_{i}`);
-  assert.equal(next.context.selectedTextHighlight?.itemId, "workspace");
-  assert.equal(next.context.selectedTextHighlight?.selectionId, "workspace::block:0");
-  assert.equal(next.context.selectedTextHighlight?.startOffset, 4);
-  assert.equal(next.context.selectedTextHighlight?.endOffset, 16);
-  assert.equal(next.context.selectedTextHighlight?.text, "locked phase");
+  assert.equal(next.context.selectedTextHighlights[0]?.itemId, "workspace");
+  assert.equal(next.context.selectedTextHighlights[0]?.highlightId, 7);
+  assert.equal(next.context.selectedTextHighlights[0]?.selectionId, "workspace::block:0");
+  assert.equal(next.context.selectedTextHighlights[0]?.startOffset, 4);
+  assert.equal(next.context.selectedTextHighlights[0]?.endOffset, 16);
+  assert.equal(next.context.selectedTextHighlights[0]?.text, "locked phase");
+});
+
+test("mergeEquationsPaneStatePatch preserves legacy single selectedTextHighlight input", () => {
+  const next = mergeEquationsPaneStatePatch(DEFAULT_EQUATIONS_PANE_STATE, {
+    context: {
+      selectedTextHighlight: {
+        itemId: "workspace",
+        selectionId: "workspace::block:1",
+        startOffset: 1,
+        endOffset: 7,
+        text: "phase",
+      },
+    } as never,
+  });
+
+  assert.equal(next.context.selectedTextHighlights.length, 1);
+  assert.equal(next.context.selectedTextHighlights[0]?.highlightId, 1);
+  assert.equal(next.context.selectedTextHighlights[0]?.itemId, "workspace");
+  assert.equal(next.context.selectedTextHighlights[0]?.selectionId, "workspace::block:1");
 });
 
 test("mergeEquationsPaneStatePatch preserves freeform blocks", () => {

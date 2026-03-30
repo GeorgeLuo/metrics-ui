@@ -338,63 +338,75 @@ export function validateEquationsPaneState(
       diagnostics,
     );
   }
-  if (state.context.selectedTextHighlight) {
+  state.context.selectedTextHighlights.forEach((highlight, index) => {
+    const basePath = `context.selectedTextHighlights.${index}`;
     if (
-      !Number.isInteger(state.context.selectedTextHighlight.startOffset)
-      || state.context.selectedTextHighlight.startOffset < 0
+      highlight.highlightId !== undefined
+      && (!Number.isInteger(highlight.highlightId) || highlight.highlightId <= 0)
+    ) {
+      diagnostics.push({
+        severity: "error",
+        ruleId: "invalid_highlight_id",
+        path: `${basePath}.highlightId`,
+        message: "Selected text highlight highlightId must be a positive integer when provided.",
+      });
+    }
+    if (
+      !Number.isInteger(highlight.startOffset)
+      || highlight.startOffset < 0
     ) {
       diagnostics.push({
         severity: "error",
         ruleId: "invalid_highlight_offset",
-        path: "context.selectedTextHighlight.startOffset",
+        path: `${basePath}.startOffset`,
         message: "Selected text highlight startOffset must be a non-negative integer.",
       });
     }
     if (
-      !Number.isInteger(state.context.selectedTextHighlight.endOffset)
-      || state.context.selectedTextHighlight.endOffset < 0
+      !Number.isInteger(highlight.endOffset)
+      || highlight.endOffset < 0
     ) {
       diagnostics.push({
         severity: "error",
         ruleId: "invalid_highlight_offset",
-        path: "context.selectedTextHighlight.endOffset",
+        path: `${basePath}.endOffset`,
         message: "Selected text highlight endOffset must be a non-negative integer.",
       });
     }
-    if (state.context.selectedTextHighlight.endOffset < state.context.selectedTextHighlight.startOffset) {
+    if (highlight.endOffset < highlight.startOffset) {
       diagnostics.push({
         severity: "error",
         ruleId: "invalid_highlight_offset",
-        path: "context.selectedTextHighlight.endOffset",
+        path: `${basePath}.endOffset`,
         message: "Selected text highlight endOffset must be greater than or equal to startOffset.",
       });
     }
     validateText(
-      state.context.selectedTextHighlight.text,
-      "context.selectedTextHighlight.text",
+      highlight.text,
+      `${basePath}.text`,
       "body",
       rules,
       diagnostics,
     );
-    if (typeof state.context.selectedTextHighlight.contextBefore === "string") {
+    if (typeof highlight.contextBefore === "string") {
       validateText(
-        state.context.selectedTextHighlight.contextBefore,
-        "context.selectedTextHighlight.contextBefore",
+        highlight.contextBefore,
+        `${basePath}.contextBefore`,
         "body",
         rules,
         diagnostics,
       );
     }
-    if (typeof state.context.selectedTextHighlight.contextAfter === "string") {
+    if (typeof highlight.contextAfter === "string") {
       validateText(
-        state.context.selectedTextHighlight.contextAfter,
-        "context.selectedTextHighlight.contextAfter",
+        highlight.contextAfter,
+        `${basePath}.contextAfter`,
         "body",
         rules,
         diagnostics,
       );
     }
-  }
+  });
 
   return buildValidationReport(diagnostics);
 }
