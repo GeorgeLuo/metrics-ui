@@ -86,6 +86,10 @@
         },
         {
           "kind": "text",
+          "value": "The concrete move is: apply the standard identity only to the first integral term, while the second term is just the integral of 1 over minus pi over 2 to plus pi over 2, so it contributes pi."
+        },
+        {
+          "kind": "text",
           "value": "The algebraic rewrite is not dividing both sides of a denominator. It is replacing cosine squared theta by 1 minus sine squared theta, then rewriting that numerator so the whole fraction splits into a standard integral minus 1."
         },
         {
@@ -130,12 +134,7 @@
         },
         {
           "kind": "math",
-          "latex": "\\frac{1-\\sin^2\\theta}{a+b\\sin^2\\theta} = \\frac{\\frac{a+b}{b} - \\frac{a+b\\sin^2\\theta}{b}}{a+b\\sin^2\\theta}",
-          "displayMode": true
-        },
-        {
-          "kind": "math",
-          "latex": "= \\frac{a+b}{b\\left(a+b\\sin^2\\theta\\right)} - \\frac{1}{b}",
+          "latex": "\\frac{1-\\sin^2\\theta}{a+b\\sin^2\\theta} = \\frac{a+b}{b\\left(a+b\\sin^2\\theta\\right)} - \\frac{1}{b}",
           "displayMode": true
         },
         {
@@ -146,6 +145,11 @@
         {
           "kind": "math",
           "latex": "a=\\gamma^2, \\qquad b=K^2 r^2",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "I:=\\int_{-\\pi/2}^{\\pi/2}\\frac{\\cos^2\\theta}{a+b\\sin^2\\theta}\\,d\\theta = \\frac{1}{b}\\left((a+b)\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} - \\int_{-\\pi/2}^{\\pi/2} d\\theta\\right)",
           "displayMode": true
         },
         {
@@ -162,6 +166,11 @@
         {
           "kind": "math",
           "latex": "\\int \\frac{dy}{1+y^2} = \\tan^{-1}(y) + C, \\qquad \\left[\\tan^{-1}(y)\\right]_{-\\infty}^{\\infty}=\\pi",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "I = \\frac{\\pi}{b}\\left(\\frac{a+b}{\\sqrt{a(a+b)}} - 1\\right)",
           "displayMode": true
         },
         {
@@ -186,6 +195,10 @@
         },
         {
           "kind": "text",
+          "value": "Because this is still the nonzero synchronized branch, r is not zero here. So after squaring, we are allowed to divide by the common factor r squared."
+        },
+        {
+          "kind": "text",
           "value": "Using K sub c equals 2 gamma from Eq. 12 to Eq. 13, the final answer becomes a closed-form branch valid for every K greater than K sub c."
         },
         {
@@ -197,6 +210,11 @@
         {
           "kind": "math",
           "latex": "\\gamma + K r^2 = \\sqrt{\\gamma^2 + K^2 r^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\gamma^2 + 2\\gamma K r^2 + K^2 r^4 = \\gamma^2 + K^2 r^2",
           "displayMode": true
         },
         {
