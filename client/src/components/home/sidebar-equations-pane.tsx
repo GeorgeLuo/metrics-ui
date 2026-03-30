@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
+import type { EquationsMetaDocumentOption } from "@/lib/equations/meta-documents";
 import type { EquationsTopicOption } from "@/lib/equations/topic-catalog";
 
 type EquationsTopicCatalogSourceEntry = {
@@ -50,6 +51,9 @@ type SidebarEquationsPaneProps = {
   recentTopicOptions: EquationsTopicOption[];
   selectedTopicId: string;
   onTopicSelect: (id: string) => void;
+  metaDocuments: EquationsMetaDocumentOption[];
+  selectedMetaDocumentId: string | null;
+  onMetaDocumentSelect: (id: string) => void;
   selectedTextHighlights: EquationsPaneSelectedTextHighlight[];
   hiddenTextHighlightIds: number[];
   onToggleTextHighlightHidden: (highlightId: number) => void;
@@ -83,6 +87,9 @@ export function SidebarEquationsPane({
   recentTopicOptions,
   selectedTopicId,
   onTopicSelect,
+  metaDocuments,
+  selectedMetaDocumentId,
+  onMetaDocumentSelect,
   selectedTextHighlights,
   hiddenTextHighlightIds,
   onToggleTextHighlightHidden,
@@ -212,6 +219,41 @@ export function SidebarEquationsPane({
           </div>
         </SidebarGroupContent>
       </SidebarGroup>
+      {metaDocuments.length > 0 ? (
+        <SidebarGroup>
+          <SidebarGroupLabel>Meta</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="flex flex-col gap-2 px-2 py-2">
+              {metaDocuments.map((document) => {
+                const isActive = document.id === selectedMetaDocumentId;
+                return (
+                  <button
+                    key={document.id}
+                    type="button"
+                    className={[
+                      "w-full rounded-sm border px-2 py-1.5 text-left text-[11px] leading-snug transition-colors",
+                      isActive
+                        ? "border-border bg-accent/45 text-foreground"
+                        : "border-border/60 bg-background/35 text-muted-foreground hover:bg-accent/18 hover:text-foreground",
+                    ].join(" ")}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => onMetaDocumentSelect(document.id)}
+                    data-hint={`Open the equations meta document "${document.label}".`}
+                    title={document.description}
+                  >
+                    <div className="text-foreground">{document.label}</div>
+                    {document.description ? (
+                      <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                        {document.description}
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ) : null}
       {selectedTextHighlights.length > 0 ? (
         <SidebarGroup>
           <SidebarGroupLabel>Highlights</SidebarGroupLabel>

@@ -60,6 +60,11 @@ import {
   getEquationsTopicOptionById,
   identifyEquationsTopic,
 } from "@/lib/equations/topic-catalog";
+import {
+  EQUATIONS_META_DOCUMENTS,
+  getEquationsMetaDocumentById,
+  identifyEquationsMetaDocument,
+} from "@/lib/equations/meta-documents";
 import { useWindowAndAxes } from "@/hooks/home/use-window-and-axes";
 import { compactRecord } from "@shared/compact";
 import {
@@ -5437,6 +5442,10 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     () => identifyEquationsTopic(equationsPane) ?? "__custom__",
     [equationsPane],
   );
+  const selectedMetaDocumentId = useMemo(
+    () => identifyEquationsMetaDocument(equationsPane),
+    [equationsPane],
+  );
   const [activeEquationsTopicCatalogSource, setActiveEquationsTopicCatalogSource] = useState<string>(() =>
     normalizeEquationsTopicCatalogSource(
       readStorageString(DASHBOARD_STORAGE_KEYS.equationsTopicCatalogSource),
@@ -5456,6 +5465,10 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const selectedTopicOption = useMemo(
     () => (selectedTopicId === "__custom__" ? null : getEquationsTopicOptionById(selectedTopicId)),
     [selectedTopicId],
+  );
+  const selectedMetaDocument = useMemo(
+    () => (selectedMetaDocumentId ? getEquationsMetaDocumentById(selectedMetaDocumentId) : null),
+    [selectedMetaDocumentId],
   );
   const selectedTopicCatalogEntry = useMemo(() => {
     if (selectedTopicOption) {
@@ -5485,9 +5498,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   );
   const equationsDocumentDebugSummary = useMemo(() => ({
     sourceKind: equationsPane.document ? "document" as const : "semantic_layout" as const,
-    topicFormat: selectedTopicOption?.format ?? (equationsPane.document ? "document" : "semantic_layout"),
-    topicLabel: selectedTopicOption?.label ?? null,
-    catalogLabel: selectedTopicCatalog?.label ?? null,
+    topicFormat: selectedMetaDocument
+      ? "reference_sections"
+      : selectedTopicOption?.format ?? (equationsPane.document ? "document" : "semantic_layout"),
+    topicLabel: selectedMetaDocument?.label ?? selectedTopicOption?.label ?? null,
+    catalogLabel: selectedMetaDocument ? "Meta" : selectedTopicCatalog?.label ?? null,
     grid: equationsPane.document?.spec.grid ?? equationsPane.dimensions.grid,
     frameAspect: equationsPane.document?.spec.frameAspect ?? equationsPane.dimensions.frameAspect,
     itemCount: equationsPane.document
@@ -5500,6 +5515,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     equationsPane.dimensions.frameAspect,
     equationsPane.dimensions.grid,
     equationsPane.document,
+    selectedMetaDocument?.label,
     selectedTopicCatalog?.label,
     selectedTopicOption?.format,
     selectedTopicOption?.label,
@@ -5634,6 +5650,41 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             referenceFrame: preservedReferenceFrame,
           },
         };
+    handleSetEquationsPane(patch, { replace: true });
+    sendMessage({
+      type: "set_equations_pane",
+      replace: true,
+      ...patch,
+    });
+  }, [
+    equationsPane.context.referenceFrame,
+    equationsPane.context.visualizationFrame,
+    handleSetEquationsPane,
+    sendMessage,
+  ]);
+
+  const handleMetaDocumentSelect = useCallback((metaDocumentId: string) => {
+    const metaDocument = getEquationsMetaDocumentById(metaDocumentId);
+    if (!metaDocument) {
+      return;
+    }
+
+    const preservedVisualizationFrame = equationsPane.context.visualizationFrame
+      ? cloneVisualizationFrameState(equationsPane.context.visualizationFrame)
+      : null;
+    const preservedReferenceFrame = equationsPane.context.referenceFrame
+      ? cloneEquationsReferenceFrameState(equationsPane.context.referenceFrame)
+      : null;
+
+    const patch = {
+      document: metaDocument.document,
+      context: {
+        selectedHitBox: null,
+        selectedTextHighlights: [],
+        visualizationFrame: preservedVisualizationFrame,
+        referenceFrame: preservedReferenceFrame,
+      },
+    };
     handleSetEquationsPane(patch, { replace: true });
     sendMessage({
       type: "set_equations_pane",
@@ -6249,6 +6300,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                   recentTopicOptions={recentEquationTopics}
                   selectedTopicId={selectedTopicId}
                   onTopicSelect={handleTopicSelect}
+                  metaDocuments={EQUATIONS_META_DOCUMENTS}
+                  selectedMetaDocumentId={selectedMetaDocumentId}
+                  onMetaDocumentSelect={handleMetaDocumentSelect}
                   selectedTextHighlights={equationsPane.context.selectedTextHighlights}
                   hiddenTextHighlightIds={hiddenEquationTextHighlightIds}
                   onToggleTextHighlightHidden={handleToggleEquationTextHighlightHidden}

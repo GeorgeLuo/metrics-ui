@@ -460,6 +460,16 @@ Equations pane:
 
 `set_equations_pane` applies partial patches by default. Set `replace: true` to reset the pane to defaults before applying the new content/dimensions. If `document` is provided, it becomes the explicit FrameGrid source of truth for rendering and state sync. If `cells` is provided without `document`, the Equations pane renders that explicit list of cell items instead of the legacy four-region layout. `context.selectedHitBox` exposes the currently selected Equations interaction context and round-trips through `get_state`, `state_update`, and `restore_state`.
 
+### Equations Topic Authoring
+
+The canonical source of truth for equations topic authoring guidance is:
+- [examples/meta/equations-document.meta.topic-authoring-guidance.json](/Users/gluo/Projects/codexspaces/recursive-codex-agent/high-mix-manufacturing/Stream-Metrics-UI/examples/meta/equations-document.meta.topic-authoring-guidance.json)
+
+It is also viewable inside the app from the Equations sub-app left pane:
+- `Meta` -> `Guidance`
+
+Treat that guidance artifact as the soft linter for agents and reviewers. The schema validator still enforces hard structure, but the meta document is the canonical place for format selection, derivation sequencing, and presentation rules.
+
 CLI examples:
 
 ```bash
