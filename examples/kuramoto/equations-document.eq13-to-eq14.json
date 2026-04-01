@@ -54,51 +54,16 @@
       ]
     },
     {
-      "leftTitle": "Step 2",
-      "rightTitle": "Kuramoto's Exact Evaluation",
+      "leftTitle": "Step 2A",
+      "rightTitle": "Rewrite in Terms of Sine Squared",
       "left": [
         {
           "kind": "text",
-          "value": "Kuramoto's exact result comes from evaluating that theta integral explicitly, not from a small-r approximation."
+          "value": "Kuramoto's exact result starts with a purely algebraic rewrite. We want the numerator and denominator expressed using the same inner piece, sine squared theta."
         },
         {
           "kind": "text",
-          "value": "The key trick is to rewrite the integrand into a standard form involving one denominator a plus b sine squared theta. Then the remaining definite integral can be done exactly.",
-          "referenceFrame": {
-            "topicId": "identities-cheatsheet",
-            "itemId": "workspace",
-            "anchorId": "standard-integral-section",
-            "title": "Standard Integral Reference"
-          },
-          "referenceLabel": "Open the supporting standard-integral reference"
-        },
-        {
-          "kind": "text",
-          "value": "This is the precise sense in which the Lorentzian is special: it turns the implicit integral equation into something one can solve in closed form."
-        },
-        {
-          "kind": "text",
-          "value": "And yes, the last standard-integral step is just the arctangent identity in disguise: after a rescaling of t, it becomes the integral of 1 over 1 plus y squared."
-        },
-        {
-          "kind": "text",
-          "value": "Once that integral is evaluated, the whole self-consistency condition collapses to an algebraic equation for r."
-        },
-        {
-          "kind": "text",
-          "value": "The concrete move is: apply the standard identity only to the first integral term, while the second term is just the integral of 1 over minus pi over 2 to plus pi over 2, so it contributes pi."
-        },
-        {
-          "kind": "text",
-          "value": "The algebraic rewrite is not dividing both sides of a denominator. It is replacing cosine squared theta by 1 minus sine squared theta, then rewriting that numerator so the whole fraction splits into a standard integral minus 1."
-        },
-        {
-          "kind": "text",
-          "value": "A clean way to see where the factor 1 over b comes from is to solve for constants A and B in the form A over a plus b sine squared theta plus B. Matching the constant term and the sine-squared term forces B to equal minus 1 over b."
-        },
-        {
-          "kind": "text",
-          "value": "The missing visual step is that after substituting A and B, the numerator already has 1 over b in both terms. Splitting the fraction gives one term minus 1 over b, and only then do we factor that common 1 over b outside."
+          "value": "So the first sub-step is just the Pythagorean identity cosine squared theta equals 1 minus sine squared theta."
         }
       ],
       "right": [
@@ -111,7 +76,27 @@
           "kind": "math",
           "latex": "\\frac{\\cos^2\\theta}{a+b\\sin^2\\theta} = \\frac{1-\\sin^2\\theta}{a+b\\sin^2\\theta}",
           "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2B",
+      "rightTitle": "Solve for the Split Form",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Now we look for a decomposition of the form A over a plus b sine squared theta plus B. This is the step that explains why the next line follows."
         },
+        {
+          "kind": "text",
+          "value": "Multiply through by the denominator, then match the constant term and the sine-squared term. That determines A and B."
+        },
+        {
+          "kind": "text",
+          "value": "Once A and B are fixed, the fraction is ready to split into a standard-integral term plus a constant term."
+        }
+      ],
+      "right": [
         {
           "kind": "math",
           "latex": "\\frac{1-\\sin^2\\theta}{a+b\\sin^2\\theta} = \\frac{A}{a+b\\sin^2\\theta}+B",
@@ -126,7 +111,23 @@
           "kind": "math",
           "latex": "1 = A+Ba, \\qquad -1 = Bb \\implies B=-\\frac{1}{b}, \\quad A=\\frac{a+b}{b}",
           "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2C",
+      "rightTitle": "Split the Fraction",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Substitute the solved values of A and B back into the numerator identity first. That creates the explicit one-over-b structure."
         },
+        {
+          "kind": "text",
+          "value": "Only after that do we divide by the denominator and factor out the common one over b. This is the direct bridge from the previous sub-step to the standard form."
+        }
+      ],
+      "right": [
         {
           "kind": "math",
           "latex": "1-\\sin^2\\theta = \\frac{a+b}{b} - \\frac{a+b\\sin^2\\theta}{b}",
@@ -146,7 +147,38 @@
           "kind": "math",
           "latex": "a=\\gamma^2, \\qquad b=K^2 r^2",
           "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2D",
+      "rightTitle": "Evaluate the Standard Integral",
+      "left": [
+        {
+          "kind": "text",
+          "value": "First define the rewritten integral as I. This packages the previous algebra into one object, so we can evaluate the standard-denominator term separately from the constant term.",
+          "referenceFrame": {
+            "topicId": "identities-cheatsheet",
+            "itemId": "workspace",
+            "anchorId": "standard-integral-section",
+            "title": "Standard Integral Reference"
+          },
+          "referenceLabel": "Open the supporting standard-integral reference"
         },
+        {
+          "kind": "text",
+          "value": "Apply the standard sine-squared identity only to the first term. The second term is just the integral of 1 from minus pi over 2 to plus pi over 2, so it contributes pi."
+        },
+        {
+          "kind": "text",
+          "value": "The tangent-substitution and arctangent derivation of that identity now lives in the reference frame, so the main flow can stay focused on what the identity accomplishes here."
+        },
+        {
+          "kind": "text",
+          "value": "At the end of this sub-step we have a closed form for I itself. We still have not substituted it back into Eq. 11 yet."
+        }
+      ],
+      "right": [
         {
           "kind": "math",
           "latex": "I:=\\int_{-\\pi/2}^{\\pi/2}\\frac{\\cos^2\\theta}{a+b\\sin^2\\theta}\\,d\\theta = \\frac{1}{b}\\left((a+b)\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} - \\int_{-\\pi/2}^{\\pi/2} d\\theta\\right)",
@@ -156,23 +188,36 @@
           "kind": "math",
           "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{d\\theta}{a+b\\sin^2\\theta} = \\frac{\\pi}{\\sqrt{a(a+b)}}",
           "displayMode": true,
-          "anchorId": "standard-sine-squared-integral"
-        },
-        {
-          "kind": "math",
-          "latex": "y=t\\sqrt{\\frac{a+b}{a}} \\quad \\Rightarrow \\quad \\int_{-\\infty}^{\\infty}\\frac{dt}{a+(a+b)t^2} = \\frac{1}{\\sqrt{a(a+b)}}\\int_{-\\infty}^{\\infty}\\frac{dy}{1+y^2}",
-          "displayMode": true
-        },
-        {
-          "kind": "math",
-          "latex": "\\int \\frac{dy}{1+y^2} = \\tan^{-1}(y) + C, \\qquad \\left[\\tan^{-1}(y)\\right]_{-\\infty}^{\\infty}=\\pi",
-          "displayMode": true
+          "anchorId": "standard-sine-squared-integral",
+          "referenceFrame": {
+            "topicId": "identities-cheatsheet",
+            "itemId": "workspace",
+            "anchorId": "standard-integral-section",
+            "title": "Standard Integral Reference"
+          },
+          "referenceLabel": "Open the tangent-substitution derivation of this standard integral"
         },
         {
           "kind": "math",
           "latex": "I = \\frac{\\pi}{b}\\left(\\frac{a+b}{\\sqrt{a(a+b)}} - 1\\right)",
           "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2E",
+      "rightTitle": "Substitute Back Into Eq. 11",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Only now do we substitute the exact value of I back into the original self-consistency equation."
         },
+        {
+          "kind": "text",
+          "value": "This is the point where the integral problem stops being an integral problem and becomes a purely algebraic equation for r."
+        }
+      ],
+      "right": [
         {
           "kind": "math",
           "latex": "\\int_{-\\pi/2}^{\\pi/2}\\frac{\\cos^2\\theta}{\\gamma^2 + K^2 r^2 \\sin^2\\theta}\\,d\\theta = \\frac{\\pi}{\\gamma K^2 r^2}\\left(\\sqrt{\\gamma^2 + K^2 r^2}-\\gamma\\right)",
@@ -239,14 +284,66 @@
         },
         {
           "kind": "text",
-          "value": "For the Lorentzian, that general asymptotic law matches the exact branch near K sub c. So the exact result and Eq. 14 are consistent: the exact formula is stronger, and Eq. 14 is its universal small-amplitude limit."
+          "value": "The asymptotic symbol means near-threshold leading behavior, not exact equality. When the worksheet writes r asymptotic to a square-root expression as K tends to K sub c, it means the ratio of the exact branch to that square-root expression tends to 1 as the threshold is approached.",
+          "referenceFrame": {
+            "topicId": "taylor-coefficients-cheatsheet",
+            "itemId": "workspace",
+            "anchorId": "asymptotic-notation",
+            "title": "Asymptotic Notation"
+          },
+          "referenceLabel": "Open the meaning of asymptotic notation",
+          "visualizationFrame": {
+            "mode": "plugin",
+            "pluginId": "kuramoto_asymptotic_tilde_meaning",
+            "name": "Kuramoto Asymptotic Tilde Meaning"
+          },
+          "visualizationLabel": "Open asymptotic comparison visualization"
+        },
+        {
+          "kind": "text",
+          "value": "The factor 16 comes from that small-r expansion. The quadratic Taylor coefficient one-half multiplying g double-prime of 0 combines with the integral of cosine squared theta times sine squared theta, which is pi over 8, giving the coefficient pi over 16 in front of the r squared term.",
+          "referenceFrame": {
+            "topicId": "taylor-coefficients-cheatsheet",
+            "itemId": "workspace",
+            "anchorId": "eq14-coefficient-chain",
+            "title": "Taylor Coefficient Chain"
+          },
+          "referenceLabel": "Open the coefficient chain behind the factor 16"
+        },
+        {
+          "kind": "text",
+          "value": "For the Lorentzian, that general asymptotic law matches the exact branch near K sub c. Away from threshold, the exact denominator is K, so the exact branch is stronger. Near threshold, replacing K by K sub c changes only higher-order corrections, which is why the exact formula and Eq. 14 agree at leading order."
         }
       ],
       "right": [
         {
           "kind": "math",
-          "latex": "r \\sim \\sqrt{\\frac{-16\\,(K-K_c)}{\\pi K_c^4 g''(0)}} \\qquad \\text{as } K \\to K_c",
+          "latex": "1 \\sim K\\left[\\frac{\\pi}{2}g(0) + \\frac{\\pi}{16}g''(0)K^2r^2\\right] \\qquad \\text{for small } r",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "taylor-coefficients-cheatsheet",
+            "itemId": "workspace",
+            "anchorId": "eq14-coefficient-chain",
+            "title": "Taylor Coefficient Chain"
+          },
+          "referenceLabel": "Open the derivation of the pi over 16 coefficient"
+        },
+        {
+          "kind": "math",
+          "latex": "0 \\sim \\frac{K-K_c}{K_c} + \\frac{\\pi}{16}K_c^3 g''(0)r^2",
           "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "r \\sim \\sqrt{\\frac{-16\\,(K-K_c)}{\\pi K_c^4 g''(0)}} \\qquad \\text{as } K \\to K_c",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "taylor-coefficients-cheatsheet",
+            "itemId": "workspace",
+            "anchorId": "asymptotic-notation",
+            "title": "Asymptotic Notation"
+          },
+          "referenceLabel": "Open why this is asymptotic rather than exact"
         },
         {
           "kind": "math",

@@ -1,0 +1,126 @@
+{
+  "pattern": "reference_sections",
+  "title": "Taylor Coefficients Cheatsheet",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "A short reference for where Taylor-series coefficients come from when a derivation expands a function around zero."
+    },
+    {
+      "kind": "text",
+      "value": "The key point is that the visible numeric coefficients are not arbitrary. They come from the Taylor formula itself and then combine with whatever integrals remain."
+    }
+  ],
+  "sections": [
+    {
+      "title": "Asymptotic Notation",
+      "anchorId": "asymptotic-notation",
+      "content": [
+        {
+          "kind": "text",
+          "value": "The symbol f of K asymptotic to h of K as K tends to K sub c does not mean the two expressions are exactly equal. It means they have the same leading behavior near that limit.",
+          "visualizationFrame": {
+            "mode": "plugin",
+            "pluginId": "kuramoto_asymptotic_tilde_meaning",
+            "name": "Kuramoto Asymptotic Tilde Meaning"
+          },
+          "visualizationLabel": "Open asymptotic comparison visualization"
+        },
+        {
+          "kind": "text",
+          "value": "Formally, asymptotic equivalence means the ratio f of K over h of K tends to 1. So replacing one by the other changes only higher-order corrections, not the dominant scaling."
+        },
+        {
+          "kind": "text",
+          "value": "That is exactly the point of Eq. 14: it keeps the universal leading square-root behavior near the threshold, not the full exact formula away from threshold."
+        }
+      ],
+      "referenceTitle": "Meaning of ~",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "f(K) \\sim h(K) \\quad \\text{as } K\\to K_c \\iff \\lim_{K\\to K_c}\\frac{f(K)}{h(K)}=1",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\sqrt{\\frac{K-K_c}{K}} \\sim \\sqrt{\\frac{K-K_c}{K_c}} \\quad \\text{because} \\quad \\frac{\\sqrt{(K-K_c)/K}}{\\sqrt{(K-K_c)/K_c}}=\\sqrt{\\frac{K_c}{K}}\\to 1",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Quadratic Taylor Term",
+      "anchorId": "quadratic-taylor-term",
+      "content": [
+        {
+          "kind": "text",
+          "value": "For a smooth function expanded around x equals 0, the quadratic term always comes with one-half times the second derivative."
+        },
+        {
+          "kind": "text",
+          "value": "So if the linear term vanishes, the first correction to the constant term is not f double-prime of 0 times x squared. It is one-half f double-prime of 0 times x squared."
+        }
+      ],
+      "referenceTitle": "General Form",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "f(x)=f(0)+f'(0)x+\\frac{1}{2}f''(0)x^2+\\cdots",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "f'(0)=0 \\implies f(x)=f(0)+\\frac{1}{2}f''(0)x^2+\\cdots",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Applied to Eq. 14",
+      "anchorId": "eq14-coefficient-chain",
+      "content": [
+        {
+          "kind": "text",
+          "value": "In the Eq. 14 derivation, the expanded variable is z equals K r sine theta. So the quadratic correction brings down one-half times g double-prime of 0 times z squared."
+        },
+        {
+          "kind": "text",
+          "value": "After substituting z equals K r sine theta, the quadratic part contributes one-half g double-prime of 0 times K squared r squared sine squared theta."
+        },
+        {
+          "kind": "text",
+          "value": "That term is still inside the theta integral, so its coefficient must be multiplied by the remaining angular integral of cosine squared theta times sine squared theta."
+        }
+      ],
+      "referenceTitle": "Why 16 Appears",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "g(Kr\\sin\\theta) \\sim g(0)+\\frac{1}{2}g''(0)(Kr\\sin\\theta)^2",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1}{2}g''(0)(Kr\\sin\\theta)^2 = \\frac{1}{2}g''(0)K^2r^2\\sin^2\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\sin^2\\theta\\,d\\theta = \\frac{\\pi}{8}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1}{2}\\cdot \\frac{\\pi}{8} = \\frac{\\pi}{16}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1 \\sim K\\left[\\frac{\\pi}{2}g(0)+\\frac{\\pi}{16}g''(0)K^2r^2\\right]",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

@@ -52,6 +52,18 @@
       },
       {
         "kind": "text",
+        "value": ", the natural-frequency distribution evaluated at "
+      },
+      {
+        "kind": "text",
+        "value": "omega"
+      },
+      {
+        "kind": "text",
+        "value": ", where omega is the natural-frequency variable, "
+      },
+      {
+        "kind": "text",
         "value": " equals ",
         "hitBox": {
           "id": "equals",
@@ -74,7 +86,7 @@
       },
       {
         "kind": "text",
-        "value": "."
+        "value": ", where gamma is the positive width parameter that sets how broad the Lorentzian frequency distribution is."
       }
     ]
   },
@@ -112,7 +124,7 @@
       },
       {
         "kind": "text",
-        "value": ". After making that choice, you substitute it into Eq. 12 and Eq. 11. The parameter gamma controls the width of the distribution, so larger gamma means a broader spread of natural frequencies."
+        "value": ". Here omega is the natural-frequency variable being distributed. After making that choice, you substitute it into Eq. 12 and Eq. 11. The parameter gamma controls the width of the distribution, so larger gamma means a broader spread of natural frequencies."
       }
     ]
   },

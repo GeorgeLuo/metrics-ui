@@ -1,0 +1,133 @@
+{
+  "workspace": {
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "f(\\epsilon)",
+        "hitBox": {
+          "id": "left_function",
+          "label": "left function",
+          "sequence": "f of epsilon",
+          "category": "function",
+          "latex": "f(\\epsilon)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\sim",
+        "hitBox": {
+          "id": "asymptotic_symbol",
+          "label": "asymptotic symbol",
+          "sequence": "is asymptotic to",
+          "category": "operator",
+          "latex": "\\sim"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\sum_{k=0}^{\\infty}\\epsilon^k f_k",
+        "hitBox": {
+          "id": "asymptotic_series",
+          "label": "asymptotic series",
+          "sequence": "the sum from k equals zero to infinity of epsilon to the k times f sub k",
+          "category": "term",
+          "latex": "\\sum_{k=0}^{\\infty}\\epsilon^k f_k"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\iff",
+        "hitBox": {
+          "id": "iff_symbol",
+          "label": "if and only if",
+          "sequence": "if and only if",
+          "category": "operator",
+          "latex": "\\iff"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "f(\\epsilon)-\\sum_{k=0}^{m}\\epsilon^k f_k=o(\\epsilon^m),\\ \\forall m",
+        "hitBox": {
+          "id": "remainder_definition",
+          "label": "remainder definition",
+          "sequence": "f of epsilon minus the sum from k equals zero to m of epsilon to the k times f sub k is little o of epsilon to the m for all m",
+          "category": "term",
+          "latex": "f(\\epsilon)-\\sum_{k=0}^{m}\\epsilon^k f_k=o(\\epsilon^m),\\ \\forall m"
+        }
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "f of epsilon is asymptotic to the series "
+      },
+      {
+        "kind": "text",
+        "value": "the sum from k equals zero to infinity of epsilon to the k times f sub k"
+      },
+      {
+        "kind": "text",
+        "value": " if and only if, after truncating the series at any finite order "
+      },
+      {
+        "kind": "text",
+        "value": "m"
+      },
+      {
+        "kind": "text",
+        "value": ", the remaining error is "
+      },
+      {
+        "kind": "text",
+        "value": "little o of epsilon to the m"
+      },
+      {
+        "kind": "text",
+        "value": ". Here epsilon is the small parameter approaching zero, f sub k are the asymptotic coefficients, and m is the truncation order."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 16 defines what it means for a full asymptotic series to represent "
+      },
+      {
+        "kind": "text",
+        "value": "f of epsilon"
+      },
+      {
+        "kind": "text",
+        "value": ". The point is not exact convergence of the infinite sum. The point is that each finite truncation captures the function up to an error smaller than the last retained power."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Conceptually, Eq. 16 upgrades Eq. 15 from comparing two single expressions to comparing a function with an entire asymptotic expansion. It explains why near-threshold derivations keep only the leading powers that control the local behavior."
+      }
+    ]
+  }
+}

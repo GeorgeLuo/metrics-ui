@@ -220,6 +220,48 @@
       ]
     },
     {
+      "title": "Tangent Substitution Identities",
+      "anchorId": "tangent-substitution-identities",
+      "content": [
+        {
+          "kind": "text",
+          "value": "These are the derived trig identities that appear after setting t equal to tangent theta in a definite integral."
+        },
+        {
+          "kind": "text",
+          "value": "They are not new substitutions by themselves. They follow from t equals tangent theta together with one plus tangent squared theta equals secant squared theta."
+        }
+      ],
+      "referenceTitle": "Derived Relations",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "t=\\tan\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1+\\tan^2\\theta = \\sec^2\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\cos^2\\theta = \\frac{1}{1+t^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\sin^2\\theta = t^2\\cos^2\\theta = \\frac{t^2}{1+t^2}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "d\\theta = \\frac{dt}{1+t^2}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
       "title": "Standard Integral",
       "anchorId": "standard-integral-section",
       "content": [
