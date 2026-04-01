@@ -1,0 +1,132 @@
+{
+  "workspace": {
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "f(\\epsilon)",
+        "hitBox": {
+          "id": "left_function",
+          "label": "left function",
+          "sequence": "f of epsilon",
+          "category": "function",
+          "latex": "f(\\epsilon)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\sim",
+        "hitBox": {
+          "id": "asymptotic_symbol",
+          "label": "asymptotic symbol",
+          "sequence": "is asymptotic to",
+          "category": "operator",
+          "latex": "\\sim"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "g(\\epsilon)",
+        "hitBox": {
+          "id": "right_function",
+          "label": "right function",
+          "sequence": "g of epsilon",
+          "category": "function",
+          "latex": "g(\\epsilon)"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\iff",
+        "hitBox": {
+          "id": "iff_symbol",
+          "label": "if and only if",
+          "sequence": "if and only if",
+          "category": "operator",
+          "latex": "\\iff"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\lim_{\\epsilon\\to 0}\\frac{f(\\epsilon)}{g(\\epsilon)}=1",
+        "hitBox": {
+          "id": "ratio_limit_definition",
+          "label": "ratio-limit definition",
+          "sequence": "the limit as epsilon goes to zero of f of epsilon over g of epsilon equals one",
+          "category": "term",
+          "latex": "\\lim_{\\epsilon\\to 0}\\frac{f(\\epsilon)}{g(\\epsilon)}=1"
+        }
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "f of epsilon is asymptotic to g of epsilon if and only if the limit as "
+      },
+      {
+        "kind": "text",
+        "value": "epsilon"
+      },
+      {
+        "kind": "text",
+        "value": " approaches zero of "
+      },
+      {
+        "kind": "text",
+        "value": "f of epsilon over g of epsilon"
+      },
+      {
+        "kind": "text",
+        "value": " equals one. Here epsilon is the small parameter approaching zero, while f and g are the two functions being compared."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 15 defines the "
+      },
+      {
+        "kind": "text",
+        "value": "asymptotic symbol",
+        "hitBox": {
+          "id": "asymptotic_symbol",
+          "label": "asymptotic symbol",
+          "sequence": "is asymptotic to",
+          "category": "operator",
+          "latex": "\\sim"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". It does not mean exact equality. It means the ratio of the two expressions tends to one in the stated limit, so they share the same leading behavior near that limit."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Conceptually, Eq. 15 is what makes Eq. 14 readable. It tells us that the square-root formula in the near-threshold analysis is a leading-order approximation near K sub c, not a closed-form exact branch for all K greater than K sub c."
+      }
+    ]
+  }
+}

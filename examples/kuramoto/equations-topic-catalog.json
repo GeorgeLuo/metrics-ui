@@ -46,6 +46,20 @@
       "path": "./equations-content.eq13.json"
     },
     {
+      "id": "kuramoto-eq15",
+      "label": "Equation 15",
+      "description": "Inspect the definition of asymptotic equivalence used in the near-threshold analysis.",
+      "format": "semantic_layout",
+      "path": "./equations-content.eq15.json"
+    },
+    {
+      "id": "kuramoto-eq16",
+      "label": "Equation 16",
+      "description": "Inspect the definition of an asymptotic series used after Eq. 15.",
+      "format": "semantic_layout",
+      "path": "./equations-content.eq16.json"
+    },
+    {
       "id": "kuramoto-eq12-critical-coupling",
       "label": "Eq. 12 -> Eq. 13",
       "description": "Follow the onset condition in Eq. 12 through the Lorentzian specialization that produces Eq. 13.",
@@ -107,6 +121,13 @@
       "description": "Worked examples of rewriting an integrand into standard forms before integrating.",
       "format": "reference_sections",
       "path": "./equations-document.integrand-rewrite-cheatsheet.json"
+    },
+    {
+      "id": "taylor-coefficients-cheatsheet",
+      "label": "Taylor Coefficients Cheatsheet",
+      "description": "Quick reference for where quadratic Taylor coefficients come from and how they generate factors like 1/2 and 16 in near-threshold expansions.",
+      "format": "reference_sections",
+      "path": "./equations-document.taylor-coefficients-cheatsheet.json"
     }
   ]
 }

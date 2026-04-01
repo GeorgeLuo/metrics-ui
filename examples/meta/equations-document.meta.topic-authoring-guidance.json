@@ -50,6 +50,72 @@
       ]
     },
     {
+      "title": "Reader Assumptions",
+      "anchorId": "reader-assumptions",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Assume a calculus-ready reader who is comfortable with algebra, limits, basic integrals, substitutions, and trig identities when the steps are made explicit."
+        },
+        {
+          "kind": "text",
+          "value": "Do not assume prior familiarity with asymptotic notation, asymptotic series, perturbation methods, bifurcation language, or compressed theoretical-physics shorthand."
+        },
+        {
+          "kind": "text",
+          "value": "In practice, this means topic authors should explain what a symbol means in context, why a transformation is being made, and whether a displayed formula is exact, asymptotic, or merely a standard reference identity."
+        }
+      ],
+      "referenceTitle": "Target Reader",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Strong enough to follow a derivation when each step is named."
+        },
+        {
+          "kind": "text",
+          "value": "Not assumed to know the notation-heavy conventions of asymptotics or nonlinear dynamics."
+        },
+        {
+          "kind": "text",
+          "value": "Prefer explicit symbol definitions over expert shorthand."
+        }
+      ]
+    },
+    {
+      "title": "Semantic Layout Rules",
+      "anchorId": "semantic-layout-rules",
+      "content": [
+        {
+          "kind": "text",
+          "value": "In semantic_layout topics, the literal slot must do more than read the symbols aloud. It must explicitly name what the non-obvious variable symbols mean."
+        },
+        {
+          "kind": "text",
+          "value": "A reader should be able to answer questions like 'what does gamma mean?' or 'what does omega represent?' from the literal slot alone, without having to infer it from later prose."
+        }
+      ],
+      "referenceTitle": "Semantic Breakdown",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Equation: canonical symbolic form."
+        },
+        {
+          "kind": "text",
+          "value": "Literal: readable verbal form plus explicit symbol definitions."
+        },
+        {
+          "kind": "text",
+          "value": "Meaning: what the equation says mathematically or physically."
+        },
+        {
+          "kind": "text",
+          "value": "Concept: why this equation matters in the larger argument."
+        }
+      ]
+    },
+    {
       "title": "Derivation Sequencing",
       "anchorId": "derivation-sequencing",
       "content": [
