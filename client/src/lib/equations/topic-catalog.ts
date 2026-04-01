@@ -353,6 +353,12 @@ const documentTopicIdsBySignature = new Map(
     : []),
 );
 
+export function getEquationsTopicPayloadSignature(option: EquationsTopicOption): string {
+  return option.payload.kind === "semantic_layout"
+    ? signatureForContent(option.payload.content)
+    : signatureForDocument(option.payload.document);
+}
+
 export function getDefaultEquationsTopicCatalogId(): string | null {
   return EQUATIONS_TOPIC_CATALOGS[0]?.id ?? null;
 }

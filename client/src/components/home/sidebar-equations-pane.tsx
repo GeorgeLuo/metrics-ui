@@ -51,6 +51,8 @@ type SidebarEquationsPaneProps = {
   recentTopicOptions: EquationsTopicOption[];
   selectedTopicId: string;
   onTopicSelect: (id: string) => void;
+  canRefreshSelectedTopic: boolean;
+  onRefreshSelectedTopic: () => void;
   metaDocuments: EquationsMetaDocumentOption[];
   selectedMetaDocumentId: string | null;
   onMetaDocumentSelect: (id: string) => void;
@@ -87,6 +89,8 @@ export function SidebarEquationsPane({
   recentTopicOptions,
   selectedTopicId,
   onTopicSelect,
+  canRefreshSelectedTopic,
+  onRefreshSelectedTopic,
   metaDocuments,
   selectedMetaDocumentId,
   onMetaDocumentSelect,
@@ -97,10 +101,17 @@ export function SidebarEquationsPane({
   documentDebugSummary,
 }: SidebarEquationsPaneProps) {
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
+  const [isMetaOpen, setIsMetaOpen] = useState(true);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
   const activeTopicOption = topicOptions.find(
     (option) => option.id === selectedTopicId,
   ) ?? null;
+  const activeMetaDocument = selectedMetaDocumentId
+    ? metaDocuments.find((document) => document.id === selectedMetaDocumentId) ?? null
+    : null;
+  const selectedTopicControlValue = activeMetaDocument
+    ? `__meta__:${activeMetaDocument.id}`
+    : selectedTopicId;
   const catalogSourceBlank = isInlineFieldBlank(topicCatalogSourceInput);
 
   useEffect(() => {
@@ -115,7 +126,7 @@ export function SidebarEquationsPane({
       data-testid={sidebarMode === "analysis" ? "equations-sidebar-catalog" : "equations-sidebar-setup"}
     >
       <Collapsible open={isCatalogOpen} onOpenChange={setIsCatalogOpen}>
-        <SidebarGroup>
+        <SidebarGroup className={isCatalogOpen ? undefined : "px-2 py-1"}>
           <SidebarGroupLabel asChild>
             <CollapsibleTrigger
               className="flex w-full items-center justify-between"
@@ -163,7 +174,7 @@ export function SidebarEquationsPane({
         <SidebarGroupLabel>Topic</SidebarGroupLabel>
         <SidebarGroupContent>
           <div className="flex flex-col gap-2 px-2 py-2">
-            <Select value={selectedTopicId} onValueChange={onTopicSelect}>
+            <Select value={selectedTopicControlValue} onValueChange={onTopicSelect}>
               <SelectTrigger
                 className="h-8 text-xs"
                 aria-label="Select equations topic"
@@ -171,7 +182,16 @@ export function SidebarEquationsPane({
               >
                 <SelectValue placeholder="Choose a topic" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                {activeMetaDocument ? (
+                  <SelectItem
+                    className="text-xs"
+                    value={`__meta__:${activeMetaDocument.id}`}
+                    disabled
+                  >
+                    {`Meta / ${activeMetaDocument.label}`}
+                  </SelectItem>
+                ) : null}
                 <SelectItem className="text-xs" value="__custom__" disabled>
                   Custom / unmatched
                 </SelectItem>
@@ -183,10 +203,27 @@ export function SidebarEquationsPane({
               </SelectContent>
             </Select>
             <div className="text-[11px] leading-relaxed text-muted-foreground">
-              {activeTopicOption
+              {activeMetaDocument
+                ? `Meta document in view: ${activeMetaDocument.description}`
+                : activeTopicOption
                 ? activeTopicOption.description
                 : "Current content does not match a bundled topic."}
             </div>
+            {activeTopicOption && canRefreshSelectedTopic ? (
+              <div className="flex flex-col gap-1 rounded-sm border border-border/60 bg-background/35 px-2 py-2">
+                <div className="text-[11px] leading-relaxed text-muted-foreground">
+                  Visible content has drifted from the catalog artifact for this topic.
+                </div>
+                <button
+                  type="button"
+                  className="self-start rounded-sm border border-border/70 bg-accent/30 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-accent/45"
+                  onClick={onRefreshSelectedTopic}
+                  data-hint={`Reload the latest catalog artifact for "${activeTopicOption.label}".`}
+                >
+                  Reload From Catalog
+                </button>
+              </div>
+            ) : null}
             {recentTopicOptions.length > 0 ? (
               <div className="flex flex-col gap-1 pt-1">
                 <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
@@ -220,39 +257,53 @@ export function SidebarEquationsPane({
         </SidebarGroupContent>
       </SidebarGroup>
       {metaDocuments.length > 0 ? (
-        <SidebarGroup>
-          <SidebarGroupLabel>Meta</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <div className="flex flex-col gap-2 px-2 py-2">
-              {metaDocuments.map((document) => {
-                const isActive = document.id === selectedMetaDocumentId;
-                return (
-                  <button
-                    key={document.id}
-                    type="button"
-                    className={[
-                      "w-full rounded-sm border px-2 py-1.5 text-left text-[11px] leading-snug transition-colors",
-                      isActive
-                        ? "border-border bg-accent/45 text-foreground"
-                        : "border-border/60 bg-background/35 text-muted-foreground hover:bg-accent/18 hover:text-foreground",
-                    ].join(" ")}
-                    aria-current={isActive ? "page" : undefined}
-                    onClick={() => onMetaDocumentSelect(document.id)}
-                    data-hint={`Open the equations meta document "${document.label}".`}
-                    title={document.description}
-                  >
-                    <div className="text-foreground">{document.label}</div>
-                    {document.description ? (
-                      <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
-                        {document.description}
-                      </div>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <Collapsible open={isMetaOpen} onOpenChange={setIsMetaOpen}>
+          <SidebarGroup className={isMetaOpen ? undefined : "px-2 py-1"}>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger
+                className="flex w-full items-center justify-between"
+                data-hint="Show or hide equations meta documents like authoring guidance."
+              >
+                <span>Meta</span>
+                <ChevronDown
+                  className={`h-3 w-3 text-muted-foreground transition-transform ${isMetaOpen ? "rotate-180" : ""}`}
+                />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+              <SidebarGroupContent>
+                <div className="flex flex-col gap-2 px-2 py-2">
+                  {metaDocuments.map((document) => {
+                    const isActive = document.id === selectedMetaDocumentId;
+                    return (
+                      <button
+                        key={document.id}
+                        type="button"
+                        className={[
+                          "w-full rounded-sm border px-2 py-1.5 text-left text-[11px] leading-snug transition-colors",
+                          isActive
+                            ? "border-border bg-accent/45 text-foreground"
+                            : "border-border/60 bg-background/35 text-muted-foreground hover:bg-accent/18 hover:text-foreground",
+                        ].join(" ")}
+                        aria-current={isActive ? "page" : undefined}
+                        onClick={() => onMetaDocumentSelect(document.id)}
+                        data-hint={`Open the equations meta document "${document.label}".`}
+                        title={document.description}
+                      >
+                        <div className="text-foreground">{document.label}</div>
+                        {document.description ? (
+                          <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                            {document.description}
+                          </div>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
       ) : null}
       {selectedTextHighlights.length > 0 ? (
         <SidebarGroup>
@@ -320,7 +371,7 @@ export function SidebarEquationsPane({
         </SidebarGroup>
       ) : null}
       <Collapsible open={isDebugOpen} onOpenChange={setIsDebugOpen}>
-        <SidebarGroup>
+        <SidebarGroup className={isDebugOpen ? undefined : "px-2 py-1"}>
           <SidebarGroupLabel asChild>
             <CollapsibleTrigger
               className="flex w-full items-center justify-between"

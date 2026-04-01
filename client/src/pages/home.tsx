@@ -58,6 +58,7 @@ import {
   EQUATIONS_TOPIC_CATALOGS,
   getDefaultEquationsTopicCatalogId,
   getEquationsTopicOptionById,
+  getEquationsTopicPayloadSignature,
   identifyEquationsTopic,
 } from "@/lib/equations/topic-catalog";
 import {
@@ -5439,7 +5440,16 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   }, [sendMessage]);
 
   const selectedTopicId = useMemo(
-    () => identifyEquationsTopic(equationsPane) ?? "__custom__",
+    () => {
+      const sourcedTopicId = equationsPane.topicSourceId
+        ? getEquationsTopicOptionById(equationsPane.topicSourceId)?.id ?? null
+        : null;
+      return sourcedTopicId ?? identifyEquationsTopic(equationsPane) ?? "__custom__";
+    },
+    [equationsPane],
+  );
+  const matchedTopicId = useMemo(
+    () => identifyEquationsTopic(equationsPane),
     [equationsPane],
   );
   const selectedMetaDocumentId = useMemo(
@@ -5469,6 +5479,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const selectedMetaDocument = useMemo(
     () => (selectedMetaDocumentId ? getEquationsMetaDocumentById(selectedMetaDocumentId) : null),
     [selectedMetaDocumentId],
+  );
+  const selectedTopicArtifactSignature = useMemo(
+    () => (selectedTopicOption ? getEquationsTopicPayloadSignature(selectedTopicOption) : null),
+    [selectedTopicOption],
+  );
+  const selectedTopicNeedsRefresh = useMemo(
+    () => selectedTopicId !== "__custom__" && matchedTopicId !== selectedTopicId,
+    [matchedTopicId, selectedTopicId],
   );
   const selectedTopicCatalogEntry = useMemo(() => {
     if (selectedTopicOption) {
@@ -5633,6 +5651,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
     const patch = topic.payload.kind === "semantic_layout"
       ? {
+          topicSourceId: topic.id,
+          topicSourceSignature: getEquationsTopicPayloadSignature(topic),
           content: topic.payload.content,
           context: {
             selectedHitBox: null,
@@ -5642,6 +5662,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           },
         }
       : {
+          topicSourceId: topic.id,
+          topicSourceSignature: getEquationsTopicPayloadSignature(topic),
           document: topic.payload.document,
           context: {
             selectedHitBox: null,
@@ -5677,6 +5699,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       : null;
 
     const patch = {
+      topicSourceId: null,
+      topicSourceSignature: null,
       document: metaDocument.document,
       context: {
         selectedHitBox: null,
@@ -5724,6 +5748,49 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       handleTopicSelect(firstTopic.id);
     }
   }, [equationsTopicCatalogEntries, handleTopicSelect, selectedTopicOption, topicCatalogSourceInput]);
+
+  const handleRefreshSelectedTopic = useCallback(() => {
+    if (selectedTopicId === "__custom__") {
+      return;
+    }
+    handleTopicSelect(selectedTopicId);
+  }, [handleTopicSelect, selectedTopicId]);
+
+  useEffect(() => {
+    if (!selectedTopicOption || equationsPane.topicSourceId !== selectedTopicOption.id) {
+      return;
+    }
+
+    if (!selectedTopicArtifactSignature) {
+      return;
+    }
+
+    if (equationsPane.topicSourceSignature === selectedTopicArtifactSignature) {
+      return;
+    }
+
+    if (!equationsPane.topicSourceSignature && matchedTopicId === selectedTopicOption.id) {
+      handleSetEquationsPane({
+        topicSourceSignature: selectedTopicArtifactSignature,
+      });
+      sendMessage({
+        type: "set_equations_pane",
+        topicSourceSignature: selectedTopicArtifactSignature,
+      });
+      return;
+    }
+
+    handleTopicSelect(selectedTopicOption.id);
+  }, [
+    equationsPane.topicSourceId,
+    equationsPane.topicSourceSignature,
+    handleSetEquationsPane,
+    handleTopicSelect,
+    matchedTopicId,
+    selectedTopicArtifactSignature,
+    selectedTopicOption,
+    sendMessage,
+  ]);
 
   const handleEquationHitBoxSelect = useCallback(
     (selectedHitBox: VisualizationState["equationsPane"]["context"]["selectedHitBox"]) => {
@@ -6300,6 +6367,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                   recentTopicOptions={recentEquationTopics}
                   selectedTopicId={selectedTopicId}
                   onTopicSelect={handleTopicSelect}
+                  canRefreshSelectedTopic={selectedTopicNeedsRefresh}
+                  onRefreshSelectedTopic={handleRefreshSelectedTopic}
                   metaDocuments={EQUATIONS_META_DOCUMENTS}
                   selectedMetaDocumentId={selectedMetaDocumentId}
                   onMetaDocumentSelect={handleMetaDocumentSelect}
