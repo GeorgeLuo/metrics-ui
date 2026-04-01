@@ -669,27 +669,33 @@ export function EquationsMainPanel({
           });
         }}
       >
-        {selectedTextHighlightOverlayEntries.flatMap((entry) => entry.layers.map((layer, layerIndex) => createPortal(
-          <div className="pointer-events-none absolute inset-0 z-10" aria-hidden="true">
-            {layer.rects.map((rect, rectIndex) => (
-              <div
-                key={`equations-highlight-${entry.key}-${layerIndex}-${rectIndex}`}
-                className="absolute rounded-[2px] border"
-                data-equations-highlight-key={entry.key}
-                style={{
-                  left: `${rect.left}px`,
-                  top: `${rect.top}px`,
-                  width: `${rect.width}px`,
-                  height: `${rect.height}px`,
-                  backgroundColor: "var(--equations-highlight-fill)",
-                  borderColor: "var(--equations-highlight-stroke)",
-                }}
-              />
-            ))}
-          </div>,
-          layer.host,
-          `equations-highlight-layer-${entry.key}-${layerIndex}`,
-        )))}
+        {selectedTextHighlightOverlayEntries.flatMap((entry) => entry.layers.flatMap((layer, layerIndex) => {
+          if (!layer.host.isConnected) {
+            return [];
+          }
+
+          return createPortal(
+            <div className="pointer-events-none absolute inset-0 z-10" aria-hidden="true">
+              {layer.rects.map((rect, rectIndex) => (
+                <div
+                  key={`equations-highlight-${entry.key}-${layerIndex}-${rectIndex}`}
+                  className="absolute rounded-[2px] border"
+                  data-equations-highlight-key={entry.key}
+                  style={{
+                    left: `${rect.left}px`,
+                    top: `${rect.top}px`,
+                    width: `${rect.width}px`,
+                    height: `${rect.height}px`,
+                    backgroundColor: "var(--equations-highlight-fill)",
+                    borderColor: "var(--equations-highlight-stroke)",
+                  }}
+                />
+              ))}
+            </div>,
+            layer.host,
+            `equations-highlight-layer-${entry.key}-${layerIndex}`,
+          );
+        }))}
         <FrameGrid
           spec={frameGridDocument.spec}
           debugId="equations-main"
@@ -840,7 +846,7 @@ export function EquationsMainPanel({
                       ? ` / ${resolvedReferenceFrame.itemTitle}`
                       : ""}
                   </div>
-                  <div className="min-h-0 flex-1 overflow-auto">
+                  <div className="min-h-0 flex-1 overflow-auto" data-equations-highlight-overlay-host="1">
                     {renderCard(resolvedReferenceFrame.itemId, resolvedReferenceFrame.card)}
                   </div>
                 </div>

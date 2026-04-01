@@ -43,6 +43,8 @@ import {
 } from "./visualization-frame-state";
 
 export const DEFAULT_EQUATIONS_PANE_STATE: EquationsPaneState = {
+  topicSourceId: null,
+  topicSourceSignature: null,
   dimensions: {
     frameAspect: [4, 3],
     grid: [2, 3],
@@ -204,12 +206,26 @@ function cloneDimensions(dimensions: EquationsPaneDimensions): EquationsPaneDime
 
 export function cloneEquationsPaneState(state: EquationsPaneState): EquationsPaneState {
   return {
+    topicSourceId: state.topicSourceId,
+    topicSourceSignature: state.topicSourceSignature,
     dimensions: cloneDimensions(state.dimensions),
     content: cloneContent(state.content),
     cells: state.cells.map(cloneCell),
     context: cloneContext(state.context),
     ...(state.document ? { document: cloneEquationsFrameGridDocument(state.document) } : {}),
   };
+}
+
+function normalizeTopicSourceId(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
+}
+
+function normalizeTopicSourceSignature(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
 }
 
 function cloneDocumentToCells(document: EquationsFrameGridDocument): EquationsPaneCell[] {
@@ -596,6 +612,12 @@ export function mergeEquationsPaneStatePatch(
     footer: mergePlacement(seed.dimensions.footer, rawPatch.dimensions?.footer),
   };
   const nextState: EquationsPaneState = {
+    topicSourceId: Object.prototype.hasOwnProperty.call(rawPatch, "topicSourceId")
+      ? normalizeTopicSourceId(rawPatch.topicSourceId)
+      : seed.topicSourceId,
+    topicSourceSignature: Object.prototype.hasOwnProperty.call(rawPatch, "topicSourceSignature")
+      ? normalizeTopicSourceSignature(rawPatch.topicSourceSignature)
+      : seed.topicSourceSignature,
     dimensions: nextDimensions,
     content: {
       workspace: mergeCard(seed.content.workspace, rawPatch.content?.workspace),
@@ -615,6 +637,8 @@ export function mergeEquationsPaneStatePatch(
   }
 
   return {
+    topicSourceId: nextState.topicSourceId,
+    topicSourceSignature: nextState.topicSourceSignature,
     dimensions: mergeDocumentPlacements(nextState.dimensions, nextDocument),
     content: mergeDocumentContent(nextState.content, nextDocument),
     cells: cloneDocumentToCells(nextDocument),

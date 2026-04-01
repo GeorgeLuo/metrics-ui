@@ -170,6 +170,8 @@ export interface EquationsPaneMathBlock extends EquationsPaneAnchoredBlock {
   kind: "math";
   latex: string;
   displayMode?: boolean;
+  referenceFrame?: EquationsReferenceFrameState;
+  referenceLabel?: string;
 }
 
 export type EquationsPaneCardSlotId = "workspace" | "details" | "notes" | "footer";
@@ -366,6 +368,8 @@ export interface EquationsPaneContextState {
 }
 
 export interface EquationsPaneState {
+  topicSourceId: string | null;
+  topicSourceSignature: string | null;
   dimensions: EquationsPaneDimensions;
   content: EquationsPaneContent;
   cells: EquationsPaneCell[];
@@ -407,6 +411,8 @@ export interface EquationsPaneContentPatch {
 }
 
 export interface EquationsPaneStatePatch {
+  topicSourceId?: string | null;
+  topicSourceSignature?: string | null;
   dimensions?: EquationsPaneDimensionsPatch;
   content?: EquationsPaneContentPatch;
   cells?: EquationsPaneCell[];

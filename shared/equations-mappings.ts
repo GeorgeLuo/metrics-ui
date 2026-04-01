@@ -164,11 +164,16 @@ export function cloneEquationsPaneCardBlock(
     };
   }
   if (block.kind === "math") {
+    const referenceFrame = block.referenceFrame
+      ? cloneEquationsReferenceFrameState(block.referenceFrame)
+      : undefined;
     return {
       kind: "math",
       latex: block.latex,
       ...(typeof block.anchorId === "string" ? { anchorId: block.anchorId } : {}),
       ...(typeof block.displayMode === "boolean" ? { displayMode: block.displayMode } : {}),
+      ...(referenceFrame ? { referenceFrame } : {}),
+      ...(typeof block.referenceLabel === "string" ? { referenceLabel: block.referenceLabel } : {}),
     };
   }
   if (block.kind === "topic_reference") {
@@ -236,11 +241,20 @@ export function normalizeEquationsPaneCardBlock(
       return null;
     }
     const anchorId = normalizeAnchorId((raw as { anchorId?: unknown }).anchorId);
+    const referenceFrame = normalizeEquationsReferenceFrameState(
+      (raw as { referenceFrame?: unknown }).referenceFrame,
+    );
+    const referenceLabel = typeof (raw as { referenceLabel?: unknown }).referenceLabel === "string"
+      && (raw as { referenceLabel: string }).referenceLabel.trim().length > 0
+      ? (raw as { referenceLabel: string }).referenceLabel.trim()
+      : undefined;
     return {
       kind: "math",
       latex: raw.latex,
       ...(anchorId ? { anchorId } : {}),
       ...(typeof raw.displayMode === "boolean" ? { displayMode: raw.displayMode } : {}),
+      ...(referenceFrame ? { referenceFrame } : {}),
+      ...(referenceFrame && referenceLabel ? { referenceLabel } : {}),
     };
   }
   if (raw.kind === "topic_reference") {

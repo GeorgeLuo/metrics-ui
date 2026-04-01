@@ -665,13 +665,13 @@ function resolveTextHighlightOverlayHost(
   rootElement: HTMLElement,
   panelContainer: HTMLElement,
 ): HTMLElement {
-  if (isScrollableElement(rootElement)) {
-    return rootElement;
-  }
-
   const scopedHost = rootElement.closest<HTMLElement>("[data-equations-highlight-overlay-host='1']");
   if (scopedHost) {
     return scopedHost;
+  }
+
+  if (isScrollableElement(rootElement)) {
+    return rootElement;
   }
 
   return rootElement.closest<HTMLElement>("[data-equations-item-id]") ?? panelContainer;

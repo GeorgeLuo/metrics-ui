@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import katex from "katex";
-import { ExternalLink } from "lucide-react";
+import { BookOpen, Monitor } from "lucide-react";
 import type {
   EquationsMappingEntry,
   EquationsPaneCard,
@@ -40,12 +40,16 @@ function splitTrailingInlineSegment(value: string): {
   };
 }
 
-function InlineFrameLauncher({
+function InlineLauncherButton({
   label,
   onClick,
+  icon,
+  defaultLabel,
 }: {
   label?: string;
   onClick: () => void;
+  icon: ReactNode;
+  defaultLabel: string;
 }) {
   return (
     <button
@@ -57,11 +61,45 @@ function InlineFrameLauncher({
         event.stopPropagation();
         onClick();
       }}
-      aria-label={label ?? "Open visualization"}
-      title={label ?? "Open visualization"}
+      aria-label={label ?? defaultLabel}
+      title={label ?? defaultLabel}
     >
-      <ExternalLink className="h-[0.95em] w-[0.95em]" strokeWidth={2.2} />
+      {icon}
     </button>
+  );
+}
+
+function InlineVisualizationLauncher({
+  label,
+  onClick,
+}: {
+  label?: string;
+  onClick: () => void;
+}) {
+  return (
+    <InlineLauncherButton
+      label={label}
+      onClick={onClick}
+      defaultLabel="Open visualization"
+      icon={<Monitor className="h-[0.95em] w-[0.95em]" strokeWidth={2.2} />}
+    />
+  );
+}
+
+function InlineReferenceLauncher({
+  label,
+  onClick,
+}: {
+  label?: string;
+  onClick: () => void;
+}) {
+  return (
+    <InlineLauncherButton
+      label={label}
+      onClick={onClick}
+      defaultLabel="Open reference"
+      icon={<BookOpen className="h-[0.95em] w-[0.95em]" strokeWidth={2.2} />}
+    />
   );
 }
 
@@ -611,7 +649,7 @@ export function FreeformCardContent({
                   <span className="inline-flex items-baseline whitespace-nowrap">
                     {trailingText}
                     {visualizationFrame ? (
-                      <InlineFrameLauncher
+                      <InlineVisualizationLauncher
                         label={block.visualizationLabel}
                         onClick={() => {
                           onVisualizationLinkSelect?.(visualizationFrame);
@@ -619,7 +657,7 @@ export function FreeformCardContent({
                       />
                     ) : null}
                     {referenceFrame ? (
-                      <InlineFrameLauncher
+                      <InlineReferenceLauncher
                         label={block.referenceLabel}
                         onClick={() => {
                           onReferenceFrameSelect?.(referenceFrame);
@@ -632,7 +670,7 @@ export function FreeformCardContent({
                 <span>{block.value}</span>
               )}
               {!trailingText && visualizationFrame ? (
-                <InlineFrameLauncher
+                <InlineVisualizationLauncher
                   label={block.visualizationLabel}
                   onClick={() => {
                     onVisualizationLinkSelect?.(visualizationFrame);
@@ -640,7 +678,7 @@ export function FreeformCardContent({
                 />
               ) : null}
               {!trailingText && referenceFrame ? (
-                <InlineFrameLauncher
+                <InlineReferenceLauncher
                   label={block.referenceLabel}
                   onClick={() => {
                     onReferenceFrameSelect?.(referenceFrame);
@@ -653,6 +691,7 @@ export function FreeformCardContent({
 
         if (block.kind === "math") {
           const selectionId = buildFreeformBlockSelectionId(itemId, nextPath);
+          const referenceFrame = block.referenceFrame;
           const markup = katex.renderToString(block.latex, {
             displayMode: block.displayMode ?? true,
             output: "htmlAndMathml",
@@ -672,7 +711,19 @@ export function FreeformCardContent({
           if (isMultiLineDisplayMath(block.latex, block.displayMode)) {
             return (
               <div key={`${itemId}-${nextPath.join("-")}-math`} className="max-w-full text-foreground">
-                {mathContent}
+                <div className="flex max-w-full items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    {mathContent}
+                  </div>
+                  {referenceFrame ? (
+                    <InlineReferenceLauncher
+                      label={block.referenceLabel}
+                      onClick={() => {
+                        onReferenceFrameSelect?.(referenceFrame);
+                      }}
+                    />
+                  ) : null}
+                </div>
               </div>
             );
           }
@@ -683,7 +734,19 @@ export function FreeformCardContent({
               className="text-foreground"
               contentClassName="py-1"
             >
-              {mathContent}
+              <div className="flex max-w-full items-start justify-center gap-2">
+                <div className="min-w-0">
+                  {mathContent}
+                </div>
+                {referenceFrame ? (
+                  <InlineReferenceLauncher
+                    label={block.referenceLabel}
+                    onClick={() => {
+                      onReferenceFrameSelect?.(referenceFrame);
+                    }}
+                  />
+                ) : null}
+              </div>
             </FitToWidthContent>
           );
         }

@@ -209,6 +209,8 @@ test("mergeEquationsPaneStatePatch accepts a framegrid document", () => {
 
 test("mergeEquationsPaneStatePatch preserves equations context", () => {
   const next = mergeEquationsPaneStatePatch(DEFAULT_EQUATIONS_PANE_STATE, {
+    topicSourceId: "kuramoto:eq13-to-eq14",
+    topicSourceSignature: "sig:eq13",
     context: {
       selectedHitBox: {
         itemId: "workspace",
@@ -235,6 +237,8 @@ test("mergeEquationsPaneStatePatch preserves equations context", () => {
     },
   });
 
+  assert.equal(next.topicSourceId, "kuramoto:eq13-to-eq14");
+  assert.equal(next.topicSourceSignature, "sig:eq13");
   assert.equal(next.context.selectedHitBox?.itemId, "workspace");
   assert.equal(next.context.selectedHitBox?.hitBox.id, "omega_i");
   assert.equal(next.context.selectedHitBox?.hitBox.latex, String.raw`\omega_{i}`);
@@ -244,6 +248,31 @@ test("mergeEquationsPaneStatePatch preserves equations context", () => {
   assert.equal(next.context.selectedTextHighlights[0]?.startOffset, 4);
   assert.equal(next.context.selectedTextHighlights[0]?.endOffset, 16);
   assert.equal(next.context.selectedTextHighlights[0]?.text, "locked phase");
+});
+
+test("mergeEquationsPaneStatePatch preserves topicSourceId when unspecified", () => {
+  const seeded = mergeEquationsPaneStatePatch(DEFAULT_EQUATIONS_PANE_STATE, {
+    topicSourceId: "kuramoto:eq12-to-eq13",
+    topicSourceSignature: "sig:eq12",
+  });
+
+  const next = mergeEquationsPaneStatePatch(seeded, {
+    context: {
+      selectedHitBox: {
+        itemId: "workspace",
+        hitBox: {
+          id: "omega_i",
+          label: "omega_i",
+          sequence: "omega_i",
+          category: "term",
+          latex: String.raw`\omega_i`,
+        },
+      },
+    },
+  });
+
+  assert.equal(next.topicSourceId, "kuramoto:eq12-to-eq13");
+  assert.equal(next.topicSourceSignature, "sig:eq12");
 });
 
 test("mergeEquationsPaneStatePatch preserves legacy single selectedTextHighlight input", () => {

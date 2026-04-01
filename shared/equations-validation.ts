@@ -247,6 +247,21 @@ function validateBlocks(
         diagnostics,
         block.displayMode ?? true,
       );
+      if (block.referenceFrame) {
+        validateText(block.referenceFrame.topicId, `${blockPath}.referenceFrame.topicId`, "text_block", rules, diagnostics);
+        if (typeof block.referenceFrame.itemId === "string") {
+          validateText(block.referenceFrame.itemId, `${blockPath}.referenceFrame.itemId`, "text_block", rules, diagnostics);
+        }
+        if (typeof block.referenceFrame.anchorId === "string") {
+          validateText(block.referenceFrame.anchorId, `${blockPath}.referenceFrame.anchorId`, "text_block", rules, diagnostics);
+        }
+        if (typeof block.referenceFrame.title === "string") {
+          validateText(block.referenceFrame.title, `${blockPath}.referenceFrame.title`, "text_block", rules, diagnostics);
+        }
+      }
+      if (typeof block.referenceLabel === "string") {
+        validateText(block.referenceLabel, `${blockPath}.referenceLabel`, "text_block", rules, diagnostics);
+      }
       return;
     }
     if (block.kind === "topic_reference") {
@@ -320,6 +335,13 @@ export function validateEquationsPaneState(
 ): EquationsValidationReport {
   const diagnostics: EquationsValidationDiagnostic[] = [];
   const rules = createActiveRuleVisitors(options?.rules ?? DEFAULT_EQUATIONS_VALIDATION_RULES);
+
+  if (typeof state.topicSourceId === "string") {
+    validateText(state.topicSourceId, "topicSourceId", "text_block", rules, diagnostics);
+  }
+  if (typeof state.topicSourceSignature === "string") {
+    validateText(state.topicSourceSignature, "topicSourceSignature", "text_block", rules, diagnostics);
+  }
 
   if (state.document) {
     validateDocumentItems(state.document.items, "document.items", rules, diagnostics);
