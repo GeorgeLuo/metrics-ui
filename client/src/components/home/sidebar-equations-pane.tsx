@@ -2,19 +2,28 @@ import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { EquationsPaneSelectedTextHighlight } from "@shared/schema";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SidebarGroup, SidebarGroupContent, SidebarGroupLabel } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
 import type { EquationsMetaDocumentOption } from "@/lib/equations/meta-documents";
 import type { EquationsTopicOption } from "@/lib/equations/topic-catalog";
+import {
+  getSidebarCardClass,
+  getSidebarDotButtonClass,
+  getSidebarSelectableItemClass,
+  SIDEBAR_MICRO_COPY_CLASS,
+  SIDEBAR_MUTED_COPY_CLASS,
+  SIDEBAR_SECTION_KICKER_CLASS,
+  SIDEBAR_SECTION_STACK_CLASS,
+} from "./sidebar-pane-patterns";
+import {
+  EquationsTopicFilterControls,
+  EquationsRecentTopicList,
+  EquationsTopicList,
+  useEquationsTopicBrowserState,
+} from "./equations-topic-browser";
 
 type EquationsTopicCatalogSourceEntry = {
   id: string;
@@ -101,17 +110,17 @@ export function SidebarEquationsPane({
   documentDebugSummary,
 }: SidebarEquationsPaneProps) {
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isTopicOpen, setIsTopicOpen] = useState(true);
   const [isMetaOpen, setIsMetaOpen] = useState(true);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
+  const topicBrowserState = useEquationsTopicBrowserState({ topicOptions });
   const activeTopicOption = topicOptions.find(
     (option) => option.id === selectedTopicId,
   ) ?? null;
   const activeMetaDocument = selectedMetaDocumentId
     ? metaDocuments.find((document) => document.id === selectedMetaDocumentId) ?? null
     : null;
-  const selectedTopicControlValue = activeMetaDocument
-    ? `__meta__:${activeMetaDocument.id}`
-    : selectedTopicId;
   const catalogSourceBlank = isInlineFieldBlank(topicCatalogSourceInput);
 
   useEffect(() => {
@@ -119,6 +128,12 @@ export function SidebarEquationsPane({
       setIsCatalogOpen(true);
     }
   }, [topicCatalogSourceError]);
+
+  useEffect(() => {
+    if (topicBrowserState.hasActiveFilter) {
+      setIsFilterOpen(true);
+    }
+  }, [topicBrowserState.hasActiveFilter]);
 
   return (
     <div
@@ -140,7 +155,7 @@ export function SidebarEquationsPane({
           </SidebarGroupLabel>
           <CollapsibleContent forceMount className="data-[state=closed]:hidden">
             <SidebarGroupContent>
-              <div className="flex flex-col gap-2 px-2 py-2">
+              <div className={SIDEBAR_SECTION_STACK_CLASS}>
                 <Input
                   value={topicCatalogSourceInput}
                   onChange={(event) => onTopicCatalogSourceInputChange(event.target.value)}
@@ -156,7 +171,7 @@ export function SidebarEquationsPane({
                   placeholder="/examples/.../equations-topic-catalog.json"
                   data-hint="Set the absolute path to the bundled equations topic catalog artifact."
                 />
-                <div className="text-[11px] leading-relaxed text-muted-foreground">
+                <div className={SIDEBAR_MUTED_COPY_CLASS}>
                   {topicCatalogEntries.find((catalog) => catalog.source === topicCatalogSourceInput.trim())?.description
                     ?? "Enter the catalog JSON source path for this topic collection."}
                 </div>
@@ -170,92 +185,92 @@ export function SidebarEquationsPane({
           </CollapsibleContent>
         </SidebarGroup>
       </Collapsible>
-      <SidebarGroup>
-        <SidebarGroupLabel>Topic</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <div className="flex flex-col gap-2 px-2 py-2">
-            <Select value={selectedTopicControlValue} onValueChange={onTopicSelect}>
-              <SelectTrigger
-                className="h-8 text-xs"
-                aria-label="Select equations topic"
-                data-hint="Choose which topic document to load into the equations workspace."
-              >
-                <SelectValue placeholder="Choose a topic" />
-              </SelectTrigger>
-              <SelectContent className="w-[var(--radix-select-trigger-width)]">
-                {activeMetaDocument ? (
-                  <SelectItem
-                    className="text-xs"
-                    value={`__meta__:${activeMetaDocument.id}`}
-                    disabled
-                  >
-                    {`Meta / ${activeMetaDocument.label}`}
-                  </SelectItem>
-                ) : null}
-                <SelectItem className="text-xs" value="__custom__" disabled>
-                  Custom / unmatched
-                </SelectItem>
-                {topicOptions.map((option) => (
-                  <SelectItem className="text-xs" key={option.id} value={option.id}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="text-[11px] leading-relaxed text-muted-foreground">
-              {activeMetaDocument
-                ? `Meta document in view: ${activeMetaDocument.description}`
-                : activeTopicOption
-                ? activeTopicOption.description
-                : "Current content does not match a bundled topic."}
+      {recentTopicOptions.length > 0 ? (
+        <SidebarGroup>
+          <SidebarGroupLabel>Recent</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className={SIDEBAR_SECTION_STACK_CLASS}>
+              <EquationsRecentTopicList
+                recentTopicOptions={recentTopicOptions}
+                selectedTopicId={selectedTopicId}
+                onTopicSelect={onTopicSelect}
+              />
             </div>
-            {activeTopicOption && canRefreshSelectedTopic ? (
-              <div className="flex flex-col gap-1 rounded-sm border border-border/60 bg-background/35 px-2 py-2">
-                <div className="text-[11px] leading-relaxed text-muted-foreground">
-                  Visible content has drifted from the catalog artifact for this topic.
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ) : null}
+      <Collapsible open={isTopicOpen} onOpenChange={setIsTopicOpen}>
+        <SidebarGroup className={isTopicOpen ? undefined : "px-2 py-1"}>
+          <SidebarGroupLabel asChild>
+            <CollapsibleTrigger
+              className="flex w-full items-center justify-between"
+              data-hint="Show or hide the equations topic catalog."
+            >
+              <span>Topic</span>
+              <ChevronDown
+                className={`h-3 w-3 text-muted-foreground transition-transform ${isTopicOpen ? "rotate-180" : ""}`}
+              />
+            </CollapsibleTrigger>
+          </SidebarGroupLabel>
+          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+            <SidebarGroupContent>
+              <div className={SIDEBAR_SECTION_STACK_CLASS}>
+                <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                  <div className="flex flex-col gap-1">
+                    <CollapsibleTrigger
+                      className="w-full text-left"
+                      data-hint="Show or hide equations topic filtering and ordering controls."
+                    >
+                      <span className={SIDEBAR_SECTION_KICKER_CLASS}>Filter</span>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+                      <EquationsTopicFilterControls
+                        query={topicBrowserState.query}
+                        onQueryChange={topicBrowserState.setQuery}
+                        orderingScheme={topicBrowserState.orderingScheme}
+                        onOrderingSchemeChange={topicBrowserState.setOrderingScheme}
+                        filteredTopicCount={topicBrowserState.filteredTopicOptions.length}
+                        inlineEditTextClass={inlineEditTextClass}
+                      />
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+                <EquationsTopicList
+                  organizedTopicOptions={topicBrowserState.organizedTopicOptions}
+                  selectedTopicId={selectedTopicId}
+                  onTopicSelect={onTopicSelect}
+                  isGroupedByType={topicBrowserState.orderingScheme === "types"}
+                  hasMatches={topicBrowserState.filteredTopicOptions.length > 0}
+                />
+                <div className={SIDEBAR_MUTED_COPY_CLASS}>
+                  {activeMetaDocument
+                    ? `Meta document in view: ${activeMetaDocument.description}`
+                    : activeTopicOption
+                    ? activeTopicOption.description
+                    : "Current content does not match a bundled topic."}
                 </div>
-                <button
-                  type="button"
-                  className="self-start rounded-sm border border-border/70 bg-accent/30 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-accent/45"
-                  onClick={onRefreshSelectedTopic}
-                  data-hint={`Reload the latest catalog artifact for "${activeTopicOption.label}".`}
-                >
-                  Reload From Catalog
-                </button>
+                {activeTopicOption && canRefreshSelectedTopic ? (
+                  <div className={`flex flex-col gap-1 ${getSidebarCardClass()}`}>
+                    <div className={SIDEBAR_MUTED_COPY_CLASS}>
+                      Visible content has drifted from the catalog artifact for this topic.
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 self-start text-xs"
+                      onClick={onRefreshSelectedTopic}
+                      data-hint={`Reload the latest catalog artifact for "${activeTopicOption.label}".`}
+                    >
+                      Reload From Catalog
+                    </Button>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-            {recentTopicOptions.length > 0 ? (
-              <div className="flex flex-col gap-1 pt-1">
-                <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80">
-                  Recent
-                </div>
-                <div className="flex flex-col gap-1">
-                  {recentTopicOptions.map((option) => {
-                    const isActive = option.id === selectedTopicId;
-                    return (
-                      <button
-                        key={option.id}
-                        type="button"
-                        className={[
-                          "w-full rounded-sm border px-2 py-1.5 text-left text-[11px] leading-snug transition-colors",
-                          isActive
-                            ? "border-border bg-accent/45 text-foreground"
-                            : "border-border/60 bg-background/35 text-muted-foreground hover:bg-accent/18 hover:text-foreground",
-                        ].join(" ")}
-                        aria-current={isActive ? "page" : undefined}
-                        onClick={() => onTopicSelect(option.id)}
-                        data-hint={`Reopen the recent topic "${option.label}".`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </SidebarGroupContent>
-      </SidebarGroup>
+            </SidebarGroupContent>
+          </CollapsibleContent>
+        </SidebarGroup>
+      </Collapsible>
       {metaDocuments.length > 0 ? (
         <Collapsible open={isMetaOpen} onOpenChange={setIsMetaOpen}>
           <SidebarGroup className={isMetaOpen ? undefined : "px-2 py-1"}>
@@ -272,19 +287,14 @@ export function SidebarEquationsPane({
             </SidebarGroupLabel>
             <CollapsibleContent forceMount className="data-[state=closed]:hidden">
               <SidebarGroupContent>
-                <div className="flex flex-col gap-2 px-2 py-2">
+                <div className={SIDEBAR_SECTION_STACK_CLASS}>
                   {metaDocuments.map((document) => {
                     const isActive = document.id === selectedMetaDocumentId;
                     return (
                       <button
                         key={document.id}
                         type="button"
-                        className={[
-                          "w-full rounded-sm border px-2 py-1.5 text-left text-[11px] leading-snug transition-colors",
-                          isActive
-                            ? "border-border bg-accent/45 text-foreground"
-                            : "border-border/60 bg-background/35 text-muted-foreground hover:bg-accent/18 hover:text-foreground",
-                        ].join(" ")}
+                        className={getSidebarSelectableItemClass(isActive)}
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => onMetaDocumentSelect(document.id)}
                         data-hint={`Open the equations meta document "${document.label}".`}
@@ -292,7 +302,7 @@ export function SidebarEquationsPane({
                       >
                         <div className="text-foreground">{document.label}</div>
                         {document.description ? (
-                          <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                          <div className={`mt-0.5 ${SIDEBAR_MICRO_COPY_CLASS}`}>
                             {document.description}
                           </div>
                         ) : null}
@@ -309,7 +319,7 @@ export function SidebarEquationsPane({
         <SidebarGroup>
           <SidebarGroupLabel>Highlights</SidebarGroupLabel>
           <SidebarGroupContent>
-            <div className="flex flex-col gap-1.5 px-2 py-2">
+            <div className="flex flex-col gap-2 px-2 py-2">
               {selectedTextHighlights.map((highlight) => {
                 const label = `H${highlight.highlightId ?? "?"}`;
                 const preview = formatHighlightPreview(highlight.text);
@@ -319,17 +329,12 @@ export function SidebarEquationsPane({
                 return (
                   <div
                     key={`${label}-${highlight.selectionId}-${highlight.startOffset}-${highlight.endOffset}`}
-                    className={[
-                      "rounded-sm border px-2 py-1.5",
-                      isHidden
-                        ? "border-border/40 bg-background/20 opacity-70"
-                        : "border-border/60 bg-background/35",
-                    ].join(" ")}
+                    className={`${getSidebarCardClass({ subdued: isHidden })} ${isHidden ? "opacity-70" : ""}`}
                     data-hint={`Selected text highlight ${label}: ${details}`}
                     title={details}
                   >
                     <div className="flex items-center gap-2">
-                      <div className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                      <div className={SIDEBAR_SECTION_KICKER_CLASS}>
                         {label}
                       </div>
                       <div className="ml-auto flex items-center gap-1">
@@ -339,11 +344,7 @@ export function SidebarEquationsPane({
                             onClick={() => onToggleTextHighlightHidden(highlightId)}
                             aria-label={`${isHidden ? "Show" : "Hide"} highlight ${label}`}
                             aria-pressed={!isHidden}
-                            className={`h-3 w-3 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${
-                              !isHidden
-                                ? "bg-yellow-400/90 hover:bg-yellow-400"
-                                : "bg-yellow-400/20 hover:bg-yellow-400/30"
-                            }`}
+                            className={getSidebarDotButtonClass("yellow", { active: !isHidden })}
                             data-hint={`${isHidden ? "Show" : "Hide"} equations highlight ${label} without deleting it.`}
                             title={`${isHidden ? "Show" : "Hide"} ${label}`}
                           />
@@ -353,7 +354,7 @@ export function SidebarEquationsPane({
                             type="button"
                             onClick={() => onDeleteTextHighlight(highlightId)}
                             aria-label={`Delete highlight ${label}`}
-                            className="h-3 w-3 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
+                            className={getSidebarDotButtonClass("red", { shape: "square" })}
                             data-hint={`Delete equations highlight ${label}.`}
                             title={`Delete ${label}`}
                           />
@@ -426,7 +427,7 @@ export function SidebarEquationsPane({
                 data-hint="Inspect the current equations document source, format, grid, frame aspect, and item count."
               >
                 <div className="text-xs text-foreground leading-none">Document</div>
-                <div className="mt-1 rounded-sm border border-border/60 bg-background/35 px-2 py-2 text-[11px] leading-relaxed text-muted-foreground">
+                <div className={`mt-1 ${getSidebarCardClass()} text-[11px] leading-relaxed text-muted-foreground`}>
                   <div><span className="text-foreground">Source:</span> {documentDebugSummary.sourceKind}</div>
                   <div><span className="text-foreground">Format:</span> {documentDebugSummary.topicFormat}</div>
                   <div><span className="text-foreground">Topic:</span> {documentDebugSummary.topicLabel ?? "custom / unmatched"}</div>
