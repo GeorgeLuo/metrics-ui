@@ -301,11 +301,6 @@ export function SidebarEquationsPane({
                         title={document.description}
                       >
                         <div className="text-foreground">{document.label}</div>
-                        {document.description ? (
-                          <div className={`mt-0.5 ${SIDEBAR_MICRO_COPY_CLASS}`}>
-                            {document.description}
-                          </div>
-                        ) : null}
                       </button>
                     );
                   })}
@@ -427,7 +422,7 @@ export function SidebarEquationsPane({
                 data-hint="Inspect the current equations document source, format, grid, frame aspect, and item count."
               >
                 <div className="text-xs text-foreground leading-none">Document</div>
-                <div className={`mt-1 ${getSidebarCardClass()} text-[11px] leading-relaxed text-muted-foreground`}>
+                <div className="mt-2 flex flex-col gap-1 text-[11px] leading-relaxed text-muted-foreground">
                   <div><span className="text-foreground">Source:</span> {documentDebugSummary.sourceKind}</div>
                   <div><span className="text-foreground">Format:</span> {documentDebugSummary.topicFormat}</div>
                   <div><span className="text-foreground">Topic:</span> {documentDebugSummary.topicLabel ?? "custom / unmatched"}</div>
