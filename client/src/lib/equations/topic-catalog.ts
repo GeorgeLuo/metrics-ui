@@ -12,6 +12,13 @@ import {
   validateEquationsReferenceSectionsDocumentSource,
   validateEquationsSemanticLayoutSource,
 } from "@shared/equations-validation";
+import {
+  type EquationsTopicGroup,
+  normalizeEquationsTopicGroup,
+  normalizeEquationsTopicSearchTerms,
+  normalizeEquationsTopicTags,
+  sortEquationsTopics,
+} from "./topic-browser";
 
 type EquationsTopicDefinition = {
   id: string;
@@ -19,6 +26,10 @@ type EquationsTopicDefinition = {
   description: string;
   format: "semantic_layout" | "derivation" | "reference_sections" | "glossary_reference" | "freeform";
   path: string;
+  sortKey: number | null;
+  group: EquationsTopicGroup | null;
+  tags: string[];
+  searchTerms: string[];
 };
 
 type EquationsTopicCatalogDefinition = {
@@ -35,6 +46,10 @@ export type EquationsTopicOption = {
   catalogLabel: string;
   label: string;
   description: string;
+  sortKey: number | null;
+  group: EquationsTopicGroup | null;
+  tags: string[];
+  searchTerms: string[];
   format: "semantic_layout" | "derivation" | "reference_sections" | "glossary_reference" | "freeform";
   payload:
     | { kind: "semantic_layout"; content: EquationsPaneContent }
@@ -76,6 +91,12 @@ function normalizeDescription(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeOptionalSortKey(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : null;
+}
+
 function normalizeTopicDefinition(value: unknown): EquationsTopicDefinition | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -112,6 +133,10 @@ function normalizeTopicDefinition(value: unknown): EquationsTopicDefinition | nu
     description: normalizeDescription(raw.description),
     format,
     path,
+    sortKey: normalizeOptionalSortKey((raw as { sortKey?: unknown }).sortKey),
+    group: normalizeEquationsTopicGroup((raw as { group?: unknown }).group),
+    tags: normalizeEquationsTopicTags((raw as { tags?: unknown }).tags),
+    searchTerms: normalizeEquationsTopicSearchTerms((raw as { searchTerms?: unknown }).searchTerms),
   };
 }
 
@@ -223,6 +248,10 @@ function buildTopicOption(
       catalogLabel: catalog.label,
       label: definition.label,
       description: definition.description,
+      sortKey: definition.sortKey,
+      group: definition.group,
+      tags: definition.tags,
+      searchTerms: definition.searchTerms,
       format: definition.format,
       payload: {
         kind: "semantic_layout",
@@ -289,6 +318,10 @@ function buildTopicOption(
     catalogLabel: catalog.label,
     label: definition.label,
     description: definition.description,
+    sortKey: definition.sortKey,
+    group: definition.group,
+    tags: definition.tags,
+    searchTerms: definition.searchTerms,
     format: definition.format,
     payload: {
       kind: definition.format,
@@ -304,9 +337,9 @@ function buildEquationsTopicCatalogs(): EquationsTopicCatalog[] {
       return [];
     }
 
-    const topics = catalog.topics
+    const topics = sortEquationsTopics(catalog.topics
       .map((definition) => buildTopicOption(catalog, definition, manifestPath))
-      .filter((option): option is EquationsTopicOption => option !== null);
+      .filter((option): option is EquationsTopicOption => option !== null));
 
     if (topics.length === 0) {
       return [];
