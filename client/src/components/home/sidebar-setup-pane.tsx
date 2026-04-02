@@ -14,6 +14,12 @@ import type {
   SelectedMetric,
 } from "@shared/schema";
 import type { MetricCoverageByCapture } from "@/lib/dashboard/chart-data";
+import {
+  SIDEBAR_BODY_TEXT_CLASS,
+  SIDEBAR_DETAIL_TEXT_CLASS,
+  SIDEBAR_ERROR_TEXT_CLASS,
+  SIDEBAR_MONO_VALUE_TEXT_CLASS,
+} from "./sidebar-pane-patterns";
 
 const EMPTY_METRICS: SelectedMetric[] = [];
 
@@ -236,7 +242,7 @@ export function SidebarSetupPane({
                             key={entry.id}
                             className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
                           >
-                            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            <div className={`flex items-center justify-between ${SIDEBAR_DETAIL_TEXT_CLASS}`}>
                               <span>Stream {index + 1}</span>
                               <div className="flex items-center">
                                 <button
@@ -256,7 +262,7 @@ export function SidebarSetupPane({
                               className={`${inlineEditTextClass} w-full ${sourceBlank ? inlineEditEmptyClass : ""}`}
                               aria-label={`Capture file source ${index + 1}`}
                             />
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <div className={`flex items-center justify-between ${SIDEBAR_BODY_TEXT_CLASS}`}>
                               <span>polling (s)</span>
                               <Input
                                 type="number"
@@ -278,7 +284,7 @@ export function SidebarSetupPane({
                                 aria-label={`Poll interval seconds ${index + 1}`}
                               />
                             </div>
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <div className={`flex items-center justify-between ${SIDEBAR_BODY_TEXT_CLASS}`}>
                               <span>{statusLabel}</span>
                               {isConnected ? (
                                 <span
@@ -298,7 +304,7 @@ export function SidebarSetupPane({
                               )}
                             </div>
                             {entry.error && (
-                              <div className="text-xs text-destructive">{entry.error}</div>
+                              <div className={SIDEBAR_ERROR_TEXT_CLASS}>{entry.error}</div>
                             )}
                           </div>
                         );
@@ -347,7 +353,7 @@ export function SidebarSetupPane({
                 <span className="truncate flex-1 text-xs" title={capture.filename}>
                   {getCaptureShortName(capture)}
                 </span>
-                <span className="text-xs text-muted-foreground font-mono">{capture.tickCount}</span>
+                <span className={`${SIDEBAR_BODY_TEXT_CLASS} font-mono`}>{capture.tickCount}</span>
                 <button
                   type="button"
                   className="h-3 w-3 shrink-0 rounded-sm bg-red-500/50 hover:bg-red-500 transition-colors"
@@ -358,7 +364,7 @@ export function SidebarSetupPane({
               </div>
             ))}
             {captures.length === 0 && (
-              <p className="text-xs text-muted-foreground py-2">No captures loaded</p>
+              <p className={`${SIDEBAR_BODY_TEXT_CLASS} py-2`}>No captures loaded</p>
             )}
           </div>
         </SidebarGroupContent>
@@ -380,7 +386,7 @@ export function SidebarSetupPane({
             <SidebarGroupContent>
               <div className="flex flex-col gap-3">
                 {activeCaptures.length === 0 && (
-                  <div className="px-2 text-xs text-muted-foreground">No active captures</div>
+                  <div className={`px-2 ${SIDEBAR_BODY_TEXT_CLASS}`}>No active captures</div>
                 )}
                 {activeCaptures.map((capture) => {
                   const isCaptureSelectionOpen = selectionCaptureOpenById[capture.id] ?? true;
@@ -394,7 +400,7 @@ export function SidebarSetupPane({
                         <CollapsibleTrigger asChild>
                           <button
                             type="button"
-                            className="group flex w-full items-center px-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                            className={`group flex w-full items-center px-2 ${SIDEBAR_DETAIL_TEXT_CLASS} hover:text-foreground transition-colors`}
                             aria-label={`Toggle metric tree for ${capture.id}`}
                             data-testid={`button-toggle-selection-capture-${capture.id}`}
                           >
@@ -427,18 +433,18 @@ export function SidebarSetupPane({
       <SidebarGroup>
         <SidebarGroupLabel>Overview</SidebarGroupLabel>
         <SidebarGroupContent>
-          <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
+          <div className={`flex flex-col gap-2 px-2 ${SIDEBAR_BODY_TEXT_CLASS}`}>
             <div className="flex items-center justify-between">
               <span>Captures</span>
-              <span className="font-mono text-foreground">{captures.length}</span>
+              <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>{captures.length}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Active</span>
-              <span className="font-mono text-foreground">{activeCaptures.length}</span>
+              <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>{activeCaptures.length}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Selected metrics</span>
-              <span className="font-mono text-foreground">{selectedMetricCount}</span>
+              <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>{selectedMetricCount}</span>
             </div>
           </div>
         </SidebarGroupContent>
@@ -447,10 +453,10 @@ export function SidebarSetupPane({
       <SidebarGroup>
         <SidebarGroupLabel>View</SidebarGroupLabel>
         <SidebarGroupContent>
-          <div className="flex flex-col gap-2 px-2 text-xs text-muted-foreground">
+          <div className={`flex flex-col gap-2 px-2 ${SIDEBAR_BODY_TEXT_CLASS}`}>
             <div className="flex items-center justify-between">
               <span>Tick</span>
-              <span className="font-mono text-foreground">
+              <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                 {playbackState.currentTick} / {playbackState.totalTicks}
               </span>
             </div>
@@ -616,7 +622,7 @@ export function SidebarSetupPane({
             ) : null}
             <div className="flex items-center justify-between">
               <span>Auto-scroll</span>
-              <span className="font-mono text-foreground">{isAutoScroll ? "On" : "Off"}</span>
+              <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>{isAutoScroll ? "On" : "Off"}</span>
             </div>
           </div>
         </SidebarGroupContent>
@@ -636,7 +642,7 @@ export function SidebarSetupPane({
           </SidebarGroupLabel>
           <CollapsibleContent forceMount className="data-[state=closed]:hidden">
             <SidebarGroupContent>
-              <div className="flex items-center justify-between px-2 text-[11px] text-muted-foreground">
+              <div className={`flex items-center justify-between px-2 ${SIDEBAR_DETAIL_TEXT_CLASS}`}>
                 <span>
                   {memoryStatsAt
                     ? `Updated ${new Date(memoryStatsAt).toLocaleTimeString()}`
@@ -653,28 +659,28 @@ export function SidebarSetupPane({
                 </Button>
               </div>
               {!memoryStatsSnapshot && (
-                <div className="px-2 py-2 text-xs text-muted-foreground">
+                <div className={`px-2 py-2 ${SIDEBAR_BODY_TEXT_CLASS}`}>
                   Click refresh to capture telemetry.
                 </div>
               )}
               {memoryStatsSnapshot && (
-                <div className="flex flex-col gap-3 px-2 py-2 text-xs text-muted-foreground">
+                <div className={`flex flex-col gap-3 px-2 py-2 ${SIDEBAR_BODY_TEXT_CLASS}`}>
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
                       <span>Heap used</span>
-                      <span className="font-mono text-foreground">
+                      <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                         {formatBytes(memoryStatsSnapshot.usedHeap ?? 0)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Record store</span>
-                      <span className="font-mono text-foreground">
+                      <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                         {formatBytes(memoryStatsSnapshot.estimates.recordStoreBytes ?? 0)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Series bytes</span>
-                      <span className="font-mono text-foreground">
+                      <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                         {formatBytes(memoryStatsSnapshot.totals.seriesBytes ?? 0)}
                       </span>
                     </div>
@@ -683,13 +689,13 @@ export function SidebarSetupPane({
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Bytes / prop</span>
-                      <span className="font-mono text-foreground">
+                      <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                         {memoryStatsSnapshot.estimates.effectiveBytesPerObjectProp.toFixed(1)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Bytes / point</span>
-                      <span className="font-mono text-foreground">
+                      <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                         {memoryStatsSnapshot.estimates.effectiveBytesPerSeriesPoint.toFixed(1)}
                       </span>
                     </div>
@@ -703,7 +709,7 @@ export function SidebarSetupPane({
                         key={capture.captureId}
                         className="rounded-md border border-border/50 p-2 flex flex-col gap-2"
                       >
-                        <div className="flex items-center justify-between text-[11px]">
+                        <div className={`flex items-center justify-between ${SIDEBAR_DETAIL_TEXT_CLASS}`}>
                           <span className="truncate font-medium text-foreground">
                             {capture.filename}
                           </span>
@@ -713,15 +719,15 @@ export function SidebarSetupPane({
                         </div>
                         <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
                           <span>Records</span>
-                          <span className="font-mono text-foreground">{capture.records}</span>
+                          <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>{capture.records}</span>
                           <span>Record bytes</span>
-                          <span className="font-mono text-foreground">
+                          <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                             {formatBytes(capture.estimatedRecordBytes ?? 0)}
                           </span>
                           <span>Series points</span>
-                          <span className="font-mono text-foreground">{capture.seriesPoints}</span>
+                          <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>{capture.seriesPoints}</span>
                           <span>Series bytes</span>
-                          <span className="font-mono text-foreground">
+                          <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                             {formatBytes(capture.seriesBytes ?? 0)}
                           </span>
                         </div>
@@ -736,7 +742,7 @@ export function SidebarSetupPane({
                                 className="flex items-center justify-between text-[11px]"
                               >
                                 <span className="truncate">{entry.fullPath}</span>
-                                <span className="font-mono text-foreground">
+                                <span className={SIDEBAR_MONO_VALUE_TEXT_CLASS}>
                                   {formatBytes(entry.estBytes)}
                                 </span>
                               </div>

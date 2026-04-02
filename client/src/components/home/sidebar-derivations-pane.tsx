@@ -21,6 +21,12 @@ import {
   getDerivationGroupDerivedMetrics,
   getDerivationGroupInputMetrics,
 } from "@/lib/dashboard/derivation-utils";
+import {
+  SIDEBAR_BODY_TEXT_CLASS,
+  SIDEBAR_MICRO_COPY_CLASS,
+  SIDEBAR_MONO_MUTED_TEXT_CLASS,
+  SIDEBAR_SECTION_KICKER_CLASS,
+} from "./sidebar-pane-patterns";
 
 type DerivationPluginOutput = { key: string; label?: string };
 type DerivationPluginRecord = {
@@ -152,7 +158,7 @@ export function SidebarDerivationsPane({
             }}
           />
           <div className="flex items-center justify-between px-2 pb-2">
-            <span className="text-xs text-muted-foreground">{derivationPlugins.length} systems</span>
+            <span className={SIDEBAR_BODY_TEXT_CLASS}>{derivationPlugins.length} systems</span>
             <Button
               variant="outline"
               size="icon"
@@ -168,12 +174,12 @@ export function SidebarDerivationsPane({
             <div className="px-2 text-xs text-red-500">{derivationPluginsError}</div>
           )}
           {derivationPlugins.length === 0 && (
-            <div className="px-2 text-xs text-muted-foreground">
+            <div className={`px-2 ${SIDEBAR_BODY_TEXT_CLASS}`}>
               Upload a derivation system plugin to compute derived metrics.
             </div>
           )}
           {derivationPlugins.length > 0 && (
-            <div className="flex flex-col gap-2 px-2 pb-2 text-xs text-muted-foreground">
+            <div className={`flex flex-col gap-2 px-2 pb-2 ${SIDEBAR_BODY_TEXT_CLASS}`}>
               {derivationPlugins.map((plugin) => (
                 <div
                   key={plugin.id}
@@ -184,11 +190,11 @@ export function SidebarDerivationsPane({
                   <div className="min-w-0 flex flex-col gap-0.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="truncate font-medium text-foreground">{plugin.name}</span>
-                      <span className="truncate font-mono text-[10px] text-muted-foreground">
+                      <span className={`truncate ${SIDEBAR_MONO_MUTED_TEXT_CLASS}`}>
                         {plugin.id}
                       </span>
                     </div>
-                    <div className="truncate text-[10px] text-muted-foreground">
+                    <div className={`truncate ${SIDEBAR_MICRO_COPY_CLASS}`}>
                       outputs:{" "}
                       {plugin.outputs.length > 0
                         ? plugin.outputs.map((output) => output.key).join(", ")
@@ -223,7 +229,7 @@ export function SidebarDerivationsPane({
           <div className="mx-2 h-px bg-border/50" />
 
           <div className="flex items-center justify-between px-2 pb-2">
-            <span className="text-xs text-muted-foreground">{derivationGroups.length} groups</span>
+            <span className={SIDEBAR_BODY_TEXT_CLASS}>{derivationGroups.length} groups</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -265,11 +271,11 @@ export function SidebarDerivationsPane({
             </DropdownMenu>
           </div>
           {derivationGroups.length === 0 && (
-            <div className="px-2 text-xs text-muted-foreground">
+            <div className={`px-2 ${SIDEBAR_BODY_TEXT_CLASS}`}>
               Click a metric in the HUD to create a default group.
             </div>
           )}
-          <div className="flex flex-col gap-3 px-2 text-xs text-muted-foreground min-w-0">
+          <div className={`flex flex-col gap-3 px-2 ${SIDEBAR_BODY_TEXT_CLASS} min-w-0`}>
             {derivationGroups.map((group) => {
               const isActive = group.id === resolvedActiveDerivationGroupId;
               const isDisplayed = group.id === resolvedDisplayDerivationGroupId;
@@ -433,10 +439,10 @@ export function SidebarDerivationsPane({
                   )}
                   <div className="flex flex-col gap-1">
                     {inputMetricRows.length === 0 && derivedMetricRows.length === 0 && (
-                      <div className="text-xs text-muted-foreground">No metrics yet.</div>
+                      <div className={SIDEBAR_BODY_TEXT_CLASS}>No metrics yet.</div>
                     )}
                     {inputMetricRows.length > 0 && (
-                      <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                      <div className={SIDEBAR_SECTION_KICKER_CLASS}>
                         Inputs
                       </div>
                     )}
@@ -507,7 +513,7 @@ export function SidebarDerivationsPane({
                       );
                     })}
                     {derivedMetricRows.length > 0 && (
-                      <div className="pt-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                      <div className={`pt-1 ${SIDEBAR_SECTION_KICKER_CLASS}`}>
                         Derived
                       </div>
                     )}

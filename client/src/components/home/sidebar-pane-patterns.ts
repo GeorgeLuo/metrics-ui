@@ -1,9 +1,14 @@
 export const SIDEBAR_SECTION_STACK_CLASS = "flex flex-col gap-2 px-2 py-2";
 export const SIDEBAR_SECTION_TIGHT_STACK_CLASS = "flex flex-col gap-1 px-2 py-2";
+export const SIDEBAR_BODY_TEXT_CLASS = "text-xs text-muted-foreground";
 export const SIDEBAR_MUTED_COPY_CLASS = "text-[11px] leading-relaxed text-muted-foreground";
 export const SIDEBAR_MICRO_COPY_CLASS = "text-[10px] leading-snug text-muted-foreground";
 export const SIDEBAR_SECTION_KICKER_CLASS =
   "text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground/80";
+export const SIDEBAR_DETAIL_TEXT_CLASS = "text-[11px] text-muted-foreground";
+export const SIDEBAR_ERROR_TEXT_CLASS = "text-xs text-destructive";
+export const SIDEBAR_MONO_VALUE_TEXT_CLASS = "font-mono text-foreground";
+export const SIDEBAR_MONO_MUTED_TEXT_CLASS = "font-mono text-[10px] text-muted-foreground";
 export const SIDEBAR_MINIMAL_SELECT_TRIGGER_CLASS =
   "h-6 px-2 py-1 text-xs bg-transparent border-border/50 shadow-none focus:ring-0 focus:ring-offset-0";
 
