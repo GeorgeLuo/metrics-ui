@@ -1,0 +1,421 @@
+{
+  "pattern": "reference_sections",
+  "title": "Eq. 1 -> Eq. 16 Summary",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This worksheet compresses the full Eq. 1 through Eq. 16 arc into one roadmap. It is meant to answer three questions at once: what each stage accomplishes, what the big picture conclusion is, and when each equation family is the right tool."
+    },
+    {
+      "kind": "text",
+      "value": "Read it as a navigation layer, not as a substitute for the detailed derivations. The early equations set up the model, the middle equations build the self-consistency story, and the late equations separate exact special-case results from universal near-threshold asymptotics."
+    }
+  ],
+  "sections": [
+    {
+      "title": "Eq. 1-4: Setup and Reduction",
+      "anchorId": "eq1-to-eq4",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 1 starts at the individual-oscillator level: each oscillator carries its own phase and natural frequency, so the raw problem is many-body and microscopic."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 2 is the phase-reduction step. It is the point where detailed limit-cycle dynamics are replaced by phase dynamics, which is appropriate when the oscillators are weakly coupled and nearly identical."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 3 is the concrete Kuramoto mean-field model: all-to-all sinusoidal coupling together with a frequency distribution g of omega. This is the baseline governing equation used for simulations and analysis.",
+          "referenceFrame": {
+            "topicId": "kuramoto-model",
+            "itemId": "workspace",
+            "title": "Kuramoto Model"
+          },
+          "referenceLabel": "Open the canonical Kuramoto model topic"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 4 reframes the same dynamics in the co-rotating mean-field picture, where each oscillator feels the effective pull K r toward the collective phase. That is the move that makes locked-versus-drifting behavior visible."
+        }
+      ],
+      "referenceTitle": "Use These When",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Use Eq. 1-4 when you are still setting up the model or asking what assumptions justify the Kuramoto reduction."
+        },
+        {
+          "kind": "text",
+          "value": "These equations are the right level for finite-population simulations and for explaining where the mean field comes from, but they are not yet the self-consistency formulas that solve for r."
+        },
+        {
+          "kind": "text",
+          "value": "Big takeaway: synchronization becomes analytically tractable only after the many-body dynamics are reduced to phase variables plus the collective field."
+        }
+      ]
+    },
+    {
+      "title": "Eq. 5: Order Parameter",
+      "anchorId": "eq5",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 5 defines the complex order parameter r e to the i psi. It compresses the entire phase population into two macroscopic numbers: r for coherence and psi for the average phase.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq5",
+            "itemId": "workspace",
+            "title": "Equation 5"
+          },
+          "referenceLabel": "Open Equation 5"
+        },
+        {
+          "kind": "text",
+          "value": "This is the first major conceptual reduction. Instead of tracking every oscillator separately, the analysis now asks how the population feeds back onto its own centroid."
+        }
+      ],
+      "referenceTitle": "Use It When",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Use Eq. 5 whenever you need a quantitative measure of synchronization rather than raw individual phases."
+        },
+        {
+          "kind": "text",
+          "value": "It is the correct starting point for any later self-consistency calculation, because every later equation is really solving for r."
+        }
+      ]
+    },
+    {
+      "title": "Eq. 6-8: Continuum and Stationarity Machinery",
+      "anchorId": "eq6-to-eq8",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 6 converts the order parameter from a finite sum into a continuum average over a phase-frequency density. This is the large-population viewpoint."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 7 supplies the continuity or transport equation for that density. Its role is conservation: oscillators move around the circle, but they are neither created nor destroyed."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 8 specializes the transport story to stationary or co-rotating states. That is the preparation step that makes a time-independent partially synchronized state describable at all.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq9",
+            "itemId": "workspace",
+            "title": "Equation 9"
+          },
+          "referenceLabel": "Open the stationary-density topic that this machinery feeds into"
+        }
+      ],
+      "referenceTitle": "Use These When",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Use Eq. 6-8 when N is large and you want to reason with densities instead of sums over individuals."
+        },
+        {
+          "kind": "text",
+          "value": "These equations are the right framework for deriving stationary locked and drifting populations, but they are not yet the final self-consistency closure."
+        },
+        {
+          "kind": "text",
+          "value": "Big takeaway: the continuum limit is what turns the synchronization problem into an integral equation rather than a giant coupled system."
+        }
+      ]
+    },
+    {
+      "title": "Eq. 9-11: Build the Self-Consistency Equation",
+      "anchorId": "eq9-to-eq11",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 9 gives the stationary density in its decisive piecewise form: a locked part supported by a delta constraint and a drifting part given by a smooth density. This is where the population split becomes explicit.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq9",
+            "itemId": "workspace",
+            "title": "Equation 9"
+          },
+          "referenceLabel": "Open Equation 9"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 10 substitutes that stationary density back into the order-parameter definition. The result is the full self-consistency equation for r, still containing both locked and drifting contributions.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq5-eq9-to-eq10",
+            "itemId": "workspace",
+            "title": "Eq. 5 + Eq. 9 -> Eq. 10"
+          },
+          "referenceLabel": "Open the derivation into Eq. 10"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 11 is the cleaner reduced form obtained after symmetry removes the net drifting contribution and the locked part is rewritten in the phase variable. From here on, the onset analysis becomes much simpler.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq10-to-eq11",
+            "itemId": "workspace",
+            "title": "Eq. 10 -> Eq. 11"
+          },
+          "referenceLabel": "Open the reduction to Eq. 11"
+        }
+      ],
+      "referenceTitle": "Use These When",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Use Eq. 9 when you need the explicit stationary population split."
+        },
+        {
+          "kind": "text",
+          "value": "Use Eq. 10 when you want the full locked-plus-drifting self-consistency story."
+        },
+        {
+          "kind": "text",
+          "value": "Use Eq. 11 when the centered symmetry assumptions are in force and you want the reduced equation that drives the threshold and asymptotic analysis."
+        }
+      ]
+    },
+    {
+      "title": "Eq. 12: Critical Coupling",
+      "anchorId": "eq12",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 12 comes from the nonzero synchronized branch of Eq. 11. It is not the whole story of all solutions; it is the equation satisfied by the branch with r greater than zero.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq12-critical-coupling",
+            "itemId": "workspace",
+            "title": "Eq. 12 -> Eq. 13"
+          },
+          "referenceLabel": "Open the critical-coupling walkthrough"
+        },
+        {
+          "kind": "text",
+          "value": "Its point is to locate onset. By taking the limit r goes to zero from the positive side, Eq. 12 yields the general threshold formula in terms of g evaluated at zero."
+        },
+        {
+          "kind": "text",
+          "value": "This is the cleanest general result in the chain: before choosing any special frequency distribution, it already tells you how the critical coupling depends on the density at the center."
+        }
+      ],
+      "referenceTitle": "Use It When",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "K_c = \\frac{2}{\\pi g(0)}",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq12-critical-coupling",
+            "itemId": "workspace",
+            "title": "Eq. 12 -> Eq. 13"
+          },
+          "referenceLabel": "Open the onset-threshold derivation"
+        },
+        {
+          "kind": "text",
+          "value": "Use Eq. 12 when you want the threshold for a general smooth even frequency distribution."
+        },
+        {
+          "kind": "text",
+          "value": "Do not use Eq. 12 by itself to describe the incoherent branch. The r equals zero branch still comes from the original self-consistency equation before dividing by r."
+        }
+      ]
+    },
+    {
+      "title": "Eq. 13: Lorentzian Specialization",
+      "anchorId": "eq13",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 13 is not another self-consistency equation. It is a choice of frequency distribution: a Lorentzian centered at zero with width parameter gamma.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13",
+            "itemId": "workspace",
+            "title": "Equation 13"
+          },
+          "referenceLabel": "Open Equation 13"
+        },
+        {
+          "kind": "text",
+          "value": "Its role is to turn the general threshold and self-consistency formulas into an exactly solvable example. Once this g of omega is substituted into Eq. 12 and Eq. 11, the integrals can be carried out explicitly.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13-lorentzian-frequency-distribution",
+            "itemId": "workspace",
+            "title": "Eq. 13 Addendum"
+          },
+          "referenceLabel": "Open the Lorentzian addendum"
+        },
+        {
+          "kind": "text",
+          "value": "This is the moment where the paper separates two kinds of insight: a special closed-form example for one distribution, and later a universal near-threshold law that does not depend on choosing that example."
+        }
+      ],
+      "referenceTitle": "Use It When",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "g(\\omega) = \\frac{\\gamma / \\pi}{\\gamma^2 + \\omega^2}, \\qquad K_c = 2\\gamma",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13-lorentzian-frequency-distribution",
+            "itemId": "workspace",
+            "title": "Eq. 13 Addendum"
+          },
+          "referenceLabel": "Open the solved Lorentzian example"
+        },
+        {
+          "kind": "text",
+          "value": "Use Eq. 13 when you want an explicit solvable distribution and a closed-form synchronized branch."
+        },
+        {
+          "kind": "text",
+          "value": "Do not mistake it for a universal law. It is a special distributional choice, not the general answer for arbitrary g."
+        }
+      ]
+    },
+    {
+      "title": "Eq. 14-16: Universal Near-Threshold Asymptotics",
+      "anchorId": "eq14-to-eq16",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 14 gives the universal square-root scaling of the synchronized branch near threshold. Its point is not exactness away from K sub c. Its point is the leading-order shape of the bifurcation right as synchronization sets in.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13-to-eq14",
+            "itemId": "workspace",
+            "title": "Eq. 13 -> Eq. 14"
+          },
+          "referenceLabel": "Open the Eq. 13 to Eq. 14 derivation"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 15 defines asymptotic equivalence. That is what tells you how to read the tilde symbol in Eq. 14: the compared expressions have the same leading behavior as the control parameter approaches threshold.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq15",
+            "itemId": "workspace",
+            "title": "Equation 15"
+          },
+          "referenceLabel": "Open Equation 15"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 16 then generalizes the same idea from one comparison to a whole asymptotic series. It explains why later derivations keep only the first few powers that actually control the onset scaling.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq16",
+            "itemId": "workspace",
+            "title": "Equation 16"
+          },
+          "referenceLabel": "Open Equation 16"
+        }
+      ],
+      "referenceTitle": "Use These When",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "r \\sim \\sqrt{\\frac{K-K_c}{K_c}}",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13-to-eq14",
+            "itemId": "workspace",
+            "title": "Eq. 13 -> Eq. 14"
+          },
+          "referenceLabel": "Open the near-threshold scaling walkthrough"
+        },
+        {
+          "kind": "text",
+          "value": "Use Eq. 14 when K is close to K sub c and you only need the leading-order bifurcation law."
+        },
+        {
+          "kind": "text",
+          "value": "Use Eq. 15 and Eq. 16 when you need to interpret what that approximation means and what higher-order corrections would look like."
+        },
+        {
+          "kind": "text",
+          "value": "Big takeaway: Eq. 13 gives one exact solvable example, while Eq. 14-16 explain the universal asymptotic structure shared more broadly near onset."
+        }
+      ]
+    },
+    {
+      "title": "Big Picture Conclusions",
+      "anchorId": "big-picture-conclusions",
+      "content": [
+        {
+          "kind": "text",
+          "value": "The Eq. 1 through Eq. 16 chain has one main narrative. Start with many coupled oscillators, compress them into a collective order parameter, derive a stationary self-consistency equation, find the threshold where the nonzero branch appears, then separate exact special cases from universal near-threshold behavior."
+        },
+        {
+          "kind": "text",
+          "value": "The most important conceptual jump is from microscopic dynamics to self-consistency. Once r appears on both sides of the equation, synchronization becomes a fixed-point problem rather than just a simulation result."
+        },
+        {
+          "kind": "text",
+          "value": "The second major jump is from exact formulas to asymptotic interpretation. The Lorentzian branch is exact for one chosen g, whereas Eq. 14-16 tell you what survives generically near onset."
+        }
+      ],
+      "referenceTitle": "Scenario Map",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Model setup or simulation: Eq. 1-4.",
+          "referenceFrame": {
+            "topicId": "kuramoto-model",
+            "itemId": "workspace",
+            "title": "Kuramoto Model"
+          },
+          "referenceLabel": "Open the governing equation topic"
+        },
+        {
+          "kind": "text",
+          "value": "Measure coherence or define the collective rhythm: Eq. 5.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq5",
+            "itemId": "workspace",
+            "title": "Equation 5"
+          },
+          "referenceLabel": "Open Equation 5"
+        },
+        {
+          "kind": "text",
+          "value": "Continuum stationary reasoning: Eq. 6-9.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq9",
+            "itemId": "workspace",
+            "title": "Equation 9"
+          },
+          "referenceLabel": "Open the stationary-density topic"
+        },
+        {
+          "kind": "text",
+          "value": "Solve for the synchronized branch implicitly and locate K sub c: Eq. 10-12.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq12-critical-coupling",
+            "itemId": "workspace",
+            "title": "Eq. 12 -> Eq. 13"
+          },
+          "referenceLabel": "Open the threshold walkthrough"
+        },
+        {
+          "kind": "text",
+          "value": "Get an explicit exact example: Eq. 13.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13-lorentzian-frequency-distribution",
+            "itemId": "workspace",
+            "title": "Eq. 13 Addendum"
+          },
+          "referenceLabel": "Open the explicit Lorentzian example"
+        },
+        {
+          "kind": "text",
+          "value": "Describe the universal onset law and how to read it: Eq. 14-16.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13-to-eq14",
+            "itemId": "workspace",
+            "title": "Eq. 13 -> Eq. 14"
+          },
+          "referenceLabel": "Open the onset-law derivation"
+        }
+      ]
+    }
+  ]
+}
