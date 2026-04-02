@@ -1,0 +1,140 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "-\\omega\\frac{\\partial \\mu}{\\partial \\theta}+\\frac{K}{2\\pi}\\operatorname{Re}\\,e^{-i\\theta}\\int_{-\\pi}^{\\pi}\\int_{-\\infty}^{+\\infty}e^{i\\theta'}\\mu(\\theta',\\omega')\\times g(\\omega')\\,d\\theta'\\,d\\omega' = \\lambda\\mu"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "minus omega times the partial derivative of "
+      },
+      {
+        "kind": "text",
+        "value": "mu"
+      },
+      {
+        "kind": "text",
+        "value": " with respect to theta, plus a mean-field perturbation term proportional to "
+      },
+      {
+        "kind": "text",
+        "value": "K over two pi"
+      },
+      {
+        "kind": "text",
+        "value": ", plus the real part of a mean-field integral weighted by "
+      },
+      {
+        "kind": "text",
+        "value": "g(omega prime)"
+      },
+      {
+        "kind": "text",
+        "value": ", equals "
+      },
+      {
+        "kind": "text",
+        "value": "lambda"
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "mu"
+      },
+      {
+        "kind": "text",
+        "value": ". Here "
+      },
+      {
+        "kind": "text",
+        "value": "mu(theta, omega)"
+      },
+      {
+        "kind": "text",
+        "value": " is the perturbation mode after writing the density as the incoherent state plus a small correction, "
+      },
+      {
+        "kind": "text",
+        "value": "omega"
+      },
+      {
+        "kind": "text",
+        "value": " is the natural frequency variable, "
+      },
+      {
+        "kind": "text",
+        "value": "theta"
+      },
+      {
+        "kind": "text",
+        "value": " is the phase variable, "
+      },
+      {
+        "kind": "text",
+        "value": "K"
+      },
+      {
+        "kind": "text",
+        "value": " is the coupling strength, and "
+      },
+      {
+        "kind": "text",
+        "value": "lambda"
+      },
+      {
+        "kind": "text",
+        "value": " is the growth or decay rate of the perturbation mode. "
+      },
+      {
+        "kind": "text",
+        "value": "Re means take the real part. The primed symbols theta prime and omega prime are dummy integration variables, and g of omega prime is the natural-frequency distribution evaluated at omega prime."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 17 says that a small perturbation "
+      },
+      {
+        "kind": "text",
+        "value": "mu"
+      },
+      {
+        "kind": "text",
+        "value": " is shaped by two effects at once: advection in theta from each oscillator's own natural frequency omega, and mean-field feedback from the population average encoded by the double integral. The right-hand side lambda times mu means we are looking for perturbation modes that grow or decay exponentially in time."
+      },
+      {
+        "kind": "text",
+        "value": " This equation comes from writing the density as the incoherent state plus a small perturbation mu tilde, then setting mu tilde equals e to the lambda t times mu and ignoring terms nonlinear in mu. The accompanying normalization condition appears as Eq. 18."
+      }
+    ]
+  },
+  "footer": {
+    "presentation": "freeform",
+    "blocks": [
+      {
+        "kind": "text",
+        "value": "Conceptually, Eq. 17 turns the synchronization question into an eigenvalue problem in the section Synchronization in the limit N equals infinity. You use it specifically when asking whether the incoherent state is linearly stable in the noiseless infinite-N limit. If some admissible lambda has positive real part, incoherence is unstable; if all admissible lambdas have negative real part, incoherence is linearly stable. This is a different question from the earlier self-consistency equations, which characterize synchronized branches once they exist."
+      },
+      {
+        "kind": "text",
+        "value": "Open a visual showing how a tiny perturbation can either decay or grow under Eq. 17.",
+        "visualizationFrame": {
+          "mode": "plugin",
+          "pluginId": "kuramoto_eq17_linear_stability",
+          "name": "Kuramoto Eq. 17 Linear Stability"
+        },
+        "visualizationLabel": "Open Eq. 17 stability visualization"
+      }
+    ]
+  }
+}
