@@ -7,6 +7,10 @@
       "id": "kuramoto-model",
       "label": "Kuramoto model",
       "description": "Inspect the canonical Kuramoto evolution equation.",
+      "sortKey": 10,
+      "group": "equation",
+      "tags": ["model", "dynamics", "phase evolution"],
+      "searchTerms": ["eq 1", "equation 1", "kuramoto equation"],
       "format": "semantic_layout",
       "path": "./equations-content.model.json"
     },
@@ -14,6 +18,10 @@
       "id": "kuramoto-eq5",
       "label": "Equation 5",
       "description": "Inspect the complex order parameter definition.",
+      "sortKey": 50,
+      "group": "equation",
+      "tags": ["order parameter", "complex order parameter", "coherence"],
+      "searchTerms": ["eq 5", "equation 5", "r e^{i psi}"],
       "format": "semantic_layout",
       "path": "./equations-content.eq5.json"
     },
@@ -21,76 +29,43 @@
       "id": "kuramoto-eq9",
       "label": "Equation 9",
       "description": "Inspect the stationary density split into locked and drifting branches.",
+      "sortKey": 90,
+      "group": "equation",
+      "tags": ["stationary density", "locked", "drifting"],
+      "searchTerms": ["eq 9", "equation 9"],
       "format": "semantic_layout",
       "path": "./equations-content.eq9.json"
-    },
-    {
-      "id": "kuramoto-eq10",
-      "label": "Equation 10",
-      "description": "Inspect the self-consistency equation for the order parameter.",
-      "format": "semantic_layout",
-      "path": "./equations-content.eq10.json"
-    },
-    {
-      "id": "kuramoto-eq11",
-      "label": "Equation 11",
-      "description": "Inspect the reduced locked-oscillator self-consistency equation.",
-      "format": "semantic_layout",
-      "path": "./equations-content.eq11.json"
-    },
-    {
-      "id": "kuramoto-eq13",
-      "label": "Equation 13",
-      "description": "Inspect the Lorentzian choice for the natural-frequency distribution.",
-      "format": "semantic_layout",
-      "path": "./equations-content.eq13.json"
-    },
-    {
-      "id": "kuramoto-eq15",
-      "label": "Equation 15",
-      "description": "Inspect the definition of asymptotic equivalence used in the near-threshold analysis.",
-      "format": "semantic_layout",
-      "path": "./equations-content.eq15.json"
-    },
-    {
-      "id": "kuramoto-eq16",
-      "label": "Equation 16",
-      "description": "Inspect the definition of an asymptotic series used after Eq. 15.",
-      "format": "semantic_layout",
-      "path": "./equations-content.eq16.json"
-    },
-    {
-      "id": "kuramoto-eq12-critical-coupling",
-      "label": "Eq. 12 -> Eq. 13",
-      "description": "Follow the onset condition in Eq. 12 through the Lorentzian specialization that produces Eq. 13.",
-      "format": "derivation",
-      "path": "./equations-document.eq12-critical-coupling.json"
-    },
-    {
-      "id": "kuramoto-eq13-lorentzian-frequency-distribution",
-      "label": "Eq. 13 Addendum: Lorentzian Frequency Distribution",
-      "description": "Explain why the Lorentzian choice for g of omega is special and how it yields K_c = 2 gamma and an explicit synchronized branch.",
-      "format": "reference_sections",
-      "path": "./equations-document.eq13-lorentzian-frequency-distribution.json"
-    },
-    {
-      "id": "kuramoto-eq13-to-eq14",
-      "label": "Eq. 13 -> Eq. 14",
-      "description": "Show Kuramoto's exact Lorentzian calculation and how it connects to the general near-threshold scaling law.",
-      "format": "derivation",
-      "path": "./equations-document.eq13-to-eq14.json"
     },
     {
       "id": "kuramoto-eq5-eq9-to-eq10",
       "label": "Eq. 5 + Eq. 9 -> Eq. 10",
       "description": "Walk through how Eq. 5 and Eq. 9 combine into Eq. 10.",
+      "sortKey": 95,
+      "group": "derivation",
+      "tags": ["self-consistency", "order parameter", "derivation"],
+      "searchTerms": ["eq 10 derivation", "eq 5 plus eq 9"],
       "format": "derivation",
       "path": "./equations-document.eq5-eq9-to-eq10.json"
+    },
+    {
+      "id": "kuramoto-eq10",
+      "label": "Equation 10",
+      "description": "Inspect the self-consistency equation for the order parameter.",
+      "sortKey": 100,
+      "group": "equation",
+      "tags": ["self-consistency", "order parameter", "integral equation"],
+      "searchTerms": ["eq 10", "equation 10"],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq10.json"
     },
     {
       "id": "kuramoto-eq10-variables",
       "label": "Eq. 10 Addendum: Variables",
       "description": "Glossary-style addendum for the variables and functions appearing in Eq. 10.",
+      "sortKey": 105,
+      "group": "addendum",
+      "tags": ["variables", "glossary", "eq 10"],
+      "searchTerms": ["eq 10 variables", "eq 10 glossary"],
       "format": "glossary_reference",
       "path": "./equations-document.eq10-variables.json"
     },
@@ -98,13 +73,98 @@
       "id": "kuramoto-eq10-to-eq11",
       "label": "Eq. 10 -> Eq. 11",
       "description": "Walk through how the locked part of Eq. 10 reduces to Eq. 11.",
+      "sortKey": 110,
+      "group": "derivation",
+      "tags": ["locked oscillators", "self-consistency", "derivation"],
+      "searchTerms": ["eq 10 to eq 11", "eq 11 derivation"],
       "format": "derivation",
       "path": "./equations-document.eq10-to-eq11.json"
+    },
+    {
+      "id": "kuramoto-eq11",
+      "label": "Equation 11",
+      "description": "Inspect the reduced locked-oscillator self-consistency equation.",
+      "sortKey": 120,
+      "group": "equation",
+      "tags": ["locked oscillators", "self-consistency", "integral equation"],
+      "searchTerms": ["eq 11", "equation 11"],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq11.json"
+    },
+    {
+      "id": "kuramoto-eq12-critical-coupling",
+      "label": "Eq. 12 -> Eq. 13",
+      "description": "Follow the onset condition in Eq. 12 through the Lorentzian specialization that produces Eq. 13.",
+      "sortKey": 130,
+      "group": "derivation",
+      "tags": ["critical coupling", "threshold", "lorentzian"],
+      "searchTerms": ["eq 12", "eq 13 transition", "kc"],
+      "format": "derivation",
+      "path": "./equations-document.eq12-critical-coupling.json"
+    },
+    {
+      "id": "kuramoto-eq13",
+      "label": "Equation 13",
+      "description": "Inspect the Lorentzian choice for the natural-frequency distribution.",
+      "sortKey": 140,
+      "group": "equation",
+      "tags": ["lorentzian", "frequency distribution", "gamma"],
+      "searchTerms": ["eq 13", "equation 13", "g omega"],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq13.json"
+    },
+    {
+      "id": "kuramoto-eq13-lorentzian-frequency-distribution",
+      "label": "Eq. 13 Addendum: Lorentzian Frequency Distribution",
+      "description": "Explain why the Lorentzian choice for g of omega is special and how it yields K_c = 2 gamma and an explicit synchronized branch.",
+      "sortKey": 145,
+      "group": "addendum",
+      "tags": ["lorentzian", "gamma", "critical coupling"],
+      "searchTerms": ["lorentzian addendum", "eq 13 addendum"],
+      "format": "reference_sections",
+      "path": "./equations-document.eq13-lorentzian-frequency-distribution.json"
+    },
+    {
+      "id": "kuramoto-eq13-to-eq14",
+      "label": "Eq. 13 -> Eq. 14",
+      "description": "Show Kuramoto's exact Lorentzian calculation and how it connects to the general near-threshold scaling law.",
+      "sortKey": 150,
+      "group": "derivation",
+      "tags": ["asymptotic", "near-threshold", "lorentzian"],
+      "searchTerms": ["eq 14", "eq 13 to eq 14", "square root law"],
+      "format": "derivation",
+      "path": "./equations-document.eq13-to-eq14.json"
+    },
+    {
+      "id": "kuramoto-eq15",
+      "label": "Equation 15",
+      "description": "Inspect the definition of asymptotic equivalence used in the near-threshold analysis.",
+      "sortKey": 160,
+      "group": "equation",
+      "tags": ["asymptotic", "equivalence", "tilde"],
+      "searchTerms": ["eq 15", "equation 15", "asymptotic equivalence"],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq15.json"
+    },
+    {
+      "id": "kuramoto-eq16",
+      "label": "Equation 16",
+      "description": "Inspect the definition of an asymptotic series used after Eq. 15.",
+      "sortKey": 170,
+      "group": "equation",
+      "tags": ["asymptotic series", "series", "small parameter"],
+      "searchTerms": ["eq 16", "equation 16"],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq16.json"
     },
     {
       "id": "kuramoto-invalid-intermediate-form",
       "label": "Theta Bounds vs Omega Bounds",
       "description": "See why angle bounds only reappear after changing variables from omega to an angle.",
+      "sortKey": 950,
+      "group": "reference",
+      "tags": ["change of variables", "bounds", "theta", "omega"],
+      "searchTerms": ["theta bounds", "omega bounds"],
       "format": "reference_sections",
       "path": "./equations-document.invalid-intermediate-form.json"
     },
@@ -112,6 +172,10 @@
       "id": "identities-cheatsheet",
       "label": "Identities Cheatsheet",
       "description": "Quick reference for derivation identities like the Dirac delta rule, Euler's identity, and odd/even symmetry.",
+      "sortKey": 960,
+      "group": "cheatsheet",
+      "tags": ["identities", "reference", "standard integral"],
+      "searchTerms": ["identity", "cheat sheet", "cheatsheet"],
       "format": "reference_sections",
       "path": "./equations-document.identities-cheatsheet.json"
     },
@@ -119,6 +183,10 @@
       "id": "integrand-rewrite-cheatsheet",
       "label": "Integrand Rewrite Cheatsheet",
       "description": "Worked examples of rewriting an integrand into standard forms before integrating.",
+      "sortKey": 965,
+      "group": "cheatsheet",
+      "tags": ["integral", "rewrite", "standard form"],
+      "searchTerms": ["integrand rewrite", "partial fractions style"],
       "format": "reference_sections",
       "path": "./equations-document.integrand-rewrite-cheatsheet.json"
     },
@@ -126,6 +194,10 @@
       "id": "taylor-coefficients-cheatsheet",
       "label": "Taylor Coefficients Cheatsheet",
       "description": "Quick reference for where quadratic Taylor coefficients come from and how they generate factors like 1/2 and 16 in near-threshold expansions.",
+      "sortKey": 970,
+      "group": "cheatsheet",
+      "tags": ["taylor", "coefficients", "near-threshold"],
+      "searchTerms": ["taylor expansion", "pi over 16"],
       "format": "reference_sections",
       "path": "./equations-document.taylor-coefficients-cheatsheet.json"
     }
