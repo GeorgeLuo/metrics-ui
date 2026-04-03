@@ -13,6 +13,15 @@ import {
   SIDEBAR_SECTION_KICKER_CLASS,
 } from "./sidebar-pane-patterns";
 
+function getTopicListTextItemClass(active: boolean): string {
+  return [
+    "w-full text-left text-[11px] leading-snug transition-colors",
+    active
+      ? "font-medium text-foreground"
+      : "text-muted-foreground hover:text-foreground",
+  ].join(" ");
+}
+
 type UseEquationsTopicBrowserStateArgs = {
   topicOptions: EquationsTopicOption[];
 };
@@ -127,7 +136,7 @@ export function EquationsTopicFilterControls({
               data-hint={
                 scheme === "canonical"
                   ? "Show topics in the canonical reading order without explicit type groupings."
-                  : "Show topics grouped by standard type such as equations, derivations, and addenda."
+                  : "Show topics grouped by format-aligned types such as equations, derivations, references, and glossaries."
               }
             >
               {label}
@@ -168,11 +177,10 @@ export function EquationsTopicList({
                 <button
                   key={option.id}
                   type="button"
-                  className={getSidebarSelectableItemClass(isActive)}
+                  className={getTopicListTextItemClass(isActive)}
                   aria-current={isActive ? "page" : undefined}
                   onClick={() => onTopicSelect(option.id)}
                   data-hint={`Open topic "${option.label}".`}
-                  title={option.description}
                 >
                   {option.label}
                 </button>
