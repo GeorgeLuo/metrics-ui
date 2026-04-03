@@ -111,16 +111,13 @@ export function SidebarEquationsPane({
 }: SidebarEquationsPaneProps) {
   const [isCatalogOpen, setIsCatalogOpen] = useState(true);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [isTopicOpen, setIsTopicOpen] = useState(true);
-  const [isMetaOpen, setIsMetaOpen] = useState(true);
+  const [isTopicOpen, setIsTopicOpen] = useState(false);
+  const [isMetaOpen, setIsMetaOpen] = useState(false);
   const [isDebugOpen, setIsDebugOpen] = useState(false);
   const topicBrowserState = useEquationsTopicBrowserState({ topicOptions });
   const activeTopicOption = topicOptions.find(
     (option) => option.id === selectedTopicId,
   ) ?? null;
-  const activeMetaDocument = selectedMetaDocumentId
-    ? metaDocuments.find((document) => document.id === selectedMetaDocumentId) ?? null
-    : null;
   const catalogSourceBlank = isInlineFieldBlank(topicCatalogSourceInput);
 
   useEffect(() => {
@@ -242,13 +239,6 @@ export function SidebarEquationsPane({
                   isGroupedByType={topicBrowserState.orderingScheme === "types"}
                   hasMatches={topicBrowserState.filteredTopicOptions.length > 0}
                 />
-                <div className={SIDEBAR_MUTED_COPY_CLASS}>
-                  {activeMetaDocument
-                    ? `Meta document in view: ${activeMetaDocument.description}`
-                    : activeTopicOption
-                    ? activeTopicOption.description
-                    : "Current content does not match a bundled topic."}
-                </div>
                 {activeTopicOption && canRefreshSelectedTopic ? (
                   <div className={`flex flex-col gap-1 ${getSidebarCardClass()}`}>
                     <div className={SIDEBAR_MUTED_COPY_CLASS}>
@@ -298,7 +288,6 @@ export function SidebarEquationsPane({
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => onMetaDocumentSelect(document.id)}
                         data-hint={`Open the equations meta document "${document.label}".`}
-                        title={document.description}
                       >
                         <div className="text-foreground">{document.label}</div>
                       </button>
