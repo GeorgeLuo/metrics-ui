@@ -13,8 +13,9 @@ import {
   validateEquationsSemanticLayoutSource,
 } from "@shared/equations-validation";
 import {
+  type EquationsTopicFormat,
   type EquationsTopicGroup,
-  normalizeEquationsTopicGroup,
+  getEquationsTopicGroupForFormat,
   normalizeEquationsTopicSearchTerms,
   normalizeEquationsTopicTags,
   sortEquationsTopics,
@@ -24,7 +25,7 @@ type EquationsTopicDefinition = {
   id: string;
   label: string;
   description: string;
-  format: "semantic_layout" | "derivation" | "reference_sections" | "glossary_reference" | "freeform";
+  format: EquationsTopicFormat;
   path: string;
   sortKey: number | null;
   group: EquationsTopicGroup | null;
@@ -50,7 +51,7 @@ export type EquationsTopicOption = {
   group: EquationsTopicGroup | null;
   tags: string[];
   searchTerms: string[];
-  format: "semantic_layout" | "derivation" | "reference_sections" | "glossary_reference" | "freeform";
+  format: EquationsTopicFormat;
   payload:
     | { kind: "semantic_layout"; content: EquationsPaneContent }
     | { kind: "derivation"; document: EquationsFrameGridDocument }
@@ -107,7 +108,7 @@ function normalizeTopicDefinition(value: unknown): EquationsTopicDefinition | nu
   };
   const id = normalizeNonEmptyString(raw.id);
   const label = normalizeNonEmptyString(raw.label);
-  const format = raw.format === "freeform"
+  const format: EquationsTopicFormat | null = raw.format === "freeform"
     ? "freeform"
     : raw.format === "derivation"
       ? "derivation"
@@ -134,7 +135,7 @@ function normalizeTopicDefinition(value: unknown): EquationsTopicDefinition | nu
     format,
     path,
     sortKey: normalizeOptionalSortKey((raw as { sortKey?: unknown }).sortKey),
-    group: normalizeEquationsTopicGroup((raw as { group?: unknown }).group),
+    group: getEquationsTopicGroupForFormat(format),
     tags: normalizeEquationsTopicTags((raw as { tags?: unknown }).tags),
     searchTerms: normalizeEquationsTopicSearchTerms((raw as { searchTerms?: unknown }).searchTerms),
   };

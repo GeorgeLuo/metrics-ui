@@ -5,6 +5,7 @@ import {
   compareEquationsTopicMetadata,
   filterEquationsTopics,
   getEquationsTopicGroupLabel,
+  getEquationsTopicGroupForFormat,
   groupEquationsTopics,
   normalizeEquationsTopicGroup,
   normalizeEquationsTopicSearchTerms,
@@ -16,6 +17,7 @@ import {
 
 test("normalize topic metadata helpers trim and dedupe", () => {
   assert.equal(normalizeEquationsTopicGroup(" derivation "), "derivation");
+  assert.equal(normalizeEquationsTopicGroup("cheatsheet"), null);
   assert.equal(normalizeEquationsTopicGroup("unknown"), null);
   assert.deepEqual(
     normalizeEquationsTopicTags([" Lorentzian ", "lorentzian", "Gamma", 1]),
@@ -25,7 +27,9 @@ test("normalize topic metadata helpers trim and dedupe", () => {
     normalizeEquationsTopicSearchTerms([" Eq 13 ", "eq 13", "gamma "]),
     ["eq 13", "gamma"],
   );
-  assert.equal(getEquationsTopicGroupLabel("cheatsheet"), "Cheatsheet");
+  assert.equal(getEquationsTopicGroupLabel("glossary"), "Glossary");
+  assert.equal(getEquationsTopicGroupForFormat("reference_sections"), "reference");
+  assert.equal(getEquationsTopicGroupForFormat("glossary_reference"), "glossary");
 });
 
 test("compare and sort topics prefer sortKey before label", () => {
@@ -50,7 +54,7 @@ test("compare and sort topics prefer sortKey before label", () => {
       label: "Identities Cheatsheet",
       description: "",
       sortKey: 960,
-      group: "cheatsheet",
+      group: "reference",
       tags: [],
       searchTerms: [],
     },
@@ -99,10 +103,10 @@ test("filter topics matches against label, description, group, tags, and search 
 test("group topics buckets them by standard group order", () => {
   const topics = [
     {
-      label: "Identities Cheatsheet",
+      label: "Eq. 10 Addendum: Variables",
       description: "",
-      sortKey: 960,
-      group: "cheatsheet",
+      sortKey: 105,
+      group: "glossary",
       tags: [],
       searchTerms: [],
     },
@@ -115,10 +119,10 @@ test("group topics buckets them by standard group order", () => {
       searchTerms: [],
     },
     {
-      label: "Eq. 13 -> Eq. 14",
+      label: "Identities Cheatsheet",
       description: "",
-      sortKey: 150,
-      group: "derivation",
+      sortKey: 960,
+      group: "reference",
       tags: [],
       searchTerms: [],
     },
@@ -131,8 +135,8 @@ test("group topics buckets them by standard group order", () => {
     })),
     [
       { label: "Equation", topics: ["Equation 13"] },
-      { label: "Derivation", topics: ["Eq. 13 -> Eq. 14"] },
-      { label: "Cheatsheet", topics: ["Identities Cheatsheet"] },
+      { label: "Reference", topics: ["Identities Cheatsheet"] },
+      { label: "Glossary", topics: ["Eq. 10 Addendum: Variables"] },
     ],
   );
 });

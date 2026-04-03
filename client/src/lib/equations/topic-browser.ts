@@ -1,29 +1,33 @@
 export type EquationsTopicGroup =
   | "equation"
   | "derivation"
-  | "addendum"
   | "reference"
-  | "cheatsheet"
-  | "summary";
+  | "glossary"
+  | "freeform";
+
+export type EquationsTopicFormat =
+  | "semantic_layout"
+  | "derivation"
+  | "reference_sections"
+  | "glossary_reference"
+  | "freeform";
 
 export type EquationsTopicOrderingScheme = "canonical" | "types";
 
 export const EQUATIONS_TOPIC_GROUP_LABELS: Record<EquationsTopicGroup, string> = {
   equation: "Equation",
   derivation: "Derivation",
-  addendum: "Addendum",
   reference: "Reference",
-  cheatsheet: "Cheatsheet",
-  summary: "Summary",
+  glossary: "Glossary",
+  freeform: "Freeform",
 };
 
 const GROUP_ORDER: EquationsTopicGroup[] = [
   "equation",
   "derivation",
-  "addendum",
   "reference",
-  "cheatsheet",
-  "summary",
+  "glossary",
+  "freeform",
 ];
 
 const GROUP_RANK = new Map(
@@ -44,6 +48,21 @@ export type EquationsTopicGroupBucket<T extends EquationsTopicBrowseMetadata> = 
   label: string | null;
   topics: T[];
 };
+
+export function getEquationsTopicGroupForFormat(format: EquationsTopicFormat): EquationsTopicGroup {
+  switch (format) {
+    case "semantic_layout":
+      return "equation";
+    case "derivation":
+      return "derivation";
+    case "reference_sections":
+      return "reference";
+    case "glossary_reference":
+      return "glossary";
+    case "freeform":
+      return "freeform";
+  }
+}
 
 function normalizeToken(value: string): string {
   return value.trim().toLowerCase();
