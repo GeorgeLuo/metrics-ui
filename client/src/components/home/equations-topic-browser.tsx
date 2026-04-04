@@ -104,6 +104,20 @@ export function EquationsTopicFilterControls({
   inlineEditTextClass,
 }: EquationsTopicFilterControlsProps) {
   const trimmedQuery = query.trim();
+  const [showExtraOrderingOptions, setShowExtraOrderingOptions] = useState(false);
+  const hasActiveExtraOrdering =
+    orderingScheme === "created_at" || orderingScheme === "updated_at";
+  const visibleOrderingOptions = hasActiveExtraOrdering || showExtraOrderingOptions
+    ? ([
+        ["canonical", "Canonical"],
+        ["types", "Types"],
+        ["created_at", "Created"],
+        ["updated_at", "Updated"],
+      ] as const)
+    : ([
+        ["canonical", "Canonical"],
+        ["types", "Types"],
+      ] as const);
 
   return (
     <div className="flex flex-col gap-2">
@@ -116,10 +130,7 @@ export function EquationsTopicFilterControls({
         data-hint="Search topics."
       />
       <div className="flex items-center gap-1">
-        {([
-          ["canonical", "Canonical"],
-          ["types", "Types"],
-        ] as const).map(([scheme, label]) => {
+        {visibleOrderingOptions.map(([scheme, label]) => {
           const isActive = orderingScheme === scheme;
           return (
             <button
@@ -136,13 +147,28 @@ export function EquationsTopicFilterControls({
               data-hint={
                 scheme === "canonical"
                   ? "Show topics in the canonical reading order without explicit type groupings."
-                  : "Show topics grouped by format-aligned types such as equations, derivations, references, and glossaries."
+                  : scheme === "types"
+                    ? "Show topics grouped by format-aligned types such as equations, derivations, references, and glossaries."
+                    : scheme === "created_at"
+                      ? "Show newest-created topics first."
+                      : "Show most recently updated topics first."
               }
             >
               {label}
             </button>
           );
         })}
+        {!hasActiveExtraOrdering && !showExtraOrderingOptions ? (
+          <button
+            type="button"
+            className="rounded-md border border-border/50 bg-background/20 px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-accent/18 hover:text-foreground"
+            onClick={() => setShowExtraOrderingOptions(true)}
+            data-hint="Show additional topic ordering options."
+            aria-label="Show additional ordering options"
+          >
+            ...
+          </button>
+        ) : null}
       </div>
       {trimmedQuery.length > 0 ? (
         <div className={SIDEBAR_MICRO_COPY_CLASS}>

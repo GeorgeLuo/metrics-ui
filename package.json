@@ -50,6 +50,7 @@
     "ws:single-frontend:regress": "node scripts/single-frontend-regress.mjs",
     "derivation:regress": "node scripts/derivation-plugin-regress.mjs",
     "derivation:chain:regress": "node scripts/derivation-chain-regress.mjs",
+    "equations:sync-topic-dates": "node scripts/sync-equations-topic-dates.mjs",
     "docs:ws": "tsx script/ws-docs.ts",
     "docs:ws:check": "tsx script/ws-docs.ts --check",
     "db:push": "drizzle-kit push"

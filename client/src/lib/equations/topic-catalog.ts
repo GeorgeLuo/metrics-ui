@@ -25,6 +25,8 @@ type EquationsTopicDefinition = {
   id: string;
   label: string;
   description: string;
+  createdAt: string;
+  updatedAt: string;
   format: EquationsTopicFormat;
   path: string;
   sortKey: number | null;
@@ -47,6 +49,8 @@ export type EquationsTopicOption = {
   catalogLabel: string;
   label: string;
   description: string;
+  createdAt: string;
+  updatedAt: string;
   sortKey: number | null;
   group: EquationsTopicGroup | null;
   tags: string[];
@@ -92,6 +96,14 @@ function normalizeDescription(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeDateString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : null;
+}
+
 function normalizeOptionalSortKey(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value)
     ? value
@@ -108,6 +120,8 @@ function normalizeTopicDefinition(value: unknown): EquationsTopicDefinition | nu
   };
   const id = normalizeNonEmptyString(raw.id);
   const label = normalizeNonEmptyString(raw.label);
+  const createdAt = normalizeDateString((raw as { createdAt?: unknown }).createdAt);
+  const updatedAt = normalizeDateString((raw as { updatedAt?: unknown }).updatedAt);
   const format: EquationsTopicFormat | null = raw.format === "freeform"
     ? "freeform"
     : raw.format === "derivation"
@@ -124,7 +138,7 @@ function normalizeTopicDefinition(value: unknown): EquationsTopicDefinition | nu
           ? "semantic_layout"
           : null;
   const path = normalizeNonEmptyString(raw.path);
-  if (!id || !label || !format || !path) {
+  if (!id || !label || !createdAt || !updatedAt || !format || !path) {
     return null;
   }
 
@@ -132,6 +146,8 @@ function normalizeTopicDefinition(value: unknown): EquationsTopicDefinition | nu
     id,
     label,
     description: normalizeDescription(raw.description),
+    createdAt,
+    updatedAt,
     format,
     path,
     sortKey: normalizeOptionalSortKey((raw as { sortKey?: unknown }).sortKey),
@@ -249,6 +265,8 @@ function buildTopicOption(
       catalogLabel: catalog.label,
       label: definition.label,
       description: definition.description,
+      createdAt: definition.createdAt,
+      updatedAt: definition.updatedAt,
       sortKey: definition.sortKey,
       group: definition.group,
       tags: definition.tags,
@@ -319,6 +337,8 @@ function buildTopicOption(
     catalogLabel: catalog.label,
     label: definition.label,
     description: definition.description,
+    createdAt: definition.createdAt,
+    updatedAt: definition.updatedAt,
     sortKey: definition.sortKey,
     group: definition.group,
     tags: definition.tags,
