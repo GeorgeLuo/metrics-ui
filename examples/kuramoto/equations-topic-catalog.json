@@ -290,6 +290,27 @@
       "path": "./equations-content.eq16.json"
     },
     {
+      "id": "kuramoto-eq16-to-eq17-context",
+      "label": "Eq. 16 -> Eq. 17: What Changed?",
+      "description": "Reference explaining why Eq. 16 and Eq. 17 are consecutive in the paper even though they answer different questions.",
+      "createdAt": "2026-04-03",
+      "updatedAt": "2026-04-03",
+      "sortKey": 175,
+      "group": "reference",
+      "tags": [
+        "asymptotic",
+        "linear stability",
+        "transition"
+      ],
+      "searchTerms": [
+        "eq 16 to eq 17",
+        "what changed",
+        "stability vs asymptotic"
+      ],
+      "format": "reference_sections",
+      "path": "./equations-document.eq16-to-eq17-context.json"
+    },
+    {
       "id": "kuramoto-eq17",
       "label": "Equation 17",
       "description": "Inspect the linearized stability equation obtained after perturbing incoherence and ignoring terms nonlinear in the perturbation.",
@@ -309,6 +330,27 @@
       ],
       "format": "semantic_layout",
       "path": "./equations-content.eq17.json"
+    },
+    {
+      "id": "kuramoto-eq18",
+      "label": "Equation 18",
+      "description": "Inspect the normalization constraint that accompanies the linearized stability mode in Eq. 17.",
+      "createdAt": "2026-04-03",
+      "updatedAt": "2026-04-03",
+      "sortKey": 190,
+      "group": "equation",
+      "tags": [
+        "linear stability",
+        "normalization",
+        "constraint"
+      ],
+      "searchTerms": [
+        "eq 18",
+        "equation 18",
+        "integral mu equals zero"
+      ],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq18.json"
     },
     {
       "id": "kuramoto-invalid-intermediate-form",
