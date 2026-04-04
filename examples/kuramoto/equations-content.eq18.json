@@ -1,0 +1,65 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "\\int_{-\\pi}^{\\pi}\\mu(\\theta,\\omega)\\,d\\theta = 0"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "The integral from minus pi to pi of "
+      },
+      {
+        "kind": "text",
+        "value": "mu(theta, omega)"
+      },
+      {
+        "kind": "text",
+        "value": " with respect to theta equals zero. Here "
+      },
+      {
+        "kind": "text",
+        "value": "mu(theta, omega)"
+      },
+      {
+        "kind": "text",
+        "value": " is the perturbation mode introduced in Eq. 17, "
+      },
+      {
+        "kind": "text",
+        "value": "theta"
+      },
+      {
+        "kind": "text",
+        "value": " is the phase variable being integrated over one full period, and "
+      },
+      {
+        "kind": "text",
+        "value": "omega"
+      },
+      {
+        "kind": "text",
+        "value": " is held fixed while taking that integral."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 18 is the companion normalization condition for Eq. 17. It says the perturbation must have zero average over phase for each fixed natural frequency omega, so the perturbed density still integrates to the same total probability as the incoherent base state."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Conceptually, Eq. 18 removes the forbidden direction where the perturbation would simply add or subtract total mass instead of redistributing it around the circle. You use it together with Eq. 17 when solving the linear stability eigenvalue problem for incoherence in the noiseless infinite-N limit."
+      }
+    ]
+  }
+}

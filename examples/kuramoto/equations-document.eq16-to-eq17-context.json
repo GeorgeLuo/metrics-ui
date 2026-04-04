@@ -1,0 +1,140 @@
+{
+  "pattern": "reference_sections",
+  "title": "Eq. 16 -> Eq. 17: What Changed?",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "Eq. 16 and Eq. 17 sit next to each other in the paper, but they do not answer the same question."
+    },
+    {
+      "kind": "text",
+      "value": "This reference explains the link: Eq. 16 finishes the asymptotic near-threshold story, while Eq. 17 starts a separate linear-stability analysis of incoherence."
+    }
+  ],
+  "sections": [
+    {
+      "title": "Eq. 16 Closes the Asymptotic Thread",
+      "anchorId": "eq16-asymptotic-thread",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 16 is a statement about asymptotic series. It tells you what it means to keep only the leading powers of a small parameter and ignore higher-order corrections.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq16",
+            "itemId": "workspace",
+            "title": "Equation 16"
+          },
+          "referenceLabel": "Open Equation 16"
+        },
+        {
+          "kind": "text",
+          "value": "That is why Eq. 14 can be interpreted as a near-threshold scaling law instead of an exact formula everywhere. Eq. 16 supplies the language that justifies that kind of approximation."
+        }
+      ],
+      "referenceTitle": "Point of Eq. 16",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Use Eq. 16 when the main question is: what is the leading behavior near a limit such as K going to K sub c?"
+        },
+        {
+          "kind": "math",
+          "latex": "f(\\epsilon) \\sim \\sum_{k=0}^{\\infty} \\epsilon^k f_k",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Eq. 17 Starts a New Question",
+      "anchorId": "eq17-new-question",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Eq. 17 is not obtained by algebraically manipulating Eq. 16. It comes from a different construction: perturb the incoherent density, substitute that perturbation into the continuum equation, and keep only terms linear in the perturbation.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq17",
+            "itemId": "workspace",
+            "title": "Equation 17"
+          },
+          "referenceLabel": "Open Equation 17"
+        },
+        {
+          "kind": "text",
+          "value": "So the focus changes. Eq. 16 asks how to interpret an approximation near threshold. Eq. 17 asks whether a small perturbation of incoherence grows or decays in time."
+        }
+      ],
+      "referenceTitle": "Point of Eq. 17",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Use Eq. 17 when the main question is stability: if I perturb incoherence a little, does that disturbance die out or amplify?"
+        },
+        {
+          "kind": "math",
+          "latex": "-\\omega\\frac{\\partial \\mu}{\\partial \\theta}+\\cdots = \\lambda\\mu",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "title": "Why the Paper Places Them Consecutively",
+      "anchorId": "why-consecutive",
+      "content": [
+        {
+          "kind": "text",
+          "value": "The equations are consecutive because they belong to the same broad synchronization story, not because one is a direct algebraic consequence of the other."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 14 to Eq. 16 complete the description of how the synchronized branch behaves near onset. Eq. 17 to Eq. 18 then address a separate issue the paper explicitly calls out: whether the incoherent state is stable at all."
+        },
+        {
+          "kind": "text",
+          "value": "So the link is conceptual: both live near the critical point, but one analyzes branch size and asymptotics, while the other analyzes stability through an eigenvalue problem."
+        }
+      ],
+      "referenceTitle": "Best Short Summary",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Eq. 16 tells you how to read a near-threshold approximation. Eq. 17 tells you how to test the linear stability of incoherence."
+        },
+        {
+          "kind": "text",
+          "value": "They are adjacent because the paper moves from existence and scaling of synchronized solutions to the separate question of stability."
+        }
+      ]
+    },
+    {
+      "title": "Which Tool to Reach For",
+      "anchorId": "which-tool",
+      "content": [
+        {
+          "kind": "text",
+          "value": "If you are comparing exact and approximate formulas near K sub c, reach for Eq. 15 and Eq. 16."
+        },
+        {
+          "kind": "text",
+          "value": "If you are asking whether incoherence is linearly stable in the infinite-N noiseless limit, reach for Eq. 17 together with Eq. 18.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq18",
+            "itemId": "workspace",
+            "title": "Equation 18"
+          },
+          "referenceLabel": "Open Equation 18"
+        }
+      ],
+      "referenceTitle": "Decision Rule",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "Approximation question near onset: Eq. 16."
+        },
+        {
+          "kind": "text",
+          "value": "Linear stability question for incoherence: Eq. 17 and Eq. 18."
+        }
+      ]
+    }
+  ]
+}
