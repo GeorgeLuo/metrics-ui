@@ -12,7 +12,11 @@ export type EquationsTopicFormat =
   | "glossary_reference"
   | "freeform";
 
-export type EquationsTopicOrderingScheme = "canonical" | "types";
+export type EquationsTopicOrderingScheme =
+  | "canonical"
+  | "types"
+  | "created_at"
+  | "updated_at";
 
 export const EQUATIONS_TOPIC_GROUP_LABELS: Record<EquationsTopicGroup, string> = {
   equation: "Equation",
@@ -37,6 +41,8 @@ const GROUP_RANK = new Map(
 export type EquationsTopicBrowseMetadata = {
   label: string;
   description: string;
+  createdAt: string;
+  updatedAt: string;
   sortKey: number | null;
   group: EquationsTopicGroup | null;
   tags: string[];
@@ -141,6 +147,32 @@ export function sortEquationsTopics<T extends EquationsTopicBrowseMetadata>(topi
   return [...topics].sort(compareEquationsTopicMetadata);
 }
 
+function compareIsoDatesDescending(left: string, right: string): number {
+  if (left !== right) {
+    return right.localeCompare(left);
+  }
+  return 0;
+}
+
+export function sortEquationsTopicsByOrderingScheme<T extends EquationsTopicBrowseMetadata>(
+  topics: T[],
+  orderingScheme: Exclude<EquationsTopicOrderingScheme, "types">,
+): T[] {
+  if (orderingScheme === "canonical") {
+    return sortEquationsTopics(topics);
+  }
+
+  return [...topics].sort((left, right) => {
+    const dateComparison = orderingScheme === "created_at"
+      ? compareIsoDatesDescending(left.createdAt, right.createdAt)
+      : compareIsoDatesDescending(left.updatedAt, right.updatedAt);
+    if (dateComparison !== 0) {
+      return dateComparison;
+    }
+    return compareEquationsTopicMetadata(left, right);
+  });
+}
+
 function buildTopicSearchHaystack(topic: EquationsTopicBrowseMetadata): string {
   const groupLabel = getEquationsTopicGroupLabel(topic.group);
   return [
@@ -206,12 +238,12 @@ export function organizeEquationsTopics<T extends EquationsTopicBrowseMetadata>(
   orderingScheme: EquationsTopicOrderingScheme,
 ): EquationsTopicGroupBucket<T>[] {
   if (orderingScheme === "types") {
-    return groupEquationsTopics(topics);
+    return groupEquationsTopics(sortEquationsTopics(topics));
   }
 
   return [{
     group: null,
     label: null,
-    topics,
+    topics: sortEquationsTopicsByOrderingScheme(topics, orderingScheme),
   }];
 }

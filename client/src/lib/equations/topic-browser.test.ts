@@ -12,6 +12,7 @@ import {
   normalizeEquationsTopicTags,
   organizeEquationsTopics,
   sortEquationsTopics,
+  sortEquationsTopicsByOrderingScheme,
   type EquationsTopicBrowseMetadata,
 } from "./topic-browser";
 
@@ -37,6 +38,8 @@ test("compare and sort topics prefer sortKey before label", () => {
     {
       label: "Equation 13",
       description: "",
+      createdAt: "2026-03-26",
+      updatedAt: "2026-04-02",
       sortKey: 140,
       group: "equation",
       tags: [],
@@ -45,6 +48,8 @@ test("compare and sort topics prefer sortKey before label", () => {
     {
       label: "Equation 5",
       description: "",
+      createdAt: "2026-03-25",
+      updatedAt: "2026-04-02",
       sortKey: 50,
       group: "equation",
       tags: [],
@@ -53,6 +58,8 @@ test("compare and sort topics prefer sortKey before label", () => {
     {
       label: "Identities Cheatsheet",
       description: "",
+      createdAt: "2026-03-27",
+      updatedAt: "2026-04-03",
       sortKey: 960,
       group: "reference",
       tags: [],
@@ -73,6 +80,8 @@ test("filter topics matches against label, description, group, tags, and search 
     {
       label: "Equation 13",
       description: "Lorentzian choice for the frequency distribution.",
+      createdAt: "2026-03-26",
+      updatedAt: "2026-04-02",
       sortKey: 140,
       group: "equation",
       tags: ["lorentzian", "gamma"],
@@ -81,6 +90,8 @@ test("filter topics matches against label, description, group, tags, and search 
     {
       label: "Eq. 13 -> Eq. 14",
       description: "Near-threshold asymptotic derivation.",
+      createdAt: "2026-03-27",
+      updatedAt: "2026-04-02",
       sortKey: 150,
       group: "derivation",
       tags: ["asymptotic", "lorentzian"],
@@ -105,6 +116,8 @@ test("group topics buckets them by standard group order", () => {
     {
       label: "Eq. 10 Addendum: Variables",
       description: "",
+      createdAt: "2026-03-25",
+      updatedAt: "2026-04-03",
       sortKey: 105,
       group: "glossary",
       tags: [],
@@ -113,6 +126,8 @@ test("group topics buckets them by standard group order", () => {
     {
       label: "Equation 13",
       description: "",
+      createdAt: "2026-03-26",
+      updatedAt: "2026-04-02",
       sortKey: 140,
       group: "equation",
       tags: [],
@@ -121,6 +136,8 @@ test("group topics buckets them by standard group order", () => {
     {
       label: "Identities Cheatsheet",
       description: "",
+      createdAt: "2026-03-27",
+      updatedAt: "2026-04-03",
       sortKey: 960,
       group: "reference",
       tags: [],
@@ -146,6 +163,8 @@ test("organize topics keeps canonical order flat by default", () => {
     {
       label: "Equation 13",
       description: "",
+      createdAt: "2026-03-26",
+      updatedAt: "2026-04-02",
       sortKey: 140,
       group: "equation",
       tags: [],
@@ -154,6 +173,8 @@ test("organize topics keeps canonical order flat by default", () => {
     {
       label: "Eq. 13 -> Eq. 14",
       description: "",
+      createdAt: "2026-03-27",
+      updatedAt: "2026-04-02",
       sortKey: 150,
       group: "derivation",
       tags: [],
@@ -167,6 +188,58 @@ test("organize topics keeps canonical order flat by default", () => {
       group: null,
       label: null,
       topics: sortEquationsTopics(topics),
+    }],
+  );
+});
+
+test("date orderings sort newest created or updated topics first", () => {
+  const topics = [
+    {
+      label: "Equation 13",
+      description: "",
+      createdAt: "2026-03-26",
+      updatedAt: "2026-04-02",
+      sortKey: 140,
+      group: "equation",
+      tags: [],
+      searchTerms: [],
+    },
+    {
+      label: "Eq. 10 Addendum: Variables",
+      description: "",
+      createdAt: "2026-03-25",
+      updatedAt: "2026-04-03",
+      sortKey: 105,
+      group: "glossary",
+      tags: [],
+      searchTerms: [],
+    },
+    {
+      label: "Equation 17",
+      description: "",
+      createdAt: "2026-04-02",
+      updatedAt: "2026-04-02",
+      sortKey: 180,
+      group: "equation",
+      tags: [],
+      searchTerms: [],
+    },
+  ] satisfies EquationsTopicBrowseMetadata[];
+
+  assert.deepEqual(
+    sortEquationsTopicsByOrderingScheme(topics, "created_at").map((topic) => topic.label),
+    ["Equation 17", "Equation 13", "Eq. 10 Addendum: Variables"],
+  );
+  assert.deepEqual(
+    sortEquationsTopicsByOrderingScheme(topics, "updated_at").map((topic) => topic.label),
+    ["Eq. 10 Addendum: Variables", "Equation 13", "Equation 17"],
+  );
+  assert.deepEqual(
+    organizeEquationsTopics(topics, "updated_at"),
+    [{
+      group: null,
+      label: null,
+      topics: sortEquationsTopicsByOrderingScheme(topics, "updated_at"),
     }],
   );
 });
