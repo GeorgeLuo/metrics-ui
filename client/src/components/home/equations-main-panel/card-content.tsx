@@ -13,7 +13,6 @@ import type {
 } from "@shared/schema";
 import { resolveEquationsMathExpression } from "@shared/equations-math";
 import type { EquationHitBoxClickSignal } from "@/components/home/equation-interaction.types";
-import { FitToWidthContent } from "./fit-to-cell-content";
 
 export type CardVariant = "equation" | "literal" | "meaning" | "concept";
 export type ResolvedTopicReference = {
@@ -21,6 +20,10 @@ export type ResolvedTopicReference = {
   slot: EquationsPaneCardSlotId;
   card: EquationsPaneCard;
   variant: CardVariant;
+} | {
+  topicId: string;
+  documentTitle: string;
+  documentItems: EquationsPaneCard[];
 };
 
 type FreeformBlockPathSegment = number | "left" | "right";
@@ -103,14 +106,22 @@ function InlineReferenceLauncher({
   );
 }
 
-function isMultiLineDisplayMath(latex: string, displayMode?: boolean): boolean {
-  if (displayMode === false) {
-    return false;
-  }
-
+function ScrollableMathContent({
+  children,
+  launcher,
+}: {
+  children: ReactNode;
+  launcher?: ReactNode;
+}) {
   return (
-    /\\begin\{(?:aligned|align|split|array|cases|gathered)\}/.test(latex)
-    || /\\\\/.test(latex)
+    <div className="max-w-full overflow-x-auto overflow-y-visible text-foreground">
+      <div className="inline-flex min-w-full max-w-none items-start justify-center gap-2">
+        <div className="min-w-max max-w-none">
+          {children}
+        </div>
+        {launcher}
+      </div>
+    </div>
   );
 }
 
@@ -434,53 +445,55 @@ export function PiecewiseEquationContent({
 
   return (
     <div
-      className="flex max-w-full items-start gap-4 text-left text-foreground"
+      className="max-w-full overflow-x-auto overflow-y-visible text-foreground"
       data-equations-selection-root="1"
       data-equations-item-id={itemId}
       data-equations-selection-id={itemId}
     >
-      <MappedSequence
-        itemId={itemId}
-        mappings={lhsMappings}
-        variant="equation"
-        containerClassName="max-w-full whitespace-pre-wrap break-words pt-3 leading-[2.2]"
-        showAllSignalBlocks={showAllSignalBlocks}
-        selectedHitBox={selectedHitBox}
-        onSelect={onSelect}
-        selectionRoot={false}
-      />
-      <div className="flex items-stretch gap-3">
-        <div
-          className="select-none pt-1 text-foreground/60"
-          aria-hidden="true"
-          dangerouslySetInnerHTML={{ __html: braceMarkup }}
-        >
-        </div>
-        <div className="grid min-w-0 grid-cols-[max-content_max-content] items-start gap-x-6 gap-y-3 pt-2">
-          {rows.map((row, index) => (
-            <div key={`${itemId}-piecewise-row-${index}`} className="contents">
-              <MappedSequence
-                itemId={itemId}
-                mappings={row.expression}
-                variant="equation"
-                containerClassName="max-w-full whitespace-pre-wrap break-words leading-[2.2] text-left text-foreground"
-                showAllSignalBlocks={showAllSignalBlocks}
-                selectedHitBox={selectedHitBox}
-                onSelect={onSelect}
-                selectionRoot={false}
-              />
-              <MappedSequence
-                itemId={itemId}
-                mappings={row.condition ?? []}
-                variant="equation"
-                containerClassName="max-w-full whitespace-pre-wrap break-words pt-1 leading-[2.2] text-left text-foreground/82"
-                showAllSignalBlocks={showAllSignalBlocks}
-                selectedHitBox={selectedHitBox}
-                onSelect={onSelect}
-                selectionRoot={false}
-              />
-            </div>
-          ))}
+      <div className="inline-flex min-w-max max-w-none items-start gap-4 text-left">
+        <MappedSequence
+          itemId={itemId}
+          mappings={lhsMappings}
+          variant="equation"
+          containerClassName="whitespace-nowrap pt-3 leading-[2.2]"
+          showAllSignalBlocks={showAllSignalBlocks}
+          selectedHitBox={selectedHitBox}
+          onSelect={onSelect}
+          selectionRoot={false}
+        />
+        <div className="flex min-w-max items-stretch gap-3">
+          <div
+            className="select-none pt-1 text-foreground/60"
+            aria-hidden="true"
+            dangerouslySetInnerHTML={{ __html: braceMarkup }}
+          >
+          </div>
+          <div className="grid min-w-max grid-cols-[max-content_max-content] items-start gap-x-6 gap-y-3 pt-2">
+            {rows.map((row, index) => (
+              <div key={`${itemId}-piecewise-row-${index}`} className="contents">
+                <MappedSequence
+                  itemId={itemId}
+                  mappings={row.expression}
+                  variant="equation"
+                  containerClassName="whitespace-nowrap leading-[2.2] text-left text-foreground"
+                  showAllSignalBlocks={showAllSignalBlocks}
+                  selectedHitBox={selectedHitBox}
+                  onSelect={onSelect}
+                  selectionRoot={false}
+                />
+                <MappedSequence
+                  itemId={itemId}
+                  mappings={row.condition ?? []}
+                  variant="equation"
+                  containerClassName="whitespace-nowrap pt-1 leading-[2.2] text-left text-foreground/82"
+                  showAllSignalBlocks={showAllSignalBlocks}
+                  selectedHitBox={selectedHitBox}
+                  onSelect={onSelect}
+                  selectionRoot={false}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -497,6 +510,7 @@ export function FreeformCardContent({
   onReferenceFrameSelect,
   resolveTopicReference,
   topicReferenceDepth = 0,
+  density = "standard",
 }: {
   itemId: string;
   blocks: EquationsPaneCardBlock[];
@@ -507,11 +521,36 @@ export function FreeformCardContent({
   onReferenceFrameSelect?: (frame: EquationsReferenceFrameState | null) => void;
   resolveTopicReference?: (block: Extract<EquationsPaneCardBlock, { kind: "topic_reference" }>) => ResolvedTopicReference | null;
   topicReferenceDepth?: number;
+  density?: "standard" | "textbook";
 }) {
+  const isTextbookDensity = density === "textbook";
   const renderReferencedCard = (
     reference: ResolvedTopicReference,
     referenceItemId: string,
   ): ReactNode => {
+    if ("documentItems" in reference) {
+      return (
+        <div className="flex max-w-full flex-col gap-3">
+          {reference.documentItems.map((card, index) => (
+            <div
+              key={`${referenceItemId}-document-item-${index}`}
+              className={isTextbookDensity ? "max-w-full" : "rounded-lg border border-border/55 bg-background/45 p-3"}
+            >
+              {renderReferencedCard(
+                {
+                  topicId: reference.topicId,
+                  slot: "workspace",
+                  card,
+                  variant: "meaning",
+                },
+                `${referenceItemId}:item:${index}`,
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     const card = reference.card;
     const math = resolveEquationsMathExpression(card.math);
     const mappings = Array.isArray(card.mappings) ? card.mappings : [];
@@ -551,6 +590,7 @@ export function FreeformCardContent({
           onReferenceFrameSelect={onReferenceFrameSelect}
           resolveTopicReference={resolveTopicReference}
           topicReferenceDepth={topicReferenceDepth + 1}
+          density={density}
         />
       );
     }
@@ -578,7 +618,7 @@ export function FreeformCardContent({
       });
       const mathContent = (
         <div
-          className="relative flow-root max-w-full overflow-visible py-1 text-foreground"
+          className="relative inline-block min-w-max max-w-none py-1 text-foreground"
           data-equations-selection-root="1"
           data-equations-item-id={referenceItemId}
           data-equations-selection-id={referenceItemId}
@@ -586,15 +626,7 @@ export function FreeformCardContent({
         />
       );
 
-      if (isMultiLineDisplayMath(math.latex, math.displayMode)) {
-        return <div className="max-w-full text-foreground">{mathContent}</div>;
-      }
-
-      return (
-        <FitToWidthContent className="text-foreground" contentClassName="py-1">
-          {mathContent}
-        </FitToWidthContent>
-      );
+      return <ScrollableMathContent>{mathContent}</ScrollableMathContent>;
     }
 
     if (card.body.trim().length > 0) {
@@ -624,7 +656,7 @@ export function FreeformCardContent({
     entries: EquationsPaneCardBlock[],
     path: FreeformBlockPathSegment[],
   ): ReactNode => (
-    <div className="flex max-w-full flex-col gap-4 text-left">
+    <div className={`flex max-w-full flex-col text-left ${isTextbookDensity ? "gap-3" : "gap-4"}`}>
       {entries.map((block, index) => {
         const nextPath = [...path, index] as FreeformBlockPathSegment[];
         if (block.kind === "text") {
@@ -638,10 +670,16 @@ export function FreeformCardContent({
           return (
             <div
               key={`${itemId}-${nextPath.join("-")}-text`}
-              className="whitespace-pre-wrap text-[13px] leading-6 text-foreground/82"
+              className={[
+                "whitespace-pre-wrap",
+                isTextbookDensity && block.anchorId?.startsWith("textbook-topic-")
+                  ? "pt-3 text-[15px] font-semibold leading-6 text-foreground"
+                  : "text-[13px] leading-6 text-foreground/82",
+              ].join(" ")}
               data-equations-selection-root="1"
               data-equations-item-id={itemId}
               data-equations-selection-id={selectionId}
+              {...(block.anchorId ? { "data-equations-anchor-id": block.anchorId } : {})}
             >
               {hasInlineLauncher && trailingText ? (
                 <>
@@ -700,7 +738,7 @@ export function FreeformCardContent({
           });
           const mathContent = (
             <div
-              className="relative flow-root max-w-full overflow-visible py-1 text-foreground"
+              className="relative inline-block min-w-max max-w-none py-1 text-foreground"
               data-equations-selection-root="1"
               data-equations-item-id={itemId}
               data-equations-selection-id={selectionId}
@@ -708,46 +746,21 @@ export function FreeformCardContent({
             />
           );
 
-          if (isMultiLineDisplayMath(block.latex, block.displayMode)) {
-            return (
-              <div key={`${itemId}-${nextPath.join("-")}-math`} className="max-w-full text-foreground">
-                <div className="flex max-w-full items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    {mathContent}
-                  </div>
-                  {referenceFrame ? (
-                    <InlineReferenceLauncher
-                      label={block.referenceLabel}
-                      onClick={() => {
-                        onReferenceFrameSelect?.(referenceFrame);
-                      }}
-                    />
-                  ) : null}
-                </div>
-              </div>
-            );
-          }
-
           return (
-            <FitToWidthContent
-              key={`${itemId}-${nextPath.join("-")}-math`}
-              className="text-foreground"
-              contentClassName="py-1"
-            >
-              <div className="flex max-w-full items-start justify-center gap-2">
-                <div className="min-w-0">
-                  {mathContent}
-                </div>
-                {referenceFrame ? (
+            <div key={`${itemId}-${nextPath.join("-")}-math`}>
+              <ScrollableMathContent
+                launcher={referenceFrame ? (
                   <InlineReferenceLauncher
                     label={block.referenceLabel}
                     onClick={() => {
                       onReferenceFrameSelect?.(referenceFrame);
                     }}
                   />
-                ) : null}
-              </div>
-            </FitToWidthContent>
+                ) : undefined}
+              >
+                {mathContent}
+              </ScrollableMathContent>
+            </div>
           );
         }
 
@@ -773,11 +786,15 @@ export function FreeformCardContent({
               </div>
             );
           }
-          const referenceItemId = `${buildFreeformBlockSelectionId(itemId, nextPath)}::topic:${reference.topicId}:${reference.slot}`;
+          const referenceItemId = `${buildFreeformBlockSelectionId(itemId, nextPath)}::topic:${reference.topicId}:${"slot" in reference ? reference.slot : "document"}`;
           return (
             <div
               key={`${itemId}-${nextPath.join("-")}-topic-reference`}
-              className="rounded-lg border border-border/60 bg-background/55 p-3"
+              className={
+                isTextbookDensity
+                  ? "max-w-full"
+                  : "rounded-lg border border-border/60 bg-background/55 p-3"
+              }
             >
               {renderReferencedCard(reference, referenceItemId)}
             </div>
@@ -793,7 +810,7 @@ export function FreeformCardContent({
           return (
             <div
               key={`${itemId}-${nextPath.join("-")}-split`}
-              className="grid items-start gap-5 md:gap-6"
+              className={`grid items-start ${isTextbookDensity ? "gap-4 md:gap-5" : "gap-5 md:gap-6"}`}
               style={{
                 gridTemplateColumns: `minmax(0, ${fractions[0]}fr) minmax(0, ${fractions[1]}fr)`,
               }}
@@ -844,7 +861,7 @@ export function FreeformCardContent({
   );
 
   return (
-    <div className="max-w-full">
+    <div className={`max-w-full ${isTextbookDensity ? "pb-8" : ""}`}>
       {renderBlockStack(blocks, [])}
     </div>
   );

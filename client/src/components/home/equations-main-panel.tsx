@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import katex from "katex";
 import { Check, Copy } from "lucide-react";
@@ -21,7 +21,11 @@ import { SubappFloatingFrame, ViewportFloatingFrame } from "@/components/floatin
 import { FrameGrid, type FrameGridDebugSnapshot } from "@/components/frame-grid";
 import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
 import { DASHBOARD_STORAGE_KEYS } from "@/lib/dashboard/storage";
-import { getEquationsTopicOptionById } from "@/lib/equations/topic-catalog";
+import { getEquationsTopicOptionById, type EquationsTopicOption } from "@/lib/equations/topic-catalog";
+import {
+  buildEquationsTextbookTopicDocuments,
+  getEquationsTextbookTopicAnchorId,
+} from "@/lib/equations/textbook-view";
 import {
   type CardVariant,
   collectFreeformBlockFormulaBySelectionId,
@@ -66,6 +70,9 @@ type EquationsMainPanelProps = {
   hiddenTextHighlightIds?: number[];
   onVisualizationFrameSelect?: (frame: VisualizationFrameState | null) => void;
   onReferenceFrameSelect?: (frame: EquationsReferenceFrameState | null) => void;
+  textbookScrollAnchorId?: string | null;
+  textbookScrollRequestKey?: number;
+  textbookTopicOptions?: EquationsTopicOption[];
 };
 
 type PendingTextHighlightGesture = {
@@ -123,6 +130,9 @@ export function EquationsMainPanel({
   hiddenTextHighlightIds = [],
   onVisualizationFrameSelect,
   onReferenceFrameSelect,
+  textbookScrollAnchorId = null,
+  textbookScrollRequestKey = 0,
+  textbookTopicOptions = [],
 }: EquationsMainPanelProps) {
   const contentAreaRef = useRef<HTMLElement | null>(null);
   const interactionSignalCopyResetTimerRef = useRef<number | null>(null);
@@ -133,6 +143,15 @@ export function EquationsMainPanel({
   const frameGridDocument = buildEquationsFrameGridDocument(equationsPane, {
     detailsFallbackBody: sidebarMode === "analysis" ? "Library" : "Setup",
   });
+  const isTextbookView = equationsPane.viewMode === "textbook";
+  const textbookTopicDocuments = useMemo(
+    () => (
+      isTextbookView
+        ? buildEquationsTextbookTopicDocuments(textbookTopicOptions)
+        : []
+    ),
+    [isTextbookView, textbookTopicOptions],
+  );
   const visibleTextHighlights = equationsPane.context.selectedTextHighlights.filter((highlight) => (
     typeof highlight.highlightId !== "number" || !hiddenTextHighlightIds.includes(highlight.highlightId)
   ));
@@ -352,6 +371,36 @@ export function EquationsMainPanel({
     };
   }, [equationsPane, sidebarMode, equationsSignalBlocksDebug, hiddenTextHighlightIds]);
 
+  useEffect(() => {
+    if (!textbookScrollAnchorId) {
+      return;
+    }
+
+    const container = contentAreaRef.current;
+    if (!container) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const escapedAnchor = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+        ? CSS.escape(textbookScrollAnchorId)
+        : textbookScrollAnchorId.replace(/["\\]/g, "\\$&");
+      const target = container.querySelector<HTMLElement>(`[data-equations-anchor-id="${escapedAnchor}"]`);
+      if (!target) {
+        return;
+      }
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+        inline: "nearest",
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [textbookScrollAnchorId, textbookScrollRequestKey]);
+
   const handleCopyInteractionSignal = async () => {
     if (!interactionSignalClipboardText) {
       return;
@@ -431,9 +480,26 @@ export function EquationsMainPanel({
     block: EquationsPaneTopicReferenceBlock,
   ) => {
     const topic = getEquationsTopicOptionById(block.topicId);
-    if (!topic || topic.payload.kind !== "semantic_layout") {
+    if (!topic) {
       return null;
     }
+    if (topic.payload.kind !== "semantic_layout") {
+      const sortedItems = [...topic.payload.document.items].sort((left, right) => {
+        if (left.row !== right.row) {
+          return left.row - right.row;
+        }
+        if (left.col !== right.col) {
+          return left.col - right.col;
+        }
+        return (left.id ?? "").localeCompare(right.id ?? "");
+      });
+      return {
+        topicId: topic.topicId,
+        documentTitle: topic.label,
+        documentItems: sortedItems,
+      };
+    }
+
     const slot = block.slot ?? "workspace";
     return {
       topicId: topic.topicId,
@@ -526,7 +592,7 @@ export function EquationsMainPanel({
   const renderCard = (
     itemId: string,
     card: EquationsPaneCard,
-    options?: { fallbackBody?: string },
+    options?: { fallbackBody?: string; variantItemId?: string },
   ) => {
     const math = resolveEquationsMathExpression(card.math);
     const mappings = Array.isArray(card.mappings) ? card.mappings : [];
@@ -537,11 +603,12 @@ export function EquationsMainPanel({
     const hasBlocks = blocks.length > 0;
     const body = card.body.trim().length > 0 ? card.body : options?.fallbackBody ?? "";
     const title = card.title.trim().length > 0 ? card.title : "";
-    const variant = getCardVariant(itemId);
+    const variant = getCardVariant(options?.variantItemId ?? itemId);
     const isEquationCard = variant === "equation";
     const isLiteralCard = variant === "literal";
     const presentation = card.presentation ?? "standard";
     const isFreeformCard = presentation === "freeform";
+    const useTextbookChrome = isTextbookView && isFreeformCard && itemId === "workspace";
     const isPiecewiseEquation = isEquationCard && presentation === "piecewise";
     const mathMarkup = !hasMappings && !hasPiecewiseRows && !hasBlocks && math
       ? katex.renderToString(math.latex, {
@@ -557,14 +624,19 @@ export function EquationsMainPanel({
     return (
       <article
         className={[
-          "relative h-full w-full rounded-xl p-4 md:p-5",
-          "overflow-hidden backdrop-blur-[2px]",
-          isEquationCard || isFreeformCard ? "bg-background/88" : "bg-card/78",
+          "relative h-full w-full overflow-hidden",
+          useTextbookChrome
+            ? "rounded-none bg-transparent p-1 md:p-2"
+            : [
+                "rounded-xl p-4 md:p-5",
+                "backdrop-blur-[2px]",
+                isEquationCard || isFreeformCard ? "bg-background/88" : "bg-card/78",
+              ].join(" "),
         ].join(" ")}
         data-equations-item-id={itemId}
       >
-        <div className="flex h-full w-full min-h-0 flex-col gap-3">
-          {title ? (
+        <div className={`flex h-full w-full min-h-0 flex-col ${useTextbookChrome ? "gap-0" : "gap-3"}`}>
+          {title && !useTextbookChrome ? (
             <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               {title}
             </div>
@@ -610,6 +682,7 @@ export function EquationsMainPanel({
                   onVisualizationLinkSelect={onVisualizationFrameSelect}
                   onReferenceFrameSelect={onReferenceFrameSelect}
                   resolveTopicReference={resolveTopicReference}
+                  density={useTextbookChrome ? "textbook" : "standard"}
                 />
               ) : hasMappings ? (
                 <MappedCardContent
@@ -696,26 +769,76 @@ export function EquationsMainPanel({
             `equations-highlight-layer-${entry.key}-${layerIndex}`,
           );
         }))}
-        <FrameGrid
-          spec={frameGridDocument.spec}
-          debugId="equations-main"
-          layoutDebug={frameGridLayoutDebug}
-          showOuterFrame={false}
-          showContentFrame={false}
-          onDebug={onFrameGridDebugChange}
-        >
-          {frameGridDocument.items.map((item) => (
-            <FrameGrid.Item
-              key={item.id}
-              col={item.col}
-              row={item.row}
-              colSpan={item.colSpan}
-              rowSpan={item.rowSpan}
-            >
-              {renderCard(item.id ?? "workspace", item)}
-            </FrameGrid.Item>
-          ))}
-        </FrameGrid>
+        {isTextbookView ? (
+          <div
+            className="h-full min-h-0 overflow-y-auto overflow-x-hidden pr-2"
+            data-equations-highlight-overlay-host="1"
+          >
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 pb-10">
+              {textbookTopicDocuments.map(({ topic, document }, topicIndex) => (
+                <section
+                  key={topic.id}
+                  className="flex flex-col gap-2"
+                  data-equations-anchor-id={getEquationsTextbookTopicAnchorId(topic.id)}
+                >
+                  <div className="sticky top-0 z-20 bg-background px-2 py-1 text-[13px] font-semibold leading-6 text-foreground">
+                    {topic.label}
+                  </div>
+                  <div
+                    className="relative w-full"
+                    style={{ aspectRatio: `${document.spec.frameAspect[0]} / ${document.spec.frameAspect[1]}` }}
+                  >
+                    <FrameGrid
+                      spec={document.spec}
+                      debugId={`equations-textbook-${topic.id}`}
+                      layoutDebug={frameGridLayoutDebug}
+                      showOuterFrame={frameGridLayoutDebug}
+                      showContentFrame={frameGridLayoutDebug}
+                      onDebug={topicIndex === 0 ? onFrameGridDebugChange : undefined}
+                    >
+                      {document.items.map((item) => {
+                        const sourceItemId = item.id ?? "workspace";
+                        const textbookItemId = `textbook:${topic.id}:${sourceItemId}`;
+                        return (
+                          <FrameGrid.Item
+                            key={`${topic.id}-${sourceItemId}`}
+                            col={item.col}
+                            row={item.row}
+                            colSpan={item.colSpan}
+                            rowSpan={item.rowSpan}
+                          >
+                            {renderCard(textbookItemId, item, { variantItemId: sourceItemId })}
+                          </FrameGrid.Item>
+                        );
+                      })}
+                    </FrameGrid>
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <FrameGrid
+            spec={frameGridDocument.spec}
+            debugId="equations-main"
+            layoutDebug={frameGridLayoutDebug}
+            showOuterFrame={false}
+            showContentFrame={false}
+            onDebug={onFrameGridDebugChange}
+          >
+            {frameGridDocument.items.map((item) => (
+              <FrameGrid.Item
+                key={item.id}
+                col={item.col}
+                row={item.row}
+                colSpan={item.colSpan}
+                rowSpan={item.rowSpan}
+              >
+                {renderCard(item.id ?? "workspace", item)}
+              </FrameGrid.Item>
+            ))}
+          </FrameGrid>
+        )}
         <SubappFloatingFrame
           title="Interaction Signal"
           isVisible={Boolean(equationHitBoxClick)}

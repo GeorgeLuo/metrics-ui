@@ -20,6 +20,11 @@ test("normalizeEquationsPaneState falls back to defaults", () => {
   });
 });
 
+test("normalizeEquationsPaneState falls back to topic view mode", () => {
+  const next = normalizeEquationsPaneState({ viewMode: "unknown" });
+  assert.equal(next.viewMode, "topic");
+});
+
 test("mergeEquationsPaneStatePatch applies partial content and dimensions", () => {
   const next = mergeEquationsPaneStatePatch(DEFAULT_EQUATIONS_PANE_STATE, {
     content: {
@@ -82,6 +87,25 @@ test("mergeEquationsPaneStatePatch replace resets unspecified fields", () => {
   assert.equal(reset.content.workspace.title, DEFAULT_EQUATIONS_PANE_STATE.content.workspace.title);
   assert.equal(reset.content.details.body, "Only this survives");
   assert.equal(reset.dimensions.footer.rowSpan, DEFAULT_EQUATIONS_PANE_STATE.dimensions.footer.rowSpan);
+});
+
+test("mergeEquationsPaneStatePatch applies and preserves view mode", () => {
+  const textbook = mergeEquationsPaneStatePatch(DEFAULT_EQUATIONS_PANE_STATE, {
+    viewMode: "textbook",
+  });
+  assert.equal(textbook.viewMode, "textbook");
+
+  const preserved = mergeEquationsPaneStatePatch(textbook, {
+    content: {
+      workspace: {
+        title: "Still textbook",
+      },
+    },
+  });
+  assert.equal(preserved.viewMode, "textbook");
+
+  const reset = mergeEquationsPaneStatePatch(textbook, {}, { replace: true });
+  assert.equal(reset.viewMode, "topic");
 });
 
 test("mergeEquationsPaneStatePatch replaces cells when provided", () => {

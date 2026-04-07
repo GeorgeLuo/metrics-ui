@@ -367,7 +367,10 @@ export interface EquationsPaneContextState {
   referenceFrame: EquationsReferenceFrameState | null;
 }
 
+export type EquationsPaneViewMode = "topic" | "textbook";
+
 export interface EquationsPaneState {
+  viewMode: EquationsPaneViewMode;
   topicSourceId: string | null;
   topicSourceSignature: string | null;
   dimensions: EquationsPaneDimensions;
@@ -411,6 +414,7 @@ export interface EquationsPaneContentPatch {
 }
 
 export interface EquationsPaneStatePatch {
+  viewMode?: EquationsPaneViewMode | null;
   topicSourceId?: string | null;
   topicSourceSignature?: string | null;
   dimensions?: EquationsPaneDimensionsPatch;

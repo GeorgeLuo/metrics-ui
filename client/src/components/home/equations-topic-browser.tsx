@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { EquationsPaneViewMode } from "@shared/schema";
 import { Input } from "@/components/ui/input";
 import type { EquationsTopicOption } from "@/lib/equations/topic-catalog";
 import {
@@ -45,6 +46,11 @@ export type EquationsTopicFilterControlsProps = {
   inlineEditTextClass: string;
 };
 
+export type EquationsTopicViewModeSelectorProps = {
+  viewMode: EquationsPaneViewMode;
+  onViewModeChange: (next: EquationsPaneViewMode) => void;
+};
+
 export type EquationsTopicListProps = {
   organizedTopicOptions: EquationsTopicGroupBucket<EquationsTopicOption>[];
   selectedTopicId: string;
@@ -65,6 +71,8 @@ export type EquationsTopicBrowserProps = {
   selectedTopicId: string;
   onTopicSelect: (id: string) => void;
   inlineEditTextClass: string;
+  viewMode: EquationsPaneViewMode;
+  onViewModeChange: (next: EquationsPaneViewMode) => void;
 };
 
 export function useEquationsTopicBrowserState({
@@ -179,6 +187,43 @@ export function EquationsTopicFilterControls({
   );
 }
 
+export function EquationsTopicViewModeSelector({
+  viewMode,
+  onViewModeChange,
+}: EquationsTopicViewModeSelectorProps) {
+  return (
+    <div className="flex items-center gap-1">
+      {([
+        ["topic", "Selection"],
+        ["textbook", "Textbook"],
+      ] as const).map(([mode, label]) => {
+        const isActive = viewMode === mode;
+        return (
+          <button
+            key={mode}
+            type="button"
+            className={[
+              "rounded-md border px-2 py-1 text-[10px] uppercase tracking-[0.08em] transition-colors",
+              isActive
+                ? "border-border bg-accent/45 text-foreground"
+                : "border-border/50 bg-background/20 text-muted-foreground hover:bg-accent/18 hover:text-foreground",
+            ].join(" ")}
+            aria-pressed={isActive}
+            onClick={() => onViewModeChange(mode)}
+            data-hint={
+              mode === "topic"
+                ? "Show the currently selected topic in the equations content area."
+                : "Show all catalog topics in canonical order as one scrollable textbook view."
+            }
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function EquationsTopicList({
   organizedTopicOptions,
   selectedTopicId,
@@ -256,11 +301,17 @@ export function EquationsTopicBrowser({
   selectedTopicId,
   onTopicSelect,
   inlineEditTextClass,
+  viewMode,
+  onViewModeChange,
 }: EquationsTopicBrowserProps) {
   const topicBrowserState = useEquationsTopicBrowserState({ topicOptions });
 
   return (
     <div className="flex flex-col gap-2">
+      <EquationsTopicViewModeSelector
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
+      />
       <EquationsTopicFilterControls
         query={topicBrowserState.query}
         onQueryChange={topicBrowserState.setQuery}
