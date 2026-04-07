@@ -1,7 +1,7 @@
 import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
-import type { EquationsPaneSelectedTextHighlight } from "@shared/schema";
+import type { EquationsPaneSelectedTextHighlight, EquationsPaneViewMode } from "@shared/schema";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -22,6 +22,7 @@ import {
   EquationsTopicFilterControls,
   EquationsRecentTopicList,
   EquationsTopicList,
+  EquationsTopicViewModeSelector,
   useEquationsTopicBrowserState,
 } from "./equations-topic-browser";
 
@@ -58,6 +59,8 @@ type SidebarEquationsPaneProps = {
   isInlineFieldBlank: (value: string) => boolean;
   topicOptions: EquationsTopicOption[];
   recentTopicOptions: EquationsTopicOption[];
+  viewMode: EquationsPaneViewMode;
+  onViewModeChange: (next: EquationsPaneViewMode) => void;
   selectedTopicId: string;
   onTopicSelect: (id: string) => void;
   canRefreshSelectedTopic: boolean;
@@ -96,6 +99,8 @@ export function SidebarEquationsPane({
   isInlineFieldBlank,
   topicOptions,
   recentTopicOptions,
+  viewMode,
+  onViewModeChange,
   selectedTopicId,
   onTopicSelect,
   canRefreshSelectedTopic,
@@ -212,6 +217,10 @@ export function SidebarEquationsPane({
           <CollapsibleContent forceMount className="data-[state=closed]:hidden">
             <SidebarGroupContent>
               <div className={SIDEBAR_SECTION_STACK_CLASS}>
+                <EquationsTopicViewModeSelector
+                  viewMode={viewMode}
+                  onViewModeChange={onViewModeChange}
+                />
                 <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
                   <div className="flex flex-col gap-1">
                     <CollapsibleTrigger

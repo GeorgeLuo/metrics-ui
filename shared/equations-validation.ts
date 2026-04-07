@@ -336,6 +336,7 @@ export function validateEquationsPaneState(
   const diagnostics: EquationsValidationDiagnostic[] = [];
   const rules = createActiveRuleVisitors(options?.rules ?? DEFAULT_EQUATIONS_VALIDATION_RULES);
 
+  validateText(state.viewMode, "viewMode", "text_block", rules, diagnostics);
   if (typeof state.topicSourceId === "string") {
     validateText(state.topicSourceId, "topicSourceId", "text_block", rules, diagnostics);
   }

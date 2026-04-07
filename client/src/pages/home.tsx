@@ -62,6 +62,10 @@ import {
   identifyEquationsTopic,
 } from "@/lib/equations/topic-catalog";
 import {
+  buildEquationsTextbookPane,
+  getEquationsTextbookTopicAnchorId,
+} from "@/lib/equations/textbook-view";
+import {
   EQUATIONS_META_DOCUMENTS,
   getEquationsMetaDocumentById,
   identifyEquationsMetaDocument,
@@ -5471,10 +5475,23 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     normalizeRecentEquationsTopicIds(
       readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsRecentTopics),
     ));
+  const [textbookFocusedTopicId, setTextbookFocusedTopicId] = useState<string | null>(null);
+  const [textbookScrollRequestKey, setTextbookScrollRequestKey] = useState(0);
 
   const selectedTopicOption = useMemo(
     () => (selectedTopicId === "__custom__" ? null : getEquationsTopicOptionById(selectedTopicId)),
     [selectedTopicId],
+  );
+  const effectiveSelectedTopicId = equationsPane.viewMode === "textbook"
+    ? textbookFocusedTopicId ?? selectedTopicId
+    : selectedTopicId;
+  const textbookScrollAnchorId = useMemo(
+    () => (
+      equationsPane.viewMode === "textbook" && textbookFocusedTopicId
+        ? getEquationsTextbookTopicAnchorId(textbookFocusedTopicId)
+        : null
+    ),
+    [equationsPane.viewMode, textbookFocusedTopicId],
   );
   const selectedMetaDocument = useMemo(
     () => (selectedMetaDocumentId ? getEquationsMetaDocumentById(selectedMetaDocumentId) : null),
@@ -5514,25 +5531,40 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     () => selectedTopicCatalog?.topics ?? [],
     [selectedTopicCatalog],
   );
+  const displayedEquationsPane = useMemo(
+    () => (
+      equationsPane.viewMode === "textbook"
+        ? buildEquationsTextbookPane(equationsPane, topicOptionsForSelectedCatalog)
+        : equationsPane
+    ),
+    [equationsPane, topicOptionsForSelectedCatalog],
+  );
   const equationsDocumentDebugSummary = useMemo(() => ({
-    sourceKind: equationsPane.document ? "document" as const : "semantic_layout" as const,
-    topicFormat: selectedMetaDocument
+    sourceKind: displayedEquationsPane.document ? "document" as const : "semantic_layout" as const,
+    topicFormat: equationsPane.viewMode === "textbook"
+      ? "textbook"
+      : selectedMetaDocument
       ? "reference_sections"
-      : selectedTopicOption?.format ?? (equationsPane.document ? "document" : "semantic_layout"),
-    topicLabel: selectedMetaDocument?.label ?? selectedTopicOption?.label ?? null,
-    catalogLabel: selectedMetaDocument ? "Meta" : selectedTopicCatalog?.label ?? null,
-    grid: equationsPane.document?.spec.grid ?? equationsPane.dimensions.grid,
-    frameAspect: equationsPane.document?.spec.frameAspect ?? equationsPane.dimensions.frameAspect,
-    itemCount: equationsPane.document
-      ? equationsPane.document.items.length
-      : equationsPane.cells.length > 0
-        ? equationsPane.cells.length
+      : selectedTopicOption?.format ?? (displayedEquationsPane.document ? "document" : "semantic_layout"),
+    topicLabel: equationsPane.viewMode === "textbook"
+      ? "Textbook View"
+      : selectedMetaDocument?.label ?? selectedTopicOption?.label ?? null,
+    catalogLabel: equationsPane.viewMode === "textbook"
+      ? selectedTopicCatalog?.label ?? "Textbook"
+      : selectedMetaDocument ? "Meta" : selectedTopicCatalog?.label ?? null,
+    grid: displayedEquationsPane.document?.spec.grid ?? displayedEquationsPane.dimensions.grid,
+    frameAspect: displayedEquationsPane.document?.spec.frameAspect ?? displayedEquationsPane.dimensions.frameAspect,
+    itemCount: displayedEquationsPane.document
+      ? displayedEquationsPane.document.items.length
+      : displayedEquationsPane.cells.length > 0
+        ? displayedEquationsPane.cells.length
         : 4,
   }), [
-    equationsPane.cells.length,
-    equationsPane.dimensions.frameAspect,
-    equationsPane.dimensions.grid,
-    equationsPane.document,
+    displayedEquationsPane.cells.length,
+    displayedEquationsPane.dimensions.frameAspect,
+    displayedEquationsPane.dimensions.grid,
+    displayedEquationsPane.document,
+    equationsPane.viewMode,
     selectedMetaDocument?.label,
     selectedTopicCatalog?.label,
     selectedTopicOption?.format,
@@ -5636,9 +5668,15 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     [recentEquationsTopicIds],
   );
 
-  const handleTopicSelect = useCallback((topicId: string) => {
+  const handleTopicSelect = useCallback((topicId: string, options?: { preserveViewMode?: boolean }) => {
     const topic = getEquationsTopicOptionById(topicId);
     if (!topic) {
+      return;
+    }
+
+    if (equationsPane.viewMode === "textbook" && !options?.preserveViewMode) {
+      setTextbookFocusedTopicId(topic.id);
+      setTextbookScrollRequestKey((current) => current + 1);
       return;
     }
 
@@ -5651,6 +5689,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
 
     const patch = topic.payload.kind === "semantic_layout"
       ? {
+          viewMode: options?.preserveViewMode ? equationsPane.viewMode : "topic" as const,
           topicSourceId: topic.id,
           topicSourceSignature: getEquationsTopicPayloadSignature(topic),
           content: topic.payload.content,
@@ -5662,6 +5701,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           },
         }
       : {
+          viewMode: options?.preserveViewMode ? equationsPane.viewMode : "topic" as const,
           topicSourceId: topic.id,
           topicSourceSignature: getEquationsTopicPayloadSignature(topic),
           document: topic.payload.document,
@@ -5681,6 +5721,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   }, [
     equationsPane.context.referenceFrame,
     equationsPane.context.visualizationFrame,
+    equationsPane.viewMode,
     handleSetEquationsPane,
     sendMessage,
   ]);
@@ -5699,6 +5740,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       : null;
 
     const patch = {
+      viewMode: "topic" as const,
       topicSourceId: null,
       topicSourceSignature: null,
       document: metaDocument.document,
@@ -5721,6 +5763,30 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     handleSetEquationsPane,
     sendMessage,
   ]);
+
+  const handleEquationsViewModeChange = useCallback((viewMode: VisualizationState["equationsPane"]["viewMode"]) => {
+    if (viewMode === "textbook") {
+      const focusTopicId = selectedTopicId !== "__custom__"
+        ? selectedTopicId
+        : topicOptionsForSelectedCatalog[0]?.id ?? null;
+      setTextbookFocusedTopicId(focusTopicId);
+      if (focusTopicId) {
+        setTextbookScrollRequestKey((current) => current + 1);
+      }
+    }
+    const patch = {
+      viewMode,
+      context: {
+        selectedHitBox: null,
+        selectedTextHighlights: [],
+      },
+    };
+    handleSetEquationsPane(patch);
+    sendMessage({
+      type: "set_equations_pane",
+      ...patch,
+    });
+  }, [handleSetEquationsPane, selectedTopicId, sendMessage, topicOptionsForSelectedCatalog]);
 
   const handleTopicCatalogSourceCommit = useCallback(() => {
     const source = topicCatalogSourceInput.trim();
@@ -5753,7 +5819,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     if (selectedTopicId === "__custom__") {
       return;
     }
-    handleTopicSelect(selectedTopicId);
+    handleTopicSelect(selectedTopicId, { preserveViewMode: true });
   }, [handleTopicSelect, selectedTopicId]);
 
   useEffect(() => {
@@ -5780,7 +5846,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       return;
     }
 
-    handleTopicSelect(selectedTopicOption.id);
+    handleTopicSelect(selectedTopicOption.id, { preserveViewMode: true });
   }, [
     equationsPane.topicSourceId,
     equationsPane.topicSourceSignature,
@@ -6365,7 +6431,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                   isInlineFieldBlank={isInlineFieldBlank}
                   topicOptions={topicOptionsForSelectedCatalog}
                   recentTopicOptions={recentEquationTopics}
-                  selectedTopicId={selectedTopicId}
+                  viewMode={equationsPane.viewMode}
+                  onViewModeChange={handleEquationsViewModeChange}
+                  selectedTopicId={effectiveSelectedTopicId}
                   onTopicSelect={handleTopicSelect}
                   canRefreshSelectedTopic={selectedTopicNeedsRefresh}
                   onRefreshSelectedTopic={handleRefreshSelectedTopic}
@@ -6438,7 +6506,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
           ) : (
             <EquationsMainPanel
               sidebarMode={sidebarMode}
-              equationsPane={equationsPane}
+              equationsPane={displayedEquationsPane}
               frameGridLayoutDebug={frameGridLayoutDebug}
               equationsSignalBlocksDebug={equationsSignalBlocksDebug}
               visualizationFrame={equationsPane.context.visualizationFrame}
@@ -6453,6 +6521,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               hiddenTextHighlightIds={hiddenEquationTextHighlightIds}
               onVisualizationFrameSelect={handleEquationVisualizationFrameSelect}
               onReferenceFrameSelect={handleEquationReferenceFrameSelect}
+              textbookScrollAnchorId={textbookScrollAnchorId}
+              textbookScrollRequestKey={textbookScrollRequestKey}
+              textbookTopicOptions={topicOptionsForSelectedCatalog}
             />
           )}
         </div>

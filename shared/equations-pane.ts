@@ -43,6 +43,7 @@ import {
 } from "./visualization-frame-state";
 
 export const DEFAULT_EQUATIONS_PANE_STATE: EquationsPaneState = {
+  viewMode: "topic",
   topicSourceId: null,
   topicSourceSignature: null,
   dimensions: {
@@ -206,6 +207,7 @@ function cloneDimensions(dimensions: EquationsPaneDimensions): EquationsPaneDime
 
 export function cloneEquationsPaneState(state: EquationsPaneState): EquationsPaneState {
   return {
+    viewMode: state.viewMode,
     topicSourceId: state.topicSourceId,
     topicSourceSignature: state.topicSourceSignature,
     dimensions: cloneDimensions(state.dimensions),
@@ -214,6 +216,10 @@ export function cloneEquationsPaneState(state: EquationsPaneState): EquationsPan
     context: cloneContext(state.context),
     ...(state.document ? { document: cloneEquationsFrameGridDocument(state.document) } : {}),
   };
+}
+
+function normalizeViewMode(value: unknown): EquationsPaneState["viewMode"] {
+  return value === "textbook" ? "textbook" : "topic";
 }
 
 function normalizeTopicSourceId(value: unknown): string | null {
@@ -612,6 +618,9 @@ export function mergeEquationsPaneStatePatch(
     footer: mergePlacement(seed.dimensions.footer, rawPatch.dimensions?.footer),
   };
   const nextState: EquationsPaneState = {
+    viewMode: Object.prototype.hasOwnProperty.call(rawPatch, "viewMode")
+      ? normalizeViewMode(rawPatch.viewMode)
+      : seed.viewMode,
     topicSourceId: Object.prototype.hasOwnProperty.call(rawPatch, "topicSourceId")
       ? normalizeTopicSourceId(rawPatch.topicSourceId)
       : seed.topicSourceId,
@@ -637,6 +646,7 @@ export function mergeEquationsPaneStatePatch(
   }
 
   return {
+    viewMode: nextState.viewMode,
     topicSourceId: nextState.topicSourceId,
     topicSourceSignature: nextState.topicSourceSignature,
     dimensions: mergeDocumentPlacements(nextState.dimensions, nextDocument),
