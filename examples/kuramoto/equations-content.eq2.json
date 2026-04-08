@@ -1,0 +1,37 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "r e^{i\\psi}=\\frac{1}{N}\\sum_{j=1}^{N}e^{i\\theta_j}"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "r times e to the i psi equals one over N times the sum from j equals 1 to N of e to the i theta sub j. Here r is the coherence amplitude, psi is the average phase angle of the population, and the right-hand side is the finite-N average of all oscillator phase markers on the unit circle."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 2 introduces the complex order parameter. Instead of listing every phase separately, the population is summarized by one complex number whose magnitude measures synchrony and whose angle records the collective phase."
+      },
+      {
+        "kind": "text",
+        "value": "This is the key reduction that makes later mean-field reasoning possible: once the population can be summarized by r and psi, the many-body system can be rewritten in terms of one collective field."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Use Eq. 2 whenever you need the finite-population definition of coherence. Eq. 5 is the continuum analogue of this same idea after the density description is introduced."
+      }
+    ]
+  }
+}

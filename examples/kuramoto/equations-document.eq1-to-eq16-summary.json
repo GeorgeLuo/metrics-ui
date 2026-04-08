@@ -8,48 +8,86 @@
     },
     {
       "kind": "text",
-      "value": "Read it as a navigation layer, not as a substitute for the detailed derivations. The left side explains what each stage does; the right side shows the representative equations that belong to that stage."
+      "value": "Read it as a navigation layer, not as a substitute for the detailed derivations. The left side explains what each stage does; the right side walks through the numbered equations in order within each stage."
     }
   ],
   "sections": [
     {
-      "title": "Eq. 1-4: Setup and Reduction",
+      "title": "Eq. 1-4: Model and Mean-Field Setup",
       "anchorId": "eq1-to-eq4",
       "fractions": [7, 5],
       "content": [
         {
           "kind": "text",
-          "value": "Eq. 1 starts at the microscopic level: each oscillator has its own phase theta sub i and natural frequency omega sub i, so the raw problem is many coupled variables."
+          "value": "Eq. 1 starts from the general coupled phase-oscillator model. Each oscillator has its own phase theta sub i and natural frequency omega sub i, and the interaction is encoded by the coupling matrix K sub i j."
         },
         {
           "kind": "text",
-          "value": "Eq. 2 is the phase-reduction move. It replaces detailed limit-cycle dynamics by phase dynamics, which is the right approximation when coupling is weak and the oscillators stay near the same underlying cycle."
+          "value": "Eq. 2 introduces the finite-N complex order parameter. That is the first collective variable: instead of only listing individual phases, the population is summarized by an amplitude r and an average phase psi."
         },
         {
           "kind": "text",
-          "value": "Eq. 3 is the concrete Kuramoto mean-field model, and Eq. 4 rewrites the same interaction in the co-rotating mean-field picture where the collective pull K r becomes explicit. That is the point where locked-versus-drifting behavior first becomes visible."
+          "value": "Eq. 3 is the mean-field Kuramoto specialization. Once K sub i j is replaced by K over N, each oscillator feels the same collective pull K r. Eq. 4 then rewrites the same order parameter as an empirical phase-density integral, which is the bridge from finite sums to continuum notation."
         },
         {
           "kind": "text",
-          "value": "Use Eq. 1-4 when you are setting up the model, justifying the Kuramoto approximation, or running direct phase simulations. Big takeaway: the many-body dynamics become analytically tractable only after they are reduced to phases plus one collective field."
+          "value": "Use Eq. 1-4 when you are setting up the model, passing from microscopic coupling to mean-field coupling, or preparing to take the continuum limit. Big takeaway: the many-body dynamics become analytically tractable once the population is summarized by one collective complex field."
         }
       ],
-      "referenceTitle": "Key Equations",
+      "referenceTitle": "Equations in Flow",
       "reference": [
         {
-          "kind": "math",
-          "latex": "\\dot{\\theta}_{i}=\\omega_{i}+\\frac{K}{N}\\sum_{j=1}^{N}\\sin(\\theta_{j}-\\theta_{i})",
-          "displayMode": true,
-          "referenceFrame": {
-            "topicId": "kuramoto-model",
-            "itemId": "workspace",
-            "title": "Kuramoto Model"
-          },
-          "referenceLabel": "Open the canonical Kuramoto model topic"
+          "kind": "text",
+          "value": "Eq. 1"
         },
         {
           "kind": "math",
-          "latex": "\\dot{\\theta}=\\omega-Kr\\sin(\\theta-\\psi)",
+          "latex": "\\dot{\\theta}_{i}=\\omega_{i}+\\sum_{j=1}^{N}K_{ij}\\sin(\\theta_{j}-\\theta_{i}), \\qquad i=1,\\ldots,N",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq1",
+            "itemId": "workspace",
+            "title": "Equation 1"
+          },
+          "referenceLabel": "Open Equation 1"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 2"
+        },
+        {
+          "kind": "math",
+          "latex": "r e^{i\\psi}=\\frac{1}{N}\\sum_{j=1}^{N}e^{i\\theta_j}",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq2",
+            "itemId": "workspace",
+            "title": "Equation 2"
+          },
+          "referenceLabel": "Open Equation 2"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 3"
+        },
+        {
+          "kind": "math",
+          "latex": "\\dot{\\theta}_{i}=\\omega_i+Kr\\sin(\\psi-\\theta_i)",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq3",
+            "itemId": "workspace",
+            "title": "Equation 3"
+          },
+          "referenceLabel": "Open Equation 3"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 4"
+        },
+        {
+          "kind": "math",
+          "latex": "r e^{i\\psi}=\\int_{-\\pi}^{\\pi} e^{i\\theta}\\left(\\frac{1}{N}\\sum_{j=1}^{N}\\delta(\\theta-\\theta_j)\\right)d\\theta",
           "displayMode": true
         }
       ]
@@ -72,54 +110,75 @@
           "value": "Use Eq. 5 whenever you need a quantitative measure of synchronization rather than raw individual phases. It is the correct starting point for every later self-consistency calculation, because all of the later equations are ultimately solving for r."
         }
       ],
-      "referenceTitle": "Key Equation",
+      "referenceTitle": "Equations in Flow",
       "reference": [
         {
-          "kind": "topic_reference",
-          "topicId": "kuramoto-eq5",
-          "slot": "workspace"
+          "kind": "text",
+          "value": "Eq. 5"
+        },
+        {
+          "kind": "math",
+          "latex": "r e^{i\\psi}=\\int_{-\\pi}^{\\pi}\\!\\int_{-\\infty}^{+\\infty}e^{i\\theta}\\rho(\\theta,\\omega,t)g(\\omega)\\,d\\theta\\,d\\omega",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq5",
+            "itemId": "workspace",
+            "title": "Equation 5"
+          },
+          "referenceLabel": "Open Equation 5"
         }
       ]
     },
     {
-      "title": "Eq. 6-8: Continuum and Stationarity Machinery",
+      "title": "Eq. 6-8: Frequency, Continuity, and Normalization",
       "anchorId": "eq6-to-eq8",
       "fractions": [7, 5],
       "content": [
         {
           "kind": "text",
-          "value": "Eq. 6 moves from sums over individual oscillators to a density description. That is the large-population viewpoint."
+          "value": "Eq. 6 defines the long-time average frequency of an oscillator. It is the right quantity when you want to say that oscillators are frequency locked even if their instantaneous phases are still moving."
         },
         {
           "kind": "text",
-          "value": "Eq. 7 is the continuity or transport equation for that density. Its job is conservation: oscillators move around the phase circle, but they are neither created nor destroyed."
+          "value": "Eq. 7 is the continuity or transport equation for the continuum density rho. Its job is conservation: oscillators move around the phase circle, but the total density is carried along rather than created or destroyed."
         },
         {
           "kind": "text",
-          "value": "Eq. 8 specializes this transport story to stationary or co-rotating states. That is the preparation step that makes a time-independent partially synchronized population describable at all."
+          "value": "Eq. 8 is the normalization condition on rho for each natural frequency omega. It says rho is a proper phase density, so integrating over theta gives one."
         },
         {
           "kind": "text",
-          "value": "Use Eq. 6-8 when N is large and you want densities instead of individual trajectories. Big takeaway: the continuum limit is what turns synchronization into an integral problem rather than a huge coupled system."
+          "value": "Use Eq. 6 when you want a frequency-based notion of synchronization, and use Eq. 7-8 when N is large and you want a continuum density description. Big takeaway: once rho is introduced, synchronization becomes an integral and transport problem rather than only a system of many ODEs."
         }
       ],
-      "referenceTitle": "Key Equations",
+      "referenceTitle": "Equations in Flow",
       "reference": [
         {
+          "kind": "text",
+          "value": "Eq. 6"
+        },
+        {
           "kind": "math",
-          "latex": "\\frac{\\partial \\rho}{\\partial t}+\\frac{\\partial}{\\partial\\theta}\\bigl[\\rho\\,v(\\theta,\\omega,t)\\bigr]=0",
+          "latex": "\\tilde{\\omega}_i = \\lim_{t\\to\\infty}\\frac{1}{t}\\int_0^t \\dot{\\theta}_i\\,dt",
           "displayMode": true
         },
         {
+          "kind": "text",
+          "value": "Eq. 7"
+        },
+        {
           "kind": "math",
-          "latex": "0=-\\frac{\\partial}{\\partial\\theta}\\bigl[\\rho_s(\\theta,\\omega)\\,(\\omega-Kr\\sin\\theta)\\bigr]",
-          "displayMode": true,
-          "referenceFrame": {
-            "topicId": "kuramoto-eq9",
-            "itemId": "workspace",
-            "title": "Equation 9"
-          },
-          "referenceLabel": "Open the stationary-density topic that this machinery feeds into"
+          "latex": "\\frac{\\partial \\rho}{\\partial t}+\\frac{\\partial}{\\partial\\theta}\\left[\\left(\\omega+Kr\\sin(\\psi-\\theta)\\right)\\rho\\right]=0",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 8"
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi}^{\\pi}\\rho(\\theta,\\omega,t)\\,d\\theta = 1",
+          "displayMode": true
         }
       ]
     },
@@ -145,12 +204,41 @@
           "value": "Use Eq. 9 when you need the explicit stationary split, Eq. 10 for the full self-consistency story, and Eq. 11 for the reduced threshold analysis. Big takeaway: synchronization becomes a fixed-point problem once r appears on both sides of the equation."
         }
       ],
-      "referenceTitle": "Key Equations",
+      "referenceTitle": "Equations in Flow",
       "reference": [
         {
-          "kind": "topic_reference",
-          "topicId": "kuramoto-eq9",
-          "slot": "workspace"
+          "kind": "text",
+          "value": "Eq. 9"
+        },
+        {
+          "kind": "math",
+          "latex": "\\rho = \\begin{cases}\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right] H(\\cos\\theta), & |\\omega|<Kr \\\\ \\frac{C}{\\left|\\omega-Kr\\sin(\\theta-\\psi)\\right|}, & \\text{elsewhere.}\\end{cases}",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq9",
+            "itemId": "workspace",
+            "title": "Equation 9"
+          },
+          "referenceLabel": "Open Equation 9"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 10"
+        },
+        {
+          "kind": "math",
+          "latex": "\\begin{aligned}r ={}& \\int_{-\\pi/2}^{\\pi/2}\\!\\int_{-\\infty}^{+\\infty} e^{i(\\theta-\\psi)}\\,\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right] g(\\omega)\\,d\\theta\\,d\\omega \\\\ &+ \\int_{-\\pi}^{\\pi}\\!\\int_{|\\omega|>Kr} e^{i(\\theta-\\psi)}\\,\\frac{C g(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}\\,d\\theta\\,d\\omega\\end{aligned}",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq10",
+            "itemId": "workspace",
+            "title": "Equation 10"
+          },
+          "referenceLabel": "Open Equation 10"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 11"
         },
         {
           "kind": "math",
@@ -162,16 +250,6 @@
             "title": "Equation 11"
           },
           "referenceLabel": "Open Equation 11"
-        },
-        {
-          "kind": "text",
-          "value": "Eq. 10 is the substitution step between these two forms.",
-          "referenceFrame": {
-            "topicId": "kuramoto-eq5-eq9-to-eq10",
-            "itemId": "workspace",
-            "title": "Eq. 5 + Eq. 9 -> Eq. 10"
-          },
-          "referenceLabel": "Open the derivation into Eq. 10"
         }
       ]
     },
@@ -193,8 +271,12 @@
           "value": "Use Eq. 12 when you want the threshold for a general smooth even frequency distribution. Big takeaway: before choosing any special distribution, the onset threshold is already determined by the density at the center."
         }
       ],
-      "referenceTitle": "Key Equations",
+      "referenceTitle": "Equations in Flow",
       "reference": [
+        {
+          "kind": "text",
+          "value": "Eq. 12"
+        },
         {
           "kind": "math",
           "latex": "1 = K\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta \\quad (r>0)",
@@ -205,6 +287,10 @@
             "title": "Eq. 12 -> Eq. 13"
           },
           "referenceLabel": "Open the critical-coupling walkthrough"
+        },
+        {
+          "kind": "text",
+          "value": "Threshold formula"
         },
         {
           "kind": "math",
@@ -237,12 +323,26 @@
           "value": "Use Eq. 13 when you want an explicit solvable distribution and a closed-form synchronized branch. Big takeaway: this is a special exact example, not the universal answer for arbitrary g."
         }
       ],
-      "referenceTitle": "Key Equations",
+      "referenceTitle": "Equations in Flow",
       "reference": [
         {
-          "kind": "topic_reference",
-          "topicId": "kuramoto-eq13",
-          "slot": "workspace"
+          "kind": "text",
+          "value": "Eq. 13"
+        },
+        {
+          "kind": "math",
+          "latex": "g(\\omega)=\\frac{\\gamma/\\pi}{\\gamma^2+\\omega^2}",
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13",
+            "itemId": "workspace",
+            "title": "Equation 13"
+          },
+          "referenceLabel": "Open Equation 13"
+        },
+        {
+          "kind": "text",
+          "value": "Lorentzian consequence"
         },
         {
           "kind": "math",
@@ -279,8 +379,12 @@
           "value": "Use Eq. 14 when K is close to K sub c and you need the leading-order bifurcation law. Use Eq. 15 and Eq. 16 when you need to interpret what that approximation means and what higher-order corrections would look like."
         }
       ],
-      "referenceTitle": "Key Equations",
+      "referenceTitle": "Equations in Flow",
       "reference": [
+        {
+          "kind": "text",
+          "value": "Eq. 14"
+        },
         {
           "kind": "math",
           "latex": "r \\sim \\sqrt{\\frac{K-K_c}{K_c}}",
@@ -293,6 +397,10 @@
           "referenceLabel": "Open the near-threshold scaling walkthrough"
         },
         {
+          "kind": "text",
+          "value": "Eq. 15"
+        },
+        {
           "kind": "math",
           "latex": "f(\\epsilon) \\sim g(\\epsilon) \\iff \\lim_{\\epsilon\\to 0}\\frac{f(\\epsilon)}{g(\\epsilon)} = 1",
           "displayMode": true,
@@ -302,6 +410,10 @@
             "title": "Equation 15"
           },
           "referenceLabel": "Open Equation 15"
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 16"
         },
         {
           "kind": "math",
@@ -341,15 +453,23 @@
       "referenceTitle": "Milestone Equations",
       "reference": [
         {
+          "kind": "text",
+          "value": "General model"
+        },
+        {
           "kind": "math",
-          "latex": "\\dot{\\theta}_{i}=\\omega_{i}+\\frac{K}{N}\\sum_{j=1}^{N}\\sin(\\theta_{j}-\\theta_{i})",
+          "latex": "\\dot{\\theta}_{i}=\\omega_{i}+\\sum_{j=1}^{N}K_{ij}\\sin(\\theta_{j}-\\theta_{i}), \\qquad i=1,\\ldots,N",
           "displayMode": true,
           "referenceFrame": {
-            "topicId": "kuramoto-model",
+            "topicId": "kuramoto-eq1",
             "itemId": "workspace",
-            "title": "Kuramoto Model"
+            "title": "Equation 1"
           },
-          "referenceLabel": "Open the governing equation topic"
+          "referenceLabel": "Open Equation 1"
+        },
+        {
+          "kind": "text",
+          "value": "Order parameter"
         },
         {
           "kind": "math",
@@ -363,6 +483,10 @@
           "referenceLabel": "Open Equation 5"
         },
         {
+          "kind": "text",
+          "value": "Threshold"
+        },
+        {
           "kind": "math",
           "latex": "K_c = \\frac{2}{\\pi g(0)}",
           "displayMode": true,
@@ -372,6 +496,10 @@
             "title": "Eq. 12 -> Eq. 13"
           },
           "referenceLabel": "Open the threshold walkthrough"
+        },
+        {
+          "kind": "text",
+          "value": "Onset law"
         },
         {
           "kind": "math",
