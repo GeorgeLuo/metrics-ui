@@ -52,6 +52,13 @@ export interface FloatingFrameProps {
   dragHandleClassName?: string;
   controlButtonClassName?: string;
   headerRight?: ReactNode;
+  headerActions?: Array<{
+    id: string;
+    label: string;
+    icon: ReactNode;
+    hint?: string;
+    onClick: () => void;
+  }>;
   dataTestId?: string;
   minimizable?: boolean;
   closeable?: boolean;
@@ -282,6 +289,7 @@ export function FloatingFrame({
   dragHandleClassName,
   controlButtonClassName,
   headerRight,
+  headerActions,
   dataTestId = "floating-frame",
   minimizable = true,
   closeable = false,
@@ -780,6 +788,19 @@ export function FloatingFrame({
               {isPoppedOut ? <Minimize2 className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
             </button>
           ) : null}
+          {headerActions?.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              className={cn("relative z-30 p-0.5 text-black/70 hover:text-black", controlButtonClassName)}
+              onClick={action.onClick}
+              aria-label={action.label}
+              data-hint={action.hint}
+              data-floating-frame-control="true"
+            >
+              {action.icon}
+            </button>
+          ))}
           {headerRight}
           {closeable ? (
             <button

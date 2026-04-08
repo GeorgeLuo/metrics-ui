@@ -19,31 +19,32 @@ export type EquationsTextbookTopicDocument = {
   document: EquationsFrameGridDocument;
 };
 
+export function buildEquationsTopicDocument(
+  topic: EquationsTopicOption,
+): EquationsFrameGridDocument {
+  if (topic.payload.kind !== "semantic_layout") {
+    return topic.payload.document;
+  }
+
+  const pane = mergeEquationsPaneStatePatch(
+    DEFAULT_EQUATIONS_PANE_STATE,
+    {
+      topicSourceId: topic.id,
+      content: topic.payload.content,
+    },
+    { replace: true },
+  );
+
+  return buildEquationsFrameGridDocument(pane);
+}
+
 export function buildEquationsTextbookTopicDocuments(
   topicOptions: EquationsTopicOption[],
 ): EquationsTextbookTopicDocument[] {
-  return sortEquationsTopics(topicOptions).map((topic) => {
-    if (topic.payload.kind !== "semantic_layout") {
-      return {
-        topic,
-        document: topic.payload.document,
-      };
-    }
-
-    const pane = mergeEquationsPaneStatePatch(
-      DEFAULT_EQUATIONS_PANE_STATE,
-      {
-        topicSourceId: topic.id,
-        content: topic.payload.content,
-      },
-      { replace: true },
-    );
-
-    return {
-      topic,
-      document: buildEquationsFrameGridDocument(pane),
-    };
-  });
+  return sortEquationsTopics(topicOptions).map((topic) => ({
+    topic,
+    document: buildEquationsTopicDocument(topic),
+  }));
 }
 
 export function buildEquationsTextbookPane(
