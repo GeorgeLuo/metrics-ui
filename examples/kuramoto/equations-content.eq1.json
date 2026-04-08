@@ -1,0 +1,37 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "\\dot{\\theta}_{i}=\\omega_{i}+\\sum_{j=1}^{N}K_{ij}\\sin(\\theta_{j}-\\theta_{i}), \\qquad i=1,\\ldots,N"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "The time derivative of theta sub i equals omega sub i plus the sum from j equals 1 to N of K sub i j times sine of theta sub j minus theta sub i. Here theta sub i is the phase of oscillator i, omega sub i is its natural frequency, and K sub i j is the coupling strength from oscillator j into oscillator i."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 1 is the most general coupled phase-oscillator model in the early setup. It says each oscillator evolves from its own intrinsic frequency plus the net pull from the rest of the population, with that pull resolved pairwise through the matrix K sub i j."
+      },
+      {
+        "kind": "text",
+        "value": "At this stage there is no mean-field reduction yet. The equation still remembers the full network of who influences whom."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Use Eq. 1 when the point is to define the microscopic starting model or to emphasize that the later Kuramoto formulas come from a more general pairwise-coupled phase system. The next steps specialize this general coupling into one collective field."
+      }
+    ]
+  }
+}
