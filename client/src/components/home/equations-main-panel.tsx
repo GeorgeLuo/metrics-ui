@@ -1,7 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import katex from "katex";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Expand, Minimize2 } from "lucide-react";
 import type {
   CaptureSession,
   EquationsPaneCard,
@@ -23,6 +23,7 @@ import type { SidebarMode } from "@/lib/dashboard/subapp-shell";
 import { DASHBOARD_STORAGE_KEYS } from "@/lib/dashboard/storage";
 import { getEquationsTopicOptionById, type EquationsTopicOption } from "@/lib/equations/topic-catalog";
 import {
+  buildEquationsTopicDocument,
   buildEquationsTextbookTopicDocuments,
   getEquationsTextbookTopicAnchorId,
 } from "@/lib/equations/textbook-view";
@@ -139,6 +140,7 @@ export function EquationsMainPanel({
   const pendingTextHighlightGestureRef = useRef<PendingTextHighlightGesture | null>(null);
   const [interactionSignalCopyState, setInteractionSignalCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [selectedTextHighlightOverlayEntries, setSelectedTextHighlightOverlayEntries] = useState<TextHighlightOverlayEntry[]>([]);
+  const [referenceFrameScope, setReferenceFrameScope] = useState<"focus" | "topic">("focus");
 
   const frameGridDocument = buildEquationsFrameGridDocument(equationsPane, {
     detailsFallbackBody: sidebarMode === "analysis" ? "Library" : "Setup",
@@ -372,6 +374,15 @@ export function EquationsMainPanel({
   }, [equationsPane, sidebarMode, equationsSignalBlocksDebug, hiddenTextHighlightIds]);
 
   useEffect(() => {
+    setReferenceFrameScope("focus");
+  }, [
+    referenceFrame?.topicId,
+    referenceFrame?.itemId,
+    referenceFrame?.anchorId,
+    referenceFrame?.updatedAt,
+  ]);
+
+  useEffect(() => {
     if (!textbookScrollAnchorId) {
       return;
     }
@@ -514,9 +525,11 @@ export function EquationsMainPanel({
   ): {
     frameTitle: string;
     sourceLabel: string;
-    itemId: string;
-    itemTitle: string;
-    card: EquationsPaneCard;
+    kind: "card" | "topic";
+    itemId?: string;
+    itemTitle?: string;
+    card?: EquationsPaneCard;
+    document?: ReturnType<typeof buildEquationsTopicDocument>;
   } | null => {
     if (!frame) {
       return null;
@@ -525,6 +538,15 @@ export function EquationsMainPanel({
     const topic = getEquationsTopicOptionById(frame.topicId);
     if (!topic) {
       return null;
+    }
+
+    if (referenceFrameScope === "topic") {
+      return {
+        frameTitle: frame.title?.trim() || topic.label,
+        sourceLabel: topic.label,
+        kind: "topic",
+        document: buildEquationsTopicDocument(topic),
+      };
     }
 
     if (topic.payload.kind === "semantic_layout") {
@@ -539,6 +561,7 @@ export function EquationsMainPanel({
         return {
           frameTitle: frame.title?.trim() || topic.label,
           sourceLabel: topic.label,
+          kind: "card",
           itemId: `reference:${topic.topicId}:${slot}:anchor:${frame.anchorId}`,
           itemTitle: card.title,
           card: buildCardFromReferencedBlock(anchoredBlock),
@@ -548,6 +571,7 @@ export function EquationsMainPanel({
       return {
         frameTitle: frame.title?.trim() || topic.label,
         sourceLabel: topic.label,
+        kind: "card",
         itemId: `reference:${topic.topicId}:${slot}`,
         itemTitle: card.title,
         card,
@@ -574,6 +598,7 @@ export function EquationsMainPanel({
       return {
         frameTitle: frame.title?.trim() || topic.label,
         sourceLabel: topic.label,
+        kind: "card",
         itemId: `reference:${topic.topicId}:${item.id ?? "workspace"}:anchor:${frame.anchorId}`,
         itemTitle: item.title,
         card: buildCardFromReferencedBlock(anchoredBlock),
@@ -583,6 +608,7 @@ export function EquationsMainPanel({
     return {
       frameTitle: frame.title?.trim() || topic.label,
       sourceLabel: topic.label,
+      kind: "card",
       itemId: `reference:${topic.topicId}:${item.id ?? "workspace"}`,
       itemTitle: item.title,
       card: item,
@@ -945,6 +971,23 @@ export function EquationsMainPanel({
               titleClassName="text-xs text-foreground"
               dragHandleClassName="text-muted-foreground hover:text-foreground"
               controlButtonClassName="text-muted-foreground hover:text-foreground"
+              headerActions={[
+                {
+                  id: resolvedReferenceFrame?.kind === "topic" ? "focus-selection" : "expand-to-full-context",
+                  label: resolvedReferenceFrame?.kind === "topic" ? "Focus excerpt" : "Expand to full context",
+                  hint: resolvedReferenceFrame?.kind === "topic"
+                    ? "Return this frame to the focused referenced excerpt."
+                    : "Expand this frame to the full referenced topic.",
+                  icon: resolvedReferenceFrame?.kind === "topic"
+                    ? <Minimize2 className="w-3 h-3" />
+                    : <Expand className="w-3 h-3" />,
+                  onClick: () => {
+                    setReferenceFrameScope(
+                      resolvedReferenceFrame?.kind === "topic" ? "focus" : "topic",
+                    );
+                  },
+                },
+              ]}
               contentClassName="!px-2 !py-2"
               contentSelectable
               contentMinHeight={0}
@@ -965,12 +1008,47 @@ export function EquationsMainPanel({
                 >
                   <div className="px-1 text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                     {resolvedReferenceFrame.sourceLabel}
-                    {resolvedReferenceFrame.itemTitle.trim().length > 0
+                    {resolvedReferenceFrame.kind === "card"
+                      && resolvedReferenceFrame.itemTitle
+                      && resolvedReferenceFrame.itemTitle.trim().length > 0
                       ? ` / ${resolvedReferenceFrame.itemTitle}`
                       : ""}
                   </div>
                   <div className="min-h-0 flex-1 overflow-auto" data-equations-highlight-overlay-host="1">
-                    {renderCard(resolvedReferenceFrame.itemId, resolvedReferenceFrame.card)}
+                    {resolvedReferenceFrame.kind === "card" && resolvedReferenceFrame.itemId && resolvedReferenceFrame.card ? (
+                      renderCard(resolvedReferenceFrame.itemId, resolvedReferenceFrame.card)
+                    ) : resolvedReferenceFrame.document ? (
+                      <div
+                        className="relative mx-auto w-full"
+                        style={{
+                          aspectRatio: `${resolvedReferenceFrame.document.spec.frameAspect[0]} / ${resolvedReferenceFrame.document.spec.frameAspect[1]}`,
+                        }}
+                      >
+                        <FrameGrid
+                          spec={resolvedReferenceFrame.document.spec}
+                          debugId={`equations-reference-topic-${referenceFrame.topicId}`}
+                          layoutDebug={frameGridLayoutDebug}
+                          showOuterFrame={false}
+                          showContentFrame={false}
+                        >
+                          {resolvedReferenceFrame.document.items.map((item) => {
+                            const sourceItemId = item.id ?? "workspace";
+                            const referenceItemId = `reference-topic:${referenceFrame.topicId}:${sourceItemId}`;
+                            return (
+                              <FrameGrid.Item
+                                key={`${referenceFrame.topicId}-${sourceItemId}`}
+                                col={item.col}
+                                row={item.row}
+                                colSpan={item.colSpan}
+                                rowSpan={item.rowSpan}
+                              >
+                                {renderCard(referenceItemId, item, { variantItemId: sourceItemId })}
+                              </FrameGrid.Item>
+                            );
+                          })}
+                        </FrameGrid>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ) : (
