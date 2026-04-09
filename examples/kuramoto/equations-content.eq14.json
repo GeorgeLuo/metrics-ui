@@ -1,0 +1,37 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "r \\sim \\sqrt{\\frac{-16\\,(K-K_c)}{\\pi K_c^4 g''(0)}} \\qquad \\text{as } K \\to K_c"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "r is asymptotic to the square root of minus sixteen times K minus K sub c divided by pi K sub c to the fourth times g double-prime of zero, as K approaches K sub c. Here the tilde means asymptotic equivalence, K sub c is the critical coupling, and g double-prime of zero is the second derivative of the frequency distribution at the center."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 14 is the general near-threshold onset law. It says the synchronized branch turns on with square-root scaling as the coupling crosses K sub c, and the prefactor depends on the curvature of the frequency distribution through g double-prime of zero."
+      },
+      {
+        "kind": "text",
+        "value": "This is not an exact formula for all K greater than K sub c. It is the leading-order behavior close to threshold. For the Lorentzian example, it simplifies to r asymptotic to the square root of K minus K sub c over K sub c."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Use Eq. 14 when K is close to K sub c and the goal is the universal onset scaling rather than an exact special-case branch. Eq. 15 and Eq. 16 explain how to read the asymptotic notation that appears here."
+      }
+    ]
+  }
+}

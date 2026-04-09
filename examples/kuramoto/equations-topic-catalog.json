@@ -70,6 +70,28 @@
       "path": "./equations-content.eq3.json"
     },
     {
+      "id": "kuramoto-eq4",
+      "label": "Equation 4",
+      "description": "Inspect the empirical phase-density form of the finite-N order parameter.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 40,
+      "group": "equation",
+      "tags": [
+        "empirical density",
+        "delta comb",
+        "order parameter"
+      ],
+      "searchTerms": [
+        "eq 4",
+        "equation 4",
+        "delta theta theta_j",
+        "empirical phase density"
+      ],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq4.json"
+    },
+    {
       "id": "kuramoto-eq5",
       "label": "Equation 5",
       "description": "Inspect the complex order parameter definition.",
@@ -89,6 +111,71 @@
       ],
       "format": "semantic_layout",
       "path": "./equations-content.eq5.json"
+    },
+    {
+      "id": "kuramoto-eq6",
+      "label": "Equation 6",
+      "description": "Inspect the long-time average frequency used to define frequency locking.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 60,
+      "group": "equation",
+      "tags": [
+        "average frequency",
+        "locking",
+        "frequency"
+      ],
+      "searchTerms": [
+        "eq 6",
+        "equation 6",
+        "omega tilde",
+        "average frequency"
+      ],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq6.json"
+    },
+    {
+      "id": "kuramoto-eq7",
+      "label": "Equation 7",
+      "description": "Inspect the continuity equation for the continuum phase density.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 70,
+      "group": "equation",
+      "tags": [
+        "continuity equation",
+        "density",
+        "continuum"
+      ],
+      "searchTerms": [
+        "eq 7",
+        "equation 7",
+        "continuity equation",
+        "rho transport"
+      ],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq7.json"
+    },
+    {
+      "id": "kuramoto-eq8",
+      "label": "Equation 8",
+      "description": "Inspect the normalization condition on the continuum phase density.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 80,
+      "group": "equation",
+      "tags": [
+        "normalization",
+        "density",
+        "continuum"
+      ],
+      "searchTerms": [
+        "eq 8",
+        "equation 8",
+        "rho normalization"
+      ],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq8.json"
     },
     {
       "id": "kuramoto-eq9",
@@ -211,6 +298,28 @@
       "path": "./equations-content.eq11.json"
     },
     {
+      "id": "kuramoto-eq12",
+      "label": "Equation 12",
+      "description": "Inspect the nonzero-branch onset condition that yields the critical coupling.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 125,
+      "group": "equation",
+      "tags": [
+        "critical coupling",
+        "threshold",
+        "self-consistency"
+      ],
+      "searchTerms": [
+        "eq 12",
+        "equation 12",
+        "critical coupling equation",
+        "r greater than zero"
+      ],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq12.json"
+    },
+    {
       "id": "kuramoto-eq12-critical-coupling",
       "label": "Eq. 12 -> Eq. 13",
       "description": "Follow the onset condition in Eq. 12 through the Lorentzian specialization that produces Eq. 13.",
@@ -292,6 +401,28 @@
       ],
       "format": "derivation",
       "path": "./equations-document.eq13-to-eq14.json"
+    },
+    {
+      "id": "kuramoto-eq14",
+      "label": "Equation 14",
+      "description": "Inspect the general near-threshold square-root onset law.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 155,
+      "group": "equation",
+      "tags": [
+        "asymptotic",
+        "threshold",
+        "square-root scaling"
+      ],
+      "searchTerms": [
+        "eq 14",
+        "equation 14",
+        "near-threshold scaling",
+        "g double prime"
+      ],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq14.json"
     },
     {
       "id": "kuramoto-eq15",

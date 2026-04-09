@@ -1,0 +1,37 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "\\tilde{\\omega}_i = \\lim_{t\\to\\infty}\\frac{1}{t}\\int_0^t \\dot{\\theta}_i\\,dt"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Omega-tilde sub i equals the long-time limit of one over t times the integral from zero to t of theta-dot sub i. Here theta-dot sub i is the instantaneous angular velocity of oscillator i, and omega-tilde sub i is its long-time average frequency."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 6 defines the right frequency notion for synchronization questions. Even when phases keep moving around the circle, oscillators can still be frequency locked if their long-time average frequencies agree."
+      },
+      {
+        "kind": "text",
+        "value": "So this equation shifts the focus from instantaneous motion to asymptotic behavior. It tells us how to decide whether oscillators have settled into a common rotational rate."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Use Eq. 6 when you want a frequency-based notion of locking rather than a snapshot of phases. It is the natural definition behind later discussions of synchronized and drifting populations."
+      }
+    ]
+  }
+}
