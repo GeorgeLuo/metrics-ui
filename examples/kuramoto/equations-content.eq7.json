@@ -1,0 +1,37 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "\\frac{\\partial \\rho}{\\partial t}+\\frac{\\partial}{\\partial\\theta}\\left[\\left(\\omega+Kr\\sin(\\psi-\\theta)\\right)\\rho\\right]=0"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "The time derivative of rho plus the theta derivative of the phase-velocity field times rho equals zero. Here rho of theta omega t is the continuum phase density, omega plus K r sine of psi minus theta is the local phase velocity, and r and psi are the collective order-parameter variables."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 7 is the continuity equation for the infinite-population density. It says oscillators are transported around the phase circle by the mean-field velocity, but probability is neither created nor destroyed."
+      },
+      {
+        "kind": "text",
+        "value": "This is the continuum analogue of the microscopic dynamics. Once rho is introduced, the Kuramoto model becomes a transport problem for a density instead of only a system of many coupled ODEs."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Use Eq. 7 when N is large and you want to reason with a density over phase and frequency. It is the governing equation that later stationary and self-consistency formulas are built from."
+      }
+    ]
+  }
+}

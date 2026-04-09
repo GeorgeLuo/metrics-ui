@@ -1,0 +1,37 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "r e^{i\\psi}=\\int_{-\\pi}^{\\pi} e^{i\\theta}\\left(\\frac{1}{N}\\sum_{j=1}^{N}\\delta(\\theta-\\theta_j)\\right)d\\theta"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "r times e to the i psi equals the integral from minus pi to pi of e to the i theta times one over N times the sum of Dirac delta spikes at the oscillator phases theta sub j, integrated in theta. The delta-comb factor is the empirical phase density of the finite population on the circle."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 4 rewrites the finite-N order parameter as an integral against an empirical density. Nothing continuous has happened yet; the density is still just a sum of delta spikes at the actual oscillator phases."
+      },
+      {
+        "kind": "text",
+        "value": "This is the bridge from the discrete average in Eq. 2 to the continuum density language that appears later in Eq. 5 and Eq. 7. It shows how sums over oscillators can be re-expressed as integrals over phase."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Use Eq. 4 when the point is to pass from a finite collection of oscillator phases to a density-style description. It is the conceptual precursor to the continuum order-parameter formula in Eq. 5."
+      }
+    ]
+  }
+}

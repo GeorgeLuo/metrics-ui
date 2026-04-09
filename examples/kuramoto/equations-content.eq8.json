@@ -1,0 +1,37 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "\\int_{-\\pi}^{\\pi}\\rho(\\theta,\\omega,t)\\,d\\theta = 1"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "The integral from minus pi to pi of rho of theta omega t in theta equals one. The integration is over phase theta for each fixed natural frequency omega, so rho is normalized as a phase density."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 8 is the normalization constraint that goes with the continuity equation. It says the oscillators of a given natural frequency are redistributed around the phase circle, but their total mass stays one."
+      },
+      {
+        "kind": "text",
+        "value": "This is why stationary solutions like Eq. 9 must be checked against normalization as well as the transport equation itself."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Use Eq. 8 whenever you introduce or manipulate a continuum density rho. It is the basic consistency condition that keeps rho interpretable as a probability density in phase."
+      }
+    ]
+  }
+}

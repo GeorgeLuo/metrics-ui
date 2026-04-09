@@ -1,0 +1,37 @@
+{
+  "workspace": {
+    "math": {
+      "kind": "latex",
+      "displayMode": true,
+      "latex": "1 = K\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta \\qquad (r>0)"
+    }
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "One equals K times the integral from minus pi over 2 to pi over 2 of cosine squared theta times g of K r sine theta d theta, on the nonzero branch r greater than zero. Here K is the coupling strength, r is the order parameter, and g is the natural-frequency distribution evaluated at the self-consistent argument K r sine theta."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 12 comes from dividing Eq. 11 by r, so it describes only the synchronized branch with r greater than zero. Its job is to locate onset by asking when that nonzero branch first appears out of the incoherent state."
+      },
+      {
+        "kind": "text",
+        "value": "Taking the limit r goes to zero from the positive side turns Eq. 12 into the threshold formula K sub c equals two over pi g of zero. That is why Eq. 12 is the general critical-coupling equation before any special choice of g."
+      }
+    ]
+  },
+  "footer": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Use Eq. 12 when you want the onset condition for a general smooth even frequency distribution. The detailed walkthrough to K sub c lives in the Eq. 12 to Eq. 13 derivation."
+      }
+    ]
+  }
+}

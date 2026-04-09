@@ -88,7 +88,13 @@
         {
           "kind": "math",
           "latex": "r e^{i\\psi}=\\int_{-\\pi}^{\\pi} e^{i\\theta}\\left(\\frac{1}{N}\\sum_{j=1}^{N}\\delta(\\theta-\\theta_j)\\right)d\\theta",
-          "displayMode": true
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq4",
+            "itemId": "workspace",
+            "title": "Equation 4"
+          },
+          "referenceLabel": "Open Equation 4"
         }
       ]
     },
@@ -160,7 +166,13 @@
         {
           "kind": "math",
           "latex": "\\tilde{\\omega}_i = \\lim_{t\\to\\infty}\\frac{1}{t}\\int_0^t \\dot{\\theta}_i\\,dt",
-          "displayMode": true
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq6",
+            "itemId": "workspace",
+            "title": "Equation 6"
+          },
+          "referenceLabel": "Open Equation 6"
         },
         {
           "kind": "text",
@@ -169,7 +181,13 @@
         {
           "kind": "math",
           "latex": "\\frac{\\partial \\rho}{\\partial t}+\\frac{\\partial}{\\partial\\theta}\\left[\\left(\\omega+Kr\\sin(\\psi-\\theta)\\right)\\rho\\right]=0",
-          "displayMode": true
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq7",
+            "itemId": "workspace",
+            "title": "Equation 7"
+          },
+          "referenceLabel": "Open Equation 7"
         },
         {
           "kind": "text",
@@ -178,7 +196,13 @@
         {
           "kind": "math",
           "latex": "\\int_{-\\pi}^{\\pi}\\rho(\\theta,\\omega,t)\\,d\\theta = 1",
-          "displayMode": true
+          "displayMode": true,
+          "referenceFrame": {
+            "topicId": "kuramoto-eq8",
+            "itemId": "workspace",
+            "title": "Equation 8"
+          },
+          "referenceLabel": "Open Equation 8"
         }
       ]
     },
@@ -282,11 +306,11 @@
           "latex": "1 = K\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta \\quad (r>0)",
           "displayMode": true,
           "referenceFrame": {
-            "topicId": "kuramoto-eq12-critical-coupling",
+            "topicId": "kuramoto-eq12",
             "itemId": "workspace",
-            "title": "Eq. 12 -> Eq. 13"
+            "title": "Equation 12"
           },
-          "referenceLabel": "Open the critical-coupling walkthrough"
+          "referenceLabel": "Open Equation 12"
         },
         {
           "kind": "text",
@@ -387,14 +411,14 @@
         },
         {
           "kind": "math",
-          "latex": "r \\sim \\sqrt{\\frac{K-K_c}{K_c}}",
+          "latex": "r \\sim \\sqrt{\\frac{-16\\,(K-K_c)}{\\pi K_c^4 g''(0)}} \\qquad \\text{as } K \\to K_c",
           "displayMode": true,
           "referenceFrame": {
-            "topicId": "kuramoto-eq13-to-eq14",
+            "topicId": "kuramoto-eq14",
             "itemId": "workspace",
-            "title": "Eq. 13 -> Eq. 14"
+            "title": "Equation 14"
           },
-          "referenceLabel": "Open the near-threshold scaling walkthrough"
+          "referenceLabel": "Open Equation 14"
         },
         {
           "kind": "text",
@@ -503,14 +527,14 @@
         },
         {
           "kind": "math",
-          "latex": "r \\sim \\sqrt{\\frac{K-K_c}{K_c}}",
+          "latex": "r \\sim \\sqrt{\\frac{-16\\,(K-K_c)}{\\pi K_c^4 g''(0)}} \\qquad \\text{as } K \\to K_c",
           "displayMode": true,
           "referenceFrame": {
-            "topicId": "kuramoto-eq13-to-eq14",
+            "topicId": "kuramoto-eq14",
             "itemId": "workspace",
-            "title": "Eq. 13 -> Eq. 14"
+            "title": "Equation 14"
           },
-          "referenceLabel": "Open the onset-law derivation"
+          "referenceLabel": "Open Equation 14"
         }
       ]
     }
