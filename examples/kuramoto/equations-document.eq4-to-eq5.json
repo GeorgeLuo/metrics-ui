@@ -1,0 +1,85 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 4 -> Eq. 5",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This transition is the discrete-to-continuum bridge for the order parameter. Eq. 4 is still a finite-N empirical measure over phase, while Eq. 5 is the continuum average over phase and natural frequency."
+    },
+    {
+      "kind": "text",
+      "value": "The main new idea is to replace the delta-comb of actual oscillators by a smooth density rho of theta, omega, and t, weighted by the frequency distribution g of omega."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "Eq. 4 as an Empirical Phase Density",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Eq. 4 already rewrites the finite sum from Eq. 2 as an integral. But the integrand is still only a comb of delta spikes at the observed oscillator phases."
+        },
+        {
+          "kind": "text",
+          "value": "So this is not yet a continuum theory. It is still the finite population written in measure form."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r e^{i\\psi}=\\int_{-\\pi}^{\\pi} e^{i\\theta}\\left(\\frac{1}{N}\\sum_{j=1}^{N}\\delta(\\theta-\\theta_j)\\right)d\\theta",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Refine the Description by Natural Frequency",
+      "left": [
+        {
+          "kind": "text",
+          "value": "To take the continuum limit, we do not only track where oscillators are on the phase circle. We also track which natural frequency class they belong to."
+        },
+        {
+          "kind": "text",
+          "value": "That is why the continuum description uses a joint density: rho of theta, omega, t for phase at fixed omega, together with g of omega for how common each natural frequency is in the population."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\frac{1}{N}\\sum_{j=1}^{N}\\delta(\\theta-\\theta_j)\\;\\longrightarrow\\;\\int_{-\\infty}^{+\\infty}\\rho(\\theta,\\omega,t)g(\\omega)\\,d\\omega",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Replace the Empirical Average by a Continuum Average",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Once the empirical measure is replaced by the continuum density, the phase average becomes a double integral over theta and omega."
+        },
+        {
+          "kind": "text",
+          "value": "This is the same order parameter idea as before, but now expressed for an infinite population described by a density."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r e^{i\\psi}=\\int_{-\\pi}^{\\pi} e^{i\\theta}\\left(\\int_{-\\infty}^{+\\infty}\\rho(\\theta,\\omega,t)g(\\omega)\\,d\\omega\\right)d\\theta",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "r e^{i\\psi}=\\int_{-\\pi}^{\\pi}\\!\\int_{-\\infty}^{+\\infty}e^{i\\theta}\\rho(\\theta,\\omega,t)g(\\omega)\\,d\\theta\\,d\\omega",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

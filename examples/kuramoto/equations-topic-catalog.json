@@ -48,6 +48,27 @@
       "path": "./equations-content.eq2.json"
     },
     {
+      "id": "kuramoto-eq2-to-eq3",
+      "label": "Eq. 2 -> Eq. 3",
+      "description": "Show how the finite-N order parameter turns the mean-field interaction sum into the standard Kuramoto force term.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 25,
+      "group": "derivation",
+      "tags": [
+        "mean field",
+        "order parameter",
+        "derivation"
+      ],
+      "searchTerms": [
+        "eq 2 to eq 3",
+        "mean-field reduction",
+        "kr sin psi minus theta"
+      ],
+      "format": "derivation",
+      "path": "./equations-document.eq2-to-eq3.json"
+    },
+    {
       "id": "kuramoto-eq3",
       "label": "Equation 3",
       "description": "Inspect the mean-field Kuramoto evolution equation written in terms of the order parameter.",
@@ -92,11 +113,32 @@
       "path": "./equations-content.eq4.json"
     },
     {
+      "id": "kuramoto-eq4-to-eq5",
+      "label": "Eq. 4 -> Eq. 5",
+      "description": "Show how the finite-N empirical phase measure becomes the continuum order-parameter average over phase and natural frequency.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 45,
+      "group": "derivation",
+      "tags": [
+        "continuum limit",
+        "order parameter",
+        "derivation"
+      ],
+      "searchTerms": [
+        "eq 4 to eq 5",
+        "delta comb to density",
+        "continuum order parameter"
+      ],
+      "format": "derivation",
+      "path": "./equations-document.eq4-to-eq5.json"
+    },
+    {
       "id": "kuramoto-eq5",
       "label": "Equation 5",
       "description": "Inspect the complex order parameter definition.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 50,
       "group": "equation",
       "tags": [
@@ -178,11 +220,32 @@
       "path": "./equations-content.eq8.json"
     },
     {
+      "id": "kuramoto-eq7-eq8-to-eq9",
+      "label": "Eq. 7 + Eq. 8 -> Eq. 9",
+      "description": "Derive the stationary locked and drifting density branches from the continuity equation plus normalization.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 85,
+      "group": "derivation",
+      "tags": [
+        "stationary density",
+        "locked",
+        "drifting"
+      ],
+      "searchTerms": [
+        "eq 7 and eq 8 to eq 9",
+        "stationary density derivation",
+        "locked and drifting"
+      ],
+      "format": "derivation",
+      "path": "./equations-document.eq7-eq8-to-eq9.json"
+    },
+    {
       "id": "kuramoto-eq9",
       "label": "Equation 9",
       "description": "Inspect the stationary density split into locked and drifting branches.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 90,
       "group": "equation",
       "tags": [
@@ -202,7 +265,7 @@
       "label": "Eq. 5 + Eq. 9 -> Eq. 10",
       "description": "Walk through how Eq. 5 and Eq. 9 combine into Eq. 10.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 95,
       "group": "derivation",
       "tags": [
@@ -222,7 +285,7 @@
       "label": "Equation 10",
       "description": "Inspect the self-consistency equation for the order parameter.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 100,
       "group": "equation",
       "tags": [
@@ -242,7 +305,7 @@
       "label": "Eq. 10 Addendum: Variables",
       "description": "Glossary-style addendum for the variables and functions appearing in Eq. 10.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 105,
       "group": "glossary",
       "tags": [
@@ -262,7 +325,7 @@
       "label": "Eq. 10 -> Eq. 11",
       "description": "Walk through how the locked part of Eq. 10 reduces to Eq. 11.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 110,
       "group": "derivation",
       "tags": [
@@ -282,7 +345,7 @@
       "label": "Equation 11",
       "description": "Inspect the reduced locked-oscillator self-consistency equation.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 120,
       "group": "equation",
       "tags": [
@@ -296,6 +359,27 @@
       ],
       "format": "semantic_layout",
       "path": "./equations-content.eq11.json"
+    },
+    {
+      "id": "kuramoto-eq11-to-eq12",
+      "label": "Eq. 11 -> Eq. 12",
+      "description": "Show how the reduced self-consistency equation splits into the incoherent branch and the nonzero onset condition.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 122,
+      "group": "derivation",
+      "tags": [
+        "critical coupling",
+        "branch split",
+        "derivation"
+      ],
+      "searchTerms": [
+        "eq 11 to eq 12",
+        "divide by r",
+        "onset branch"
+      ],
+      "format": "derivation",
+      "path": "./equations-document.eq11-to-eq12.json"
     },
     {
       "id": "kuramoto-eq12",
@@ -324,7 +408,7 @@
       "label": "Eq. 12 -> Eq. 13",
       "description": "Follow the onset condition in Eq. 12 through the Lorentzian specialization that produces Eq. 13.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 130,
       "group": "derivation",
       "tags": [
@@ -345,7 +429,7 @@
       "label": "Equation 13",
       "description": "Inspect the Lorentzian choice for the natural-frequency distribution.",
       "createdAt": "2026-03-26",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 140,
       "group": "equation",
       "tags": [
@@ -366,7 +450,7 @@
       "label": "Eq. 13 Addendum: Lorentzian Frequency Distribution",
       "description": "Explain why the Lorentzian choice for g of omega is special and how it yields K_c = 2 gamma and an explicit synchronized branch.",
       "createdAt": "2026-03-26",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 145,
       "group": "reference",
       "tags": [
@@ -386,7 +470,7 @@
       "label": "Eq. 13 -> Eq. 14",
       "description": "Show Kuramoto's exact Lorentzian calculation and how it connects to the general near-threshold scaling law.",
       "createdAt": "2026-03-27",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 150,
       "group": "derivation",
       "tags": [
@@ -429,7 +513,7 @@
       "label": "Equation 15",
       "description": "Inspect the definition of asymptotic equivalence used in the near-threshold analysis.",
       "createdAt": "2026-04-01",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 160,
       "group": "equation",
       "tags": [
@@ -450,7 +534,7 @@
       "label": "Equation 16",
       "description": "Inspect the definition of an asymptotic series used after Eq. 15.",
       "createdAt": "2026-04-01",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 170,
       "group": "equation",
       "tags": [
@@ -470,7 +554,7 @@
       "label": "Eq. 16 -> Eq. 17: What Changed?",
       "description": "Reference explaining why Eq. 16 and Eq. 17 are consecutive in the paper even though they answer different questions.",
       "createdAt": "2026-04-03",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 175,
       "group": "reference",
       "tags": [
@@ -487,11 +571,32 @@
       "path": "./equations-document.eq16-to-eq17-context.json"
     },
     {
+      "id": "kuramoto-eq17-eq18-linearization",
+      "label": "Eq. 17 + Eq. 18: Linearization Around Incoherence",
+      "description": "Show how perturbing the incoherent state and keeping only linear terms produces the stability equation and its normalization constraint.",
+      "createdAt": "2026-04-08",
+      "updatedAt": "2026-04-08",
+      "sortKey": 178,
+      "group": "derivation",
+      "tags": [
+        "linear stability",
+        "incoherence",
+        "perturbation"
+      ],
+      "searchTerms": [
+        "eq 17 and eq 18",
+        "linearization around incoherence",
+        "ignoring nonlinear terms"
+      ],
+      "format": "derivation",
+      "path": "./equations-document.eq17-eq18-linearization.json"
+    },
+    {
       "id": "kuramoto-eq17",
       "label": "Equation 17",
       "description": "Inspect the linearized stability equation obtained after perturbing incoherence and ignoring terms nonlinear in the perturbation.",
       "createdAt": "2026-04-02",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 180,
       "group": "equation",
       "tags": [
@@ -512,7 +617,7 @@
       "label": "Equation 18",
       "description": "Inspect the normalization constraint that accompanies the linearized stability mode in Eq. 17.",
       "createdAt": "2026-04-03",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 190,
       "group": "equation",
       "tags": [
@@ -533,7 +638,7 @@
       "label": "Theta Bounds vs Omega Bounds",
       "description": "See why angle bounds only reappear after changing variables from omega to an angle.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 950,
       "group": "reference",
       "tags": [
@@ -554,7 +659,7 @@
       "label": "Identities Cheatsheet",
       "description": "Quick reference for derivation identities like the Dirac delta rule, Euler's identity, and odd/even symmetry.",
       "createdAt": "2026-03-25",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 960,
       "group": "reference",
       "tags": [
@@ -575,7 +680,7 @@
       "label": "Integrand Rewrite Cheatsheet",
       "description": "Worked examples of rewriting an integrand into standard forms before integrating.",
       "createdAt": "2026-03-27",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 965,
       "group": "reference",
       "tags": [
@@ -595,7 +700,7 @@
       "label": "Taylor Coefficients Cheatsheet",
       "description": "Quick reference for where quadratic Taylor coefficients come from and how they generate factors like 1/2 and 16 in near-threshold expansions.",
       "createdAt": "2026-04-01",
-      "updatedAt": "2026-04-04",
+      "updatedAt": "2026-04-08",
       "sortKey": 970,
       "group": "reference",
       "tags": [
@@ -615,7 +720,7 @@
       "label": "Eq. 1 -> Eq. 16 Summary",
       "description": "Roadmap through the full Eq. 1 through Eq. 16 chain, including what each stage accomplishes, the big-picture conclusions, and when each equation family is the right tool.",
       "createdAt": "2026-04-02",
-      "updatedAt": "2026-04-07",
+      "updatedAt": "2026-04-08",
       "sortKey": 980,
       "group": "reference",
       "tags": [
