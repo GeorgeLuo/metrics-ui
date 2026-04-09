@@ -1,0 +1,142 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 17 + Eq. 18: Linearization Around Incoherence",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This topic explains how the linear stability pair is built. Eq. 17 is the eigenvalue equation for a small perturbation of incoherence, and Eq. 18 is the normalization constraint that the same perturbation must satisfy."
+    },
+    {
+      "kind": "text",
+      "value": "The main moves are: perturb the incoherent state, assume exponential time dependence, keep only terms linear in the perturbation, and then carry normalization along as a separate side condition."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "Start from the Incoherent Base State",
+      "left": [
+        {
+          "kind": "text",
+          "value": "In the incoherent state, phases are uniformly spread around the circle, so the base density is one over two pi."
+        },
+        {
+          "kind": "text",
+          "value": "The question is whether a small disturbance of that uniform state grows or decays."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\rho_0(\\theta,\\omega)=\\frac{1}{2\\pi}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Introduce a Small Perturbation Mode",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Write the full density as the incoherent state plus a small perturbation mu-tilde."
+        },
+        {
+          "kind": "text",
+          "value": "Then separate time dependence by taking mu-tilde equal to e to the lambda t times mu. The number lambda is the growth or decay rate to be solved for."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\rho(\\theta,\\omega,t)=\\frac{1}{2\\pi}+\\tilde{\\mu}(\\theta,\\omega,t)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\tilde{\\mu}(\\theta,\\omega,t)=e^{\\lambda t}\\mu(\\theta,\\omega)",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Linearize the Mean-Field Contribution",
+      "left": [
+        {
+          "kind": "text",
+          "value": "The incoherent background contributes zero order parameter, so the leading mean-field term comes only from the perturbation itself."
+        },
+        {
+          "kind": "text",
+          "value": "That produces a mean-field feedback proportional to the population average of e to the i theta-prime times mu."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r e^{i\\psi}=\\int_{-\\pi}^{\\pi}\\!\\int_{-\\infty}^{+\\infty}e^{i\\theta'}\\tilde{\\mu}(\\theta',\\omega',t)g(\\omega')\\,d\\theta'\\,d\\omega'",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "K\\operatorname{Re}\\!\\left[e^{-i\\theta}\\int_{-\\pi}^{\\pi}\\!\\int_{-\\infty}^{+\\infty}e^{i\\theta'}\\tilde{\\mu}(\\theta',\\omega',t)g(\\omega')\\,d\\theta'\\,d\\omega'\\right]",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 4",
+      "rightTitle": "Keep Only Terms Linear in the Perturbation",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Substitute the perturbed density into the continuum equation and ignore terms nonlinear in mu."
+        },
+        {
+          "kind": "text",
+          "value": "After factoring out e to the lambda t, the remaining equation is the eigenvalue problem for the shape mu of the perturbation mode."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "-\\omega\\frac{\\partial \\mu}{\\partial \\theta}+\\frac{K}{2\\pi}\\operatorname{Re}\\,e^{-i\\theta}\\int_{-\\pi}^{\\pi}\\int_{-\\infty}^{+\\infty}e^{i\\theta'}\\mu(\\theta',\\omega')\\times g(\\omega')\\,d\\theta'\\,d\\omega' = \\lambda\\mu",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 5",
+      "rightTitle": "Carry Normalization Along to Eq. 18",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Normalization is not automatically built into the eigenvalue equation, so it must be transported separately from the original density constraint."
+        },
+        {
+          "kind": "text",
+          "value": "Because the incoherent base state already integrates to one, the perturbation must integrate to zero over theta for each fixed omega."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi}^{\\pi}\\rho(\\theta,\\omega,t)\\,d\\theta = 1",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi}^{\\pi}\\tilde{\\mu}(\\theta,\\omega,t)\\,d\\theta = 0",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\int_{-\\pi}^{\\pi}\\mu(\\theta,\\omega)\\,d\\theta = 0",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

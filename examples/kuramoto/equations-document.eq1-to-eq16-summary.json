@@ -83,6 +83,16 @@
         },
         {
           "kind": "text",
+          "value": "Walkthrough: Eq. 2 -> Eq. 3",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq2-to-eq3",
+            "itemId": "workspace",
+            "title": "Eq. 2 -> Eq. 3"
+          },
+          "referenceLabel": "Open the mean-field reduction walkthrough"
+        },
+        {
+          "kind": "text",
           "value": "Eq. 4"
         },
         {
@@ -132,6 +142,16 @@
             "title": "Equation 5"
           },
           "referenceLabel": "Open Equation 5"
+        },
+        {
+          "kind": "text",
+          "value": "Walkthrough: Eq. 4 -> Eq. 5",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq4-to-eq5",
+            "itemId": "workspace",
+            "title": "Eq. 4 -> Eq. 5"
+          },
+          "referenceLabel": "Open the continuum-limit bridge"
         }
       ]
     },
@@ -203,6 +223,16 @@
             "title": "Equation 8"
           },
           "referenceLabel": "Open Equation 8"
+        },
+        {
+          "kind": "text",
+          "value": "Walkthrough: Eq. 7 + Eq. 8 -> Eq. 9",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq7-eq8-to-eq9",
+            "itemId": "workspace",
+            "title": "Eq. 7 + Eq. 8 -> Eq. 9"
+          },
+          "referenceLabel": "Open the stationary-density derivation"
         }
       ]
     },
@@ -262,6 +292,16 @@
         },
         {
           "kind": "text",
+          "value": "Walkthrough: Eq. 5 + Eq. 9 -> Eq. 10",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq5-eq9-to-eq10",
+            "itemId": "workspace",
+            "title": "Eq. 5 + Eq. 9 -> Eq. 10"
+          },
+          "referenceLabel": "Open the self-consistency substitution walkthrough"
+        },
+        {
+          "kind": "text",
           "value": "Eq. 11"
         },
         {
@@ -274,6 +314,16 @@
             "title": "Equation 11"
           },
           "referenceLabel": "Open Equation 11"
+        },
+        {
+          "kind": "text",
+          "value": "Walkthrough: Eq. 10 -> Eq. 11",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq10-to-eq11",
+            "itemId": "workspace",
+            "title": "Eq. 10 -> Eq. 11"
+          },
+          "referenceLabel": "Open the locked-branch reduction walkthrough"
         }
       ]
     },
@@ -311,6 +361,16 @@
             "title": "Equation 12"
           },
           "referenceLabel": "Open Equation 12"
+        },
+        {
+          "kind": "text",
+          "value": "Walkthrough: Eq. 11 -> Eq. 12",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq11-to-eq12",
+            "itemId": "workspace",
+            "title": "Eq. 11 -> Eq. 12"
+          },
+          "referenceLabel": "Open the branch-split walkthrough"
         },
         {
           "kind": "text",
@@ -363,6 +423,16 @@
             "title": "Equation 13"
           },
           "referenceLabel": "Open Equation 13"
+        },
+        {
+          "kind": "text",
+          "value": "Walkthrough: Eq. 12 -> Eq. 13",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq12-critical-coupling",
+            "itemId": "workspace",
+            "title": "Eq. 12 -> Eq. 13"
+          },
+          "referenceLabel": "Open the critical-coupling walkthrough"
         },
         {
           "kind": "text",
@@ -419,6 +489,16 @@
             "title": "Equation 14"
           },
           "referenceLabel": "Open Equation 14"
+        },
+        {
+          "kind": "text",
+          "value": "Walkthrough: Eq. 13 -> Eq. 14",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq13-to-eq14",
+            "itemId": "workspace",
+            "title": "Eq. 13 -> Eq. 14"
+          },
+          "referenceLabel": "Open the near-threshold scaling walkthrough"
         },
         {
           "kind": "text",

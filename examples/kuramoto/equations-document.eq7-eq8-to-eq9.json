@@ -1,0 +1,131 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 7 + Eq. 8 -> Eq. 9",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This is the stationary-density derivation. Eq. 7 supplies the transport law, and Eq. 8 supplies the normalization that fixes the allowed stationary forms."
+    },
+    {
+      "kind": "text",
+      "value": "The key split is geometric: some oscillators are locked at fixed phase, while others drift all the way around the circle. Eq. 9 packages those two cases into one piecewise density."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "Set Eq. 7 to Stationary Form",
+      "left": [
+        {
+          "kind": "text",
+          "value": "For a stationary solution, the density no longer changes in time, so the time derivative in Eq. 7 vanishes."
+        },
+        {
+          "kind": "text",
+          "value": "That means the phase flux is constant in theta for each fixed omega."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\frac{\\partial \\rho}{\\partial t}+\\frac{\\partial}{\\partial\\theta}\\left[\\left(\\omega+Kr\\sin(\\psi-\\theta)\\right)\\rho\\right]=0",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{\\partial}{\\partial\\theta}\\left[\\left(\\omega-Kr\\sin(\\theta-\\psi)\\right)\\rho\\right]=0",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\left(\\omega-Kr\\sin(\\theta-\\psi)\\right)\\rho = C(\\omega)",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Drifting Oscillators: |omega| > Kr",
+      "left": [
+        {
+          "kind": "text",
+          "value": "If the detuning is too large, the velocity never vanishes. Those oscillators keep drifting around the circle, so their stationary density is the reciprocal of the speed, up to a normalization constant."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 8 then fixes that constant by requiring the density to integrate to one over a full phase period."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "|\\omega|>Kr \\implies \\omega-Kr\\sin(\\theta-\\psi) \\neq 0",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\rho(\\theta,\\omega)=\\frac{C(\\omega)}{|\\omega-Kr\\sin(\\theta-\\psi)|}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "1=\\int_{-\\pi}^{\\pi}\\rho(\\theta,\\omega)\\,d\\theta \\implies C(\\omega)^{-1}=\\int_{-\\pi}^{\\pi}\\frac{d\\theta}{|\\omega-Kr\\sin(\\theta-\\psi)|}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Locked Oscillators: |omega| < Kr",
+      "left": [
+        {
+          "kind": "text",
+          "value": "If the detuning is small enough, the phase velocity can vanish. Then oscillators can sit at a fixed phase determined by omega equals K r sine of theta minus psi."
+        },
+        {
+          "kind": "text",
+          "value": "In the stationary density, that means the mass collapses onto a delta spike at the stable fixed point. The Heaviside factor selects the stable branch."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "|\\omega|<Kr \\implies \\omega=Kr\\sin(\\theta-\\psi)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\theta-\\psi=\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\rho(\\theta,\\omega)=\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right]H(\\cos\\theta)",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 4",
+      "rightTitle": "Assemble Eq. 9",
+      "left": [
+        {
+          "kind": "text",
+          "value": "The stationary density is therefore piecewise: a delta-supported locked branch for small detuning and a reciprocal-speed drifting branch otherwise."
+        },
+        {
+          "kind": "text",
+          "value": "That combined statement is exactly Eq. 9."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\rho = \\begin{cases}\\delta\\!\\left[\\theta-\\psi-\\sin^{-1}\\!\\left(\\frac{\\omega}{Kr}\\right)\\right] H(\\cos\\theta), & |\\omega|<Kr \\\\ \\frac{C}{\\left|\\omega-Kr\\sin(\\theta-\\psi)\\right|}, & \\text{elsewhere.}\\end{cases}",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

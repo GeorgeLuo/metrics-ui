@@ -1,0 +1,81 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 11 -> Eq. 12",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This transition is the branch split at onset. Eq. 11 still contains the trivial incoherent branch and the nonzero synchronized branch at the same time."
+    },
+    {
+      "kind": "text",
+      "value": "Eq. 12 is what you get only after restricting to the nonzero branch and dividing by the common factor r."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "Start from Eq. 11",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Eq. 11 is already a self-consistency equation for the locked population. But because r multiplies the entire right-hand side, the equation still allows the trivial solution r equals zero."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r = Kr\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Separate the Two Branches",
+      "left": [
+        {
+          "kind": "text",
+          "value": "There are two possibilities. Either r is zero, giving the incoherent branch, or r is nonzero and can be divided out."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 12 is about the second case only. That is why the condition r greater than zero has to be stated explicitly."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r=0 \\quad \\text{or} \\quad r>0",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "r>0 \\implies 1 = K\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Recognize Eq. 12 as the Onset Equation",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Once r has been divided out, the remaining equation is the branch condition that will later be analyzed as r approaches zero from the positive side."
+        },
+        {
+          "kind": "text",
+          "value": "That is the onset equation used to define the critical coupling."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "1 = K\\int_{-\\pi/2}^{\\pi/2}\\cos^2\\theta\\,g(Kr\\sin\\theta)\\,d\\theta \\qquad (r>0)",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}

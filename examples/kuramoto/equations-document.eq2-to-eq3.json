@@ -1,0 +1,131 @@
+{
+  "pattern": "parallel_walkthrough",
+  "title": "Eq. 2 -> Eq. 3",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This transition is the mean-field reduction step. It shows how the finite-N order parameter in Eq. 2 collapses the pairwise interaction sum into one collective pull."
+    },
+    {
+      "kind": "text",
+      "value": "The only extra assumption is uniform all-to-all coupling, K sub i j equals K over N. Once that is imposed, Eq. 2 supplies exactly the complex average needed to rewrite the interaction term."
+    }
+  ],
+  "fractions": [5, 7],
+  "steps": [
+    {
+      "leftTitle": "Step 1",
+      "rightTitle": "Start from Eq. 1 and Specialize the Coupling",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Eq. 1 is still the general pairwise model. To reach the standard Kuramoto equation, replace the full coupling matrix by the mean-field choice K sub i j equals K over N."
+        },
+        {
+          "kind": "text",
+          "value": "That turns the interaction term into one global average over all oscillators instead of a separate coefficient for each pair."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\dot{\\theta}_{i}=\\omega_{i}+\\sum_{j=1}^{N}K_{ij}\\sin(\\theta_{j}-\\theta_{i})",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "K_{ij}=\\frac{K}{N}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\dot{\\theta}_{i}=\\omega_i+K\\left(\\frac{1}{N}\\sum_{j=1}^{N}\\sin(\\theta_j-\\theta_i)\\right)",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 2",
+      "rightTitle": "Use the Order Parameter from Eq. 2",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Eq. 2 packages the phase population into one complex average. Multiply it by e to the minus i theta sub i so the phase of oscillator i is measured relative to the collective phase."
+        },
+        {
+          "kind": "text",
+          "value": "That produces exactly the shifted phase factors appearing inside the interaction sum."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "r e^{i\\psi}=\\frac{1}{N}\\sum_{j=1}^{N}e^{i\\theta_j}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "e^{-i\\theta_i} r e^{i\\psi}=\\frac{1}{N}\\sum_{j=1}^{N}e^{i(\\theta_j-\\theta_i)}",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 3",
+      "rightTitle": "Take the Imaginary Part",
+      "left": [
+        {
+          "kind": "text",
+          "value": "The interaction in Eq. 1 is built from sines, so now take the imaginary part of the complex identity."
+        },
+        {
+          "kind": "text",
+          "value": "This is the exact algebraic move that turns the order parameter into the scalar mean-field force."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\operatorname{Im}\\!\\left[e^{i(\\theta_j-\\theta_i)}\\right]=\\sin(\\theta_j-\\theta_i)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\frac{1}{N}\\sum_{j=1}^{N}\\sin(\\theta_j-\\theta_i)=\\operatorname{Im}\\!\\left[e^{-i\\theta_i} r e^{i\\psi}\\right]",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\operatorname{Im}\\!\\left[r e^{i(\\psi-\\theta_i)}\\right]=r\\sin(\\psi-\\theta_i)",
+          "displayMode": true
+        }
+      ]
+    },
+    {
+      "leftTitle": "Step 4",
+      "rightTitle": "Substitute Back to Get Eq. 3",
+      "left": [
+        {
+          "kind": "text",
+          "value": "Put the reduced interaction term back into the specialized equation from Step 1."
+        },
+        {
+          "kind": "text",
+          "value": "At that point the full pairwise sum has disappeared, and the dynamics are expressed through one self-consistent collective field."
+        }
+      ],
+      "right": [
+        {
+          "kind": "math",
+          "latex": "\\dot{\\theta}_{i}=\\omega_i+K\\left(\\frac{1}{N}\\sum_{j=1}^{N}\\sin(\\theta_j-\\theta_i)\\right)",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\dot{\\theta}_{i}=\\omega_i+Kr\\sin(\\psi-\\theta_i)",
+          "displayMode": true
+        }
+      ]
+    }
+  ]
+}
