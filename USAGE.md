@@ -460,6 +460,63 @@ Equations pane:
 
 `set_equations_pane` applies partial patches by default. Set `replace: true` to reset the pane to defaults before applying the new content/dimensions. If `document` is provided, it becomes the explicit FrameGrid source of truth for rendering and state sync. If `cells` is provided without `document`, the Equations pane renders that explicit list of cell items instead of the legacy four-region layout. `context.selectedHitBox` exposes the currently selected Equations interaction context and round-trips through `get_state`, `state_update`, and `restore_state`.
 
+### Equations Pane Usage
+
+The Equations sub-app can be used either as a single-topic worksheet viewer or as a catalog browser for bundled topic artifacts.
+
+Left-pane sections:
+- `Catalog`: current bundled catalog source and reload controls.
+- `Recent`: recently opened topics.
+- `Topic`: topic selection, view mode, and filter controls.
+- `Meta`: meta documents such as `Guidance`.
+- `Highlights`: selected text highlights, shown only when highlights exist.
+- `Debug`: diagnostic controls and document summary when debug is enabled.
+
+Topic view modes:
+- `Selection`: show one selected topic in the main content area.
+- `Textbook`: show the current catalog as a scrollable sequence of topic framegrids in canonical order.
+
+In `Textbook` view, selecting a topic in the left pane scrolls to that topic instead of replacing the main document. Topic headers stick at the top of the textbook scroll area while that topic is in view.
+
+Topic filtering and ordering:
+- The filter input searches topic title, tag, and alias/search terms.
+- `Canonical` uses each topic's `sortKey`.
+- `Types` groups by format-derived type: equation, derivation, reference, glossary, or freeform.
+- Extra ordering modes are under the `...` control:
+  - `Created`: newest-created topics first.
+  - `Updated`: most recently updated topics first.
+
+Topic catalog metadata:
+- Topic entries require `createdAt`, `updatedAt`, `sortKey`, `tags`, and `searchTerms`.
+- Primary browser groups are derived from `format`, not ad-hoc labels:
+  - `semantic_layout` -> equation
+  - `derivation` -> derivation
+  - `reference_sections` -> reference
+  - `glossary_reference` -> glossary
+  - `freeform` -> freeform
+- After adding or editing topic entries, run:
+
+```bash
+npm run equations:sync-topic-dates
+```
+
+Topic references:
+- Text and math blocks can include `referenceFrame` metadata to open another topic or anchored section in a floating reference frame.
+- Reference frames can open a focused excerpt first, then use the frame chrome action `Expand to full context` to show the full referenced topic inside the same pop-out.
+- Use authored `anchorId` values for stable cross-topic references. Do not rely on renderer-generated selection ids for durable links.
+- `topic_reference` blocks embed canonical topic content instead of copying visual content into another artifact.
+
+Text highlights:
+- The Equations pane supports multiple text highlights across the main pane and reference frames.
+- Each highlight gets a simple `H#` label in the left pane.
+- In `Highlights`, the yellow dot hides/shows a highlight without deleting it, and the red control deletes it.
+- Highlight data is stored in `context.selectedTextHighlights`; rendered rectangles are computed client-side.
+
+Catalog-backed topics:
+- When a topic is opened from the catalog, the pane remembers `topicSourceId`.
+- If the loaded catalog artifact changes during development, the current topic can auto-refresh or show a reload control instead of falling back to `Custom / unmatched`.
+- `Custom / unmatched` is reserved for external or imported documents that are not recognized as catalog topics.
+
 ### Equations Topic Authoring
 
 The canonical source of truth for equations topic authoring guidance is:
