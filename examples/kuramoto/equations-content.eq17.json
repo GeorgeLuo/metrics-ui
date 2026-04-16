@@ -1,10 +1,185 @@
 {
   "workspace": {
-    "math": {
-      "kind": "latex",
-      "displayMode": true,
-      "latex": "-\\omega\\frac{\\partial \\mu}{\\partial \\theta}+\\frac{K}{2\\pi}\\operatorname{Re}\\,e^{-i\\theta}\\int_{-\\pi}^{\\pi}\\int_{-\\infty}^{+\\infty}e^{i\\theta'}\\mu(\\theta',\\omega')\\times g(\\omega')\\,d\\theta'\\,d\\omega' = \\lambda\\mu"
-    }
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "-\\omega",
+        "hitBox": {
+          "id": "natural_frequency_transport",
+          "label": "natural-frequency transport",
+          "sequence": "minus omega",
+          "category": "term",
+          "latex": "-\\omega"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\frac{\\partial \\mu}{\\partial \\theta}",
+        "hitBox": {
+          "id": "phase_derivative",
+          "label": "phase derivative of perturbation",
+          "sequence": "partial mu over partial theta",
+          "category": "term",
+          "latex": "\\frac{\\partial \\mu}{\\partial \\theta}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "+",
+        "hitBox": {
+          "id": "plus",
+          "label": "plus",
+          "sequence": "plus",
+          "category": "operator",
+          "latex": "+"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\frac{K}{2\\pi}",
+        "hitBox": {
+          "id": "mean_field_prefactor",
+          "label": "mean-field prefactor",
+          "sequence": "K over two pi",
+          "category": "term",
+          "latex": "\\frac{K}{2\\pi}"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\operatorname{Re}",
+        "hitBox": {
+          "id": "real_part",
+          "label": "real part",
+          "sequence": "real part",
+          "category": "operator",
+          "latex": "\\operatorname{Re}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "e^{-i\\theta}",
+        "hitBox": {
+          "id": "target_phase_factor",
+          "label": "target phase factor",
+          "sequence": "e to the minus i theta",
+          "category": "term",
+          "latex": "e^{-i\\theta}"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\int_{-\\pi}^{\\pi}\\int_{-\\infty}^{+\\infty}",
+        "hitBox": {
+          "id": "population_average_domain",
+          "label": "population-average domain",
+          "sequence": "the integral from minus pi to pi and minus infinity to plus infinity",
+          "category": "term",
+          "latex": "\\int_{-\\pi}^{\\pi}\\int_{-\\infty}^{+\\infty}"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "e^{i\\theta'}",
+        "hitBox": {
+          "id": "source_phase_marker",
+          "label": "source phase marker",
+          "sequence": "e to the i theta prime",
+          "category": "term",
+          "latex": "e^{i\\theta'}"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\mu(\\theta',\\omega')",
+        "hitBox": {
+          "id": "source_perturbation_mode",
+          "label": "source perturbation mode",
+          "sequence": "mu of theta prime omega prime",
+          "category": "function",
+          "latex": "\\mu(\\theta',\\omega')"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\times",
+        "hitBox": {
+          "id": "multiplication_sign",
+          "label": "ordinary multiplication",
+          "sequence": "times",
+          "category": "operator",
+          "latex": "\\times"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "g(\\omega')",
+        "hitBox": {
+          "id": "frequency_distribution_weight",
+          "label": "frequency-distribution weight",
+          "sequence": "g of omega prime",
+          "category": "function",
+          "latex": "g(\\omega')"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "d\\theta'\\,d\\omega'",
+        "hitBox": {
+          "id": "integration_measure",
+          "label": "integration measure",
+          "sequence": "d theta prime d omega prime",
+          "category": "term",
+          "latex": "d\\theta'\\,d\\omega'"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "=",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\lambda\\mu",
+        "hitBox": {
+          "id": "growth_rate_mode",
+          "label": "growth-rate mode",
+          "sequence": "lambda times mu",
+          "category": "term",
+          "latex": "\\lambda\\mu"
+        }
+      }
+    ]
   },
   "details": {
     "mappings": [
@@ -14,7 +189,14 @@
       },
       {
         "kind": "text",
-        "value": "mu"
+        "value": "mu",
+        "hitBox": {
+          "id": "phase_derivative",
+          "label": "phase derivative of perturbation",
+          "sequence": "partial mu over partial theta",
+          "category": "term",
+          "latex": "\\frac{\\partial \\mu}{\\partial \\theta}"
+        }
       },
       {
         "kind": "text",
@@ -22,7 +204,14 @@
       },
       {
         "kind": "text",
-        "value": "K over two pi"
+        "value": "K over two pi",
+        "hitBox": {
+          "id": "mean_field_prefactor",
+          "label": "mean-field prefactor",
+          "sequence": "K over two pi",
+          "category": "term",
+          "latex": "\\frac{K}{2\\pi}"
+        }
       },
       {
         "kind": "text",
@@ -30,7 +219,14 @@
       },
       {
         "kind": "text",
-        "value": "g(omega prime)"
+        "value": "g(omega prime)",
+        "hitBox": {
+          "id": "frequency_distribution_weight",
+          "label": "frequency-distribution weight",
+          "sequence": "g of omega prime",
+          "category": "function",
+          "latex": "g(\\omega')"
+        }
       },
       {
         "kind": "text",
@@ -38,7 +234,14 @@
       },
       {
         "kind": "text",
-        "value": "lambda"
+        "value": "lambda",
+        "hitBox": {
+          "id": "growth_rate_mode",
+          "label": "growth-rate mode",
+          "sequence": "lambda times mu",
+          "category": "term",
+          "latex": "\\lambda\\mu"
+        }
       },
       {
         "kind": "text",
@@ -46,7 +249,14 @@
       },
       {
         "kind": "text",
-        "value": "mu"
+        "value": "mu",
+        "hitBox": {
+          "id": "growth_rate_mode",
+          "label": "growth-rate mode",
+          "sequence": "lambda times mu",
+          "category": "term",
+          "latex": "\\lambda\\mu"
+        }
       },
       {
         "kind": "text",
@@ -54,7 +264,14 @@
       },
       {
         "kind": "text",
-        "value": "mu(theta, omega)"
+        "value": "mu(theta, omega)",
+        "hitBox": {
+          "id": "perturbation_mode",
+          "label": "perturbation mode",
+          "sequence": "mu of theta omega",
+          "category": "function",
+          "latex": "\\mu(\\theta,\\omega)"
+        }
       },
       {
         "kind": "text",
@@ -62,7 +279,14 @@
       },
       {
         "kind": "text",
-        "value": "omega"
+        "value": "omega",
+        "hitBox": {
+          "id": "natural_frequency_transport",
+          "label": "natural-frequency transport",
+          "sequence": "minus omega",
+          "category": "term",
+          "latex": "-\\omega"
+        }
       },
       {
         "kind": "text",
@@ -78,7 +302,14 @@
       },
       {
         "kind": "text",
-        "value": "K"
+        "value": "K",
+        "hitBox": {
+          "id": "mean_field_prefactor",
+          "label": "mean-field prefactor",
+          "sequence": "K over two pi",
+          "category": "term",
+          "latex": "\\frac{K}{2\\pi}"
+        }
       },
       {
         "kind": "text",
@@ -86,11 +317,18 @@
       },
       {
         "kind": "text",
-        "value": "lambda"
+        "value": "lambda",
+        "hitBox": {
+          "id": "growth_rate_mode",
+          "label": "growth-rate mode",
+          "sequence": "lambda times mu",
+          "category": "term",
+          "latex": "\\lambda\\mu"
+        }
       },
       {
         "kind": "text",
-        "value": " is the growth or decay rate of the perturbation mode. "
+        "value": " is the growth or decay rate of the perturbation mode. The x-shaped times symbol is ordinary multiplication, not a new variable. "
       },
       {
         "kind": "text",
@@ -106,7 +344,14 @@
       },
       {
         "kind": "text",
-        "value": "mu"
+        "value": "mu",
+        "hitBox": {
+          "id": "perturbation_mode",
+          "label": "perturbation mode",
+          "sequence": "mu of theta omega",
+          "category": "function",
+          "latex": "\\mu(\\theta,\\omega)"
+        }
       },
       {
         "kind": "text",
@@ -123,7 +368,12 @@
     "blocks": [
       {
         "kind": "text",
-        "value": "Conceptually, Eq. 17 turns the synchronization question into an eigenvalue problem in the section Synchronization in the limit N equals infinity. You use it specifically when asking whether the incoherent state is linearly stable in the noiseless infinite-N limit. If some admissible lambda has positive real part, incoherence is unstable; if all admissible lambdas have negative real part, incoherence is linearly stable. This is a different question from the earlier self-consistency equations, which characterize synchronized branches once they exist."
+        "value": "Conceptually, Eq. 17 turns the synchronization question into an eigenvalue problem in the section Synchronization in the limit N equals infinity. You use it specifically when asking whether the incoherent state is linearly stable in the noiseless infinite-N limit. If some admissible lambda has positive real part, incoherence is unstable; if all admissible lambdas have negative real part, incoherence is linearly stable. This is a different question from the earlier self-consistency equations, which characterize synchronized branches once they exist. The eigenvalue reference expands this connection.",
+        "referenceFrame": {
+          "topicId": "kuramoto-eq17-eigenvalues-reference",
+          "title": "Eq. 17 Eigenvalues"
+        },
+        "referenceLabel": "Open the eigenvalue reference"
       },
       {
         "kind": "text",

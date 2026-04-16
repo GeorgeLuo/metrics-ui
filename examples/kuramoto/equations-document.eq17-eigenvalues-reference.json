@@ -1,0 +1,202 @@
+{
+  "pattern": "reference_sections",
+  "title": "Eq. 17 Eigenvalues: What Lambda Means",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "This reference first explains the general eigenvalue idea, then applies it to Eq. 17."
+    },
+    {
+      "kind": "text",
+      "value": "The unknowns are not just symbols inside the equation. You are solving for a perturbation shape mu and a number lambda that tells whether that shape decays, stays neutral, or grows."
+    }
+  ],
+  "sections": [
+    {
+      "title": "General Eigenvalue Idea",
+      "anchorId": "general-eigenvalue-idea",
+      "content": [
+        {
+          "kind": "text",
+          "value": "An eigenvalue problem starts with something that acts on an input. In finite-dimensional algebra that something is usually a matrix A, and the input is a vector v."
+        },
+        {
+          "kind": "math",
+          "latex": "A v = \\lambda v",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "This equation asks for special nonzero inputs v that keep the same direction after A acts on them. The output may be larger, smaller, reversed, or rotated in a complex sense, but it is still the same basic mode multiplied by one number lambda."
+        }
+      ],
+      "referenceTitle": "Names of the Pieces",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "The special input v is the eigenvector."
+        },
+        {
+          "kind": "text",
+          "value": "The scale factor lambda is the eigenvalue."
+        },
+        {
+          "kind": "text",
+          "value": "The zero vector is excluded because A times zero equals lambda times zero for every lambda, so it would not identify a meaningful mode."
+        },
+        {
+          "kind": "text",
+          "value": "In stability problems, the same idea is used with modes of motion: each mode has a lambda telling how that mode evolves."
+        }
+      ]
+    },
+    {
+      "title": "The Operator Reading",
+      "anchorId": "operator-reading",
+      "content": [
+        {
+          "kind": "text",
+          "value": "The entire left side of Eq. 17 can be read as one linear operator acting on the perturbation shape mu.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq17",
+            "itemId": "workspace",
+            "title": "Equation 17"
+          },
+          "referenceLabel": "Open Equation 17"
+        },
+        {
+          "kind": "math",
+          "latex": "\\mathcal{L}[\\mu]=\\lambda\\mu",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "This is the same structural idea as matrix eigenvalues, except the object acting on mu is a differential-integral operator rather than a finite matrix."
+        }
+      ],
+      "referenceTitle": "Plain Form",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "A v = \\lambda v",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "Matrix version: A acts on v and returns the same direction v multiplied by lambda."
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 17 version: L acts on the perturbation shape mu and returns the same shape multiplied by lambda."
+        }
+      ]
+    },
+    {
+      "title": "What the Eigenfunction Is",
+      "anchorId": "eigenfunction-shape",
+      "content": [
+        {
+          "kind": "text",
+          "value": "The eigenfunction is mu of theta and omega. It is the spatial-frequency shape of the disturbance around the incoherent density."
+        },
+        {
+          "kind": "math",
+          "latex": "\\mu=\\mu(\\theta,\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "The primed copy mu of theta-prime and omega-prime inside the integral is the same kind of shape sampled at dummy integration variables."
+        }
+      ],
+      "referenceTitle": "Do Not Read as One Number",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "In Eq. 17, mu is not a scalar coefficient. It is a function over phase theta and natural frequency omega."
+        },
+        {
+          "kind": "text",
+          "value": "The equation asks which function shapes can reproduce themselves after the linearized dynamics acts on them."
+        }
+      ]
+    },
+    {
+      "title": "Why Lambda Controls Stability",
+      "anchorId": "lambda-controls-stability",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Lambda appears because the perturbation was separated into a fixed shape times an exponential time factor.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq17-eq18-linearization",
+            "title": "Eq. 17 + Eq. 18 Linearization"
+          },
+          "referenceLabel": "Open the linearization walkthrough"
+        },
+        {
+          "kind": "math",
+          "latex": "\\tilde{\\mu}(\\theta,\\omega,t)=e^{\\lambda t}\\mu(\\theta,\\omega)",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "That means lambda is the growth rate attached to the shape mu. Positive real part means the disturbance amplifies. Negative real part means it damps out."
+        }
+      ],
+      "referenceTitle": "Stability Test",
+      "reference": [
+        {
+          "kind": "math",
+          "latex": "\\operatorname{Re}(\\lambda)<0 \\Rightarrow \\text{decay}",
+          "displayMode": true
+        },
+        {
+          "kind": "math",
+          "latex": "\\operatorname{Re}(\\lambda)>0 \\Rightarrow \\text{growth}",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "The stability question is about the real part of lambda because e to a complex lambda t grows or decays according to its real part."
+        }
+      ]
+    },
+    {
+      "title": "What You Actually Solve For",
+      "anchorId": "solve-for-pairs",
+      "content": [
+        {
+          "kind": "text",
+          "value": "You are looking for admissible pairs: a nonzero perturbation shape mu and a matching lambda."
+        },
+        {
+          "kind": "math",
+          "latex": "(\\lambda,\\mu) \\quad \\text{with} \\quad \\mu\\ne 0",
+          "displayMode": true
+        },
+        {
+          "kind": "text",
+          "value": "Eq. 18 is carried along because not every function shape is allowed. The perturbation must preserve normalization, so its phase average must be zero for each omega.",
+          "referenceFrame": {
+            "topicId": "kuramoto-eq18",
+            "itemId": "workspace",
+            "title": "Equation 18"
+          },
+          "referenceLabel": "Open Equation 18"
+        }
+      ],
+      "referenceTitle": "Why This Matters",
+      "reference": [
+        {
+          "kind": "text",
+          "value": "If any admissible eigenvalue has positive real part, incoherence is linearly unstable."
+        },
+        {
+          "kind": "text",
+          "value": "If all admissible eigenvalues have negative real part, small perturbations decay and incoherence is linearly stable."
+        }
+      ]
+    }
+  ]
+}

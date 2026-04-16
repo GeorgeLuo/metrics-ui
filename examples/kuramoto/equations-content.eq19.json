@@ -1,0 +1,192 @@
+{
+  "workspace": {
+    "mappings": [
+      {
+        "kind": "latex",
+        "value": "(\\lambda+i n\\omega)",
+        "hitBox": {
+          "id": "mode_growth_transport_factor",
+          "label": "growth plus transport factor",
+          "sequence": "lambda plus i n omega",
+          "category": "term",
+          "latex": "\\lambda+i n\\omega"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "b_n",
+        "hitBox": {
+          "id": "fourier_mode_coefficient",
+          "label": "Fourier mode coefficient",
+          "sequence": "b sub n",
+          "category": "term",
+          "latex": "b_n"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "=",
+        "hitBox": {
+          "id": "equals",
+          "label": "equals",
+          "sequence": "equals",
+          "category": "operator",
+          "latex": "="
+        }
+      },
+      {
+        "kind": "text",
+        "value": " "
+      },
+      {
+        "kind": "latex",
+        "value": "\\frac{K}{2}",
+        "hitBox": {
+          "id": "half_coupling_strength",
+          "label": "half coupling strength",
+          "sequence": "K over two",
+          "category": "term",
+          "latex": "\\frac{K}{2}"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "(\\delta_{n,1}+\\delta_{n,-1})",
+        "hitBox": {
+          "id": "first_harmonic_selector",
+          "label": "first-harmonic selector",
+          "sequence": "delta n one plus delta n minus one",
+          "category": "term",
+          "latex": "\\delta_{n,1}+\\delta_{n,-1}"
+        }
+      },
+      {
+        "kind": "latex",
+        "value": "\\langle 1,b_n\\rangle",
+        "hitBox": {
+          "id": "mode_average",
+          "label": "mode average",
+          "sequence": "inner product of one and b sub n",
+          "category": "term",
+          "latex": "\\langle 1,b_n\\rangle"
+        }
+      }
+    ]
+  },
+  "details": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "For each Fourier mode index "
+      },
+      {
+        "kind": "text",
+        "value": "n",
+        "hitBox": {
+          "id": "mode_growth_transport_factor",
+          "label": "growth plus transport factor",
+          "sequence": "lambda plus i n omega",
+          "category": "term",
+          "latex": "\\lambda+i n\\omega"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ", lambda plus i times n times omega multiplies "
+      },
+      {
+        "kind": "text",
+        "value": "b sub n",
+        "hitBox": {
+          "id": "fourier_mode_coefficient",
+          "label": "Fourier mode coefficient",
+          "sequence": "b sub n",
+          "category": "term",
+          "latex": "b_n"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". This equals "
+      },
+      {
+        "kind": "text",
+        "value": "K over two",
+        "hitBox": {
+          "id": "half_coupling_strength",
+          "label": "half coupling strength",
+          "sequence": "K over two",
+          "category": "term",
+          "latex": "\\frac{K}{2}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times the Kronecker-delta selector "
+      },
+      {
+        "kind": "text",
+        "value": "delta n one plus delta n minus one",
+        "hitBox": {
+          "id": "first_harmonic_selector",
+          "label": "first-harmonic selector",
+          "sequence": "delta n one plus delta n minus one",
+          "category": "term",
+          "latex": "\\delta_{n,1}+\\delta_{n,-1}"
+        }
+      },
+      {
+        "kind": "text",
+        "value": " times "
+      },
+      {
+        "kind": "text",
+        "value": "the angle-bracket average of one with b sub n",
+        "hitBox": {
+          "id": "mode_average",
+          "label": "mode average",
+          "sequence": "inner product of one and b sub n",
+          "category": "term",
+          "latex": "\\langle 1,b_n\\rangle"
+        }
+      },
+      {
+        "kind": "text",
+        "value": ". Here n is an integer Fourier mode index, b sub n is the coefficient of e to the i n theta in the perturbation shape mu, omega is the natural frequency variable, K is the coupling strength, and delta is the Kronecker delta: it equals one only when the two indices match and zero otherwise."
+      }
+    ]
+  },
+  "notes": {
+    "mappings": [
+      {
+        "kind": "text",
+        "value": "Equation 19 is Eq. 17 after using the periodicity in theta to expand the perturbation into Fourier modes."
+      },
+      {
+        "kind": "text",
+        "value": "The important structural point is that the mean-field feedback only touches the first harmonics n equals 1 and n equals minus 1. That is exactly what the Kronecker-delta factor delta n one plus delta n minus one enforces."
+      },
+      {
+        "kind": "text",
+        "value": "For all other nonzero modes, the right-hand side vanishes, leaving lambda plus i n omega equal to zero whenever b sub n is nonzero. This is why the paper immediately reads off the continuous spectrum lambda sub n of omega equals minus i n omega."
+      }
+    ]
+  },
+  "footer": {
+    "presentation": "freeform",
+    "blocks": [
+      {
+        "kind": "text",
+        "value": "Conceptually, Eq. 19 decomposes the linear stability problem into Fourier channels. Instead of studying an arbitrary theta-dependent perturbation all at once, it asks what each circular wave number n does under the linearized dynamics."
+      },
+      {
+        "kind": "text",
+        "value": "This equation is used after Eq. 17 and Eq. 18 to understand the spectrum of the incoherent state. The first harmonics are special because they can change the order parameter; higher harmonics mostly phase-mix through the i n omega term."
+      }
+    ]
+  }
+}
