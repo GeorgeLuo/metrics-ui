@@ -45,6 +45,8 @@ Environment keys:
   - Directory for uploaded visualization plugins.
 - `METRICS_UI_VISUALIZATION_PLUGIN_INDEX_FILE`
   - JSON index file for visualization plugin metadata.
+- `METRICS_UI_VISUALIZATION_PLUGIN_FILES`
+  - Optional comma-, newline-, or path-delimited list of `.mjs` plugin files or plugin directories to import at server startup.
 - `METRICS_UI_VISUALIZATION_ASSET_ROOT`
   - Directory for visualization assets (default: `<ui-data-root>/visualization-assets`).
 - `METRICS_UI_VISUALIZATION_ASSET_MANIFEST_FILE`
@@ -184,6 +186,10 @@ Notes:
 Visualization plugins are uploaded to the server and then activated in the visualization frame by id.  
 The frame is now plugin-driven only: when no plugin is active (`mode: "builtin"`), the frame stays idle/empty.
 This replaces ad-hoc inline script injection and gives you a reusable, validated artifact.
+
+Examples or deployments that need plugins available on startup should configure
+`METRICS_UI_VISUALIZATION_PLUGIN_FILES`; the generic server does not assume any
+example-specific plugin directory.
 
 ### Upload / List / Delete (HTTP)
 

@@ -17,6 +17,7 @@ function printUsage() {
   console.log('  --upload-root <path>               METRICS_UI_UPLOAD_ROOT');
   console.log('  --capture-sources-file <path>      METRICS_UI_CAPTURE_SOURCES_FILE');
   console.log('  --dashboard-state-file <path>      METRICS_UI_DASHBOARD_STATE_FILE');
+  console.log('  --visualization-plugin-files <list> METRICS_UI_VISUALIZATION_PLUGIN_FILES');
   console.log('  --help                             Show help');
 }
 
@@ -76,6 +77,10 @@ for (let i = 0; i < options.length; i += 1) {
   }
   if (flag === '--dashboard-state-file') {
     env.METRICS_UI_DASHBOARD_STATE_FILE = consumeValue();
+    continue;
+  }
+  if (flag === '--visualization-plugin-files') {
+    env.METRICS_UI_VISUALIZATION_PLUGIN_FILES = consumeValue();
     continue;
   }
   if (flag === '--help' || flag === '-h') {
