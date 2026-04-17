@@ -746,7 +746,8 @@ Use the Kuramoto spec to restore a comparison dashboard for oscillator phases pl
   - `examples/kuramoto/equations-content.model.json`
   - `examples/kuramoto/equations-content.eq9.json`
 - Update the two capture `source` paths in the spec before running.
-- Helper script (auto-wires local capture paths): `examples/kuramoto/bootstrap-ui.sh`
+- The spec's `visualization.pluginFiles` list declares the Kuramoto visualization plugins needed by topic pop-outs.
+- Helper script (auto-wires local capture paths and uploads configured visualization plugins): `examples/kuramoto/bootstrap-ui.sh`
 
 Helper run:
 

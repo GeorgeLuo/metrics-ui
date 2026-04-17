@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SPEC_TEMPLATE="$ROOT_DIR/examples/kuramoto/view-spec.json"
 SIM_CAPTURE="${SIM_CAPTURE:-$ROOT_DIR/../examples/kuramoto/output/kuramoto_simulation.jsonl}"
 EVAL_CAPTURE="${EVAL_CAPTURE:-$ROOT_DIR/../examples/kuramoto/output/kuramoto_evaluation.jsonl}"
+UI_HTTP="${UI_HTTP:-http://127.0.0.1:5050}"
 UI_URL="${UI_URL:-ws://127.0.0.1:5050/ws/control}"
 VERIFY_ONLY="${VERIFY_ONLY:-false}"
 
@@ -26,26 +27,49 @@ fi
 TMP_SPEC_BASE="$(mktemp /tmp/kuramoto-view-spec.XXXXXX)"
 TMP_SPEC="${TMP_SPEC_BASE}.json"
 mv "$TMP_SPEC_BASE" "$TMP_SPEC"
-trap 'rm -f "$TMP_SPEC"' EXIT
+TMP_PLUGIN_LIST="$(mktemp /tmp/kuramoto-visualization-plugins.XXXXXX)"
+trap 'rm -f "$TMP_SPEC" "$TMP_PLUGIN_LIST"' EXIT
 
-node - "$SPEC_TEMPLATE" "$TMP_SPEC" "$SIM_CAPTURE" "$EVAL_CAPTURE" <<'NODE'
+node - "$SPEC_TEMPLATE" "$TMP_SPEC" "$TMP_PLUGIN_LIST" "$SIM_CAPTURE" "$EVAL_CAPTURE" <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
-const [templatePath, outPath, simPath, evalPath] = process.argv.slice(2);
+const [templatePath, outPath, pluginListPath, simPath, evalPath] = process.argv.slice(2);
 const spec = JSON.parse(fs.readFileSync(templatePath, "utf8"));
 const captures = Array.isArray(spec.captures) ? spec.captures : [];
 for (const capture of captures) {
   if (capture.id === "kuramoto-sim") capture.source = simPath;
   if (capture.id === "kuramoto-eval") capture.source = evalPath;
 }
+const pluginFiles = new Set();
+const resolvePluginPath = (pluginPath) => (
+  path.isAbsolute(pluginPath)
+    ? pluginPath
+    : path.resolve(path.dirname(templatePath), pluginPath)
+);
 if (spec.visualization && typeof spec.visualization === "object" && spec.visualization.pluginFile) {
   const pluginPath = String(spec.visualization.pluginFile);
-  spec.visualization.pluginFile = path.isAbsolute(pluginPath)
-    ? pluginPath
-    : path.resolve(path.dirname(templatePath), pluginPath);
+  const resolvedPluginPath = resolvePluginPath(pluginPath);
+  spec.visualization.pluginFile = resolvedPluginPath;
+  pluginFiles.add(resolvedPluginPath);
+}
+if (spec.visualization && typeof spec.visualization === "object" && Array.isArray(spec.visualization.pluginFiles)) {
+  spec.visualization.pluginFiles = spec.visualization.pluginFiles.map((entry) => {
+    const resolvedPluginPath = resolvePluginPath(String(entry));
+    pluginFiles.add(resolvedPluginPath);
+    return resolvedPluginPath;
+  });
 }
 fs.writeFileSync(outPath, JSON.stringify(spec, null, 2));
+fs.writeFileSync(pluginListPath, `${Array.from(pluginFiles).join("\n")}\n`);
 NODE
+
+if [[ -s "$TMP_PLUGIN_LIST" ]]; then
+  while IFS= read -r plugin_file; do
+    [[ -n "$plugin_file" ]] || continue
+    echo "[kuramoto-bootstrap] uploading visualization plugin: $plugin_file"
+    curl -fsS -X POST -F "file=@${plugin_file}" "$UI_HTTP/api/visualization/plugins/upload" >/dev/null
+  done < "$TMP_PLUGIN_LIST"
+fi
 
 echo "[kuramoto-bootstrap] bootstrapping using spec: $TMP_SPEC"
 simeval ui bootstrap-verify \
