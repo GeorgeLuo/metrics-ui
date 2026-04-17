@@ -98,6 +98,7 @@ const VISUALIZATION_PLUGIN_INDEX_FILE = resolveConfiguredPath(
   "METRICS_UI_VISUALIZATION_PLUGIN_INDEX_FILE",
   path.join(VISUALIZATION_PLUGIN_ROOT, "plugins.json"),
 );
+const VISUALIZATION_PLUGIN_FILES_ENV = "METRICS_UI_VISUALIZATION_PLUGIN_FILES";
 const MAX_VISUALIZATION_PLUGIN_SIZE_BYTES = 5 * 1024 * 1024;
 const CAPTURE_SOURCES_FILE = resolveConfiguredPath(
   "METRICS_UI_CAPTURE_SOURCES_FILE",
@@ -1576,6 +1577,107 @@ function loadVisualizationPluginIndex(): VisualizationPluginRecord[] {
 function saveVisualizationPluginIndex(records: VisualizationPluginRecord[]) {
   fs.mkdirSync(VISUALIZATION_PLUGIN_ROOT, { recursive: true });
   fs.writeFileSync(VISUALIZATION_PLUGIN_INDEX_FILE, `${JSON.stringify(records, null, 2)}\n`, "utf-8");
+}
+
+function splitConfiguredVisualizationPluginFiles(raw: string): string[] {
+  const delimiters = Array.from(new Set([",", "\n", path.delimiter]));
+  return delimiters
+    .reduce((parts, delimiter) => parts.flatMap((part) => part.split(delimiter)), [raw])
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function resolveConfiguredVisualizationPluginFiles() {
+  const raw = process.env[VISUALIZATION_PLUGIN_FILES_ENV];
+  if (!raw) {
+    return [];
+  }
+
+  const configuredPaths = splitConfiguredVisualizationPluginFiles(raw);
+  const pluginFiles: string[] = [];
+  for (const configuredPath of configuredPaths) {
+    const absolutePath = path.isAbsolute(configuredPath)
+      ? configuredPath
+      : path.resolve(process.cwd(), configuredPath);
+    if (!fs.existsSync(absolutePath)) {
+      console.warn(`[visualization] Configured plugin path does not exist: ${absolutePath}`);
+      continue;
+    }
+
+    const stats = fs.statSync(absolutePath);
+    if (stats.isDirectory()) {
+      const directoryFiles = fs.readdirSync(absolutePath, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".mjs"))
+        .map((entry) => path.join(absolutePath, entry.name))
+        .sort((a, b) => a.localeCompare(b));
+      pluginFiles.push(...directoryFiles);
+      continue;
+    }
+
+    if (!absolutePath.endsWith(".mjs")) {
+      console.warn(`[visualization] Configured plugin file must end with .mjs: ${absolutePath}`);
+      continue;
+    }
+    pluginFiles.push(absolutePath);
+  }
+
+  return Array.from(new Set(pluginFiles));
+}
+
+async function bootstrapConfiguredVisualizationPlugins() {
+  const pluginFiles = resolveConfiguredVisualizationPluginFiles();
+  if (pluginFiles.length === 0) {
+    return;
+  }
+
+  let changed = false;
+  fs.mkdirSync(VISUALIZATION_PLUGIN_ROOT, { recursive: true });
+
+  for (const sourcePath of pluginFiles) {
+    try {
+      const buffer = fs.readFileSync(sourcePath);
+      const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+      const filePath = path.join(VISUALIZATION_PLUGIN_ROOT, `${hash}.mjs`);
+      if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, buffer);
+      }
+
+      const loaded = await loadVisualizationPluginFromFile(filePath);
+      if (!loaded.record.valid || !loaded.manifest || typeof loaded.runtimeScript !== "string") {
+        console.warn(
+          `[visualization] Skipping configured plugin ${path.basename(sourcePath)}: ${
+            loaded.record.error ?? "invalid plugin"
+          }`,
+        );
+        continue;
+      }
+
+      const existing = visualizationPlugins.get(loaded.record.id);
+      if (existing?.hash === hash && existing.valid) {
+        continue;
+      }
+
+      const uploadedAt = existing?.uploadedAt
+        ?? new Date(fs.statSync(sourcePath).mtimeMs).toISOString();
+      const record: VisualizationPluginRecord = {
+        ...loaded.record,
+        filePath,
+        hash,
+        uploadedAt,
+      };
+      visualizationPlugins.set(record.id, record);
+      changed = true;
+    } catch (error) {
+      console.warn(
+        `[visualization] Failed to bootstrap configured plugin ${path.basename(sourcePath)}:`,
+        error,
+      );
+    }
+  }
+
+  if (changed) {
+    saveVisualizationPluginIndex(Array.from(visualizationPlugins.values()));
+  }
 }
 
 function isSafeDerivationOutputKey(key: string) {
@@ -4834,6 +4936,8 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  await bootstrapConfiguredVisualizationPlugins();
+
   app.use((_req, res, next) => {
     res.setHeader("X-Metrics-UI-Agent-WS", "/ws/control");
     res.setHeader("X-Metrics-UI-Agent-Docs", "/USAGE.md");
