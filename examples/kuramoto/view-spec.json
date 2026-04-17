@@ -147,6 +147,15 @@
   "visualization": {
     "pluginId": "kuramoto_phase_canvas",
     "pluginFile": "../visualization-plugins/kuramoto_phase_canvas.mjs",
+    "pluginFiles": [
+      "../visualization-plugins/kuramoto_phase_canvas.mjs",
+      "../visualization-plugins/kuramoto_critical_coupling_states.mjs",
+      "../visualization-plugins/kuramoto_lorentzian_distribution.mjs",
+      "../visualization-plugins/kuramoto_asymptotic_tilde_meaning.mjs",
+      "../visualization-plugins/kuramoto_symmetry_cancellation.mjs",
+      "../visualization-plugins/kuramoto_eq17_linear_stability.mjs",
+      "../visualization-plugins/kuramoto_eq18_normalization_constraint.mjs"
+    ],
     "captureId": "kuramoto-sim",
     "requireVisualSignal": true
   }

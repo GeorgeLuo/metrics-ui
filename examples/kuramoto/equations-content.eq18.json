@@ -55,10 +55,21 @@
     ]
   },
   "footer": {
-    "mappings": [
+    "presentation": "freeform",
+    "blocks": [
       {
         "kind": "text",
         "value": "Conceptually, Eq. 18 removes the forbidden direction where the perturbation would simply add or subtract total mass instead of redistributing it around the circle. You use it together with Eq. 17 when solving the linear stability eigenvalue problem for incoherence in the noiseless infinite-N limit."
+      },
+      {
+        "kind": "text",
+        "value": "Open a visual showing Eq. 18 as positive and negative signed area cancellation over theta.",
+        "visualizationFrame": {
+          "mode": "plugin",
+          "pluginId": "kuramoto_eq18_normalization_constraint",
+          "name": "Kuramoto Eq. 18 Normalization Constraint"
+        },
+        "visualizationLabel": "Open Eq. 18 normalization visualization"
       }
     ]
   }

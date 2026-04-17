@@ -596,7 +596,7 @@
       "label": "Equation 17",
       "description": "Inspect the linearized stability equation obtained after perturbing incoherence and ignoring terms nonlinear in the perturbation.",
       "createdAt": "2026-04-02",
-      "updatedAt": "2026-04-08",
+      "updatedAt": "2026-04-16",
       "sortKey": 180,
       "group": "equation",
       "tags": [
@@ -613,11 +613,33 @@
       "path": "./equations-content.eq17.json"
     },
     {
+      "id": "kuramoto-eq17-eigenvalues-reference",
+      "label": "Eq. 17 Eigenvalues: What Lambda Means",
+      "description": "Reference explaining how Eq. 17 is an eigenvalue problem and how lambda controls perturbation growth or decay.",
+      "createdAt": "2026-04-16",
+      "updatedAt": "2026-04-16",
+      "sortKey": 185,
+      "group": "reference",
+      "tags": [
+        "eigenvalue",
+        "linear stability",
+        "lambda"
+      ],
+      "searchTerms": [
+        "eq 17 eigenvalues",
+        "lambda growth rate",
+        "eigenfunction mu",
+        "linear operator"
+      ],
+      "format": "reference_sections",
+      "path": "./equations-document.eq17-eigenvalues-reference.json"
+    },
+    {
       "id": "kuramoto-eq18",
       "label": "Equation 18",
       "description": "Inspect the normalization constraint that accompanies the linearized stability mode in Eq. 17.",
       "createdAt": "2026-04-03",
-      "updatedAt": "2026-04-08",
+      "updatedAt": "2026-04-16",
       "sortKey": 190,
       "group": "equation",
       "tags": [
@@ -632,6 +654,29 @@
       ],
       "format": "semantic_layout",
       "path": "./equations-content.eq18.json"
+    },
+    {
+      "id": "kuramoto-eq19",
+      "label": "Equation 19",
+      "description": "Inspect the Fourier-mode equation obtained by inserting the periodic expansion of the perturbation into Eq. 17.",
+      "createdAt": "2026-04-16",
+      "updatedAt": "2026-04-16",
+      "sortKey": 200,
+      "group": "equation",
+      "tags": [
+        "linear stability",
+        "fourier modes",
+        "spectrum"
+      ],
+      "searchTerms": [
+        "eq 19",
+        "equation 19",
+        "fourier mode",
+        "b sub n",
+        "continuous spectrum"
+      ],
+      "format": "semantic_layout",
+      "path": "./equations-content.eq19.json"
     },
     {
       "id": "kuramoto-invalid-intermediate-form",
