@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FrameGrid, type FrameGridDebugSnapshot, type FrameGridSpec } from "@/components/frame-grid";
 import { PlayGameHost } from "@/components/home/play-game-host";
+import type { PlaySidebarSection } from "@/lib/play/sidebar-sections";
 
 type PlayPair = [number, number];
 
@@ -26,6 +27,8 @@ export const PLAY_FRAME_GRID_SPEC: FrameGridSpec = {
 type PlayMainPanelProps = {
   frameGridLayoutDebug?: boolean;
   onFrameGridDebugChange?: (debug: FrameGridDebugSnapshot) => void;
+  onSidebarSectionsChange?: (sections: PlaySidebarSection[]) => void;
+  onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -86,6 +89,8 @@ function getErrorMessage(error: unknown): string {
 export function PlayMainPanel({
   frameGridLayoutDebug = false,
   onFrameGridDebugChange,
+  onSidebarSectionsChange,
+  onSidebarActionHandlerChange,
 }: PlayMainPanelProps) {
   const [games, setGames] = useState<PlayGameCatalogEntry[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -157,6 +162,8 @@ export function PlayMainPanel({
               moduleUrl={selectedGame?.moduleUrl ?? null}
               columns={columns}
               rows={rows}
+              onSidebarSectionsChange={onSidebarSectionsChange}
+              onSidebarActionHandlerChange={onSidebarActionHandlerChange}
             />
           )}
         </FrameGrid.Item>
