@@ -235,9 +235,10 @@ export function createPlayGame({ container, columns, rows, createFloatingFrame }
     ? createFloatingFrame({
       id: "chaser-view",
       title: "Chaser View",
+      bounds: "viewport",
       defaultPosition: {
-        x: Math.max(16, container.clientWidth - chaserViewWidth - 16),
-        y: 16,
+        x: Math.max(16, window.innerWidth - chaserViewWidth - 24),
+        y: 72,
       },
       defaultSize: { width: chaserViewWidth, height: 210 },
       minSize: { width: 180, height: 140 },
@@ -335,8 +336,8 @@ export function createPlayGame({ container, columns, rows, createFloatingFrame }
 
     const isChaserMoving = hasPressedKey(pressedKeys, FORWARD_CONTROL_CODES);
     const steeringInput =
-      (hasPressedKey(pressedKeys, RIGHT_CONTROL_CODES) ? 1 : 0)
-      - (hasPressedKey(pressedKeys, LEFT_CONTROL_CODES) ? 1 : 0);
+      (hasPressedKey(pressedKeys, LEFT_CONTROL_CODES) ? 1 : 0)
+      - (hasPressedKey(pressedKeys, RIGHT_CONTROL_CODES) ? 1 : 0);
     if (isChaserMoving && steeringInput !== 0) {
       const nextHeading = angleToVector(
         vectorToAngle(chaserLookDirection)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SubappFloatingFrame } from "@/components/floating-frame";
+import { SubappFloatingFrame, ViewportFloatingFrame } from "@/components/floating-frame";
 
 type PlayGameHostProps = {
   gameLabel?: string;
@@ -21,6 +21,7 @@ type PlayFloatingFramePosition = {
 type PlayFloatingFrameOptions = {
   id: string;
   title: string;
+  bounds?: "subapp" | "viewport";
   defaultPosition?: PlayFloatingFramePosition;
   defaultSize?: PlayFloatingFrameSize;
   minSize?: PlayFloatingFrameSize;
@@ -200,38 +201,46 @@ export function PlayGameHost({
       data-testid="play-game-host"
     >
       <div ref={mountRef} className="absolute inset-0" />
-      {floatingFrames.map((frame) => (
-        <SubappFloatingFrame
-          key={frame.id}
-          title={frame.title}
-          containerRef={hostRef}
-          defaultPosition={frame.defaultPosition ?? { x: 16, y: 16 }}
-          defaultSize={frame.defaultSize ?? { width: 300, height: 220 }}
-          dataTestId={`play-floating-frame-${frame.id}`}
-          stateStorageKey={`play-floating-frame:${gameLabel}:${frame.id}`}
-          className="border border-border/60 bg-background/95 text-foreground shadow-lg backdrop-blur-sm"
-          headerClassName="border-b border-border/50 bg-muted/40"
-          titleClassName="text-xs text-foreground"
-          dragHandleClassName="text-muted-foreground hover:text-foreground"
-          controlButtonClassName="text-muted-foreground hover:text-foreground"
-          contentClassName="!p-0 overflow-hidden bg-background text-foreground"
-          contentFill
-          contentMinHeight={0}
-          dragHint={`Drag ${frame.title} within the Play area.`}
-          minimizable={frame.minimizable ?? true}
-          resizable={frame.resizable ?? true}
-          minSize={frame.minSize ?? { width: 180, height: 140 }}
-          resizeHint={`Resize ${frame.title}.`}
-          popoutable={frame.popoutable ?? false}
-          popoutWindowName={`metrics-ui-play-${frame.id}`}
-          popoutWindowTitle={`Metrics UI - ${frame.title}`}
-          closeable={frame.closeable ?? false}
-          closeHint={`Close ${frame.title}.`}
-          onClose={frame.closeable ? () => closeFloatingFrame(frame.id) : undefined}
-        >
-          <PlayFloatingFrameMount mount={frame.mount} />
-        </SubappFloatingFrame>
-      ))}
+      {floatingFrames.map((frame) => {
+        const floatingFrameProps = {
+          title: frame.title,
+          defaultPosition: frame.defaultPosition ?? { x: 16, y: 16 },
+          defaultSize: frame.defaultSize ?? { width: 300, height: 220 },
+          dataTestId: `play-floating-frame-${frame.id}`,
+          stateStorageKey: `play-floating-frame:${gameLabel}:${frame.id}`,
+          className: "border border-border/60 bg-background/95 text-foreground shadow-lg backdrop-blur-sm",
+          headerClassName: "border-b border-border/50 bg-muted/40",
+          titleClassName: "text-xs text-foreground",
+          dragHandleClassName: "text-muted-foreground hover:text-foreground",
+          controlButtonClassName: "text-muted-foreground hover:text-foreground",
+          contentClassName: "!p-0 overflow-hidden bg-background text-foreground",
+          contentFill: true,
+          contentMinHeight: 0,
+          dragHint: frame.bounds === "viewport"
+            ? `Drag ${frame.title} within the webapp.`
+            : `Drag ${frame.title} within the Play area.`,
+          minimizable: frame.minimizable ?? true,
+          resizable: frame.resizable ?? true,
+          minSize: frame.minSize ?? { width: 180, height: 140 },
+          resizeHint: `Resize ${frame.title}.`,
+          popoutable: frame.popoutable ?? false,
+          popoutWindowName: `metrics-ui-play-${frame.id}`,
+          popoutWindowTitle: `Metrics UI - ${frame.title}`,
+          closeable: frame.closeable ?? false,
+          closeHint: `Close ${frame.title}.`,
+          onClose: frame.closeable ? () => closeFloatingFrame(frame.id) : undefined,
+        };
+        const content = <PlayFloatingFrameMount mount={frame.mount} />;
+        return frame.bounds === "viewport" ? (
+          <ViewportFloatingFrame key={frame.id} {...floatingFrameProps}>
+            {content}
+          </ViewportFloatingFrame>
+        ) : (
+          <SubappFloatingFrame key={frame.id} {...floatingFrameProps} containerRef={hostRef}>
+            {content}
+          </SubappFloatingFrame>
+        );
+      })}
       {loadError ? (
         <div className="absolute inset-x-4 top-4 rounded border border-destructive/30 bg-background/95 px-3 py-2 text-xs text-destructive shadow-sm">
           {loadError}
