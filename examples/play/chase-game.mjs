@@ -3,7 +3,7 @@ import * as THREE from "three";
 export const manifest = {
   id: "chase",
   label: "Chase",
-  description: "A same-speed overhead chase field: forward throttle and left/right steering control the blue chaser while the red target follows autonomous drift.",
+  description: "A same-speed overhead chase field: I moves the blue chaser forward while A/D steer left and right.",
   frameAspect: [9, 6],
   grid: [9, 6],
 };
@@ -14,9 +14,9 @@ const CAR_HEIGHT = 0.14;
 const CAR_BOUND_RADIUS = Math.hypot(CAR_WIDTH, CAR_LENGTH) / 2;
 const CAR_SPEED_UNITS_PER_SECOND = 2.4;
 const CAR_TURN_RATE_RADIANS_PER_SECOND = Math.PI * 1.15;
-const FORWARD_CONTROL_CODES = new Set(["ArrowUp", "KeyW"]);
-const LEFT_CONTROL_CODES = new Set(["ArrowLeft", "KeyA"]);
-const RIGHT_CONTROL_CODES = new Set(["ArrowRight", "KeyD"]);
+const FORWARD_CONTROL_CODES = new Set(["KeyI"]);
+const LEFT_CONTROL_CODES = new Set(["KeyA"]);
+const RIGHT_CONTROL_CODES = new Set(["KeyD"]);
 const CONTROL_CODES = new Set([
   ...FORWARD_CONTROL_CODES,
   ...LEFT_CONTROL_CODES,
