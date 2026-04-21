@@ -10,8 +10,10 @@ import { HomeHeaderControls } from "@/components/home/home-header-controls";
 import type { ChartViewProps } from "@/components/home/metrics-chart-view";
 import { MetricsMainPanel } from "@/components/home/metrics-main-panel";
 import { MiniModeView, MiniProjectionContent } from "@/components/home/mini-mode-view";
+import { PlayMainPanel } from "@/components/home/play-main-panel";
 import { SidebarDerivationsPane } from "@/components/home/sidebar-derivations-pane";
 import { SidebarEquationsPane } from "@/components/home/sidebar-equations-pane";
+import { SidebarPlayPane } from "@/components/home/sidebar-play-pane";
 import { SidebarSetupPane } from "@/components/home/sidebar-setup-pane";
 import { SidebarSubappHeader } from "@/components/home/sidebar-subapp-header";
 import { HintingPanel } from "@/components/hinting-panel";
@@ -119,6 +121,10 @@ import {
   type SidebarApp,
   type SidebarMode,
 } from "@/lib/dashboard/subapp-shell";
+import {
+  isSidebarAppState,
+  normalizeSidebarAppState,
+} from "@shared/sidebar-apps";
 import {
   DASHBOARD_STORAGE_KEYS,
   readStorageJson,
@@ -449,7 +455,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   );
   const [sidebarApp, setSidebarApp] = useState<SidebarApp>(() => {
     const raw = readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp);
-    return raw === "equations" ? "equations" : "metrics";
+    return normalizeSidebarAppState(raw);
   });
   const [frameGridLayoutDebug, setFrameGridLayoutDebug] = useState(() => (
     readStorageString(DASHBOARD_STORAGE_KEYS.frameGridLayoutDebug) === "1"
@@ -554,12 +560,17 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const sourceRepairAttemptAtRef = useRef(new Map<string, number>());
   const visualizationDebugRef = useRef<VisualizationDebugState | null>(null);
   const equationsFrameDebugRef = useRef<FrameGridDebugSnapshot | null>(null);
+  const [playFrameGridDebugSnapshot, setPlayFrameGridDebugSnapshot] =
+    useState<FrameGridDebugSnapshot | null>(null);
 
   const handleVisualizationDebugChange = useCallback((debug: VisualizationDebugState) => {
     visualizationDebugRef.current = debug;
   }, []);
   const handleEquationsFrameDebugChange = useCallback((debug: FrameGridDebugSnapshot) => {
     equationsFrameDebugRef.current = debug;
+  }, []);
+  const handlePlayFrameDebugChange = useCallback((debug: FrameGridDebugSnapshot) => {
+    setPlayFrameGridDebugSnapshot(debug);
   }, []);
 
   const pushUiEvent = useCallback((event: Omit<UiEvent, "id" | "timestamp">) => {
@@ -2594,7 +2605,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   );
 
   const handleSetSidebarApp = useCallback((app: SidebarApp) => {
-    setSidebarApp(app === "equations" ? "equations" : "metrics");
+    setSidebarApp(normalizeSidebarAppState(app));
   }, []);
 
   const handleSetEquationsPane = useCallback(
@@ -2925,7 +2936,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       if (typeof state.displayDerivationGroupId === "string") {
         setDisplayDerivationGroupId(state.displayDerivationGroupId);
       }
-      if (state.sidebarApp === "metrics" || state.sidebarApp === "equations") {
+      if (isSidebarAppState(state.sidebarApp)) {
         setSidebarApp(state.sidebarApp);
       }
       if (state.playback && typeof state.playback === "object") {
@@ -6414,7 +6425,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                     onRemoveDerivationMetric={handleRemoveDerivationMetric}
                   />
                 </>
-              ) : (
+              ) : sidebarApp === "equations" ? (
                 <SidebarEquationsPane
                   sidebarMode={sidebarMode}
                   frameGridLayoutDebug={frameGridLayoutDebug}
@@ -6445,6 +6456,12 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                   onToggleTextHighlightHidden={handleToggleEquationTextHighlightHidden}
                   onDeleteTextHighlight={handleDeleteEquationTextHighlight}
                   documentDebugSummary={equationsDocumentDebugSummary}
+                />
+              ) : (
+                <SidebarPlayPane
+                  frameGridLayoutDebug={frameGridLayoutDebug}
+                  onFrameGridLayoutDebugChange={setFrameGridLayoutDebug}
+                  frameGridDebugSnapshot={playFrameGridDebugSnapshot}
                 />
               )}
             </div>
@@ -6503,7 +6520,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onOpenMiniPlayer={handleOpenMiniPlayer}
               seekDisabled={isWindowed}
             />
-          ) : (
+          ) : sidebarApp === "equations" ? (
             <EquationsMainPanel
               sidebarMode={sidebarMode}
               equationsPane={displayedEquationsPane}
@@ -6524,6 +6541,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               textbookScrollAnchorId={textbookScrollAnchorId}
               textbookScrollRequestKey={textbookScrollRequestKey}
               textbookTopicOptions={topicOptionsForSelectedCatalog}
+            />
+          ) : (
+            <PlayMainPanel
+              frameGridLayoutDebug={frameGridLayoutDebug}
+              onFrameGridDebugChange={handlePlayFrameDebugChange}
             />
           )}
         </div>

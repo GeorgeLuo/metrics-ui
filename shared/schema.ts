@@ -142,7 +142,7 @@ export interface EquationsReferenceFrameState {
   updatedAt?: string;
 }
 
-export type SidebarAppState = "metrics" | "equations";
+export type SidebarAppState = "metrics" | "equations" | "play";
 
 export interface EquationsPaneAnchoredBlock {
   anchorId?: string;

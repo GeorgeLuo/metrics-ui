@@ -1,5 +1,6 @@
 import type { ControlCommand } from "@shared/schema";
 import { DEFAULT_EQUATIONS_PANE_STATE, normalizeEquationsPaneState } from "@shared/equations-pane";
+import { normalizeSidebarAppState } from "@shared/sidebar-apps";
 import { isDerivedCaptureSource } from "@/lib/dashboard/source-utils";
 import {
   DASHBOARD_STORAGE_KEYS,
@@ -66,7 +67,7 @@ export function hasMeaningfulLocalDashboardState(): boolean {
   const groups = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.derivationGroups);
   const visualizationFrame = readStorageJson<{ mode?: unknown }>(DASHBOARD_STORAGE_KEYS.visualizationFrame);
   const equationsPane = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsPane);
-  const sidebarApp = readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp);
+  const sidebarApp = normalizeSidebarAppState(readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp));
   const hasCustomEquationsPane =
     equationsPane && typeof equationsPane === "object"
       ? JSON.stringify(normalizeEquationsPaneState(equationsPane)) !== JSON.stringify(DEFAULT_EQUATIONS_PANE_STATE)
@@ -76,6 +77,6 @@ export function hasMeaningfulLocalDashboardState(): boolean {
     || (Array.isArray(groups) && groups.length > 0)
     || visualizationFrame?.mode === "plugin"
     || hasCustomEquationsPane
-    || sidebarApp === "equations"
+    || sidebarApp !== "metrics"
   );
 }

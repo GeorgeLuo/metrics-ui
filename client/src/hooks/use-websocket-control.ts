@@ -303,7 +303,7 @@ export function useWebSocketControl({
     const hasMeaningfulState =
       selectedMetrics.length > 0 ||
       derivationGroups.length > 0 ||
-      sidebarApp === "equations" ||
+      sidebarApp !== "metrics" ||
       visualizationFrame.mode === "plugin" ||
       (Array.isArray(yPrimaryDomain) && yPrimaryDomain.length === 2) ||
       (Array.isArray(ySecondaryDomain) && ySecondaryDomain.length === 2) ||
