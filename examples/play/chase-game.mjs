@@ -8,8 +8,12 @@ export const manifest = {
   grid: [9, 6],
 };
 
-const DOT_RADIUS = 0.1;
-const DOT_SPEED_UNITS_PER_SECOND = 2.4;
+const CAR_WIDTH = 0.24;
+const CAR_LENGTH = 0.46;
+const CAR_HEIGHT = 0.14;
+const CAR_BOUND_RADIUS = Math.hypot(CAR_WIDTH, CAR_LENGTH) / 2;
+const CAR_SPEED_UNITS_PER_SECOND = 2.4;
+const CAR_TURN_RATE_RADIANS_PER_SECOND = Math.PI * 1.15;
 const CONTROL_CODES = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
 const FIELD_OF_VIEW_ANGLE_RADIANS = Math.PI / 3;
 const FIELD_OF_VIEW_SEGMENTS = 28;
@@ -30,14 +34,38 @@ function normalizeVector(x, z) {
   return length > 0 ? { x: x / length, z: z / length } : { x: 0, z: 0 };
 }
 
+function vectorToAngle(direction) {
+  return Math.atan2(direction.x, direction.z);
+}
+
+function angleToVector(angle) {
+  return { x: Math.sin(angle), z: Math.cos(angle) };
+}
+
+function normalizeAngleDelta(angle) {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
+
+function steerDirectionToward(currentDirection, desiredDirection, maxDelta) {
+  if (desiredDirection.x === 0 && desiredDirection.z === 0) {
+    return currentDirection;
+  }
+
+  const currentAngle = vectorToAngle(currentDirection);
+  const desiredAngle = vectorToAngle(desiredDirection);
+  const delta = normalizeAngleDelta(desiredAngle - currentAngle);
+  const clampedDelta = Math.min(Math.abs(delta), maxDelta) * Math.sign(delta);
+  return angleToVector(currentAngle + clampedDelta);
+}
+
 function getGroundBounds(columns, rows) {
   const halfWidth = columns / 2;
   const halfDepth = rows / 2;
   return {
-    minX: -halfWidth + DOT_RADIUS,
-    maxX: halfWidth - DOT_RADIUS,
-    minZ: -halfDepth + DOT_RADIUS,
-    maxZ: halfDepth - DOT_RADIUS,
+    minX: -halfWidth + CAR_BOUND_RADIUS,
+    maxX: halfWidth - CAR_BOUND_RADIUS,
+    minZ: -halfDepth + CAR_BOUND_RADIUS,
+    maxZ: halfDepth - CAR_BOUND_RADIUS,
   };
 }
 
@@ -103,8 +131,8 @@ function getTargetDirection(targetPosition, currentDirection, columns, rows, tim
   );
 }
 
-function createDot(color) {
-  const geometry = new THREE.CylinderGeometry(DOT_RADIUS, DOT_RADIUS, 0.12, 32);
+function createCar(color) {
+  const geometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
   const material = new THREE.MeshStandardMaterial({
     color,
     emissive: color,
@@ -113,7 +141,7 @@ function createDot(color) {
     metalness: 0.05,
   });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = 0.08;
+  mesh.position.y = CAR_HEIGHT / 2;
   return mesh;
 }
 
@@ -172,7 +200,7 @@ function configureChaserViewCamera(camera, chaserPosition, lookDirection) {
   camera.position.set(chaserPosition.x, CHASER_VIEW_CAMERA_HEIGHT, chaserPosition.z);
   camera.lookAt(
     chaserPosition.x + lookDirection.x * CHASER_VIEW_LOOK_DISTANCE,
-    DOT_RADIUS,
+    CAR_HEIGHT / 2,
     chaserPosition.z + lookDirection.z * CHASER_VIEW_LOOK_DISTANCE,
   );
 }
@@ -233,8 +261,8 @@ export function createPlayGame({ container, columns, rows, createFloatingFrame }
   scene.add(ambientLight, keyLight);
 
   const chaserFieldOfView = createFieldOfViewCone();
-  const chaser = createDot(0x38bdf8);
-  const target = createDot(0xf43f5e);
+  const chaser = createCar(0x38bdf8);
+  const target = createCar(0xf43f5e);
   scene.add(chaserFieldOfView, chaser, target);
 
   const chaserPosition = { x: -columns / 4, z: 0 };
@@ -293,37 +321,57 @@ export function createPlayGame({ container, columns, rows, createFloatingFrame }
       (pressedKeys.has("KeyD") ? 1 : 0) - (pressedKeys.has("KeyA") ? 1 : 0),
       (pressedKeys.has("KeyS") ? 1 : 0) - (pressedKeys.has("KeyW") ? 1 : 0),
     );
-    if (input.x !== 0 || input.z !== 0) {
-      chaserLookDirection.x = input.x;
-      chaserLookDirection.z = input.z;
+    const isChaserMoving = input.x !== 0 || input.z !== 0;
+    if (isChaserMoving) {
+      const nextHeading = steerDirectionToward(
+        chaserLookDirection,
+        input,
+        CAR_TURN_RATE_RADIANS_PER_SECOND * deltaSeconds,
+      );
+      chaserLookDirection.x = nextHeading.x;
+      chaserLookDirection.z = nextHeading.z;
     }
     const nextChaser = clampPosition({
-      x: chaserPosition.x + input.x * DOT_SPEED_UNITS_PER_SECOND * deltaSeconds,
-      z: chaserPosition.z + input.z * DOT_SPEED_UNITS_PER_SECOND * deltaSeconds,
+      x: chaserPosition.x
+        + chaserLookDirection.x * CAR_SPEED_UNITS_PER_SECOND * deltaSeconds * (isChaserMoving ? 1 : 0),
+      z: chaserPosition.z
+        + chaserLookDirection.z * CAR_SPEED_UNITS_PER_SECOND * deltaSeconds * (isChaserMoving ? 1 : 0),
     }, columns, rows);
     chaserPosition.x = nextChaser.x;
     chaserPosition.z = nextChaser.z;
 
-    const nextDirection = getTargetDirection(
+    const desiredTargetDirection = getTargetDirection(
       targetPosition,
       targetDirection,
       columns,
       rows,
       timestamp,
     );
+    const nextDirection = constrainDirectionToBounds(
+      targetPosition,
+      steerDirectionToward(
+        targetDirection,
+        desiredTargetDirection,
+        CAR_TURN_RATE_RADIANS_PER_SECOND * deltaSeconds,
+      ),
+      columns,
+      rows,
+    );
     targetDirection.x = nextDirection.x;
     targetDirection.z = nextDirection.z;
     const nextTarget = clampPosition({
-      x: targetPosition.x + targetDirection.x * DOT_SPEED_UNITS_PER_SECOND * deltaSeconds,
-      z: targetPosition.z + targetDirection.z * DOT_SPEED_UNITS_PER_SECOND * deltaSeconds,
+      x: targetPosition.x + targetDirection.x * CAR_SPEED_UNITS_PER_SECOND * deltaSeconds,
+      z: targetPosition.z + targetDirection.z * CAR_SPEED_UNITS_PER_SECOND * deltaSeconds,
     }, columns, rows);
     targetPosition.x = nextTarget.x;
     targetPosition.z = nextTarget.z;
 
-    chaser.position.set(chaserPosition.x, 0.08, chaserPosition.z);
+    chaser.position.set(chaserPosition.x, CAR_HEIGHT / 2, chaserPosition.z);
+    chaser.rotation.y = vectorToAngle(chaserLookDirection);
     chaserFieldOfView.position.set(chaserPosition.x, 0, chaserPosition.z);
-    chaserFieldOfView.rotation.y = Math.atan2(chaserLookDirection.x, chaserLookDirection.z);
-    target.position.set(targetPosition.x, 0.08, targetPosition.z);
+    chaserFieldOfView.rotation.y = vectorToAngle(chaserLookDirection);
+    target.position.set(targetPosition.x, CAR_HEIGHT / 2, targetPosition.z);
+    target.rotation.y = vectorToAngle(targetDirection);
 
     renderer.render(scene, camera);
     if (chaserViewRenderer) {
