@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SubappFloatingFrame, ViewportFloatingFrame } from "@/components/floating-frame";
 
 type PlayGameHostProps = {
@@ -202,12 +203,13 @@ export function PlayGameHost({
     >
       <div ref={mountRef} className="absolute inset-0" />
       {floatingFrames.map((frame) => {
+        const storageScope = frame.bounds === "viewport" ? "viewport" : "subapp";
         const floatingFrameProps = {
           title: frame.title,
           defaultPosition: frame.defaultPosition ?? { x: 16, y: 16 },
           defaultSize: frame.defaultSize ?? { width: 300, height: 220 },
           dataTestId: `play-floating-frame-${frame.id}`,
-          stateStorageKey: `play-floating-frame:${gameLabel}:${frame.id}`,
+          stateStorageKey: `play-floating-frame:${gameLabel}:${storageScope}:${frame.id}`,
           className: "border border-border/60 bg-background/95 text-foreground shadow-lg backdrop-blur-sm",
           headerClassName: "border-b border-border/50 bg-muted/40",
           titleClassName: "text-xs text-foreground",
@@ -231,11 +233,17 @@ export function PlayGameHost({
           onClose: frame.closeable ? () => closeFloatingFrame(frame.id) : undefined,
         };
         const content = <PlayFloatingFrameMount mount={frame.mount} />;
-        return frame.bounds === "viewport" ? (
-          <ViewportFloatingFrame key={frame.id} {...floatingFrameProps}>
-            {content}
-          </ViewportFloatingFrame>
-        ) : (
+        if (frame.bounds === "viewport") {
+          const viewportFrame = (
+            <ViewportFloatingFrame {...floatingFrameProps}>
+              {content}
+            </ViewportFloatingFrame>
+          );
+          return typeof document === "undefined"
+            ? viewportFrame
+            : createPortal(viewportFrame, document.body, frame.id);
+        }
+        return (
           <SubappFloatingFrame key={frame.id} {...floatingFrameProps} containerRef={hostRef}>
             {content}
           </SubappFloatingFrame>
