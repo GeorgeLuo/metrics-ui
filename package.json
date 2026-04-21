@@ -32,6 +32,7 @@
     "LICENSE",
     "examples/highmix/view-spec.json",
     "examples/kuramoto/**",
+    "examples/play/**",
     "examples/visualization-assets/highmix/**",
     "examples/visualization-plugins/**"
   ],
