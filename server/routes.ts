@@ -22,6 +22,10 @@ import {
   normalizeVisualizationFrameState,
 } from "@shared/visualization-frame-state";
 import {
+  isSidebarAppState,
+  normalizeSidebarAppState,
+} from "@shared/sidebar-apps";
+import {
   ComponentManager,
   EntityManager,
   System,
@@ -56,6 +60,7 @@ import {
   type DerivationPluginRouteRecord,
   type VisualizationPluginRouteRecord,
 } from "./routes/docs-derivation-routes";
+import { registerPlayGameRoutes } from "./routes/play-game-routes";
 import { registerSourceSeriesRoutes } from "./routes/source-series-routes";
 import { registerLiveDebugRoutes } from "./routes/live-debug-routes";
 import { HIGHMIX_BUNDLED_VISUALIZATION_ASSETS } from "./examples/highmix-visualization-assets";
@@ -679,7 +684,7 @@ function buildVisualizationStateFromPersistedState(
     Number(state.ySecondaryDomain[1]) > Number(state.ySecondaryDomain[0])
       ? [Number(state.ySecondaryDomain[0]), Number(state.ySecondaryDomain[1])] as [number, number]
       : null;
-  const sidebarApp = state.sidebarApp === "equations" ? "equations" : "metrics";
+  const sidebarApp = normalizeSidebarAppState(state.sidebarApp);
 
   return {
     captures: [],
@@ -800,7 +805,7 @@ function extractPersistableDashboardState(payload: VisualizationState): Persista
   if (typeof payload.displayDerivationGroupId === "string") {
     state.displayDerivationGroupId = payload.displayDerivationGroupId;
   }
-  if (payload.sidebarApp === "metrics" || payload.sidebarApp === "equations") {
+  if (isSidebarAppState(payload.sidebarApp)) {
     state.sidebarApp = payload.sidebarApp;
   }
   if (payload.playback && typeof payload.playback === "object") {
@@ -2370,7 +2375,7 @@ function applyAgentCommandToLastVisualizationState(command: ControlCommand): boo
   let changed = false;
 
   if (command.type === "set_sidebar_app") {
-    const nextApp = command.app === "equations" ? "equations" : "metrics";
+    const nextApp = normalizeSidebarAppState(command.app);
     if (state.sidebarApp !== nextApp) {
       state.sidebarApp = nextApp;
       changed = true;
@@ -5603,6 +5608,11 @@ export async function registerRoutes(
     extractSeriesFromSource,
     extractSeriesFromFramesBatch,
     extractSeriesBatchFromSource,
+  });
+
+  registerPlayGameRoutes({
+    app,
+    projectRoot: process.cwd(),
   });
 
   registerLiveDebugRoutes({
