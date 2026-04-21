@@ -11,12 +11,12 @@ export const manifest = {
 const DOT_RADIUS = 0.1;
 const DOT_SPEED_UNITS_PER_SECOND = 2.4;
 const CONTROL_CODES = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
-const FIELD_OF_VIEW_DISTANCE = 1.6;
 const FIELD_OF_VIEW_ANGLE_RADIANS = Math.PI / 3;
 const FIELD_OF_VIEW_SEGMENTS = 28;
 const CHASER_VIEW_CAMERA_HEIGHT = 0.42;
 const CHASER_VIEW_LOOK_DISTANCE = 3;
 const CHASER_VIEW_MAX_DISTANCE = 9;
+const FIELD_OF_VIEW_DISTANCE = CHASER_VIEW_MAX_DISTANCE;
 const WALL_AVOID_DISTANCE = 0.8;
 const EDGE_LOCK_EPSILON = 0.04;
 
@@ -149,54 +149,6 @@ function createFieldOfViewCone() {
   return new THREE.Mesh(geometry, material);
 }
 
-function createChaserViewFrame(container) {
-  const frame = document.createElement("div");
-  Object.assign(frame.style, {
-    position: "absolute",
-    top: "14px",
-    right: "14px",
-    width: "28%",
-    minWidth: "150px",
-    maxWidth: "250px",
-    aspectRatio: "4 / 3",
-    border: "1px solid rgba(56, 189, 248, 0.72)",
-    borderRadius: "10px",
-    overflow: "hidden",
-    pointerEvents: "none",
-    background: "rgba(15, 23, 42, 0.08)",
-    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.18)",
-  });
-
-  const viewport = document.createElement("div");
-  Object.assign(viewport.style, {
-    position: "absolute",
-    inset: "0",
-  });
-
-  const label = document.createElement("div");
-  label.textContent = "Chaser view";
-  Object.assign(label.style, {
-    position: "absolute",
-    left: "8px",
-    top: "7px",
-    zIndex: "1",
-    borderRadius: "999px",
-    background: "rgba(15, 23, 42, 0.72)",
-    color: "rgba(226, 232, 240, 0.96)",
-    fontFamily: "ui-sans-serif, system-ui, sans-serif",
-    fontSize: "10px",
-    letterSpacing: "0.04em",
-    lineHeight: "1",
-    padding: "4px 7px",
-    textTransform: "uppercase",
-  });
-
-  frame.appendChild(viewport);
-  frame.appendChild(label);
-  container.appendChild(frame);
-  return { frame, viewport };
-}
-
 function configureCamera(camera, columns, rows, width, height) {
   const fieldAspect = columns / rows;
   const containerAspect = width > 0 && height > 0 ? width / height : fieldAspect;
@@ -225,7 +177,7 @@ function configureChaserViewCamera(camera, chaserPosition, lookDirection) {
   );
 }
 
-export function createPlayGame({ container, columns, rows }) {
+export function createPlayGame({ container, columns, rows, createFloatingFrame }) {
   const pressedKeys = new Set();
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -234,15 +186,34 @@ export function createPlayGame({ container, columns, rows }) {
   renderer.domElement.className = "block h-full w-full";
   container.appendChild(renderer.domElement);
 
-  const chaserViewFrame = createChaserViewFrame(container);
-  const chaserViewRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  chaserViewRenderer.outputColorSpace = THREE.SRGBColorSpace;
-  chaserViewRenderer.setClearColor(0x000000, 0);
-  chaserViewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  chaserViewRenderer.domElement.style.display = "block";
-  chaserViewRenderer.domElement.style.width = "100%";
-  chaserViewRenderer.domElement.style.height = "100%";
-  chaserViewFrame.viewport.appendChild(chaserViewRenderer.domElement);
+  const chaserViewWidth = 280;
+  const chaserViewFrame = typeof createFloatingFrame === "function"
+    ? createFloatingFrame({
+      id: "chaser-view",
+      title: "Chaser View",
+      defaultPosition: {
+        x: Math.max(16, container.clientWidth - chaserViewWidth - 16),
+        y: 16,
+      },
+      defaultSize: { width: chaserViewWidth, height: 210 },
+      minSize: { width: 180, height: 140 },
+      minimizable: true,
+      resizable: true,
+      popoutable: true,
+    })
+    : null;
+  const chaserViewRenderer = chaserViewFrame
+    ? new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    : null;
+  if (chaserViewRenderer && chaserViewFrame) {
+    chaserViewRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    chaserViewRenderer.setClearColor(0x000000, 0);
+    chaserViewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    chaserViewRenderer.domElement.style.display = "block";
+    chaserViewRenderer.domElement.style.width = "100%";
+    chaserViewRenderer.domElement.style.height = "100%";
+    chaserViewFrame.mount.appendChild(chaserViewRenderer.domElement);
+  }
 
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-columns / 2, columns / 2, rows / 2, -rows / 2, 0.1, 100);
@@ -297,15 +268,20 @@ export function createPlayGame({ container, columns, rows }) {
     renderer.setSize(width, height, false);
     configureCamera(camera, columns, rows, width, height);
 
-    const chaserViewWidth = Math.max(1, chaserViewFrame.viewport.clientWidth);
-    const chaserViewHeight = Math.max(1, chaserViewFrame.viewport.clientHeight);
-    chaserViewRenderer.setSize(chaserViewWidth, chaserViewHeight, false);
-    chaserViewCamera.aspect = chaserViewWidth / chaserViewHeight;
-    chaserViewCamera.updateProjectionMatrix();
+    if (chaserViewRenderer && chaserViewFrame) {
+      const viewWidth = Math.max(1, chaserViewFrame.mount.clientWidth);
+      const viewHeight = Math.max(1, chaserViewFrame.mount.clientHeight);
+      chaserViewRenderer.setSize(viewWidth, viewHeight, false);
+      chaserViewCamera.aspect = viewWidth / viewHeight;
+      chaserViewCamera.updateProjectionMatrix();
+    }
   };
   resize();
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(container);
+  if (chaserViewFrame) {
+    resizeObserver.observe(chaserViewFrame.mount);
+  }
 
   let animationFrame = 0;
   let previousTime = performance.now();
@@ -350,12 +326,14 @@ export function createPlayGame({ container, columns, rows }) {
     target.position.set(targetPosition.x, 0.08, targetPosition.z);
 
     renderer.render(scene, camera);
-    configureChaserViewCamera(chaserViewCamera, chaserPosition, chaserLookDirection);
-    chaser.visible = false;
-    chaserFieldOfView.visible = false;
-    chaserViewRenderer.render(scene, chaserViewCamera);
-    chaser.visible = true;
-    chaserFieldOfView.visible = true;
+    if (chaserViewRenderer) {
+      configureChaserViewCamera(chaserViewCamera, chaserPosition, chaserLookDirection);
+      chaser.visible = false;
+      chaserFieldOfView.visible = false;
+      chaserViewRenderer.render(scene, chaserViewCamera);
+      chaser.visible = true;
+      chaserFieldOfView.visible = true;
+    }
     animationFrame = window.requestAnimationFrame(tick);
   };
   animationFrame = window.requestAnimationFrame(tick);
@@ -372,9 +350,6 @@ export function createPlayGame({ container, columns, rows }) {
       if (renderer.domElement.parentElement === container) {
         container.removeChild(renderer.domElement);
       }
-      if (chaserViewFrame.frame.parentElement === container) {
-        container.removeChild(chaserViewFrame.frame);
-      }
       chaser.geometry.dispose();
       chaser.material.dispose();
       chaserFieldOfView.geometry.dispose();
@@ -382,7 +357,8 @@ export function createPlayGame({ container, columns, rows }) {
       target.geometry.dispose();
       target.material.dispose();
       renderer.dispose();
-      chaserViewRenderer.dispose();
+      chaserViewRenderer?.dispose();
+      chaserViewFrame?.close();
     },
   };
 }
