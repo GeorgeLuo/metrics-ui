@@ -1,0 +1,14 @@
+{
+  "id": "play-examples",
+  "label": "Play Examples",
+  "games": [
+    {
+      "id": "chase",
+      "label": "Chase",
+      "description": "A same-speed overhead chase field: WASD moves the blue chaser while the red target follows autonomous drift.",
+      "moduleFile": "./chase-game.mjs",
+      "frameAspect": [9, 6],
+      "grid": [9, 6]
+    }
+  ]
+}

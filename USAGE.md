@@ -464,6 +464,12 @@ Equations pane:
 - `{"type":"set_equations_pane","context":{"selectedHitBox":{"itemId":"workspace","hitBox":{"id":"omega_i","label":"ω_i","sequence":"ω_i","category":"term","latex":"\\omega_{i}"}}}}`
 - `{"type":"set_equations_pane","replace":true,"content":{"notes":{"title":"Status","body":"reset + patch"}}}`
 
+Play sub-app:
+- `{"type":"set_sidebar_app","app":"play"}`
+- The Play sub-app hosts browser-game surfaces in a FrameGrid. Games are loaded from the file-backed catalog at `examples/play/play-game-catalog.json` by default.
+- Each catalog entry points to an `.mjs` game module, for example `examples/play/chase-game.mjs`. A module exports `createPlayGame({ container, columns, rows })` and returns an optional `{ dispose() }` cleanup object.
+- Set `METRICS_UI_PLAY_GAME_CATALOG_FILE=/path/to/play-game-catalog.json` to use another catalog file locally.
+
 `set_equations_pane` applies partial patches by default. Set `replace: true` to reset the pane to defaults before applying the new content/dimensions. If `document` is provided, it becomes the explicit FrameGrid source of truth for rendering and state sync. If `cells` is provided without `document`, the Equations pane renders that explicit list of cell items instead of the legacy four-region layout. `context.selectedHitBox` exposes the currently selected Equations interaction context and round-trips through `get_state`, `state_update`, and `restore_state`.
 
 ### Equations Pane Usage
