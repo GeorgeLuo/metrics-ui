@@ -11,6 +11,9 @@ export const manifest = {
 const DOT_RADIUS = 0.1;
 const DOT_SPEED_UNITS_PER_SECOND = 2.4;
 const CONTROL_CODES = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
+const FIELD_OF_VIEW_DISTANCE = 1.6;
+const FIELD_OF_VIEW_ANGLE_RADIANS = Math.PI / 3;
+const FIELD_OF_VIEW_SEGMENTS = 28;
 const WALL_AVOID_DISTANCE = 0.8;
 const EDGE_LOCK_EPSILON = 0.04;
 
@@ -111,6 +114,38 @@ function createDot(color) {
   return mesh;
 }
 
+function createFieldOfViewCone() {
+  const positions = [0, 0.012, 0];
+  for (let index = 0; index <= FIELD_OF_VIEW_SEGMENTS; index += 1) {
+    const t = index / FIELD_OF_VIEW_SEGMENTS;
+    const angle = -FIELD_OF_VIEW_ANGLE_RADIANS / 2 + t * FIELD_OF_VIEW_ANGLE_RADIANS;
+    positions.push(
+      Math.sin(angle) * FIELD_OF_VIEW_DISTANCE,
+      0.012,
+      Math.cos(angle) * FIELD_OF_VIEW_DISTANCE,
+    );
+  }
+
+  const indices = [];
+  for (let index = 1; index <= FIELD_OF_VIEW_SEGMENTS; index += 1) {
+    indices.push(0, index, index + 1);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.16,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  return new THREE.Mesh(geometry, material);
+}
+
 function configureCamera(camera, columns, rows, width, height) {
   const fieldAspect = columns / rows;
   const containerAspect = width > 0 && height > 0 ? width / height : fieldAspect;
@@ -150,11 +185,13 @@ export function createPlayGame({ container, columns, rows }) {
   keyLight.position.set(3, 8, 4);
   scene.add(ambientLight, keyLight);
 
+  const chaserFieldOfView = createFieldOfViewCone();
   const chaser = createDot(0x38bdf8);
   const target = createDot(0xf43f5e);
-  scene.add(chaser, target);
+  scene.add(chaserFieldOfView, chaser, target);
 
   const chaserPosition = { x: -columns / 4, z: 0 };
+  const chaserLookDirection = normalizeVector(1, 0);
   const targetPosition = { x: columns / 4, z: 0 };
   const targetDirection = normalizeVector(-1, 0.4);
 
@@ -198,6 +235,10 @@ export function createPlayGame({ container, columns, rows }) {
       (pressedKeys.has("KeyD") ? 1 : 0) - (pressedKeys.has("KeyA") ? 1 : 0),
       (pressedKeys.has("KeyS") ? 1 : 0) - (pressedKeys.has("KeyW") ? 1 : 0),
     );
+    if (input.x !== 0 || input.z !== 0) {
+      chaserLookDirection.x = input.x;
+      chaserLookDirection.z = input.z;
+    }
     const nextChaser = clampPosition({
       x: chaserPosition.x + input.x * DOT_SPEED_UNITS_PER_SECOND * deltaSeconds,
       z: chaserPosition.z + input.z * DOT_SPEED_UNITS_PER_SECOND * deltaSeconds,
@@ -222,6 +263,8 @@ export function createPlayGame({ container, columns, rows }) {
     targetPosition.z = nextTarget.z;
 
     chaser.position.set(chaserPosition.x, 0.08, chaserPosition.z);
+    chaserFieldOfView.position.set(chaserPosition.x, 0, chaserPosition.z);
+    chaserFieldOfView.rotation.y = Math.atan2(chaserLookDirection.x, chaserLookDirection.z);
     target.position.set(targetPosition.x, 0.08, targetPosition.z);
     renderer.render(scene, camera);
     animationFrame = window.requestAnimationFrame(tick);
@@ -242,6 +285,8 @@ export function createPlayGame({ container, columns, rows }) {
       }
       chaser.geometry.dispose();
       chaser.material.dispose();
+      chaserFieldOfView.geometry.dispose();
+      chaserFieldOfView.material.dispose();
       target.geometry.dispose();
       target.material.dispose();
       renderer.dispose();
