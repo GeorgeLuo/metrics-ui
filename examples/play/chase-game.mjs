@@ -3,7 +3,7 @@ import * as THREE from "three";
 export const manifest = {
   id: "chase",
   label: "Chase",
-  description: "A same-speed overhead chase field: WASD moves the blue chaser while the red target follows autonomous drift.",
+  description: "A same-speed overhead chase field: forward throttle and left/right steering control the blue chaser while the red target follows autonomous drift.",
   frameAspect: [9, 6],
   grid: [9, 6],
 };
@@ -14,7 +14,14 @@ const CAR_HEIGHT = 0.14;
 const CAR_BOUND_RADIUS = Math.hypot(CAR_WIDTH, CAR_LENGTH) / 2;
 const CAR_SPEED_UNITS_PER_SECOND = 2.4;
 const CAR_TURN_RATE_RADIANS_PER_SECOND = Math.PI * 1.15;
-const CONTROL_CODES = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
+const FORWARD_CONTROL_CODES = new Set(["ArrowUp", "KeyW"]);
+const LEFT_CONTROL_CODES = new Set(["ArrowLeft", "KeyA"]);
+const RIGHT_CONTROL_CODES = new Set(["ArrowRight", "KeyD"]);
+const CONTROL_CODES = new Set([
+  ...FORWARD_CONTROL_CODES,
+  ...LEFT_CONTROL_CODES,
+  ...RIGHT_CONTROL_CODES,
+]);
 const FIELD_OF_VIEW_ANGLE_RADIANS = Math.PI / 3;
 const FIELD_OF_VIEW_SEGMENTS = 28;
 const CHASER_VIEW_CAMERA_HEIGHT = 0.42;
@@ -32,6 +39,15 @@ function isTextEditingTarget(target) {
 function normalizeVector(x, z) {
   const length = Math.hypot(x, z);
   return length > 0 ? { x: x / length, z: z / length } : { x: 0, z: 0 };
+}
+
+function hasPressedKey(pressedKeys, codes) {
+  for (const code of codes) {
+    if (pressedKeys.has(code)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function vectorToAngle(direction) {
@@ -317,16 +333,14 @@ export function createPlayGame({ container, columns, rows, createFloatingFrame }
     const deltaSeconds = Math.min(0.05, Math.max(0, (timestamp - previousTime) / 1000));
     previousTime = timestamp;
 
-    const input = normalizeVector(
-      (pressedKeys.has("KeyD") ? 1 : 0) - (pressedKeys.has("KeyA") ? 1 : 0),
-      (pressedKeys.has("KeyS") ? 1 : 0) - (pressedKeys.has("KeyW") ? 1 : 0),
-    );
-    const isChaserMoving = input.x !== 0 || input.z !== 0;
-    if (isChaserMoving) {
-      const nextHeading = steerDirectionToward(
-        chaserLookDirection,
-        input,
-        CAR_TURN_RATE_RADIANS_PER_SECOND * deltaSeconds,
+    const isChaserMoving = hasPressedKey(pressedKeys, FORWARD_CONTROL_CODES);
+    const steeringInput =
+      (hasPressedKey(pressedKeys, RIGHT_CONTROL_CODES) ? 1 : 0)
+      - (hasPressedKey(pressedKeys, LEFT_CONTROL_CODES) ? 1 : 0);
+    if (isChaserMoving && steeringInput !== 0) {
+      const nextHeading = angleToVector(
+        vectorToAngle(chaserLookDirection)
+          + steeringInput * CAR_TURN_RATE_RADIANS_PER_SECOND * deltaSeconds,
       );
       chaserLookDirection.x = nextHeading.x;
       chaserLookDirection.z = nextHeading.z;
