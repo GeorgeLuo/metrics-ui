@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { SubappFloatingFrame, ViewportFloatingFrame } from "@/components/floating-frame";
+import {
+  normalizePlaySidebarSections,
+  type PlaySidebarSection,
+} from "@/lib/play/sidebar-sections";
 
 type PlayGameHostProps = {
   gameLabel?: string;
   moduleUrl: string | null;
   columns: number;
   rows: number;
+  onSidebarSectionsChange?: (sections: PlaySidebarSection[]) => void;
+  onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
 };
 
 type PlayFloatingFrameSize = {
@@ -48,6 +54,8 @@ type PlayGameRuntimeContext = {
   columns: number;
   rows: number;
   createFloatingFrame: (options: PlayFloatingFrameOptions) => PlayFloatingFrameHandle;
+  setSidebarSections: (sections: unknown) => void;
+  setSidebarActionHandler: (actionId: string, handler: ((value?: unknown) => void) | null) => void;
 };
 
 type PlayGameInstance = {
@@ -62,8 +70,16 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function normalizeRuntimeId(id: string, fallback: string | null): string | null {
+  return id.trim().replace(/[^a-zA-Z0-9._-]+/g, "-") || fallback;
+}
+
 function normalizeFrameId(id: string): string {
-  return id.trim().replace(/[^a-zA-Z0-9._-]+/g, "-") || "frame";
+  return normalizeRuntimeId(id, "frame") ?? "frame";
+}
+
+function normalizeSidebarActionId(id: string): string | null {
+  return normalizeRuntimeId(id, null);
 }
 
 function makeFrameMount(): HTMLDivElement {
@@ -103,9 +119,12 @@ export function PlayGameHost({
   moduleUrl,
   columns,
   rows,
+  onSidebarSectionsChange,
+  onSidebarActionHandlerChange,
 }: PlayGameHostProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const sidebarActionHandlersRef = useRef<Map<string, (value?: unknown) => void>>(new Map());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [floatingFrames, setFloatingFrames] = useState<PlayFloatingFrameRecord[]>([]);
 
@@ -149,6 +168,37 @@ export function PlayGameHost({
     };
   }, [closeFloatingFrame]);
 
+  const setSidebarSections = useCallback((sections: unknown) => {
+    onSidebarSectionsChange?.(normalizePlaySidebarSections(sections));
+  }, [onSidebarSectionsChange]);
+
+  const setSidebarActionHandler = useCallback((actionId: string, handler: ((value?: unknown) => void) | null) => {
+    const normalizedActionId = normalizeSidebarActionId(actionId);
+    if (!normalizedActionId) {
+      return;
+    }
+    if (handler) {
+      sidebarActionHandlersRef.current.set(normalizedActionId, handler);
+    } else {
+      sidebarActionHandlersRef.current.delete(normalizedActionId);
+    }
+  }, []);
+
+  const dispatchSidebarAction = useCallback((actionId: string, value?: unknown) => {
+    const normalizedActionId = normalizeSidebarActionId(actionId);
+    if (!normalizedActionId) {
+      return;
+    }
+    sidebarActionHandlersRef.current.get(normalizedActionId)?.(value);
+  }, []);
+
+  useEffect(() => {
+    onSidebarActionHandlerChange?.(dispatchSidebarAction);
+    return () => {
+      onSidebarActionHandlerChange?.(null);
+    };
+  }, [dispatchSidebarAction, onSidebarActionHandlerChange]);
+
   useEffect(() => {
     const container = mountRef.current;
     if (!container || !moduleUrl) {
@@ -158,6 +208,8 @@ export function PlayGameHost({
     let isDisposed = false;
     let gameInstance: PlayGameInstance | void;
     setLoadError(null);
+    sidebarActionHandlersRef.current.clear();
+    setSidebarSections([]);
     container.replaceChildren();
 
     import(/* @vite-ignore */ moduleUrl)
@@ -173,6 +225,8 @@ export function PlayGameHost({
           columns,
           rows,
           createFloatingFrame,
+          setSidebarSections,
+          setSidebarActionHandler,
         });
       })
       .catch((error: unknown) => {
@@ -191,9 +245,11 @@ export function PlayGameHost({
           prev.forEach((frame) => frame.mount.replaceChildren());
           return [];
         });
+        sidebarActionHandlersRef.current.clear();
+        setSidebarSections([]);
       }
     };
-  }, [columns, createFloatingFrame, gameLabel, moduleUrl, rows]);
+  }, [columns, createFloatingFrame, gameLabel, moduleUrl, rows, setSidebarActionHandler, setSidebarSections]);
 
   return (
     <div

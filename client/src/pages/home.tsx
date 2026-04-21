@@ -121,6 +121,7 @@ import {
   type SidebarApp,
   type SidebarMode,
 } from "@/lib/dashboard/subapp-shell";
+import type { PlaySidebarSection } from "@/lib/play/sidebar-sections";
 import {
   isSidebarAppState,
   normalizeSidebarAppState,
@@ -560,8 +561,10 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const sourceRepairAttemptAtRef = useRef(new Map<string, number>());
   const visualizationDebugRef = useRef<VisualizationDebugState | null>(null);
   const equationsFrameDebugRef = useRef<FrameGridDebugSnapshot | null>(null);
+  const playSidebarActionHandlerRef = useRef<((actionId: string, value?: unknown) => void) | null>(null);
   const [playFrameGridDebugSnapshot, setPlayFrameGridDebugSnapshot] =
     useState<FrameGridDebugSnapshot | null>(null);
+  const [playSidebarSections, setPlaySidebarSections] = useState<PlaySidebarSection[]>([]);
 
   const handleVisualizationDebugChange = useCallback((debug: VisualizationDebugState) => {
     visualizationDebugRef.current = debug;
@@ -571,6 +574,15 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   }, []);
   const handlePlayFrameDebugChange = useCallback((debug: FrameGridDebugSnapshot) => {
     setPlayFrameGridDebugSnapshot(debug);
+  }, []);
+  const handlePlaySidebarSectionsChange = useCallback((sections: PlaySidebarSection[]) => {
+    setPlaySidebarSections(sections);
+  }, []);
+  const handlePlaySidebarActionHandlerChange = useCallback((handler: ((actionId: string, value?: unknown) => void) | null) => {
+    playSidebarActionHandlerRef.current = handler;
+  }, []);
+  const handlePlaySidebarAction = useCallback((actionId: string, value?: unknown) => {
+    playSidebarActionHandlerRef.current?.(actionId, value);
   }, []);
 
   const pushUiEvent = useCallback((event: Omit<UiEvent, "id" | "timestamp">) => {
@@ -6462,6 +6474,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
                   frameGridLayoutDebug={frameGridLayoutDebug}
                   onFrameGridLayoutDebugChange={setFrameGridLayoutDebug}
                   frameGridDebugSnapshot={playFrameGridDebugSnapshot}
+                  gameSections={playSidebarSections}
+                  onGameAction={handlePlaySidebarAction}
                 />
               )}
             </div>
@@ -6546,6 +6560,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
             <PlayMainPanel
               frameGridLayoutDebug={frameGridLayoutDebug}
               onFrameGridDebugChange={handlePlayFrameDebugChange}
+              onSidebarSectionsChange={handlePlaySidebarSectionsChange}
+              onSidebarActionHandlerChange={handlePlaySidebarActionHandlerChange}
             />
           )}
         </div>
