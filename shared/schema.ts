@@ -537,10 +537,21 @@ export interface UiDebugResponse {
   localStorage?: Record<string, unknown>;
 }
 
+export interface SubAppCapability {
+  id: SidebarAppState;
+  label: string;
+  description: string;
+  activateCommand: {
+    type: "set_sidebar_app";
+    app: SidebarAppState;
+  };
+}
+
 export interface CapabilitiesResponse {
   protocolVersion: string;
   commands: string[];
   responses: string[];
+  subApps: SubAppCapability[];
 }
 
 export interface ComponentTreeStats {
@@ -812,6 +823,34 @@ export type ControlCommand =
       type: "set_equations_pane";
       replace?: boolean;
     } & EquationsPaneStatePatch & ControlRequestBase)
+  | ({
+      type: "set_equations_topic";
+      topicId: string;
+      preserveViewMode?: boolean;
+    } & ControlRequestBase)
+  | ({
+      type: "set_equations_view_mode";
+      viewMode: EquationsPaneViewMode;
+    } & ControlRequestBase)
+  | ({
+      type: "set_equations_catalog";
+      catalogId?: string;
+      source?: string;
+    } & ControlRequestBase)
+  | ({
+      type: "set_equations_meta_document";
+      documentId: string;
+    } & ControlRequestBase)
+  | ({ type: "refresh_equations_topic" } & ControlRequestBase)
+  | ({
+      type: "set_equations_highlight_hidden";
+      highlightId: number;
+      hidden?: boolean;
+    } & ControlRequestBase)
+  | ({
+      type: "delete_equations_highlight";
+      highlightId: number;
+    } & ControlRequestBase)
   | ({ type: "set_stream_mode"; captureId: string; mode: "lite" | "full" } & ControlRequestBase)
   | ({ type: "add_annotation"; tick: number; label?: string; color?: string; id?: string } & ControlRequestBase)
   | ({ type: "remove_annotation"; id?: string; tick?: number } & ControlRequestBase)
@@ -835,6 +874,11 @@ export type ControlCommand =
   | ({ type: "clear_subtitles" } & ControlRequestBase)
   | ({ type: "set_source_mode"; mode: "file" | "live" } & ControlRequestBase)
   | ({ type: "set_live_source"; source: string; captureId?: string } & ControlRequestBase)
+  | ({
+      type: "play_game_action";
+      actionId: string;
+      value?: unknown;
+    } & ControlRequestBase)
   | ({
       type: "sync_capture_sources";
       sources: Array<{
@@ -903,7 +947,7 @@ export type ControlCommand =
       windowStart?: number;
       windowEnd?: number;
     } & ControlRequestBase)
-  | ({ type: "get_ui_debug" } & ControlRequestBase)
+  | ({ type: "get_ui_debug"; scope?: string } & ControlRequestBase)
   | ({ type: "get_memory_stats" } & ControlRequestBase)
   | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase)
   | ({ type: "get_derivation_plugins" } & ControlRequestBase)

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { CaptureRecord, CaptureSession, ComponentNode, SelectedMetric } from "../schema";
 import {
   buildComponentsList,
+  buildCapabilitiesPayload,
   buildDisplaySnapshot,
   buildMetricCoverage,
   buildRenderDebug,
@@ -333,4 +334,20 @@ test("buildRenderDebug domain preview includes axis info for negative values", (
   assert.equal(debug.domains?.hasSecondaryAxis, false);
   assert.equal(debug.domains?.primaryMetricCount, 1);
   assert.ok((debug.domains?.yPrimaryAuto[0] ?? 0) < 0);
+});
+
+test("buildCapabilitiesPayload names sub-apps and current command families", () => {
+  const capabilities = buildCapabilitiesPayload();
+  assert.equal(capabilities.protocolVersion, "1.1.0");
+  assert.ok(capabilities.commands.includes("set_equations_topic"));
+  assert.ok(capabilities.commands.includes("set_equations_view_mode"));
+  assert.ok(capabilities.commands.includes("play_game_action"));
+  assert.deepEqual(
+    capabilities.subApps.map((subApp) => [subApp.id, subApp.label]),
+    [
+      ["metrics", "Metrics"],
+      ["equations", "Equations"],
+      ["play", "Play"],
+    ],
+  );
 });

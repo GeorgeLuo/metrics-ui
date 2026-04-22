@@ -1,12 +1,49 @@
 import { type Express } from "express";
-import { createServer as createViteServer, createLogger } from "vite";
+import { createServer as createViteServer, createLogger, type ViteDevServer } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
+import { getPlayGameWatchFiles } from "./routes/play-game-routes";
 
 const viteLogger = createLogger();
+const PLAY_GAME_RELOAD_DEBOUNCE_MS = 75;
+
+function normalizeWatchPath(filePath: string): string {
+  return path.resolve(filePath);
+}
+
+function setupPlayGameReloadWatcher(vite: ViteDevServer) {
+  const watchedFiles = new Set<string>();
+  let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const refreshWatchedFiles = () => {
+    const files = getPlayGameWatchFiles(process.cwd()).map(normalizeWatchPath);
+    files.forEach((file) => watchedFiles.add(file));
+    vite.watcher.add(files);
+  };
+
+  const handlePlayGameFileChange = (filePath: string) => {
+    const normalizedFilePath = normalizeWatchPath(filePath);
+    if (!watchedFiles.has(normalizedFilePath)) {
+      return;
+    }
+
+    refreshWatchedFiles();
+    if (reloadTimer) {
+      clearTimeout(reloadTimer);
+    }
+    reloadTimer = setTimeout(() => {
+      reloadTimer = null;
+      vite.ws.send({ type: "full-reload" });
+    }, PLAY_GAME_RELOAD_DEBOUNCE_MS);
+  };
+
+  refreshWatchedFiles();
+  vite.watcher.on("change", handlePlayGameFileChange);
+  vite.watcher.on("unlink", handlePlayGameFileChange);
+}
 
 export async function setupVite(server: Server, app: Express) {
   const serverOptions = {
@@ -29,6 +66,8 @@ export async function setupVite(server: Server, app: Express) {
     server: serverOptions,
     appType: "custom",
   });
+
+  setupPlayGameReloadWatcher(vite);
 
   app.use(vite.middlewares);
 

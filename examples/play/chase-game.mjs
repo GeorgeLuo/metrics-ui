@@ -26,8 +26,18 @@ const CHASER_AUTOPILOT_ACTION_ID = "chaser-autopilot";
 const VEHICLE_SPEED_ACTION_ID = "vehicle-speed";
 const VEHICLE_TURN_RATE_ACTION_ID = "vehicle-turn-rate";
 const VEHICLE_FOV_ACTION_ID = "vehicle-fov";
+const TARGET_PROJECTION_DEBUG_ACTION_ID = "target-projection-debug";
+const TARGET_PROJECTION_HORIZON_ACTION_ID = "target-projection-horizon";
+const TARGET_PROJECTION_RATE_ACTION_ID = "target-projection-rate";
 const CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS = 0.08;
 const CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING = 1;
+const ASSUMED_GAME_FRAMES_PER_SECOND = 60;
+const DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES = 120;
+const DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND = 3;
+const MAX_TARGET_PROJECTION_HORIZON_FRAMES = 600;
+const MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND = 12;
+const TARGET_ESTIMATE_MIN_MOVE_DISTANCE = 0.02;
+const TARGET_PROJECTION_COLOR = 0xf43f5e;
 const DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS = Math.PI / 3;
 const FIELD_OF_VIEW_SEGMENTS = 28;
 const CHASER_VIEW_CAMERA_HEIGHT = 0.42;
@@ -36,11 +46,11 @@ const CHASER_VIEW_MAX_DISTANCE = 9;
 const FIELD_OF_VIEW_DISTANCE = CHASER_VIEW_MAX_DISTANCE;
 const WALL_AVOID_DISTANCE = 0.8;
 const EDGE_LOCK_EPSILON = 0.04;
-const PILLAR_RADIUS = 0.42;
-const PILLAR_HEIGHT = 0.9;
-const PILLAR_SEGMENTS = 28;
-const WALL_THICKNESS = PILLAR_RADIUS * 2;
-const WALL_LENGTH_RATIO = 0.36;
+const OBSTACLE_HEIGHT = 0.9;
+const CENTER_OBSTACLE_WIDTH_RATIO = 0.2;
+const CENTER_OBSTACLE_DEPTH_RATIO = 0.28;
+const CHASE_SETTINGS_STORAGE_KEY = "metrics-ui-play-chase-settings";
+const CHASE_RUNTIME_SETTINGS_KEY = "__metricsUiPlayChaseSettings";
 
 function isTextEditingTarget(target) {
   return target instanceof HTMLElement
@@ -95,18 +105,89 @@ function parseEditableNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function getRuntimeChaseSettings() {
+  if (!globalThis[CHASE_RUNTIME_SETTINGS_KEY] || typeof globalThis[CHASE_RUNTIME_SETTINGS_KEY] !== "object") {
+    globalThis[CHASE_RUNTIME_SETTINGS_KEY] = {};
+  }
+  return globalThis[CHASE_RUNTIME_SETTINGS_KEY];
+}
+
+function readStoredChaseSettings() {
+  const runtimeSettings = getRuntimeChaseSettings();
+  let storedSettings = {};
+  if (typeof localStorage === "undefined") {
+    return runtimeSettings;
+  }
+
+  try {
+    const raw = localStorage.getItem(CHASE_SETTINGS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      storedSettings = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    }
+  } catch {
+    storedSettings = {};
+  }
+
+  const mergedSettings = {
+    ...storedSettings,
+    ...runtimeSettings,
+  };
+  Object.assign(runtimeSettings, mergedSettings);
+  return mergedSettings;
+}
+
+function writeStoredChaseSettings(settings) {
+  Object.assign(getRuntimeChaseSettings(), settings);
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    localStorage.setItem(CHASE_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Storage can be unavailable in restrictive browser contexts; gameplay should continue.
+  }
+}
+
+function readStoredProjectionSettings() {
+  const stored = readStoredChaseSettings();
+  const projection = stored.projection && typeof stored.projection === "object"
+    ? stored.projection
+    : {};
+  const horizonFrames = Number(projection.horizonFrames);
+  const samplesPerSecond = Number(projection.samplesPerSecond);
+  return {
+    visible: projection.visible === true,
+    horizonFrames: Number.isFinite(horizonFrames)
+      ? Math.round(clampNumber(horizonFrames, 1, MAX_TARGET_PROJECTION_HORIZON_FRAMES))
+      : DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
+    samplesPerSecond: Number.isFinite(samplesPerSecond)
+      ? clampNumber(samplesPerSecond, 0.5, MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND)
+      : DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  };
+}
+
+function writeStoredProjectionSettings(projectionSettings) {
+  const stored = readStoredChaseSettings();
+  writeStoredChaseSettings({
+    ...stored,
+    projection: {
+      visible: projectionSettings.visible,
+      horizonFrames: projectionSettings.horizonFrames,
+      samplesPerSecond: projectionSettings.samplesPerSecond,
+    },
+  });
+}
+
 function getFieldObstacleLayout(columns, rows) {
   return {
-    pillars: [-1, 1].map((zSign) => ({
-      x: columns / 4,
-      z: zSign * rows / 4,
-    })),
     walls: [
       {
-        x: -columns / 4,
+        x: 0,
         z: 0,
-        width: WALL_THICKNESS,
-        depth: rows * WALL_LENGTH_RATIO,
+        width: columns * CENTER_OBSTACLE_WIDTH_RATIO,
+        depth: rows * CENTER_OBSTACLE_DEPTH_RATIO,
       },
     ],
   };
@@ -152,30 +233,9 @@ function doesLineSegmentIntersectBounds(startPosition, endPosition, bounds) {
 }
 
 function isLineOfSightBlockedByObstacles(startPosition, endPosition, obstacles) {
-  const segmentX = endPosition.x - startPosition.x;
-  const segmentZ = endPosition.z - startPosition.z;
-  const segmentLengthSquared = segmentX * segmentX + segmentZ * segmentZ;
-  if (segmentLengthSquared === 0) {
-    return false;
-  }
-
-  const isBlockedByPillar = obstacles.pillars.some((pillar) => {
-    const t = (
-      (pillar.x - startPosition.x) * segmentX
-      + (pillar.z - startPosition.z) * segmentZ
-    ) / segmentLengthSquared;
-    if (t <= 0 || t >= 1) {
-      return false;
-    }
-
-    const closestX = startPosition.x + segmentX * t;
-    const closestZ = startPosition.z + segmentZ * t;
-    return Math.hypot(pillar.x - closestX, pillar.z - closestZ) <= PILLAR_RADIUS;
-  });
-  return isBlockedByPillar
-    || obstacles.walls.some((wall) =>
-      doesLineSegmentIntersectBounds(startPosition, endPosition, getWallBounds(wall)),
-    );
+  return obstacles.walls.some((wall) =>
+    doesLineSegmentIntersectBounds(startPosition, endPosition, getWallBounds(wall)),
+  );
 }
 
 function getChaserTargetPerception(
@@ -229,6 +289,130 @@ function getProgrammaticChaserInput(targetPerception, autopilotState) {
     forward: true,
     steering,
   };
+}
+
+function getPerceivedTargetPosition(chaserPosition, chaserLookDirection, targetPerception) {
+  const bearingDirection = angleToVector(
+    vectorToAngle(chaserLookDirection) + targetPerception.bearingRadians,
+  );
+  return {
+    x: chaserPosition.x + bearingDirection.x * targetPerception.distance,
+    z: chaserPosition.z + bearingDirection.z * targetPerception.distance,
+  };
+}
+
+function updateTargetMotionEstimate(
+  estimate,
+  targetPerception,
+  chaserPosition,
+  chaserLookDirection,
+  deltaSeconds,
+  speedUnitsPerSecond,
+) {
+  if (targetPerception.visible) {
+    const observedPosition = getPerceivedTargetPosition(
+      chaserPosition,
+      chaserLookDirection,
+      targetPerception,
+    );
+
+    if (estimate.lastObservedPosition) {
+      const observedDelta = normalizeVector(
+        observedPosition.x - estimate.lastObservedPosition.x,
+        observedPosition.z - estimate.lastObservedPosition.z,
+      );
+      const observedMoveDistance = Math.hypot(
+        observedPosition.x - estimate.lastObservedPosition.x,
+        observedPosition.z - estimate.lastObservedPosition.z,
+      );
+      if (observedMoveDistance >= TARGET_ESTIMATE_MIN_MOVE_DISTANCE) {
+        estimate.direction = observedDelta;
+      }
+    }
+
+    estimate.position = observedPosition;
+    estimate.lastObservedPosition = observedPosition;
+    return;
+  }
+
+  if (estimate.position && estimate.direction) {
+    estimate.position = {
+      x: estimate.position.x + estimate.direction.x * speedUnitsPerSecond * deltaSeconds,
+      z: estimate.position.z + estimate.direction.z * speedUnitsPerSecond * deltaSeconds,
+    };
+  }
+}
+
+function getTargetProjectionSampleCount(projectionSettings) {
+  if (!projectionSettings.visible) {
+    return 0;
+  }
+  const horizonSeconds = projectionSettings.horizonFrames / ASSUMED_GAME_FRAMES_PER_SECOND;
+  return Math.max(1, Math.floor(horizonSeconds * projectionSettings.samplesPerSecond));
+}
+
+function setProjectionFrame(frame, centerPosition, direction) {
+  frame.position.set(centerPosition.x, CAR_HEIGHT / 2, centerPosition.z);
+  frame.rotation.y = vectorToAngle(direction);
+}
+
+function createProjectionFrame(opacity) {
+  const boxGeometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
+  const geometry = new THREE.EdgesGeometry(boxGeometry);
+  boxGeometry.dispose();
+  const material = new THREE.LineBasicMaterial({
+    color: TARGET_PROJECTION_COLOR,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+  });
+  return new THREE.LineSegments(geometry, material);
+}
+
+function syncProjectionFrames(group, frames, count) {
+  while (frames.length < count) {
+    const index = frames.length;
+    const opacity = Math.max(0.08, 0.42 * (1 - index / Math.max(count, 1)));
+    const frame = createProjectionFrame(opacity);
+    frames.push(frame);
+    group.add(frame);
+  }
+
+  while (frames.length > count) {
+    const frame = frames.pop();
+    if (frame) {
+      group.remove(frame);
+      frame.geometry.dispose();
+      frame.material.dispose();
+    }
+  }
+
+  frames.forEach((frame, index) => {
+    frame.material.opacity = Math.max(0.08, 0.42 * (1 - index / Math.max(count, 1)));
+  });
+}
+
+function updateTargetProjectionDisplay(group, frames, estimate, projectionSettings, speedUnitsPerSecond) {
+  const count = getTargetProjectionSampleCount(projectionSettings);
+  const canProject = Boolean(estimate.position && estimate.direction && count > 0);
+  group.visible = canProject;
+  syncProjectionFrames(group, frames, canProject ? count : 0);
+  if (!canProject) {
+    return;
+  }
+
+  const sampleIntervalSeconds = 1 / projectionSettings.samplesPerSecond;
+  frames.forEach((frame, index) => {
+    const projectionSeconds = (index + 1) * sampleIntervalSeconds;
+    setProjectionFrame(
+      frame,
+      {
+        x: estimate.position.x + estimate.direction.x * speedUnitsPerSecond * projectionSeconds,
+        z: estimate.position.z + estimate.direction.z * speedUnitsPerSecond * projectionSeconds,
+      },
+      estimate.direction,
+    );
+  });
 }
 
 function steerDirectionToward(currentDirection, desiredDirection, maxDelta) {
@@ -298,33 +482,9 @@ function resolveWallCollision(position, previousPosition, columns, rows, wall) {
 }
 
 function resolveObstacleCollisions(position, previousPosition, columns, rows, obstacles) {
-  const clearanceRadius = PILLAR_RADIUS + CAR_BOUND_RADIUS;
   let resolved = clampPosition(position, columns, rows);
 
   for (let iteration = 0; iteration < 2; iteration += 1) {
-    for (const pillar of obstacles.pillars) {
-      const offsetX = resolved.x - pillar.x;
-      const offsetZ = resolved.z - pillar.z;
-      const distance = Math.hypot(offsetX, offsetZ);
-      if (distance >= clearanceRadius) {
-        continue;
-      }
-
-      const fallbackDirection = normalizeVector(
-        previousPosition.x - pillar.x,
-        previousPosition.z - pillar.z,
-      );
-      const pushDirection = distance > 0
-        ? { x: offsetX / distance, z: offsetZ / distance }
-        : fallbackDirection.x !== 0 || fallbackDirection.z !== 0
-          ? fallbackDirection
-          : normalizeVector(resolved.x, resolved.z);
-      resolved = clampPosition({
-        x: pillar.x + pushDirection.x * clearanceRadius,
-        z: pillar.z + pushDirection.z * clearanceRadius,
-      }, columns, rows);
-    }
-
     for (const wall of obstacles.walls) {
       resolved = resolveWallCollision(resolved, previousPosition, columns, rows, wall);
     }
@@ -401,32 +561,15 @@ function createCar(color) {
   return mesh;
 }
 
-function createPillar(position) {
-  const geometry = new THREE.CylinderGeometry(
-    PILLAR_RADIUS,
-    PILLAR_RADIUS,
-    PILLAR_HEIGHT,
-    PILLAR_SEGMENTS,
-  );
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x64748b,
-    roughness: 0.62,
-    metalness: 0.04,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(position.x, PILLAR_HEIGHT / 2, position.z);
-  return mesh;
-}
-
 function createWall(wall) {
-  const geometry = new THREE.BoxGeometry(wall.width, PILLAR_HEIGHT, wall.depth);
+  const geometry = new THREE.BoxGeometry(wall.width, OBSTACLE_HEIGHT, wall.depth);
   const material = new THREE.MeshStandardMaterial({
     color: 0x64748b,
     roughness: 0.62,
     metalness: 0.04,
   });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(wall.x, PILLAR_HEIGHT / 2, wall.z);
+  mesh.position.set(wall.x, OBSTACLE_HEIGHT / 2, wall.z);
   return mesh;
 }
 
@@ -493,7 +636,12 @@ function configureChaserViewCamera(camera, chaserPosition, lookDirection) {
   );
 }
 
-function publishSidebarSections(setSidebarSections, programmaticChaserEnabled, vehicleSettings) {
+function publishSidebarSections(
+  setSidebarSections,
+  programmaticChaserEnabled,
+  vehicleSettings,
+  projectionSettings,
+) {
   if (typeof setSidebarSections !== "function") {
     return;
   }
@@ -548,6 +696,38 @@ function publishSidebarSections(setSidebarSections, programmaticChaserEnabled, v
         },
       ],
     },
+    {
+      id: "projection",
+      title: "Projection",
+      hint: "Game-provided debug controls for the chaser target-path estimate.",
+      rows: [
+        {
+          kind: "toggle",
+          id: TARGET_PROJECTION_DEBUG_ACTION_ID,
+          label: "Target projection",
+          enabled: projectionSettings.visible,
+          enabledLabel: "on",
+          disabledLabel: "off",
+          hint: "Show the chaser estimate of the target path.",
+        },
+        {
+          kind: "editableValue",
+          id: TARGET_PROJECTION_HORIZON_ACTION_ID,
+          label: "Horizon",
+          value: formatEditableNumber(projectionSettings.horizonFrames, 0),
+          suffix: "frames",
+          hint: "How many game frames into the future to project.",
+        },
+        {
+          kind: "editableValue",
+          id: TARGET_PROJECTION_RATE_ACTION_ID,
+          label: "Rate",
+          value: formatEditableNumber(projectionSettings.samplesPerSecond, 1),
+          suffix: "rect/s",
+          hint: "How many projected rectangles to draw per second.",
+        },
+      ],
+    },
   ]);
 }
 
@@ -566,11 +746,17 @@ export function createPlayGame({
     turnRateRadiansPerSecond: DEFAULT_CAR_TURN_RATE_RADIANS_PER_SECOND,
     fieldOfViewAngleRadians: DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS,
   };
+  const projectionSettings = readStoredProjectionSettings();
   let chaserFieldOfView = null;
   let chaserViewCamera = null;
 
   const refreshSidebarSections = () => {
-    publishSidebarSections(setSidebarSections, programmaticChaserEnabled, vehicleSettings);
+    publishSidebarSections(
+      setSidebarSections,
+      programmaticChaserEnabled,
+      vehicleSettings,
+      projectionSettings,
+    );
   };
   const updateFieldOfView = () => {
     if (chaserFieldOfView) {
@@ -585,8 +771,8 @@ export function createPlayGame({
   };
   refreshSidebarSections();
   if (typeof setSidebarActionHandler === "function") {
-    setSidebarActionHandler(CHASER_AUTOPILOT_ACTION_ID, () => {
-      programmaticChaserEnabled = !programmaticChaserEnabled;
+    setSidebarActionHandler(CHASER_AUTOPILOT_ACTION_ID, (value) => {
+      programmaticChaserEnabled = typeof value === "boolean" ? value : !programmaticChaserEnabled;
       refreshSidebarSections();
     });
     setSidebarActionHandler(VEHICLE_SPEED_ACTION_ID, (value) => {
@@ -608,6 +794,33 @@ export function createPlayGame({
       if (parsed !== null) {
         vehicleSettings.fieldOfViewAngleRadians = THREE.MathUtils.degToRad(clampNumber(parsed, 20, 140));
         updateFieldOfView();
+      }
+      refreshSidebarSections();
+    });
+    setSidebarActionHandler(TARGET_PROJECTION_DEBUG_ACTION_ID, (value) => {
+      projectionSettings.visible = typeof value === "boolean" ? value : !projectionSettings.visible;
+      writeStoredProjectionSettings(projectionSettings);
+      refreshSidebarSections();
+    });
+    setSidebarActionHandler(TARGET_PROJECTION_HORIZON_ACTION_ID, (value) => {
+      const parsed = parseEditableNumber(value);
+      if (parsed !== null) {
+        projectionSettings.horizonFrames = Math.round(
+          clampNumber(parsed, 1, MAX_TARGET_PROJECTION_HORIZON_FRAMES),
+        );
+        writeStoredProjectionSettings(projectionSettings);
+      }
+      refreshSidebarSections();
+    });
+    setSidebarActionHandler(TARGET_PROJECTION_RATE_ACTION_ID, (value) => {
+      const parsed = parseEditableNumber(value);
+      if (parsed !== null) {
+        projectionSettings.samplesPerSecond = clampNumber(
+          parsed,
+          0.5,
+          MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+        );
+        writeStoredProjectionSettings(projectionSettings);
       }
       refreshSidebarSections();
     });
@@ -689,12 +902,12 @@ export function createPlayGame({
   chaserFieldOfView = createFieldOfViewCone(vehicleSettings.fieldOfViewAngleRadians);
   const chaser = createCar(0x38bdf8);
   const target = createCar(0xf43f5e);
+  const targetProjectionGroup = new THREE.Group();
+  const targetProjectionFrames = [];
+  targetProjectionGroup.visible = false;
   const obstacles = getFieldObstacleLayout(columns, rows);
-  const obstacleMeshes = [
-    ...obstacles.pillars.map(createPillar),
-    ...obstacles.walls.map(createWall),
-  ];
-  scene.add(chaserFieldOfView, chaser, target, ...obstacleMeshes);
+  const obstacleMeshes = obstacles.walls.map(createWall);
+  scene.add(chaserFieldOfView, targetProjectionGroup, chaser, target, ...obstacleMeshes);
 
   const chaserPosition = { x: -columns * 0.38, z: 0 };
   const chaserLookDirection = normalizeVector(1, 0);
@@ -702,6 +915,11 @@ export function createPlayGame({
   const targetDirection = normalizeVector(-1, 0.4);
   const chaserAutopilotState = {
     searchSteering: CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING,
+  };
+  const targetMotionEstimate = {
+    position: { ...targetPosition },
+    direction: { ...targetDirection },
+    lastObservedPosition: { ...targetPosition },
   };
 
   const handleKeyDown = (event) => {
@@ -761,6 +979,21 @@ export function createPlayGame({
     if (chaserViewLostTargetLabel) {
       chaserViewLostTargetLabel.style.display = chaserPerception.visible ? "none" : "block";
     }
+    updateTargetMotionEstimate(
+      targetMotionEstimate,
+      chaserPerception,
+      chaserPosition,
+      chaserLookDirection,
+      deltaSeconds,
+      vehicleSettings.speedUnitsPerSecond,
+    );
+    updateTargetProjectionDisplay(
+      targetProjectionGroup,
+      targetProjectionFrames,
+      targetMotionEstimate,
+      projectionSettings,
+      vehicleSettings.speedUnitsPerSecond,
+    );
 
     const chaserInput = programmaticChaserEnabled
       ? getProgrammaticChaserInput(
@@ -844,6 +1077,9 @@ export function createPlayGame({
       setSidebarActionHandler?.(VEHICLE_SPEED_ACTION_ID, null);
       setSidebarActionHandler?.(VEHICLE_TURN_RATE_ACTION_ID, null);
       setSidebarActionHandler?.(VEHICLE_FOV_ACTION_ID, null);
+      setSidebarActionHandler?.(TARGET_PROJECTION_DEBUG_ACTION_ID, null);
+      setSidebarActionHandler?.(TARGET_PROJECTION_HORIZON_ACTION_ID, null);
+      setSidebarActionHandler?.(TARGET_PROJECTION_RATE_ACTION_ID, null);
       pressedKeys.clear();
 
       if (renderer.domElement.parentElement === container) {
@@ -855,6 +1091,7 @@ export function createPlayGame({
       chaserFieldOfView.material.dispose();
       target.geometry.dispose();
       target.material.dispose();
+      syncProjectionFrames(targetProjectionGroup, targetProjectionFrames, 0);
       obstacleMeshes.forEach((obstacle) => {
         obstacle.geometry.dispose();
         obstacle.material.dispose();

@@ -108,13 +108,13 @@ function renderGameSectionRow(
         <span>{row.label}</span>
         <button
           type="button"
-          onClick={() => onGameAction(row.id)}
+          onClick={() => onGameAction(row.id, !row.enabled)}
           aria-label={`${row.enabled ? "Disable" : "Enable"} ${row.label}`}
           aria-pressed={row.enabled}
           className={`h-3 w-3 shrink-0 p-0 leading-none rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${
             row.enabled
-              ? "bg-blue-500/80 hover:bg-blue-500 [animation:pulse_2.4s_ease-in-out_infinite]"
-              : "bg-blue-500/50 hover:bg-blue-500"
+              ? "bg-blue-500/80 hover:bg-blue-500"
+              : "bg-blue-500/20 hover:bg-blue-500/45"
           }`}
           data-hint={row.hint}
         />

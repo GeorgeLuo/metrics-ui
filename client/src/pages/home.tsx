@@ -197,6 +197,16 @@ type EquationsTopicCatalogSourceEntry = {
   source: string;
 };
 
+type EquationsProtocolHandlers = {
+  setTopic?: (topicId: string, options?: { preserveViewMode?: boolean }) => boolean;
+  setViewMode?: (viewMode: VisualizationState["equationsPane"]["viewMode"]) => boolean;
+  setCatalog?: (options: { catalogId?: string; source?: string }) => boolean;
+  setMetaDocument?: (documentId: string) => boolean;
+  refreshTopic?: () => boolean;
+  setHighlightHidden?: (highlightId: number, hidden?: boolean) => boolean;
+  deleteHighlight?: (highlightId: number) => boolean;
+};
+
 type UiEventLevel = "info" | "error";
 
 interface UiEvent {
@@ -562,6 +572,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const visualizationDebugRef = useRef<VisualizationDebugState | null>(null);
   const equationsFrameDebugRef = useRef<FrameGridDebugSnapshot | null>(null);
   const playSidebarActionHandlerRef = useRef<((actionId: string, value?: unknown) => void) | null>(null);
+  const equationsProtocolHandlersRef = useRef<EquationsProtocolHandlers>({});
   const [playFrameGridDebugSnapshot, setPlayFrameGridDebugSnapshot] =
     useState<FrameGridDebugSnapshot | null>(null);
   const [playSidebarSections, setPlaySidebarSections] = useState<PlaySidebarSection[]>([]);
@@ -584,6 +595,28 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handlePlaySidebarAction = useCallback((actionId: string, value?: unknown) => {
     playSidebarActionHandlerRef.current?.(actionId, value);
   }, []);
+  const handlePlayGameAction = useCallback((actionId: string, value?: unknown) => {
+    const handler = playSidebarActionHandlerRef.current;
+    if (!handler) {
+      return false;
+    }
+    handler(actionId, value);
+    return true;
+  }, []);
+  const handleSetEquationsTopicCommand = useCallback((topicId: string, options?: { preserveViewMode?: boolean }) =>
+    equationsProtocolHandlersRef.current.setTopic?.(topicId, options) === true, []);
+  const handleSetEquationsViewModeCommand = useCallback((viewMode: VisualizationState["equationsPane"]["viewMode"]) =>
+    equationsProtocolHandlersRef.current.setViewMode?.(viewMode) === true, []);
+  const handleSetEquationsCatalogCommand = useCallback((options: { catalogId?: string; source?: string }) =>
+    equationsProtocolHandlersRef.current.setCatalog?.(options) === true, []);
+  const handleSetEquationsMetaDocumentCommand = useCallback((documentId: string) =>
+    equationsProtocolHandlersRef.current.setMetaDocument?.(documentId) === true, []);
+  const handleRefreshEquationsTopicCommand = useCallback(() =>
+    equationsProtocolHandlersRef.current.refreshTopic?.() === true, []);
+  const handleSetEquationsHighlightHiddenCommand = useCallback((highlightId: number, hidden?: boolean) =>
+    equationsProtocolHandlersRef.current.setHighlightHidden?.(highlightId, hidden) === true, []);
+  const handleDeleteEquationsHighlightCommand = useCallback((highlightId: number) =>
+    equationsProtocolHandlersRef.current.deleteHighlight?.(highlightId) === true, []);
 
   const pushUiEvent = useCallback((event: Omit<UiEvent, "id" | "timestamp">) => {
     setUiEvents((prev) => {
@@ -5412,6 +5445,14 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     onSetFullscreen: handleSetFullscreen,
     onSetVisualizationFrame: handleSetVisualizationFrame,
     onSetEquationsPane: handleSetEquationsPane,
+    onSetEquationsTopic: handleSetEquationsTopicCommand,
+    onSetEquationsViewMode: handleSetEquationsViewModeCommand,
+    onSetEquationsCatalog: handleSetEquationsCatalogCommand,
+    onSetEquationsMetaDocument: handleSetEquationsMetaDocumentCommand,
+    onRefreshEquationsTopic: handleRefreshEquationsTopicCommand,
+    onSetEquationsHighlightHidden: handleSetEquationsHighlightHiddenCommand,
+    onDeleteEquationsHighlight: handleDeleteEquationsHighlightCommand,
+    onPlayGameAction: handlePlayGameAction,
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,
@@ -5811,38 +5852,47 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     });
   }, [handleSetEquationsPane, selectedTopicId, sendMessage, topicOptionsForSelectedCatalog]);
 
-  const handleTopicCatalogSourceCommit = useCallback(() => {
-    const source = topicCatalogSourceInput.trim();
-    const catalogEntry = equationsTopicCatalogEntries.find((entry) => entry.source === source);
+  const handleTopicCatalogSelect = useCallback((options: { catalogId?: string; source?: string }) => {
+    const catalogId = options.catalogId?.trim();
+    const source = options.source?.trim();
+    const catalogEntry = equationsTopicCatalogEntries.find((entry) => (
+      catalogId ? entry.id === catalogId : entry.source === source
+    ));
     if (!catalogEntry) {
       setTopicCatalogSourceError("Catalog artifact not found. Use the full absolute path to a bundled equations-topic-catalog.json file.");
-      return;
+      return false;
     }
 
     const catalog = EQUATIONS_TOPIC_CATALOGS.find((entry) => entry.id === catalogEntry.id) ?? null;
     if (!catalog) {
       setTopicCatalogSourceError("Catalog metadata was found, but the topic payload bundle is unavailable.");
-      return;
+      return false;
     }
 
     setTopicCatalogSourceError(null);
     setTopicCatalogSourceInput(catalogEntry.source);
     setActiveEquationsTopicCatalogSource(catalogEntry.source);
     if (selectedTopicOption?.catalogId === catalog.id) {
-      return;
+      return true;
     }
 
     const firstTopic = catalog.topics[0];
     if (firstTopic) {
       handleTopicSelect(firstTopic.id);
     }
-  }, [equationsTopicCatalogEntries, handleTopicSelect, selectedTopicOption, topicCatalogSourceInput]);
+    return true;
+  }, [equationsTopicCatalogEntries, handleTopicSelect, selectedTopicOption]);
+
+  const handleTopicCatalogSourceCommit = useCallback(() => {
+    handleTopicCatalogSelect({ source: topicCatalogSourceInput });
+  }, [handleTopicCatalogSelect, topicCatalogSourceInput]);
 
   const handleRefreshSelectedTopic = useCallback(() => {
     if (selectedTopicId === "__custom__") {
-      return;
+      return false;
     }
     handleTopicSelect(selectedTopicId, { preserveViewMode: true });
+    return true;
   }, [handleTopicSelect, selectedTopicId]);
 
   useEffect(() => {
@@ -5917,21 +5967,75 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     [handleSetEquationsPane, sendMessage],
   );
 
+  const handleSetEquationTextHighlightHidden = useCallback((highlightId: number, hidden?: boolean) => {
+    if (!equationsPane.context.selectedTextHighlights.some((highlight) => highlight.highlightId === highlightId)) {
+      return false;
+    }
+    setHiddenEquationTextHighlightIds((current) => {
+      const isHidden = current.includes(highlightId);
+      if (hidden === undefined) {
+        return isHidden
+          ? current.filter((entry) => entry !== highlightId)
+          : [...current, highlightId];
+      }
+      if (hidden) {
+        return isHidden ? current : [...current, highlightId];
+      }
+      return current.filter((entry) => entry !== highlightId);
+    });
+    return true;
+  }, [equationsPane.context.selectedTextHighlights]);
+
   const handleToggleEquationTextHighlightHidden = useCallback((highlightId: number) => {
-    setHiddenEquationTextHighlightIds((current) => (
-      current.includes(highlightId)
-        ? current.filter((entry) => entry !== highlightId)
-        : [...current, highlightId]
-    ));
-  }, []);
+    handleSetEquationTextHighlightHidden(highlightId);
+  }, [handleSetEquationTextHighlightHidden]);
 
   const handleDeleteEquationTextHighlight = useCallback((highlightId: number) => {
+    if (!equationsPane.context.selectedTextHighlights.some((highlight) => highlight.highlightId === highlightId)) {
+      return false;
+    }
     const nextHighlights = equationsPane.context.selectedTextHighlights.filter(
       (highlight) => highlight.highlightId !== highlightId,
     );
     setHiddenEquationTextHighlightIds((current) => current.filter((entry) => entry !== highlightId));
     handleEquationTextHighlightsSelect(nextHighlights);
+    return true;
   }, [equationsPane.context.selectedTextHighlights, handleEquationTextHighlightsSelect]);
+
+  useEffect(() => {
+    equationsProtocolHandlersRef.current = {
+      setTopic: (topicId, options) => {
+        if (!getEquationsTopicOptionById(topicId)) {
+          return false;
+        }
+        handleTopicSelect(topicId, options);
+        return true;
+      },
+      setViewMode: (viewMode) => {
+        handleEquationsViewModeChange(viewMode);
+        return true;
+      },
+      setCatalog: handleTopicCatalogSelect,
+      setMetaDocument: (documentId) => {
+        if (!getEquationsMetaDocumentById(documentId)) {
+          return false;
+        }
+        handleMetaDocumentSelect(documentId);
+        return true;
+      },
+      refreshTopic: handleRefreshSelectedTopic,
+      setHighlightHidden: handleSetEquationTextHighlightHidden,
+      deleteHighlight: handleDeleteEquationTextHighlight,
+    };
+  }, [
+    handleDeleteEquationTextHighlight,
+    handleEquationsViewModeChange,
+    handleMetaDocumentSelect,
+    handleRefreshSelectedTopic,
+    handleSetEquationTextHighlightHidden,
+    handleTopicCatalogSelect,
+    handleTopicSelect,
+  ]);
 
   const handleEquationVisualizationFrameSelect = useCallback(
     (frame: VisualizationFrameState | null) => {

@@ -125,6 +125,20 @@ function rewriteGameModuleImports(source: string): string {
     .replace(/from\s+(['"])three\1/g, "from '/api/visualization/libs/three'");
 }
 
+export function getPlayGameWatchFiles(projectRoot: string): string[] {
+  const catalogFile = resolvePlayGameCatalogFile(projectRoot);
+  const files = new Set<string>([catalogFile]);
+
+  try {
+    const { games } = readPlayGames(projectRoot);
+    games.forEach((game) => files.add(game.modulePath));
+  } catch {
+    // Keep watching the catalog file even while it is temporarily invalid during edits.
+  }
+
+  return Array.from(files);
+}
+
 export function registerPlayGameRoutes({ app, projectRoot }: RegisterPlayGameRoutesOptions) {
   app.get("/api/play/games", (_req, res) => {
     try {
