@@ -351,85 +351,61 @@ function getTargetProjectionSampleCount(projectionSettings) {
   return Math.max(1, Math.floor(horizonSeconds * projectionSettings.samplesPerSecond));
 }
 
-function setProjectionRectangle(line, centerPosition, direction) {
-  const forward = normalizeVector(direction.x, direction.z);
-  const right = normalizeVector(forward.z, -forward.x);
-  const halfWidth = CAR_WIDTH / 2;
-  const halfLength = CAR_LENGTH / 2;
-  const corners = [
-    {
-      x: centerPosition.x + forward.x * halfLength + right.x * halfWidth,
-      z: centerPosition.z + forward.z * halfLength + right.z * halfWidth,
-    },
-    {
-      x: centerPosition.x + forward.x * halfLength - right.x * halfWidth,
-      z: centerPosition.z + forward.z * halfLength - right.z * halfWidth,
-    },
-    {
-      x: centerPosition.x - forward.x * halfLength - right.x * halfWidth,
-      z: centerPosition.z - forward.z * halfLength - right.z * halfWidth,
-    },
-    {
-      x: centerPosition.x - forward.x * halfLength + right.x * halfWidth,
-      z: centerPosition.z - forward.z * halfLength + right.z * halfWidth,
-    },
-  ];
-  const positions = line.geometry.getAttribute("position");
-  corners.forEach((corner, index) => {
-    positions.setXYZ(index, corner.x, 0.035, corner.z);
-  });
-  positions.needsUpdate = true;
+function setProjectionFrame(frame, centerPosition, direction) {
+  frame.position.set(centerPosition.x, CAR_HEIGHT / 2, centerPosition.z);
+  frame.rotation.y = vectorToAngle(direction);
 }
 
-function createProjectionRectangle(opacity) {
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(new Array(12).fill(0), 3));
+function createProjectionFrame(opacity) {
+  const boxGeometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
+  const geometry = new THREE.EdgesGeometry(boxGeometry);
+  boxGeometry.dispose();
   const material = new THREE.LineBasicMaterial({
     color: TARGET_PROJECTION_COLOR,
     transparent: true,
     opacity,
     depthWrite: false,
   });
-  return new THREE.LineLoop(geometry, material);
+  return new THREE.LineSegments(geometry, material);
 }
 
-function syncProjectionRectangles(group, rectangles, count) {
-  while (rectangles.length < count) {
-    const index = rectangles.length;
+function syncProjectionFrames(group, frames, count) {
+  while (frames.length < count) {
+    const index = frames.length;
     const opacity = Math.max(0.08, 0.42 * (1 - index / Math.max(count, 1)));
-    const rectangle = createProjectionRectangle(opacity);
-    rectangles.push(rectangle);
-    group.add(rectangle);
+    const frame = createProjectionFrame(opacity);
+    frames.push(frame);
+    group.add(frame);
   }
 
-  while (rectangles.length > count) {
-    const rectangle = rectangles.pop();
-    if (rectangle) {
-      group.remove(rectangle);
-      rectangle.geometry.dispose();
-      rectangle.material.dispose();
+  while (frames.length > count) {
+    const frame = frames.pop();
+    if (frame) {
+      group.remove(frame);
+      frame.geometry.dispose();
+      frame.material.dispose();
     }
   }
 
-  rectangles.forEach((rectangle, index) => {
-    rectangle.material.opacity = Math.max(0.08, 0.42 * (1 - index / Math.max(count, 1)));
+  frames.forEach((frame, index) => {
+    frame.material.opacity = Math.max(0.08, 0.42 * (1 - index / Math.max(count, 1)));
   });
 }
 
-function updateTargetProjectionDisplay(group, rectangles, estimate, projectionSettings, speedUnitsPerSecond) {
+function updateTargetProjectionDisplay(group, frames, estimate, projectionSettings, speedUnitsPerSecond) {
   const count = getTargetProjectionSampleCount(projectionSettings);
   const canProject = Boolean(estimate.position && estimate.direction && count > 0);
   group.visible = canProject;
-  syncProjectionRectangles(group, rectangles, canProject ? count : 0);
+  syncProjectionFrames(group, frames, canProject ? count : 0);
   if (!canProject) {
     return;
   }
 
   const sampleIntervalSeconds = 1 / projectionSettings.samplesPerSecond;
-  rectangles.forEach((rectangle, index) => {
+  frames.forEach((frame, index) => {
     const projectionSeconds = (index + 1) * sampleIntervalSeconds;
-    setProjectionRectangle(
-      rectangle,
+    setProjectionFrame(
+      frame,
       {
         x: estimate.position.x + estimate.direction.x * speedUnitsPerSecond * projectionSeconds,
         z: estimate.position.z + estimate.direction.z * speedUnitsPerSecond * projectionSeconds,
@@ -927,7 +903,7 @@ export function createPlayGame({
   const chaser = createCar(0x38bdf8);
   const target = createCar(0xf43f5e);
   const targetProjectionGroup = new THREE.Group();
-  const targetProjectionRectangles = [];
+  const targetProjectionFrames = [];
   targetProjectionGroup.visible = false;
   const obstacles = getFieldObstacleLayout(columns, rows);
   const obstacleMeshes = obstacles.walls.map(createWall);
@@ -1013,7 +989,7 @@ export function createPlayGame({
     );
     updateTargetProjectionDisplay(
       targetProjectionGroup,
-      targetProjectionRectangles,
+      targetProjectionFrames,
       targetMotionEstimate,
       projectionSettings,
       vehicleSettings.speedUnitsPerSecond,
@@ -1115,7 +1091,7 @@ export function createPlayGame({
       chaserFieldOfView.material.dispose();
       target.geometry.dispose();
       target.material.dispose();
-      syncProjectionRectangles(targetProjectionGroup, targetProjectionRectangles, 0);
+      syncProjectionFrames(targetProjectionGroup, targetProjectionFrames, 0);
       obstacleMeshes.forEach((obstacle) => {
         obstacle.geometry.dispose();
         obstacle.material.dispose();
