@@ -1,6 +1,6 @@
 # @georgeluo/metrics-ui
 
-Metrics UI server and dashboard for SimEval captures, live file streams, derivations, and visualization plugins.
+Metrics UI server and dashboard for SimEval captures, live file streams, derivations, visualization plugins, equation topics, and Play browser-game sub-apps.
 
 ## Install
 

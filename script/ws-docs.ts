@@ -7,6 +7,8 @@ const COMMANDS_START = "<!-- WS:COMMANDS:START -->";
 const COMMANDS_END = "<!-- WS:COMMANDS:END -->";
 const RESPONSES_START = "<!-- WS:RESPONSES:START -->";
 const RESPONSES_END = "<!-- WS:RESPONSES:END -->";
+const SUBAPPS_START = "<!-- WS:SUBAPPS:START -->";
+const SUBAPPS_END = "<!-- WS:SUBAPPS:END -->";
 
 function replaceSection(content: string, start: string, end: string, body: string) {
   const startIndex = content.indexOf(start);
@@ -23,6 +25,14 @@ function renderList(items: string[]) {
   return items.map((item) => `- \`${item}\``).join("\n");
 }
 
+function renderSubApps(items: ReturnType<typeof buildCapabilitiesPayload>["subApps"]) {
+  return items
+    .map((item) =>
+      `- \`${item.id}\` - ${item.label}: ${item.description}`,
+    )
+    .join("\n");
+}
+
 function main() {
   const args = new Set(process.argv.slice(2));
   const checkOnly = args.has("--check");
@@ -35,8 +45,10 @@ function main() {
   const capabilities = buildCapabilitiesPayload();
   const commandsList = renderList(capabilities.commands);
   const responsesList = renderList(capabilities.responses);
+  const subAppsList = renderSubApps(capabilities.subApps);
 
   let next = usage;
+  next = replaceSection(next, SUBAPPS_START, SUBAPPS_END, subAppsList);
   next = replaceSection(next, COMMANDS_START, COMMANDS_END, commandsList);
   next = replaceSection(next, RESPONSES_START, RESPONSES_END, responsesList);
 

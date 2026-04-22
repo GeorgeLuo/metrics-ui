@@ -267,6 +267,111 @@ export function handleInteractionCommand(
       );
       context.sendAck(requestId, command.type);
       return true;
+    case "set_equations_topic": {
+      const topicId = typeof command.topicId === "string" ? command.topicId.trim() : "";
+      if (!topicId) {
+        context.sendError(requestId, "set_equations_topic requires a non-empty topicId.");
+        return true;
+      }
+      const handled = context.onSetEquationsTopic?.(topicId, {
+        preserveViewMode: command.preserveViewMode,
+      }) === true;
+      if (!handled) {
+        context.sendError(requestId, "Equations topic not found or unavailable.", { topicId });
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
+    case "set_equations_view_mode": {
+      if (command.viewMode !== "topic" && command.viewMode !== "textbook") {
+        context.sendError(requestId, "set_equations_view_mode requires viewMode=topic or textbook.", {
+          viewMode: command.viewMode,
+        });
+        return true;
+      }
+      const handled = context.onSetEquationsViewMode?.(command.viewMode) === true;
+      if (!handled) {
+        context.sendError(requestId, "Equations view mode is unavailable.", { viewMode: command.viewMode });
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
+    case "set_equations_catalog": {
+      const catalogId = typeof command.catalogId === "string" ? command.catalogId.trim() : undefined;
+      const source = typeof command.source === "string" ? command.source.trim() : undefined;
+      if (!catalogId && !source) {
+        context.sendError(requestId, "set_equations_catalog requires catalogId or source.");
+        return true;
+      }
+      const handled = context.onSetEquationsCatalog?.({ catalogId, source }) === true;
+      if (!handled) {
+        context.sendError(requestId, "Equations catalog not found or unavailable.", {
+          catalogId,
+          source,
+        });
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
+    case "set_equations_meta_document": {
+      const documentId = typeof command.documentId === "string" ? command.documentId.trim() : "";
+      if (!documentId) {
+        context.sendError(requestId, "set_equations_meta_document requires a non-empty documentId.");
+        return true;
+      }
+      const handled = context.onSetEquationsMetaDocument?.(documentId) === true;
+      if (!handled) {
+        context.sendError(requestId, "Equations meta document not found or unavailable.", { documentId });
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
+    case "refresh_equations_topic": {
+      const handled = context.onRefreshEquationsTopic?.() === true;
+      if (!handled) {
+        context.sendError(requestId, "No catalog-backed Equations topic is selected.");
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
+    case "set_equations_highlight_hidden": {
+      const highlightId = Number(command.highlightId);
+      if (!Number.isInteger(highlightId) || highlightId < 0) {
+        context.sendError(requestId, "set_equations_highlight_hidden requires a non-negative integer highlightId.", {
+          highlightId: command.highlightId,
+        });
+        return true;
+      }
+      const hidden = typeof command.hidden === "boolean" ? command.hidden : undefined;
+      const handled = context.onSetEquationsHighlightHidden?.(highlightId, hidden) === true;
+      if (!handled) {
+        context.sendError(requestId, "Equations text highlight not found.", { highlightId });
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
+    case "delete_equations_highlight": {
+      const highlightId = Number(command.highlightId);
+      if (!Number.isInteger(highlightId) || highlightId < 0) {
+        context.sendError(requestId, "delete_equations_highlight requires a non-negative integer highlightId.", {
+          highlightId: command.highlightId,
+        });
+        return true;
+      }
+      const handled = context.onDeleteEquationsHighlight?.(highlightId) === true;
+      if (!handled) {
+        context.sendError(requestId, "Equations text highlight not found.", { highlightId });
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
     case "add_annotation":
       context.onAddAnnotation({
         id: command.id ?? "",
@@ -319,6 +424,22 @@ export function handleInteractionCommand(
       context.onLiveSourceChange(command.source, command.captureId);
       context.sendAck(requestId, command.type);
       return true;
+    case "play_game_action": {
+      const actionId = typeof command.actionId === "string" ? command.actionId.trim() : "";
+      if (!actionId) {
+        context.sendError(requestId, "play_game_action requires a non-empty actionId.");
+        return true;
+      }
+      const handled = context.onPlayGameAction?.(actionId, command.value) === true;
+      if (!handled) {
+        context.sendError(requestId, "Play game action is unavailable. Activate the Play sub-app and wait for the game to load.", {
+          actionId,
+        });
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
     case "state_sync": {
       const captures = Array.isArray(command.captures) ? command.captures : [];
       context.onStateSync?.(captures);

@@ -7,7 +7,10 @@ import type {
   PlaybackState,
   SelectedMetric,
   RenderDebugResponse,
+  SidebarAppState,
+  SubAppCapability,
 } from "./schema";
+import { getSidebarAppMetadata, SIDEBAR_APP_STATES } from "./sidebar-apps";
 
 export interface SeriesSummary {
   last: number | null;
@@ -93,6 +96,7 @@ export interface CapabilitiesPayload {
   protocolVersion: string;
   commands: string[];
   responses: string[];
+  subApps: SubAppCapability[];
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -645,8 +649,18 @@ export function buildRenderDebug({
 }
 
 export function buildCapabilitiesPayload(): CapabilitiesPayload {
+  const subApps: SubAppCapability[] = SIDEBAR_APP_STATES.map((id: SidebarAppState) => {
+    const metadata = getSidebarAppMetadata(id);
+    return {
+      id,
+      label: metadata.label,
+      description: metadata.description,
+      activateCommand: { type: "set_sidebar_app", app: id },
+    };
+  });
+
   return {
-    protocolVersion: "1.0.0",
+    protocolVersion: "1.1.0",
     commands: [
       "hello",
       "get_state",
@@ -687,6 +701,13 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "set_fullscreen",
       "set_visualization_frame",
       "set_equations_pane",
+      "set_equations_topic",
+      "set_equations_view_mode",
+      "set_equations_catalog",
+      "set_equations_meta_document",
+      "refresh_equations_topic",
+      "set_equations_highlight_hidden",
+      "delete_equations_highlight",
       "add_annotation",
       "remove_annotation",
       "clear_annotations",
@@ -697,6 +718,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "set_stream_mode",
       "set_source_mode",
       "set_live_source",
+      "play_game_action",
       "sync_capture_sources",
       "live_start",
       "live_stop",
@@ -731,5 +753,6 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "memory_stats",
       "metric_coverage",
     ],
+    subApps,
   };
 }

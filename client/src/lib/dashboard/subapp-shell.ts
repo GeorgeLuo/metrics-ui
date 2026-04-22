@@ -1,4 +1,4 @@
-import { SIDEBAR_APP_STATES } from "@shared/sidebar-apps";
+import { getSidebarAppMetadata, SIDEBAR_APP_STATES } from "@shared/sidebar-apps";
 import type { SidebarAppState } from "@shared/schema";
 
 export type SidebarApp = SidebarAppState;
@@ -7,13 +7,7 @@ export type SidebarMode = "setup" | "analysis";
 export const SIDEBAR_APPS: SidebarApp[] = [...SIDEBAR_APP_STATES];
 
 export function getSidebarAppLabel(app: SidebarApp): string {
-  if (app === "equations") {
-    return "Equations";
-  }
-  if (app === "play") {
-    return "Play";
-  }
-  return "Metrics";
+  return getSidebarAppMetadata(app).label;
 }
 
 export function getSidebarSubmenuLabel(app: SidebarApp, mode: SidebarMode): string {

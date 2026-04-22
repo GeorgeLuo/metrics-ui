@@ -63,8 +63,16 @@ interface UseWebSocketControlProps {
     captureId?: string;
   }) => void;
   onSetEquationsPane: (patch: EquationsPaneStatePatch, options?: { replace?: boolean }) => void;
+  onSetEquationsTopic?: (topicId: string, options?: { preserveViewMode?: boolean }) => boolean;
+  onSetEquationsViewMode?: (viewMode: "topic" | "textbook") => boolean;
+  onSetEquationsCatalog?: (options: { catalogId?: string; source?: string }) => boolean;
+  onSetEquationsMetaDocument?: (documentId: string) => boolean;
+  onRefreshEquationsTopic?: () => boolean;
+  onSetEquationsHighlightHidden?: (highlightId: number, hidden?: boolean) => boolean;
+  onDeleteEquationsHighlight?: (highlightId: number) => boolean;
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
+  onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
@@ -186,8 +194,16 @@ export function useWebSocketControl({
   onSetFullscreen,
   onSetVisualizationFrame,
   onSetEquationsPane,
+  onSetEquationsTopic,
+  onSetEquationsViewMode,
+  onSetEquationsCatalog,
+  onSetEquationsMetaDocument,
+  onRefreshEquationsTopic,
+  onSetEquationsHighlightHidden,
+  onDeleteEquationsHighlight,
   onLiveStart,
   onLiveStop,
+  onPlayGameAction,
   onCaptureInit,
   onCaptureComponents,
   onCaptureAppend,
@@ -450,8 +466,16 @@ export function useWebSocketControl({
       onSetFullscreen,
       onSetVisualizationFrame,
       onSetEquationsPane,
+      onSetEquationsTopic,
+      onSetEquationsViewMode,
+      onSetEquationsCatalog,
+      onSetEquationsMetaDocument,
+      onRefreshEquationsTopic,
+      onSetEquationsHighlightHidden,
+      onDeleteEquationsHighlight,
       onSourceModeChange,
       onLiveSourceChange,
+      onPlayGameAction,
       onLiveStart,
       onLiveStop,
       onCaptureInit,
@@ -525,8 +549,16 @@ export function useWebSocketControl({
     onSetFullscreen,
     onSetVisualizationFrame,
     onSetEquationsPane,
+    onSetEquationsTopic,
+    onSetEquationsViewMode,
+    onSetEquationsCatalog,
+    onSetEquationsMetaDocument,
+    onRefreshEquationsTopic,
+    onSetEquationsHighlightHidden,
+    onDeleteEquationsHighlight,
     onSourceModeChange,
     onLiveSourceChange,
+    onPlayGameAction,
     onLiveStart,
     onLiveStop,
     onCaptureInit,
