@@ -427,6 +427,23 @@ Use `wss://` if the site is served over HTTPS.
 {"type":"get_state","request_id":"2"}
 ```
 
+`hello` returns a `capabilities` payload with the protocol version, command list, response list, and named sub-apps.
+
+Supported sub-apps:
+<!-- WS:SUBAPPS:START -->
+- `metrics` - Metrics: Capture playback, metric selection, charts, annotations, derivations, and visualization plugins.
+- `equations` - Equations: FrameGrid topic documents, equation catalogs, textbook view, references, and highlights.
+- `play` - Play: Browser-game surfaces loaded from a Play game catalog with game-provided controls.
+<!-- WS:SUBAPPS:END -->
+
+Activate a sub-app:
+
+```json
+{"type":"set_sidebar_app","app":"metrics"}
+{"type":"set_sidebar_app","app":"equations"}
+{"type":"set_sidebar_app","app":"play"}
+```
+
 ### Core Commands
 
 Playback:
@@ -438,6 +455,7 @@ Playback:
 
 Metric selection:
 - `{"type":"select_metric","captureId":"abc","path":["entity","component","metric"]}`
+- `{"type":"set_metric_axis","captureId":"abc","fullPath":"entity.component.metric","axis":"y2"}`
 - `{"type":"deselect_metric","captureId":"abc","fullPath":"entity.component.metric"}`
 - `{"type":"clear_selection"}`
 - `{"type":"get_metric_coverage","captureId":"abc"}` (numeric coverage for selected metrics)
@@ -446,7 +464,11 @@ Selecting a metric emits a `metric_coverage` payload for that metric. If the met
 
 Capture control:
 - `{"type":"toggle_capture","captureId":"abc"}`
+- `{"type":"remove_capture","captureId":"abc"}`
+- `{"type":"clear_captures"}`
 - `{"type":"query_components","captureId":"abc","search":"pressure","limit":200}`
+- `{"type":"set_stream_mode","captureId":"live-1","mode":"lite"}`
+- `{"type":"sync_capture_sources","sources":[{"captureId":"live-a","source":"/path/to/live.jsonl","pollIntervalMs":1000}],"replace":false}`
 
 Capture source (UI mode):
 - `{"type":"set_source_mode","mode":"file"}`
@@ -457,6 +479,13 @@ Capture source (UI mode):
 
 Equations pane:
 - `{"type":"set_sidebar_app","app":"equations"}`
+- `{"type":"set_equations_topic","topicId":"kuramoto-eq13-to-eq14"}`
+- `{"type":"set_equations_view_mode","viewMode":"textbook"}`
+- `{"type":"set_equations_catalog","catalogId":"kuramoto"}`
+- `{"type":"set_equations_meta_document","documentId":"topic-authoring-guidance"}`
+- `{"type":"refresh_equations_topic"}`
+- `{"type":"set_equations_highlight_hidden","highlightId":1,"hidden":true}`
+- `{"type":"delete_equations_highlight","highlightId":1}`
 - `{"type":"set_equations_pane","content":{"workspace":{"title":"Solver","body":"y = mx + b"}}}`
 - `{"type":"set_equations_pane","dimensions":{"frameAspect":[4,3],"workspace":{"col":0,"row":0,"colSpan":2,"rowSpan":5}}}`
 - `{"type":"set_equations_pane","cells":[{"col":0,"row":0,"colSpan":1,"rowSpan":1,"title":"","body":"test"}]}`
@@ -466,12 +495,30 @@ Equations pane:
 
 Play sub-app:
 - `{"type":"set_sidebar_app","app":"play"}`
+- `{"type":"play_game_action","actionId":"target-projection-debug","value":true}`
 - The Play sub-app hosts browser-game surfaces in a FrameGrid. Games are loaded from the file-backed catalog at `examples/play/play-game-catalog.json` by default.
 - Each catalog entry points to an `.mjs` game module, for example `examples/play/chase-game.mjs`. A module exports `createPlayGame({ container, columns, rows, createFloatingFrame, setSidebarSections, setSidebarActionHandler })` and returns an optional `{ dispose() }` cleanup object.
 - `createFloatingFrame({ id, title, bounds, defaultPosition, defaultSize })` lets a game request webapp-managed floating-frame chrome and returns `{ mount, close, setTitle }`; game code renders only into `mount`. Use `bounds: "viewport"` for whole-webapp movement or omit it to dock within the Play area.
 - `setSidebarSections([{ id, title, hint, rows }])` lets a game populate left-pane sections with serializable rows: text rows, label/value rows, editable values like `{ kind: "editableValue", id, label, value, suffix }`, short lists, or toggle rows like `{ kind: "toggle", id, label, enabled }`.
 - `setSidebarActionHandler(id, handler)` lets a game attach behavior to a sidebar toggle/action row. Editable rows call `handler(value)` with the committed string. Keep the visual state in `setSidebarSections`; handlers should update game state and re-publish the section data.
+- WS `play_game_action` invokes those same game-provided action handlers. Activate `play` first and wait for the game to load before sending game actions.
 - Set `METRICS_UI_PLAY_GAME_CATALOG_FILE=/path/to/play-game-catalog.json` to use another catalog file locally.
+
+Query/debug commands:
+- `{"type":"get_display_snapshot","request_id":"snapshot-1"}`
+- `{"type":"get_series_window","captureId":"abc","path":["entity","component","metric"],"windowStart":1,"windowEnd":100}`
+- `{"type":"get_render_table","captureId":"abc","windowStart":1,"windowEnd":100}`
+- `{"type":"get_render_debug","captureId":"abc"}`
+- `{"type":"get_ui_debug","scope":"visualization"}`
+- `{"type":"get_memory_stats"}`
+
+Presentation commands:
+- `{"type":"set_y_range","min":0,"max":100}`
+- `{"type":"set_y2_range","min":-1,"max":1}`
+- `{"type":"set_auto_scroll","enabled":true}`
+- `{"type":"set_fullscreen","enabled":true}`
+
+Use the typed Equations commands for normal catalog workflows: select a topic, switch between `topic` and `textbook` view, select a bundled catalog, open `Meta -> Guidance`, refresh the selected catalog-backed topic, or hide/delete selected text highlights by their `H#` id. Use `set_equations_pane` when an agent needs to push a custom document or patch raw pane state.
 
 `set_equations_pane` applies partial patches by default. Set `replace: true` to reset the pane to defaults before applying the new content/dimensions. If `document` is provided, it becomes the explicit FrameGrid source of truth for rendering and state sync. If `cells` is provided without `document`, the Equations pane renders that explicit list of cell items instead of the legacy four-region layout. `context.selectedHitBox` exposes the currently selected Equations interaction context and round-trips through `get_state`, `state_update`, and `restore_state`.
 
@@ -547,6 +594,10 @@ CLI examples:
 ```bash
 simeval ui subapp \
   --app equations \
+  --ui ws://127.0.0.1:5050/ws/control
+
+simeval ui subapp \
+  --app play \
   --ui ws://127.0.0.1:5050/ws/control
 
 simeval ui equations-pane \
@@ -631,6 +682,13 @@ Capture streaming (push records over WS):
 - `set_fullscreen`
 - `set_visualization_frame`
 - `set_equations_pane`
+- `set_equations_topic`
+- `set_equations_view_mode`
+- `set_equations_catalog`
+- `set_equations_meta_document`
+- `refresh_equations_topic`
+- `set_equations_highlight_hidden`
+- `delete_equations_highlight`
 - `add_annotation`
 - `remove_annotation`
 - `clear_annotations`
@@ -641,6 +699,7 @@ Capture streaming (push records over WS):
 - `set_stream_mode`
 - `set_source_mode`
 - `set_live_source`
+- `play_game_action`
 - `sync_capture_sources`
 - `live_start`
 - `live_stop`
@@ -666,10 +725,15 @@ Common responses include:
 - `error`
 - `state_update`
 - `capabilities`
+- `derivation_plugins`
 - `components_list`
 - `display_snapshot`
 - `series_window`
 - `render_table`
+- `render_debug`
+- `ui_debug`
+- `ui_notice`
+- `ui_error`
 - `memory_stats`
 - `metric_coverage`
 
