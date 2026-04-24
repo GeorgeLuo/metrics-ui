@@ -1,10 +1,10 @@
 import {
   CAR_BOUND_RADIUS,
-  DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_SECOND,
+  DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_FRAME,
   FIELD_OF_VIEW_DISTANCE,
   TARGET_ESTIMATE_MIN_MOVE_DISTANCE,
   TARGET_SPEED_ESTIMATE_ALPHA,
-  TARGET_SPEED_ESTIMATE_MAX_UNITS_PER_SECOND,
+  TARGET_SPEED_ESTIMATE_MAX_UNITS_PER_FRAME,
 } from "./constants.mjs";
 import {
   angleToVector,
@@ -21,7 +21,7 @@ export function createTargetMotionEstimate(targetPosition, targetDirection) {
   return {
     position: { ...targetPosition },
     direction: { ...targetDirection },
-    speedEstimateUnitsPerSecond: DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_SECOND,
+    speedEstimateUnitsPerFrame: DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_FRAME,
     speedObservationCount: 0,
     lastObservedDirection: { ...targetDirection },
     previousObservedDirection: null,
@@ -30,7 +30,6 @@ export function createTargetMotionEstimate(targetPosition, targetDirection) {
     observationCount: 0,
     motionObservationCount: 0,
     framesSinceObservation: 0,
-    secondsSinceObservation: 0,
   };
 }
 
@@ -79,13 +78,11 @@ export function updateTargetMotionEstimate(
   targetPerception,
   chaserPosition,
   chaserLookDirection,
-  deltaSeconds,
   worldContext = {},
 ) {
   if (targetPerception.visible) {
     estimate.observationCount += 1;
     estimate.framesSinceObservation = 0;
-    estimate.secondsSinceObservation = 0;
     const observedPosition = getPerceivedTargetPosition(
       chaserPosition,
       chaserLookDirection,
@@ -102,14 +99,14 @@ export function updateTargetMotionEstimate(
         observedPosition.z - estimate.lastObservedPosition.z,
       );
       if (observedMoveDistance >= TARGET_ESTIMATE_MIN_MOVE_DISTANCE) {
-        const observedSpeed = observedMoveDistance / Math.max(deltaSeconds, 0.001);
+        const observedSpeed = observedMoveDistance;
         const clampedObservedSpeed = Math.min(
-          TARGET_SPEED_ESTIMATE_MAX_UNITS_PER_SECOND,
+          TARGET_SPEED_ESTIMATE_MAX_UNITS_PER_FRAME,
           Math.max(0, observedSpeed),
         );
-        estimate.speedEstimateUnitsPerSecond = estimate.speedObservationCount > 0
-          ? estimate.speedEstimateUnitsPerSecond
-            + (clampedObservedSpeed - estimate.speedEstimateUnitsPerSecond)
+        estimate.speedEstimateUnitsPerFrame = estimate.speedObservationCount > 0
+          ? estimate.speedEstimateUnitsPerFrame
+            + (clampedObservedSpeed - estimate.speedEstimateUnitsPerFrame)
               * TARGET_SPEED_ESTIMATE_ALPHA
           : clampedObservedSpeed;
         estimate.speedObservationCount += 1;
@@ -133,13 +130,12 @@ export function updateTargetMotionEstimate(
 
   if (estimate.position && estimate.direction) {
     estimate.framesSinceObservation += 1;
-    estimate.secondsSinceObservation += deltaSeconds;
-    const speedEstimate = Number.isFinite(estimate.speedEstimateUnitsPerSecond)
-      ? estimate.speedEstimateUnitsPerSecond
-      : DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_SECOND;
+    const speedEstimate = Number.isFinite(estimate.speedEstimateUnitsPerFrame)
+      ? estimate.speedEstimateUnitsPerFrame
+      : DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_FRAME;
     const nextPosition = {
-      x: estimate.position.x + estimate.direction.x * speedEstimate * deltaSeconds,
-      z: estimate.position.z + estimate.direction.z * speedEstimate * deltaSeconds,
+      x: estimate.position.x + estimate.direction.x * speedEstimate,
+      z: estimate.position.z + estimate.direction.z * speedEstimate,
     };
     const canResolveWorldCollision = worldContext.obstacles
       && Number.isFinite(worldContext.columns)

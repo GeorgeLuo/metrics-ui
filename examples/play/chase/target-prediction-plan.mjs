@@ -1,10 +1,8 @@
 import {
-  ASSUMED_GAME_FRAMES_PER_SECOND,
   DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
-  TARGET_PREDICTION_MAX_UNOBSERVED_SECONDS,
+  TARGET_PREDICTION_MAX_UNOBSERVED_FRAMES,
   TARGET_PROJECTION_INVALIDATION_DISTANCE,
-  TARGET_PROJECTION_VALIDATION_LOOKAHEAD_SECONDS,
+  TARGET_PROJECTION_VALIDATION_LOOKAHEAD_FRAMES,
 } from "./constants.mjs";
 import { predictTargetMotionWithKuramoto } from "./prediction.mjs";
 import { buildTargetProjectionPath } from "./projection-path.mjs";
@@ -20,42 +18,41 @@ function getPositiveNumber(value, fallback) {
 
 export function getTargetProjectionSampleCount({
   horizonFrames = DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  samplesPerSecond = DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  sampleEveryFrames = 1,
 } = {}) {
   const normalizedHorizonFrames = getPositiveNumber(
     horizonFrames,
     DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
   );
-  const normalizedSamplesPerSecond = getPositiveNumber(
-    samplesPerSecond,
-    DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  const normalizedSampleEveryFrames = Math.max(
+    1,
+    Math.floor(getPositiveNumber(sampleEveryFrames, 1)),
   );
-  const horizonSeconds = normalizedHorizonFrames / ASSUMED_GAME_FRAMES_PER_SECOND;
-  return Math.max(1, Math.floor(horizonSeconds * normalizedSamplesPerSecond));
+  return Math.max(1, Math.ceil(normalizedHorizonFrames / normalizedSampleEveryFrames));
 }
 
 export function createTargetPredictionPlanState() {
   return {
-    timeSeconds: 0,
+    frameIndex: 0,
     lastValidationErrorDistance: 0,
     pendingValidations: [],
   };
 }
 
-function getSampleNearestSeconds(path, secondsAhead) {
+function getSampleNearestFrames(path, framesAhead) {
   if (!Array.isArray(path) || path.length === 0) {
     return null;
   }
 
   return path.reduce((best, sample) => {
-    if (!sample?.position || !Number.isFinite(sample.secondsAhead)) {
+    if (!sample?.position || !Number.isFinite(sample.framesAhead)) {
       return best;
     }
     if (!best) {
       return sample;
     }
-    return Math.abs(sample.secondsAhead - secondsAhead)
-      < Math.abs(best.secondsAhead - secondsAhead)
+    return Math.abs(sample.framesAhead - framesAhead)
+      < Math.abs(best.framesAhead - framesAhead)
       ? sample
       : best;
   }, null);
@@ -69,7 +66,6 @@ function getPositionDistance(first, second) {
 
 function updatePredictionPlanState({
   state,
-  deltaSeconds,
   targetVisible,
   estimate,
 }) {
@@ -77,10 +73,7 @@ function updatePredictionPlanState({
     return;
   }
 
-  const elapsedSeconds = Number(deltaSeconds);
-  state.timeSeconds += Number.isFinite(elapsedSeconds) && elapsedSeconds > 0
-    ? elapsedSeconds
-    : 0;
+  state.frameIndex += 1;
 
   if (!targetVisible || !estimate?.position) {
     return;
@@ -89,7 +82,7 @@ function updatePredictionPlanState({
   let shouldClearValidations = false;
   const remainingValidations = [];
   for (const validation of state.pendingValidations) {
-    if (validation.dueTimeSeconds > state.timeSeconds) {
+    if (validation.dueFrame > state.frameIndex) {
       remainingValidations.push(validation);
       continue;
     }
@@ -111,16 +104,16 @@ function queuePredictionValidation(state, path) {
     return;
   }
 
-  const validationSample = getSampleNearestSeconds(
+  const validationSample = getSampleNearestFrames(
     path,
-    TARGET_PROJECTION_VALIDATION_LOOKAHEAD_SECONDS,
+    TARGET_PROJECTION_VALIDATION_LOOKAHEAD_FRAMES,
   );
   if (!validationSample?.position) {
     return;
   }
 
   state.pendingValidations.push({
-    dueTimeSeconds: state.timeSeconds + validationSample.secondsAhead,
+    dueFrame: state.frameIndex + validationSample.framesAhead,
     position: { ...validationSample.position },
   });
   state.pendingValidations = state.pendingValidations.slice(-MAX_PENDING_VALIDATIONS);
@@ -132,17 +125,13 @@ export function buildTargetPredictionPlan({
   rows,
   obstacles,
   wallAvoidanceEvidence,
-  speedUnitsPerSecond,
-  deltaSeconds = 0,
+  speedUnitsPerFrame,
   targetVisible = false,
   planState = null,
   horizonFrames = DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  samplesPerSecond = DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
-  sampleCount,
 } = {}) {
   updatePredictionPlanState({
     state: planState,
-    deltaSeconds,
     targetVisible,
     estimate,
   });
@@ -153,18 +142,10 @@ export function buildTargetPredictionPlan({
     obstacles,
     wallAvoidanceEvidence,
   });
-  const normalizedSamplesPerSecond = getPositiveNumber(
-    samplesPerSecond,
-    DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
-  );
-  const resolvedSampleCount = Number.isFinite(Number(sampleCount))
-    ? Math.max(0, Math.floor(Number(sampleCount)))
-    : getTargetProjectionSampleCount({ horizonFrames, samplesPerSecond: normalizedSamplesPerSecond });
-  const sampleIntervalSeconds = 1 / normalizedSamplesPerSecond;
   const hasObservedTarget = targetVisible || Number(estimate?.observationCount) > 0;
   const isEstimateStale = !targetVisible && (
     !hasObservedTarget
-    || Number(estimate?.secondsSinceObservation) > TARGET_PREDICTION_MAX_UNOBSERVED_SECONDS
+    || Number(estimate?.framesSinceObservation) > TARGET_PREDICTION_MAX_UNOBSERVED_FRAMES
   );
   const invalidReason = isEstimateStale
     ? "stale-target-estimate"
@@ -173,9 +154,11 @@ export function buildTargetPredictionPlan({
   const path = actionable ? buildTargetProjectionPath({
     estimate,
     initialPrediction: prediction,
-    sampleCount: resolvedSampleCount,
-    sampleIntervalSeconds,
-    speedUnitsPerSecond,
+    horizonFrames: Math.max(1, Math.floor(getPositiveNumber(
+      horizonFrames,
+      DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
+    ))),
+    speedUnitsPerFrame,
     columns,
     rows,
     obstacles,
@@ -191,10 +174,7 @@ export function buildTargetPredictionPlan({
     invalidReason,
     prediction,
     path,
-    sampleCount: resolvedSampleCount,
-    sampleIntervalSeconds,
     horizonFrames,
-    samplesPerSecond: normalizedSamplesPerSecond,
     validationErrorDistance: planState?.lastValidationErrorDistance ?? 0,
   };
 }

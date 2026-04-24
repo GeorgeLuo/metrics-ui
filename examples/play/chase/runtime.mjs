@@ -4,12 +4,14 @@ import {
   CHASER_AUTOPILOT_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
   CHASER_VIEW_MAX_DISTANCE,
-  DEFAULT_CHASER_SPEED_UNITS_PER_SECOND,
-  DEFAULT_CAR_TURN_RATE_RADIANS_PER_SECOND,
+  DEFAULT_CHASER_SPEED_UNITS_PER_FRAME,
+  DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
   DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS,
-  DEFAULT_TARGET_SPEED_UNITS_PER_SECOND,
+  DEFAULT_TARGET_SPEED_UNITS_PER_FRAME,
+  MAX_SIMULATION_STEPS_PER_TICK,
   MAX_TARGET_PROJECTION_HORIZON_FRAMES,
-  MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  MAX_TARGET_PROJECTION_SAMPLE_EVERY_FRAMES,
+  SIMULATION_FRAME_DURATION_MS,
   TARGET_PROJECTION_DEBUG_ACTION_ID,
   TARGET_PROJECTION_HORIZON_ACTION_ID,
   TARGET_PROJECTION_RATE_ACTION_ID,
@@ -70,9 +72,9 @@ import {
 
 function createVehicleSettings() {
   return {
-    chaserSpeedUnitsPerSecond: DEFAULT_CHASER_SPEED_UNITS_PER_SECOND,
-    targetSpeedUnitsPerSecond: DEFAULT_TARGET_SPEED_UNITS_PER_SECOND,
-    turnRateRadiansPerSecond: DEFAULT_CAR_TURN_RATE_RADIANS_PER_SECOND,
+    chaserSpeedUnitsPerFrame: DEFAULT_CHASER_SPEED_UNITS_PER_FRAME,
+    targetSpeedUnitsPerFrame: DEFAULT_TARGET_SPEED_UNITS_PER_FRAME,
+    turnRateRadiansPerFrame: DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
     fieldOfViewAngleRadians: DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS,
   };
 }
@@ -164,21 +166,21 @@ function registerSidebarActions({
   setSidebarActionHandler(CHASER_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
-      vehicleSettings.chaserSpeedUnitsPerSecond = clampNumber(parsed, 0.2, 12);
+      vehicleSettings.chaserSpeedUnitsPerFrame = clampNumber(parsed, 0.002, 0.2);
     }
     refreshSidebarSections();
   });
   setSidebarActionHandler(TARGET_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
-      vehicleSettings.targetSpeedUnitsPerSecond = clampNumber(parsed, 0.2, 12);
+      vehicleSettings.targetSpeedUnitsPerFrame = clampNumber(parsed, 0.002, 0.2);
     }
     refreshSidebarSections();
   });
   setSidebarActionHandler(VEHICLE_TURN_RATE_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
-      vehicleSettings.turnRateRadiansPerSecond = degreesToRadians(clampNumber(parsed, 10, 720));
+      vehicleSettings.turnRateRadiansPerFrame = degreesToRadians(clampNumber(parsed, 0.1, 12));
     }
     refreshSidebarSections();
   });
@@ -208,11 +210,11 @@ function registerSidebarActions({
   setSidebarActionHandler(TARGET_PROJECTION_RATE_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
-      projectionSettings.samplesPerSecond = clampNumber(
+      projectionSettings.sampleEveryFrames = Math.round(clampNumber(
         parsed,
-        0.5,
-        MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND,
-      );
+        1,
+        MAX_TARGET_PROJECTION_SAMPLE_EVERY_FRAMES,
+      ));
       writeStoredProjectionSettings(projectionSettings);
     }
     refreshSidebarSections();
@@ -358,132 +360,23 @@ export function createPlayGame({
   }
 
   let animationFrame = 0;
-  let previousTime = performance.now();
-  const tick = (timestamp) => {
-    const deltaSeconds = Math.min(0.05, Math.max(0, (timestamp - previousTime) / 1000));
-    previousTime = timestamp;
+  let previousRenderTimeMs = performance.now();
+  let pendingSimulationFrames = 0;
+  let simulationFrameIndex = 0;
+  let latestTargetPredictionPlan = {
+    actionable: false,
+    invalidReason: "uninitialized",
+    prediction: null,
+    path: [],
+  };
 
-    const chaserPerception = getChaserTargetPerception(
-      chaserPosition,
-      targetPosition,
-      chaserLookDirection,
-      vehicleSettings.fieldOfViewAngleRadians,
-      obstacles,
-    );
-    if (chaserView.lostTargetLabel) {
-      chaserView.lostTargetLabel.style.display = chaserPerception.visible ? "none" : "block";
-    }
-    updateTargetMotionEstimate(
-      targetMotionEstimate,
-      chaserPerception,
-      chaserPosition,
-      chaserLookDirection,
-      deltaSeconds,
-      {
-        columns,
-        rows,
-        obstacles,
-      },
-    );
-    updateWallAvoidanceEvidence(wallAvoidanceEvidence, {
-      estimate: targetMotionEstimate,
-      targetVisible: chaserPerception.visible,
-      columns,
-      rows,
-      obstacles,
-    });
-    const targetPredictionPlan = buildTargetPredictionPlan({
-      estimate: targetMotionEstimate,
-      speedUnitsPerSecond: targetMotionEstimate.speedEstimateUnitsPerSecond,
-      columns,
-      rows,
-      obstacles,
-      wallAvoidanceEvidence,
-      deltaSeconds,
-      targetVisible: chaserPerception.visible,
-      planState: targetPredictionPlanState,
-      horizonFrames: projectionSettings.horizonFrames,
-      samplesPerSecond: projectionSettings.samplesPerSecond,
-    });
+  const renderScene = () => {
     updateTargetProjectionDisplay(
       targetProjectionGroup,
       targetProjectionFrames,
-      targetMotionEstimate,
-      targetPredictionPlan.prediction,
       projectionSettings,
-      targetMotionEstimate.speedEstimateUnitsPerSecond,
-      targetPredictionPlan.path,
+      latestTargetPredictionPlan.path,
     );
-
-    const chaserInput = programmaticChaserEnabled
-      ? getProgrammaticChaserInput({
-        targetPerception: chaserPerception,
-        chaserPosition,
-        chaserLookDirection,
-        targetEstimate: targetMotionEstimate,
-        predictionPlan: targetPredictionPlan,
-        autopilotState: chaserAutopilotState,
-        chaserSpeedUnitsPerSecond: vehicleSettings.chaserSpeedUnitsPerSecond,
-        columns,
-        rows,
-        obstacles,
-      })
-      : getHumanChaserInput(pressedKeys);
-    const isChaserMoving = chaserInput.forward;
-    const steeringInput = chaserInput.steering;
-    if (isChaserMoving && steeringInput !== 0) {
-      const nextHeading = angleToVector(
-        vectorToAngle(chaserLookDirection)
-          + steeringInput * vehicleSettings.turnRateRadiansPerSecond * deltaSeconds,
-      );
-      chaserLookDirection.x = nextHeading.x;
-      chaserLookDirection.z = nextHeading.z;
-    }
-    const nextChaser = resolveObstacleCollisions({
-      x: chaserPosition.x
-        + chaserLookDirection.x * vehicleSettings.chaserSpeedUnitsPerSecond * deltaSeconds * (isChaserMoving ? 1 : 0),
-      z: chaserPosition.z
-        + chaserLookDirection.z * vehicleSettings.chaserSpeedUnitsPerSecond * deltaSeconds * (isChaserMoving ? 1 : 0),
-    }, chaserPosition, columns, rows, obstacles);
-    chaserPosition.x = nextChaser.x;
-    chaserPosition.z = nextChaser.z;
-
-    const targetMovementDecision = getTargetMovementDecision(
-      targetPosition,
-      targetDirection,
-      columns,
-      rows,
-      timestamp,
-      obstacles,
-    );
-    const nextDirection = constrainDirectionToBounds(
-      targetPosition,
-      steerDirectionToward(
-        targetDirection,
-        targetMovementDecision.direction,
-        vehicleSettings.turnRateRadiansPerSecond * deltaSeconds,
-      ),
-      columns,
-      rows,
-    );
-    updateTargetWallAvoidanceTruth(targetWallAvoidanceTruth, {
-      decisionDebug: targetMovementDecision.debug,
-    });
-    strategyDebugFrame?.update({
-      wallEvidence: wallAvoidanceEvidence,
-      targetVisible: chaserPerception.visible,
-      targetWallTruth: targetWallAvoidanceTruth,
-      targetEstimate: targetMotionEstimate,
-    });
-    targetDirection.x = nextDirection.x;
-    targetDirection.z = nextDirection.z;
-    const nextTarget = resolveObstacleCollisions({
-      x: targetPosition.x + targetDirection.x * vehicleSettings.targetSpeedUnitsPerSecond * deltaSeconds,
-      z: targetPosition.z + targetDirection.z * vehicleSettings.targetSpeedUnitsPerSecond * deltaSeconds,
-    }, targetPosition, columns, rows, obstacles);
-    targetPosition.x = nextTarget.x;
-    targetPosition.z = nextTarget.z;
-
     chaser.position.set(chaserPosition.x, CAR_HEIGHT / 2, chaserPosition.z);
     chaser.rotation.y = vectorToAngle(chaserLookDirection);
     chaserFieldOfView.position.set(chaserPosition.x, 0, chaserPosition.z);
@@ -500,6 +393,135 @@ export function createPlayGame({
       chaser.visible = true;
       chaserFieldOfView.visible = true;
     }
+  };
+
+  const stepSimulationFrame = () => {
+    const chaserPerception = getChaserTargetPerception(
+      chaserPosition,
+      targetPosition,
+      chaserLookDirection,
+      vehicleSettings.fieldOfViewAngleRadians,
+      obstacles,
+    );
+    if (chaserView.lostTargetLabel) {
+      chaserView.lostTargetLabel.style.display = chaserPerception.visible ? "none" : "block";
+    }
+    updateTargetMotionEstimate(
+      targetMotionEstimate,
+      chaserPerception,
+      chaserPosition,
+      chaserLookDirection,
+      {
+        columns,
+        rows,
+        obstacles,
+      },
+    );
+    updateWallAvoidanceEvidence(wallAvoidanceEvidence, {
+      estimate: targetMotionEstimate,
+      targetVisible: chaserPerception.visible,
+      columns,
+      rows,
+      obstacles,
+    });
+    latestTargetPredictionPlan = buildTargetPredictionPlan({
+      estimate: targetMotionEstimate,
+      speedUnitsPerFrame: targetMotionEstimate.speedEstimateUnitsPerFrame,
+      columns,
+      rows,
+      obstacles,
+      wallAvoidanceEvidence,
+      targetVisible: chaserPerception.visible,
+      planState: targetPredictionPlanState,
+      horizonFrames: projectionSettings.horizonFrames,
+    });
+
+    const chaserInput = programmaticChaserEnabled
+      ? getProgrammaticChaserInput({
+        targetPerception: chaserPerception,
+        chaserPosition,
+        chaserLookDirection,
+        targetEstimate: targetMotionEstimate,
+        predictionPlan: latestTargetPredictionPlan,
+        autopilotState: chaserAutopilotState,
+        chaserSpeedUnitsPerFrame: vehicleSettings.chaserSpeedUnitsPerFrame,
+        columns,
+        rows,
+        obstacles,
+      })
+      : getHumanChaserInput(pressedKeys);
+    const isChaserMoving = chaserInput.forward;
+    const steeringInput = chaserInput.steering;
+    if (isChaserMoving && steeringInput !== 0) {
+      const nextHeading = angleToVector(
+        vectorToAngle(chaserLookDirection)
+          + steeringInput * vehicleSettings.turnRateRadiansPerFrame,
+      );
+      chaserLookDirection.x = nextHeading.x;
+      chaserLookDirection.z = nextHeading.z;
+    }
+    const nextChaser = resolveObstacleCollisions({
+      x: chaserPosition.x
+        + chaserLookDirection.x * vehicleSettings.chaserSpeedUnitsPerFrame * (isChaserMoving ? 1 : 0),
+      z: chaserPosition.z
+        + chaserLookDirection.z * vehicleSettings.chaserSpeedUnitsPerFrame * (isChaserMoving ? 1 : 0),
+    }, chaserPosition, columns, rows, obstacles);
+    chaserPosition.x = nextChaser.x;
+    chaserPosition.z = nextChaser.z;
+
+    const targetMovementDecision = getTargetMovementDecision(
+      targetPosition,
+      targetDirection,
+      columns,
+      rows,
+      simulationFrameIndex,
+      obstacles,
+    );
+    const nextDirection = constrainDirectionToBounds(
+      targetPosition,
+      steerDirectionToward(
+        targetDirection,
+        targetMovementDecision.direction,
+        vehicleSettings.turnRateRadiansPerFrame,
+      ),
+      columns,
+      rows,
+    );
+    updateTargetWallAvoidanceTruth(targetWallAvoidanceTruth, {
+      decisionDebug: targetMovementDecision.debug,
+    });
+    strategyDebugFrame?.update({
+      wallEvidence: wallAvoidanceEvidence,
+      targetVisible: chaserPerception.visible,
+      targetWallTruth: targetWallAvoidanceTruth,
+      targetEstimate: targetMotionEstimate,
+    });
+    targetDirection.x = nextDirection.x;
+    targetDirection.z = nextDirection.z;
+    const nextTarget = resolveObstacleCollisions({
+      x: targetPosition.x + targetDirection.x * vehicleSettings.targetSpeedUnitsPerFrame,
+      z: targetPosition.z + targetDirection.z * vehicleSettings.targetSpeedUnitsPerFrame,
+    }, targetPosition, columns, rows, obstacles);
+    targetPosition.x = nextTarget.x;
+    targetPosition.z = nextTarget.z;
+    simulationFrameIndex += 1;
+  };
+
+  const tick = (timestamp) => {
+    const elapsedMs = Math.max(0, Math.min(250, timestamp - previousRenderTimeMs));
+    previousRenderTimeMs = timestamp;
+    pendingSimulationFrames = Math.min(
+      pendingSimulationFrames + elapsedMs / SIMULATION_FRAME_DURATION_MS,
+      MAX_SIMULATION_STEPS_PER_TICK,
+    );
+
+    const stepsToRun = Math.floor(pendingSimulationFrames);
+    for (let stepIndex = 0; stepIndex < stepsToRun; stepIndex += 1) {
+      stepSimulationFrame();
+      pendingSimulationFrames -= 1;
+    }
+
+    renderScene();
     animationFrame = window.requestAnimationFrame(tick);
   };
   animationFrame = window.requestAnimationFrame(tick);

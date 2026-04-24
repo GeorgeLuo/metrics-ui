@@ -23,9 +23,8 @@ function hasActiveWallAvoidancePrediction(prediction) {
 export function buildTargetProjectionPath({
   estimate,
   initialPrediction,
-  sampleCount,
-  sampleIntervalSeconds,
-  speedUnitsPerSecond,
+  horizonFrames,
+  speedUnitsPerFrame,
   columns,
   rows,
   obstacles,
@@ -33,11 +32,10 @@ export function buildTargetProjectionPath({
 }) {
   if (
     !estimate?.position
-    || sampleCount <= 0
-    || !Number.isFinite(sampleIntervalSeconds)
-    || !Number.isFinite(speedUnitsPerSecond)
-    || sampleIntervalSeconds <= 0
-    || speedUnitsPerSecond <= 0
+    || !Number.isFinite(horizonFrames)
+    || !Number.isFinite(speedUnitsPerFrame)
+    || horizonFrames <= 0
+    || speedUnitsPerFrame <= 0
   ) {
     return [];
   }
@@ -50,7 +48,7 @@ export function buildTargetProjectionPath({
   );
   let projectedEstimate = createProjectedEstimate(estimate, position, direction);
 
-  for (let index = 0; index < sampleCount; index += 1) {
+  for (let index = 0; index < horizonFrames; index += 1) {
     const prediction = index === 0
       ? initialPrediction
       : predictTargetMotionWithKuramoto(projectedEstimate, {
@@ -59,7 +57,7 @@ export function buildTargetProjectionPath({
         obstacles,
         wallAvoidanceEvidence,
       });
-    const secondsAhead = (index + 1) * sampleIntervalSeconds;
+    const framesAhead = index + 1;
     direction = normalizeVector(
       prediction?.direction?.x ?? direction.x,
       prediction?.direction?.z ?? direction.z,
@@ -70,8 +68,8 @@ export function buildTargetProjectionPath({
     }
 
     const intendedPosition = {
-      x: position.x + direction.x * speedUnitsPerSecond * sampleIntervalSeconds,
-      z: position.z + direction.z * speedUnitsPerSecond * sampleIntervalSeconds,
+      x: position.x + direction.x * speedUnitsPerFrame,
+      z: position.z + direction.z * speedUnitsPerFrame,
     };
     const nextPosition = obstacles
       ? resolveObstacleCollisions(intendedPosition, position, columns, rows, obstacles)
@@ -79,7 +77,7 @@ export function buildTargetProjectionPath({
 
     samples.push({
       index,
-      secondsAhead,
+      framesAhead,
       position: nextPosition,
       direction,
       prediction,
