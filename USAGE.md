@@ -502,6 +502,8 @@ Play sub-app:
 - `setSidebarSections([{ id, title, hint, rows }])` lets a game populate left-pane sections with serializable rows: text rows, label/value rows, editable values like `{ kind: "editableValue", id, label, value, suffix }`, short lists, or toggle rows like `{ kind: "toggle", id, label, enabled }`.
 - `setSidebarActionHandler(id, handler)` lets a game attach behavior to a sidebar toggle/action row. Editable rows call `handler(value)` with the committed string. Keep the visual state in `setSidebarSections`; handlers should update game state and re-publish the section data.
 - WS `play_game_action` invokes those same game-provided action handlers. Activate `play` first and wait for the game to load before sending game actions.
+- `get_state` / `state_update` now include `playSidebarSections`, which mirror the current Play left-pane controls exactly: section titles, row labels, action ids, current values, and toggle states.
+- Agents should inspect `playSidebarSections` before sending `play_game_action` instead of assuming hardcoded action ids or units. Play controls are game-defined.
 - Set `METRICS_UI_PLAY_GAME_CATALOG_FILE=/path/to/play-game-catalog.json` to use another catalog file locally.
 
 Query/debug commands:
@@ -738,6 +740,7 @@ Common responses include:
 - `metric_coverage`
 
 `display_snapshot` includes `metricCoverage` for selected metrics (numeric count, total frames, last tick).
+`state_update` includes the current `equationsPane` state and, for the Play sub-app, the live `playSidebarSections` control surface exposed by the active game.
 
 ### Supported Responses (auto)
 <!-- WS:RESPONSES:START -->
