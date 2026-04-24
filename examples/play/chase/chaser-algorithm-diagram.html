@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chase Game Chaser Algorithm</title>
+  <style>
+    :root {
+      --ink: #18212f;
+      --muted: #667085;
+      --paper: #f6f1e8;
+      --panel: #fffaf1;
+      --panel-strong: #fff2d8;
+      --line: #c9bda9;
+      --blue: #1d76a3;
+      --red: #b23a48;
+      --green: #587a48;
+      --black: #121417;
+      --gold: #b98428;
+      --shadow: 0 18px 40px rgba(47, 35, 19, 0.12);
+      font-family: ui-serif, Georgia, "Times New Roman", serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(255, 237, 193, 0.9), transparent 34rem),
+        linear-gradient(135deg, #f8f4ec 0%, #eee4d2 100%);
+      color: var(--ink);
+    }
+
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 44px 28px 64px;
+    }
+
+    header {
+      display: grid;
+      gap: 12px;
+      max-width: 980px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.1rem, 4vw, 4.4rem);
+      letter-spacing: -0.055em;
+      line-height: 0.95;
+    }
+
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .lede {
+      max-width: 900px;
+      color: var(--muted);
+      font-size: 1.08rem;
+      line-height: 1.6;
+    }
+
+    .source-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    code,
+    .pill {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.82rem;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border: 1px solid rgba(24, 33, 47, 0.18);
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: rgba(255, 250, 241, 0.72);
+      color: #3a4758;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin: 28px 0;
+    }
+
+    .legend-card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: rgba(255, 250, 241, 0.78);
+      box-shadow: var(--shadow);
+    }
+
+    .legend-card b {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .legend-card span {
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .diagram {
+      display: grid;
+      grid-template-columns: 1.05fr 1.15fr 1.15fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .lane {
+      position: relative;
+      display: grid;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .lane-title {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 12px 14px;
+      background: rgba(255, 250, 241, 0.95);
+      box-shadow: var(--shadow);
+    }
+
+    .lane-title h2 {
+      margin: 0 0 3px;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+
+    .lane-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+
+    .card {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 16px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      min-height: 112px;
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      left: 28px;
+      bottom: -17px;
+      width: 2px;
+      height: 17px;
+      background: var(--line);
+    }
+
+    .lane .card:last-child::after {
+      display: none;
+    }
+
+    .card h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 9px;
+      font-size: 1.04rem;
+      letter-spacing: -0.02em;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      color: white;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      flex: 0 0 auto;
+    }
+
+    .tag.blue { background: var(--blue); }
+    .tag.red { background: var(--red); }
+    .tag.green { background: var(--green); }
+    .tag.black { background: var(--black); }
+    .tag.gold { background: var(--gold); }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+      color: #3e4a5a;
+      line-height: 1.45;
+      font-size: 0.93rem;
+    }
+
+    li + li {
+      margin-top: 5px;
+    }
+
+    .strong {
+      background: var(--panel-strong);
+      border-color: rgba(185, 132, 40, 0.44);
+    }
+
+    .choice {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .branch {
+      border: 1px dashed rgba(24, 33, 47, 0.22);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.38);
+    }
+
+    .branch b {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+      margin-top: 20px;
+    }
+
+    .knowledge {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .callout {
+      border: 1px solid rgba(29, 118, 163, 0.28);
+      border-radius: 24px;
+      padding: 18px;
+      background: rgba(232, 246, 251, 0.72);
+      box-shadow: var(--shadow);
+    }
+
+    .callout h2 {
+      margin: 0 0 10px;
+      font-size: 1.15rem;
+    }
+
+    .callout p {
+      color: #405064;
+      line-height: 1.55;
+      margin-bottom: 0;
+    }
+
+    .mini-flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .mini-flow span {
+      border: 1px solid rgba(24, 33, 47, 0.14);
+      border-radius: 999px;
+      padding: 6px 9px;
+      background: rgba(255, 255, 255, 0.55);
+      color: #3e4a5a;
+      font-size: 0.84rem;
+    }
+
+    .arrow {
+      color: var(--gold);
+      font-weight: 800;
+    }
+
+    .footnotes {
+      margin-top: 22px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 1100px) {
+      .diagram,
+      .legend,
+      .knowledge {
+        grid-template-columns: 1fr;
+      }
+
+      .lane-title {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Chaser Algorithm: Knowledge, Projection, Pursuit, Safety</h1>
+      <p class="lede">
+        Standalone diagram of the current Play/Chase implementation. It reflects the code path in
+        <code>runtime.mjs</code>, <code>chaser.mjs</code>, <code>target-prediction-plan.mjs</code>,
+        <code>chaser-controller.mjs</code>, and <code>movement-strategies.mjs</code>.
+      </p>
+      <div class="source-strip">
+        <span class="pill">examples/play/chase/runtime.mjs</span>
+        <span class="pill">examples/play/chase/chaser.mjs</span>
+        <span class="pill">examples/play/chase/target-prediction-plan.mjs</span>
+        <span class="pill">examples/play/chase/chaser-controller.mjs</span>
+        <span class="pill">examples/play/chase/movement-strategies.mjs</span>
+      </div>
+    </header>
+
+    <section class="legend" aria-label="Legend">
+      <div class="legend-card">
+        <b style="color: var(--blue);">Blue facts</b>
+        <span>What the chaser can perceive or estimate.</span>
+      </div>
+      <div class="legend-card">
+        <b style="color: var(--red);">Red facts</b>
+        <span>True target state used by the world simulation, not directly known to the chaser.</span>
+      </div>
+      <div class="legend-card">
+        <b style="color: var(--green);">Green layer</b>
+        <span>Decision and movement strategy code.</span>
+      </div>
+      <div class="legend-card">
+        <b style="color: var(--black);">Black layer</b>
+        <span>Hard safety and physics constraints after strategy output.</span>
+      </div>
+    </section>
+
+    <section class="diagram" aria-label="Chaser algorithm flowchart">
+      <div class="lane">
+        <div class="lane-title">
+          <h2>1. Runtime Tick</h2>
+          <p><code>runtime.mjs</code> orchestrates one frame.</p>
+        </div>
+
+        <article class="card">
+          <h3><span class="tag red">R</span> World state</h3>
+          <ul>
+            <li>True chaser position and heading.</li>
+            <li>True target position and heading.</li>
+            <li>Obstacles from <code>getFieldObstacleLayout</code>.</li>
+            <li>Separate actual speeds: chaser speed and target speed.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag blue">F</span> Field of view check</h3>
+          <ul>
+            <li><code>getChaserTargetPerception</code> computes bearing and distance.</li>
+            <li>Visible means inside FOV range and angle.</li>
+            <li>Visibility is blocked by obstacle line of sight.</li>
+            <li>Very close targets are treated as visible.</li>
+          </ul>
+        </article>
+
+        <article class="card strong">
+          <h3><span class="tag green">B</span> Branch</h3>
+          <div class="choice">
+            <div class="branch">
+              <b>Human chaser off</b>
+              Use keyboard input from <code>I</code>, <code>A</code>, and <code>D</code>.
+            </div>
+            <div class="branch">
+              <b>Programmatic chaser on</b>
+              Use the chaser knowledge and controller pipeline below.
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div class="lane">
+        <div class="lane-title">
+          <h2>2. Chaser Knowledge</h2>
+          <p>The chaser does not receive true target speed.</p>
+        </div>
+
+        <article class="card">
+          <h3><span class="tag blue">E</span> Target motion estimate</h3>
+          <ul>
+            <li><code>createTargetMotionEstimate</code> stores estimated position, direction, turn rate, and speed.</li>
+            <li>Initial speed estimate comes from <code>DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_SECOND</code>.</li>
+            <li>Actual target speed only moves the real target, not the estimate.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag blue">V</span> If target is visible</h3>
+          <ul>
+            <li>Position is reconstructed from chaser position, heading, bearing, and distance.</li>
+            <li>Observed delta updates target direction.</li>
+            <li>Observed turn rate is derived from direction change.</li>
+            <li>Observed speed updates the speed estimate using an EWMA.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag blue">U</span> If target is unseen</h3>
+          <ul>
+            <li>Estimate advances by estimated direction and estimated speed.</li>
+            <li>Estimated position is collision-resolved against known walls.</li>
+            <li><code>secondsSinceObservation</code> accumulates for stale invalidation.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag blue">W</span> Wall evidence</h3>
+          <ul>
+            <li><code>updateWallAvoidanceEvidence</code> only counts when the target is visible.</li>
+            <li>It tracks whether observed near-wall episodes avoid or hit.</li>
+            <li>Prediction wall-avoidance is gated until enough episodes exist.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="lane">
+        <div class="lane-title">
+          <h2>3. Prediction Plan</h2>
+          <p>Projection is derived from chaser knowledge.</p>
+        </div>
+
+        <article class="card">
+          <h3><span class="tag green">P</span> Build prediction</h3>
+          <ul>
+            <li><code>buildTargetPredictionPlan</code> calls <code>predictTargetMotionWithKuramoto</code>.</li>
+            <li>Signals include current direction, observed directions, turn bias, and learned wall avoidance.</li>
+            <li>The Kuramoto engine stays generic: it only combines directional oscillators.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag green">X</span> Project target path</h3>
+          <ul>
+            <li><code>buildTargetProjectionPath</code> samples future target positions.</li>
+            <li>Projection speed is the chaser's estimated target speed.</li>
+            <li>Each projected step resolves collisions against known walls and obstacles.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag black">I</span> Invalidate stale plans</h3>
+          <ul>
+            <li>If target is unseen too long, the plan becomes non-actionable.</li>
+            <li>Visible target contact immediately rebuilds a fresh projection.</li>
+            <li>Old queued validations are cleared when visible observations diverge.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag blue">D</span> Debug projection</h3>
+          <ul>
+            <li>The left-pane projection toggle only controls drawing.</li>
+            <li>The gameplay prediction plan exists even when projection debug is hidden.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="lane">
+        <div class="lane-title">
+          <h2>4. Controller Output</h2>
+          <p>The controller still emits only forward and steering.</p>
+        </div>
+
+        <article class="card">
+          <h3><span class="tag green">C</span> Select pursuit point</h3>
+          <ul>
+            <li>Ignore the projection if the plan is non-actionable.</li>
+            <li>Choose the first projected sample whose time is reachable by chaser speed.</li>
+            <li>If none is reachable, use the farthest projected sample as lookahead.</li>
+            <li>If no path exists, fall back to current target estimate.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag green">G</span> Choose goal direction</h3>
+          <ul>
+            <li>Priority 1: direction to pursuit point.</li>
+            <li>Priority 2: visible bearing direction.</li>
+            <li>Priority 3: search direction based on previous steering.</li>
+          </ul>
+        </article>
+
+        <article class="card strong">
+          <h3><span class="tag green">K</span> Local movement consensus</h3>
+          <ul>
+            <li><code>planLocalMovementDirection</code> creates movement signals.</li>
+            <li>Signals: goal, avoid-wall, follow-wall, unstick-wall.</li>
+            <li>Kuramoto consensus combines the active movement signals.</li>
+          </ul>
+        </article>
+
+        <article class="card strong">
+          <h3><span class="tag black">S</span> Hard safety filter</h3>
+          <ul>
+            <li><code>constrainDirectionByLocalWalls</code> runs after consensus.</li>
+            <li>It prevents the consensus direction from driving deeper into a wall.</li>
+            <li>If needed, it turns the direction into a wall-following tangent plus outward bias.</li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <h3><span class="tag blue">O</span> Vehicle input</h3>
+          <ul>
+            <li>Desired direction is compared with current chaser heading.</li>
+            <li>Bearing outside deadzone returns steering <code>-1</code> or <code>1</code>.</li>
+            <li>Bearing inside deadzone returns steering <code>0</code>.</li>
+            <li>Programmatic chaser always returns <code>forward: true</code>.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="wide knowledge" aria-label="Knowledge boundary and cutoff test">
+      <div class="callout">
+        <h2>Knowledge boundary</h2>
+        <p>
+          The chaser's algorithm is derived from what the chaser can know: FOV perception,
+          estimated target motion, estimated target speed, learned wall-avoidance evidence,
+          known world geometry, and its own speed. The true target speed is only used by the
+          world simulation to move the red target.
+        </p>
+        <div class="mini-flow">
+          <span>true target speed</span>
+          <span class="arrow">moves</span>
+          <span>red target</span>
+          <span class="arrow">observed through FOV</span>
+          <span>estimated target speed</span>
+          <span class="arrow">drives</span>
+          <span>projection</span>
+        </div>
+      </div>
+
+      <div class="callout">
+        <h2>Slower-chaser cutoff test</h2>
+        <p>
+          With chaser speed below target speed, the controller does not chase the current target
+          point directly. It scans the projected samples and asks which sample is reachable by
+          chaser speed at that sample's <code>secondsAhead</code>. That reachable sample becomes
+          the cutoff goal. If no projected sample is reachable, the controller still aims at the
+          farthest lookahead sample rather than the stale current position.
+        </p>
+        <div class="mini-flow">
+          <span>projection path</span>
+          <span class="arrow">sample loop</span>
+          <span>distance / chaser speed</span>
+          <span class="arrow">&lt;=</span>
+          <span>sample secondsAhead</span>
+          <span class="arrow">select cutoff</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="wide callout" aria-label="Per-frame summary">
+      <h2>Per-frame summary</h2>
+      <div class="mini-flow">
+        <span>runtime tick</span>
+        <span class="arrow">-></span>
+        <span>FOV perception</span>
+        <span class="arrow">-></span>
+        <span>update chaser knowledge</span>
+        <span class="arrow">-></span>
+        <span>build target prediction plan</span>
+        <span class="arrow">-></span>
+        <span>select pursuit point</span>
+        <span class="arrow">-></span>
+        <span>movement consensus</span>
+        <span class="arrow">-></span>
+        <span>hard wall safety</span>
+        <span class="arrow">-></span>
+        <span>steering input</span>
+        <span class="arrow">-></span>
+        <span>physics collision resolution</span>
+      </div>
+      <p class="footnotes">
+        This file is informational only. It is not imported by the Play sub-app and does not affect
+        game behavior.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
