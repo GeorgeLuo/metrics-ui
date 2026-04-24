@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Response } from "express";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -64,9 +64,35 @@ function resolvePlayGameCatalogFile(projectRoot: string): string {
   return path.resolve(projectRoot, DEFAULT_PLAY_GAME_CATALOG_FILE);
 }
 
-function buildModuleUrl(gameId: string, modulePath: string): string {
+function encodePathSegments(filePath: string): string {
+  return filePath
+    .split(path.sep)
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
+function buildModuleUrl(gameId: string, catalogDir: string, modulePath: string): string {
   const stat = fs.statSync(modulePath);
-  return `/api/play/games/${encodeURIComponent(gameId)}/module?v=${Math.floor(stat.mtimeMs)}`;
+  const moduleFilePath = encodePathSegments(path.relative(catalogDir, modulePath));
+  return `/api/play/games/${encodeURIComponent(gameId)}/files/${moduleFilePath}?v=${Math.floor(stat.mtimeMs)}`;
+}
+
+function collectMjsFiles(directoryPath: string, files: Set<string>) {
+  if (!fs.existsSync(directoryPath) || !fs.statSync(directoryPath).isDirectory()) {
+    return;
+  }
+
+  fs.readdirSync(directoryPath, { withFileTypes: true }).forEach((entry) => {
+    const entryPath = path.join(directoryPath, entry.name);
+    if (entry.isDirectory()) {
+      collectMjsFiles(entryPath, files);
+      return;
+    }
+    if (entry.isFile() && path.extname(entryPath) === ".mjs") {
+      files.add(entryPath);
+    }
+  });
 }
 
 function readPlayGames(projectRoot: string): { catalogFile: string; games: PlayGameRouteRecord[] } {
@@ -111,7 +137,7 @@ function readPlayGames(projectRoot: string): { catalogFile: string; games: PlayG
       frameAspect,
       grid,
       updatedAt: stat.mtime.toISOString(),
-      moduleUrl: buildModuleUrl(id, modulePath),
+      moduleUrl: buildModuleUrl(id, catalogDir, modulePath),
     });
     seenIds.add(id);
   }
@@ -125,13 +151,56 @@ function rewriteGameModuleImports(source: string): string {
     .replace(/from\s+(['"])three\1/g, "from '/api/visualization/libs/three'");
 }
 
+function findPlayGame(projectRoot: string, gameId: string) {
+  const { catalogFile, games } = readPlayGames(projectRoot);
+  const game = games.find((candidate) => candidate.id === gameId);
+  return game ? { catalogFile, game } : null;
+}
+
+function servePlayGameModuleFile({
+  projectRoot,
+  gameId,
+  requestedFile,
+  res,
+}: {
+  projectRoot: string;
+  gameId: string;
+  requestedFile: string;
+  res: Response;
+}) {
+  const match = findPlayGame(projectRoot, gameId);
+  if (!match) {
+    return res.status(404).json({ error: "Play game not found." });
+  }
+
+  const catalogDir = path.dirname(match.catalogFile);
+  const filePath = path.resolve(catalogDir, requestedFile);
+  if (
+    !isInsideDirectory(catalogDir, filePath)
+    || path.extname(filePath) !== ".mjs"
+    || !fs.existsSync(filePath)
+    || !fs.statSync(filePath).isFile()
+  ) {
+    return res.status(404).json({ error: "Play game module file not found." });
+  }
+
+  const source = fs.readFileSync(filePath, "utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  return res.type("application/javascript").send(rewriteGameModuleImports(source));
+}
+
 export function getPlayGameWatchFiles(projectRoot: string): string[] {
   const catalogFile = resolvePlayGameCatalogFile(projectRoot);
   const files = new Set<string>([catalogFile]);
 
   try {
     const { games } = readPlayGames(projectRoot);
-    games.forEach((game) => files.add(game.modulePath));
+    const catalogDirs = new Set<string>();
+    games.forEach((game) => {
+      files.add(game.modulePath);
+      catalogDirs.add(path.dirname(game.modulePath));
+    });
+    catalogDirs.forEach((catalogDir) => collectMjsFiles(catalogDir, files));
   } catch {
     // Keep watching the catalog file even while it is temporarily invalid during edits.
   }
@@ -159,15 +228,33 @@ export function registerPlayGameRoutes({ app, projectRoot }: RegisterPlayGameRou
         return res.status(400).json({ error: "Invalid game id." });
       }
 
-      const { games } = readPlayGames(projectRoot);
-      const game = games.find((candidate) => candidate.id === gameId);
-      if (!game) {
+      const match = findPlayGame(projectRoot, gameId);
+      if (!match) {
         return res.status(404).json({ error: "Play game not found." });
       }
 
-      const source = fs.readFileSync(game.modulePath, "utf-8");
-      res.setHeader("Cache-Control", "no-cache");
-      res.type("application/javascript").send(rewriteGameModuleImports(source));
+      return res.redirect(307, match.game.moduleUrl);
+    } catch (error) {
+      console.error("Failed to serve Play game module:", error);
+      return res.status(500).json({ error: "Play game module is not available." });
+    }
+  });
+
+  app.get("/api/play/games/:gameId/files/*", (req, res) => {
+    try {
+      const gameId = typeof req.params.gameId === "string" ? req.params.gameId : "";
+      if (!isSafeGameId(gameId)) {
+        return res.status(400).json({ error: "Invalid game id." });
+      }
+
+      const wildcardParams = req.params as Record<string, string | undefined>;
+      const requestedFile = typeof wildcardParams[0] === "string" ? wildcardParams[0] : "";
+      return servePlayGameModuleFile({
+        projectRoot,
+        gameId,
+        requestedFile,
+        res,
+      });
     } catch (error) {
       console.error("Failed to serve Play game module:", error);
       return res.status(500).json({ error: "Play game module is not available." });
