@@ -3,6 +3,7 @@ import {
   CAR_HEIGHT,
   CHASER_AUTOPILOT_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
+  CHASER_VIEW_ACTION_ID,
   CHASER_VIEW_MAX_DISTANCE,
   DEFAULT_CHASER_SPEED_UNITS_PER_SECOND,
   DEFAULT_CAR_TURN_RATE_RADIANS_PER_SECOND,
@@ -10,6 +11,7 @@ import {
   DEFAULT_TARGET_SPEED_UNITS_PER_SECOND,
   MAX_TARGET_PROJECTION_HORIZON_FRAMES,
   MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  STRATEGY_DEBUG_ACTION_ID,
   TARGET_PROJECTION_DEBUG_ACTION_ID,
   TARGET_PROJECTION_HORIZON_ACTION_ID,
   TARGET_PROJECTION_RATE_ACTION_ID,
@@ -77,10 +79,48 @@ function createVehicleSettings() {
   };
 }
 
-function mountChaserView({ createFloatingFrame, vehicleSettings }) {
+function createChaserViewController({ createFloatingFrame, vehicleSettings, onVisibilityChange }) {
   const chaserViewWidth = 280;
-  const chaserViewFrame = typeof createFloatingFrame === "function"
-    ? createFloatingFrame({
+  let mountedView = null;
+  let suppressNextCloseNotification = false;
+
+  const resizeMountedView = () => {
+    if (!mountedView) {
+      return;
+    }
+    const viewWidth = Math.max(1, mountedView.frame.mount.clientWidth);
+    const viewHeight = Math.max(1, mountedView.frame.mount.clientHeight);
+    mountedView.renderer.setSize(viewWidth, viewHeight, false);
+    mountedView.camera.aspect = viewWidth / viewHeight;
+    mountedView.camera.updateProjectionMatrix();
+  };
+
+  const disposeMountedView = (notifyVisibilityChange) => {
+    if (!mountedView) {
+      if (notifyVisibilityChange) {
+        onVisibilityChange?.(false);
+      }
+      return;
+    }
+    mountedView.resizeObserver.disconnect();
+    mountedView.renderer.dispose();
+    mountedView = null;
+    if (notifyVisibilityChange) {
+      onVisibilityChange?.(false);
+    }
+  };
+
+  const handleFrameClose = () => {
+    const notifyVisibilityChange = !suppressNextCloseNotification;
+    suppressNextCloseNotification = false;
+    disposeMountedView(notifyVisibilityChange);
+  };
+
+  const open = () => {
+    if (mountedView || typeof createFloatingFrame !== "function") {
+      return;
+    }
+    const frame = createFloatingFrame({
       id: "chaser-view",
       title: "Chaser View",
       bounds: "viewport",
@@ -93,52 +133,146 @@ function mountChaserView({ createFloatingFrame, vehicleSettings }) {
       minimizable: true,
       resizable: true,
       popoutable: true,
-    })
-    : null;
-  const chaserViewRenderer = chaserViewFrame
-    ? new THREE.WebGLRenderer({ antialias: true, alpha: true })
-    : null;
-  const lostTargetLabel = chaserViewFrame
-    ? document.createElement("div")
-    : null;
-  const camera = new THREE.PerspectiveCamera(
-    vehicleSettings.fieldOfViewAngleRadians * 180 / Math.PI,
-    4 / 3,
-    0.04,
-    CHASER_VIEW_MAX_DISTANCE,
-  );
+      closeable: true,
+      onClose: handleFrameClose,
+    });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const lostTargetLabel = document.createElement("div");
+    const camera = new THREE.PerspectiveCamera(
+      vehicleSettings.fieldOfViewAngleRadians * 180 / Math.PI,
+      4 / 3,
+      0.04,
+      CHASER_VIEW_MAX_DISTANCE,
+    );
+    const resizeObserver = new ResizeObserver(resizeMountedView);
 
-  if (chaserViewRenderer && chaserViewFrame) {
-    chaserViewRenderer.outputColorSpace = THREE.SRGBColorSpace;
-    chaserViewRenderer.setClearColor(0x000000, 0);
-    chaserViewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    chaserViewRenderer.domElement.style.display = "block";
-    chaserViewRenderer.domElement.style.width = "100%";
-    chaserViewRenderer.domElement.style.height = "100%";
-    chaserViewFrame.mount.appendChild(chaserViewRenderer.domElement);
-    if (lostTargetLabel) {
-      Object.assign(lostTargetLabel.style, {
-        position: "absolute",
-        top: "10px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        color: "rgb(239, 68, 68)",
-        font: "600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-        letterSpacing: "0.08em",
-        textTransform: "uppercase",
-        pointerEvents: "none",
-        display: "none",
-      });
-      lostTargetLabel.textContent = "Target out of sight";
-      chaserViewFrame.mount.appendChild(lostTargetLabel);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setClearColor(0x000000, 0);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    frame.mount.appendChild(renderer.domElement);
+
+    Object.assign(lostTargetLabel.style, {
+      position: "absolute",
+      top: "10px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      color: "rgb(239, 68, 68)",
+      font: "600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      pointerEvents: "none",
+      display: "none",
+    });
+    lostTargetLabel.textContent = "Target out of sight";
+    frame.mount.appendChild(lostTargetLabel);
+
+    mountedView = {
+      frame,
+      renderer,
+      lostTargetLabel,
+      camera,
+      resizeObserver,
+    };
+    resizeObserver.observe(frame.mount);
+    resizeMountedView();
+    onVisibilityChange?.(true);
+  };
+
+  const close = ({ notifyVisibilityChange = true } = {}) => {
+    if (!mountedView) {
+      if (notifyVisibilityChange) {
+        onVisibilityChange?.(false);
+      }
+      return;
     }
-  }
+    suppressNextCloseNotification = !notifyVisibilityChange;
+    mountedView.frame.close();
+  };
+
+  const setFieldOfViewAngleRadians = (fieldOfViewAngleRadians) => {
+    if (!mountedView) {
+      return;
+    }
+    mountedView.camera.fov = fieldOfViewAngleRadians * 180 / Math.PI;
+    mountedView.camera.updateProjectionMatrix();
+  };
+
+  const setTargetVisible = (targetVisible) => {
+    if (!mountedView) {
+      return;
+    }
+    mountedView.lostTargetLabel.style.display = targetVisible ? "none" : "block";
+  };
+
+  const render = ({ scene, chaser, chaserFieldOfView, chaserPosition, chaserLookDirection }) => {
+    if (!mountedView) {
+      return;
+    }
+    configureChaserViewCamera(mountedView.camera, chaserPosition, chaserLookDirection);
+    chaser.visible = false;
+    chaserFieldOfView.visible = false;
+    mountedView.renderer.render(scene, mountedView.camera);
+    chaser.visible = true;
+    chaserFieldOfView.visible = true;
+  };
 
   return {
-    frame: chaserViewFrame,
-    renderer: chaserViewRenderer,
-    lostTargetLabel,
-    camera,
+    open,
+    close,
+    dispose: () => close({ notifyVisibilityChange: false }),
+    resize: resizeMountedView,
+    setFieldOfViewAngleRadians,
+    setTargetVisible,
+    render,
+    isOpen: () => mountedView !== null,
+  };
+}
+
+function createStrategyDebugController({ createFloatingFrame, onVisibilityChange }) {
+  let mountedDebugFrame = null;
+  let suppressNextCloseNotification = false;
+
+  const handleFrameClose = () => {
+    const notifyVisibilityChange = !suppressNextCloseNotification;
+    suppressNextCloseNotification = false;
+    mountedDebugFrame = null;
+    if (notifyVisibilityChange) {
+      onVisibilityChange?.(false);
+    }
+  };
+
+  const open = () => {
+    if (mountedDebugFrame) {
+      return;
+    }
+    mountedDebugFrame = mountStrategyDebugFrame(createFloatingFrame, {
+      onClose: handleFrameClose,
+    });
+    if (mountedDebugFrame) {
+      onVisibilityChange?.(true);
+    }
+  };
+
+  const close = ({ notifyVisibilityChange = true } = {}) => {
+    if (!mountedDebugFrame) {
+      if (notifyVisibilityChange) {
+        onVisibilityChange?.(false);
+      }
+      return;
+    }
+    suppressNextCloseNotification = !notifyVisibilityChange;
+    mountedDebugFrame.close();
+  };
+
+  return {
+    open,
+    close,
+    dispose: () => close({ notifyVisibilityChange: false }),
+    update: (payload) => mountedDebugFrame?.update(payload),
+    isOpen: () => mountedDebugFrame !== null,
   };
 }
 
@@ -147,6 +281,12 @@ function registerSidebarActions({
   getProgrammaticChaserEnabled,
   setProgrammaticChaserEnabled,
   refreshSidebarSections,
+  getChaserViewVisible,
+  openChaserView,
+  closeChaserView,
+  getStrategyDebugVisible,
+  openStrategyDebug,
+  closeStrategyDebug,
   updateFieldOfView,
   vehicleSettings,
   projectionSettings,
@@ -160,6 +300,14 @@ function registerSidebarActions({
       typeof value === "boolean" ? value : !getProgrammaticChaserEnabled(),
     );
     refreshSidebarSections();
+  });
+  setSidebarActionHandler(CHASER_VIEW_ACTION_ID, (value) => {
+    const nextVisible = typeof value === "boolean" ? value : !getChaserViewVisible();
+    if (nextVisible) {
+      openChaserView();
+    } else {
+      closeChaserView();
+    }
   });
   setSidebarActionHandler(CHASER_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
@@ -189,6 +337,14 @@ function registerSidebarActions({
       updateFieldOfView();
     }
     refreshSidebarSections();
+  });
+  setSidebarActionHandler(STRATEGY_DEBUG_ACTION_ID, (value) => {
+    const nextVisible = typeof value === "boolean" ? value : !getStrategyDebugVisible();
+    if (nextVisible) {
+      openStrategyDebug();
+    } else {
+      closeStrategyDebug();
+    }
   });
   setSidebarActionHandler(TARGET_PROJECTION_DEBUG_ACTION_ID, (value) => {
     projectionSettings.visible = typeof value === "boolean" ? value : !projectionSettings.visible;
@@ -221,7 +377,9 @@ function registerSidebarActions({
 
 function clearSidebarActions(setSidebarActionHandler) {
   setSidebarActionHandler?.(CHASER_AUTOPILOT_ACTION_ID, null);
+  setSidebarActionHandler?.(CHASER_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(CHASER_SPEED_ACTION_ID, null);
+  setSidebarActionHandler?.(STRATEGY_DEBUG_ACTION_ID, null);
   setSidebarActionHandler?.(TARGET_SPEED_ACTION_ID, null);
   setSidebarActionHandler?.(VEHICLE_TURN_RATE_ACTION_ID, null);
   setSidebarActionHandler?.(VEHICLE_FOV_ACTION_ID, null);
@@ -240,6 +398,8 @@ export function createPlayGame({
 }) {
   const pressedKeys = new Set();
   let programmaticChaserEnabled = false;
+  let chaserViewVisible = false;
+  let strategyDebugVisible = false;
   const vehicleSettings = createVehicleSettings();
   const projectionSettings = readStoredProjectionSettings();
   const wallAvoidanceEvidence = createWallAvoidanceEvidenceState();
@@ -251,21 +411,37 @@ export function createPlayGame({
     publishSidebarSections(
       setSidebarSections,
       programmaticChaserEnabled,
+      {
+        chaserViewVisible,
+        strategyDebugVisible,
+      },
       vehicleSettings,
       projectionSettings,
     );
   };
 
-  const chaserView = mountChaserView({ createFloatingFrame, vehicleSettings });
-  const strategyDebugFrame = mountStrategyDebugFrame(createFloatingFrame);
+  const chaserView = createChaserViewController({
+    createFloatingFrame,
+    vehicleSettings,
+    onVisibilityChange: (visible) => {
+      chaserViewVisible = visible;
+      refreshSidebarSections();
+    },
+  });
+  const strategyDebugFrame = createStrategyDebugController({
+    createFloatingFrame,
+    onVisibilityChange: (visible) => {
+      strategyDebugVisible = visible;
+      refreshSidebarSections();
+    },
+  });
   const updateFieldOfView = () => {
     if (chaserFieldOfView) {
       const nextGeometry = createFieldOfViewConeGeometry(vehicleSettings.fieldOfViewAngleRadians);
       chaserFieldOfView.geometry.dispose();
       chaserFieldOfView.geometry = nextGeometry;
     }
-    chaserView.camera.fov = vehicleSettings.fieldOfViewAngleRadians * 180 / Math.PI;
-    chaserView.camera.updateProjectionMatrix();
+    chaserView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
   };
 
   refreshSidebarSections();
@@ -276,6 +452,12 @@ export function createPlayGame({
       programmaticChaserEnabled = value;
     },
     refreshSidebarSections,
+    getChaserViewVisible: () => chaserViewVisible,
+    openChaserView: () => chaserView.open(),
+    closeChaserView: () => chaserView.close(),
+    getStrategyDebugVisible: () => strategyDebugVisible,
+    openStrategyDebug: () => strategyDebugFrame.open(),
+    closeStrategyDebug: () => strategyDebugFrame.close(),
     updateFieldOfView,
     vehicleSettings,
     projectionSettings,
@@ -341,21 +523,11 @@ export function createPlayGame({
     const height = Math.max(1, container.clientHeight);
     renderer.setSize(width, height, false);
     configureCamera(camera, columns, rows, width, height);
-
-    if (chaserView.renderer && chaserView.frame) {
-      const viewWidth = Math.max(1, chaserView.frame.mount.clientWidth);
-      const viewHeight = Math.max(1, chaserView.frame.mount.clientHeight);
-      chaserView.renderer.setSize(viewWidth, viewHeight, false);
-      chaserView.camera.aspect = viewWidth / viewHeight;
-      chaserView.camera.updateProjectionMatrix();
-    }
+    chaserView.resize();
   };
   resize();
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(container);
-  if (chaserView.frame) {
-    resizeObserver.observe(chaserView.frame.mount);
-  }
 
   let animationFrame = 0;
   let previousTime = performance.now();
@@ -370,9 +542,7 @@ export function createPlayGame({
       vehicleSettings.fieldOfViewAngleRadians,
       obstacles,
     );
-    if (chaserView.lostTargetLabel) {
-      chaserView.lostTargetLabel.style.display = chaserPerception.visible ? "none" : "block";
-    }
+    chaserView.setTargetVisible(chaserPerception.visible);
     updateTargetMotionEstimate(
       targetMotionEstimate,
       chaserPerception,
@@ -492,14 +662,7 @@ export function createPlayGame({
     target.rotation.y = vectorToAngle(targetDirection);
 
     renderer.render(scene, camera);
-    if (chaserView.renderer) {
-      configureChaserViewCamera(chaserView.camera, chaserPosition, chaserLookDirection);
-      chaser.visible = false;
-      chaserFieldOfView.visible = false;
-      chaserView.renderer.render(scene, chaserView.camera);
-      chaser.visible = true;
-      chaserFieldOfView.visible = true;
-    }
+    chaserView.render({ scene, chaser, chaserFieldOfView, chaserPosition, chaserLookDirection });
     animationFrame = window.requestAnimationFrame(tick);
   };
   animationFrame = window.requestAnimationFrame(tick);
@@ -529,9 +692,8 @@ export function createPlayGame({
         obstacle.material.dispose();
       });
       renderer.dispose();
-      chaserView.renderer?.dispose();
-      chaserView.frame?.close();
-      strategyDebugFrame?.close();
+      chaserView.dispose();
+      strategyDebugFrame.dispose();
     },
   };
 }

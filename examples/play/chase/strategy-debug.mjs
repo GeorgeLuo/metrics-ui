@@ -1,5 +1,16 @@
 import { WALL_AVOIDANCE_DETECTION_MIN_APPROACHES } from "./constants.mjs";
 
+const THEME_COLORS = {
+  background: "hsl(var(--background))",
+  foreground: "hsl(var(--foreground))",
+  mutedForeground: "hsl(var(--muted-foreground))",
+  border: "hsl(var(--border))",
+};
+
+const BASE_FONT_FAMILY = "var(--font-sans)";
+const BASE_FONT_SIZE = "11px";
+const BASE_LINE_HEIGHT = "1.45";
+
 function formatNumber(value, digits = 2) {
   return Number.isFinite(value) ? value.toFixed(digits) : "n/a";
 }
@@ -26,23 +37,27 @@ function appendDebugRow(parent, label) {
     display: "flex",
     justifyContent: "space-between",
     gap: "16px",
-    borderBottom: "1px solid rgba(148, 163, 184, 0.18)",
+    borderBottom: `1px solid ${THEME_COLORS.border}`,
     padding: "6px 0",
+    alignItems: "baseline",
   });
 
   const labelElement = document.createElement("span");
   labelElement.textContent = label;
   Object.assign(labelElement.style, {
-    color: "rgba(148, 163, 184, 0.92)",
+    color: THEME_COLORS.mutedForeground,
+    fontWeight: "400",
   });
 
   const valueElement = document.createElement("span");
   Object.assign(valueElement.style, {
-    color: "rgba(226, 232, 240, 0.96)",
+    color: THEME_COLORS.foreground,
     textAlign: "right",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
+    fontWeight: "400",
+    fontVariantNumeric: "tabular-nums",
   });
 
   row.append(labelElement, valueElement);
@@ -53,41 +68,40 @@ function appendDebugRow(parent, label) {
 function appendSummaryCard(parent, label) {
   const card = document.createElement("div");
   Object.assign(card.style, {
-    border: "1px solid rgba(148, 163, 184, 0.24)",
-    borderRadius: "10px",
-    padding: "10px",
-    background: "rgba(15, 23, 42, 0.48)",
+    padding: "0",
   });
 
   const header = document.createElement("div");
   header.textContent = label;
   Object.assign(header.style, {
-    color: "rgba(248, 250, 252, 0.92)",
-    fontSize: "11px",
-    fontWeight: "700",
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
-    marginBottom: "8px",
+    color: THEME_COLORS.mutedForeground,
+    fontSize: BASE_FONT_SIZE,
+    fontWeight: "400",
+    marginBottom: "6px",
   });
 
   const score = document.createElement("div");
   Object.assign(score.style, {
-    color: "rgba(248, 250, 252, 0.98)",
-    fontSize: "20px",
-    fontWeight: "800",
-    lineHeight: "1.1",
+    color: THEME_COLORS.foreground,
+    fontSize: "13px",
+    fontWeight: "500",
+    lineHeight: "1.35",
+    fontVariantNumeric: "tabular-nums",
   });
 
   const counts = document.createElement("div");
   Object.assign(counts.style, {
-    color: "rgba(203, 213, 225, 0.96)",
+    color: THEME_COLORS.foreground,
     marginTop: "4px",
+    fontWeight: "400",
+    fontVariantNumeric: "tabular-nums",
   });
 
   const status = document.createElement("div");
   Object.assign(status.style, {
-    color: "rgba(148, 163, 184, 0.96)",
+    color: THEME_COLORS.mutedForeground,
     marginTop: "4px",
+    fontWeight: "400",
   });
 
   card.append(header, score, counts, status);
@@ -104,7 +118,7 @@ function updateSummaryCard(elements, state) {
   elements.status.textContent = formatStatus(state);
 }
 
-export function mountStrategyDebugFrame(createFloatingFrame) {
+export function mountStrategyDebugFrame(createFloatingFrame, { onClose } = {}) {
   if (typeof createFloatingFrame !== "function") {
     return null;
   }
@@ -123,6 +137,8 @@ export function mountStrategyDebugFrame(createFloatingFrame) {
     minimizable: true,
     resizable: true,
     popoutable: true,
+    closeable: true,
+    onClose,
   });
 
   const root = document.createElement("div");
@@ -131,17 +147,20 @@ export function mountStrategyDebugFrame(createFloatingFrame) {
     height: "100%",
     overflow: "auto",
     padding: "12px",
-    background: "rgba(15, 23, 42, 0.96)",
-    color: "rgb(226, 232, 240)",
-    font: "500 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    background: THEME_COLORS.background,
+    color: THEME_COLORS.foreground,
+    fontFamily: BASE_FONT_FAMILY,
+    fontSize: BASE_FONT_SIZE,
+    lineHeight: BASE_LINE_HEIGHT,
+    fontWeight: "400",
   });
 
   const title = document.createElement("div");
   title.textContent = "Wall avoidance report";
   Object.assign(title.style, {
-    color: "rgba(248, 250, 252, 0.98)",
+    color: THEME_COLORS.foreground,
     fontSize: "12px",
-    fontWeight: "700",
+    fontWeight: "500",
     marginBottom: "8px",
   });
 
@@ -163,12 +182,13 @@ export function mountStrategyDebugFrame(createFloatingFrame) {
     appearance: "none",
     border: "0",
     background: "transparent",
-    color: "rgba(148, 163, 184, 0.96)",
+    color: THEME_COLORS.mutedForeground,
     cursor: "pointer",
     font: "inherit",
     margin: "10px 0 0",
     padding: "4px 0",
     textAlign: "left",
+    fontWeight: "400",
   });
 
   const details = document.createElement("div");
