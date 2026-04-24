@@ -716,6 +716,7 @@ function buildVisualizationStateFromPersistedState(
     subtitles: Array.isArray(state.subtitles) ? state.subtitles : [],
     visualizationFrame,
     equationsPane: normalizeEquationsPaneState(state.equationsPane),
+    playSidebarSections: [],
   };
 }
 
@@ -2260,6 +2261,7 @@ function createDefaultVisualizationState(): VisualizationState {
     subtitles: [],
     visualizationFrame: { mode: "builtin" },
     equationsPane: normalizeEquationsPaneState(null),
+    playSidebarSections: [],
   };
 }
 

@@ -46,6 +46,7 @@ interface UseWebSocketControlProps {
   subtitles: SubtitleOverlay[];
   visualizationFrame: VisualizationState["visualizationFrame"];
   equationsPane: VisualizationState["equationsPane"];
+  playSidebarSections: VisualizationState["playSidebarSections"];
   onRestoreState?: (command: RestoreStateCommand) => void;
   onSetSidebarApp: (app: VisualizationState["sidebarApp"]) => void;
   onWindowSizeChange: (windowSize: number) => void;
@@ -159,6 +160,7 @@ export function useWebSocketControl({
   subtitles,
   visualizationFrame,
   equationsPane,
+  playSidebarSections,
   onRestoreState,
   onSetSidebarApp,
   onSourceModeChange,
@@ -284,6 +286,7 @@ export function useWebSocketControl({
         subtitles,
         visualizationFrame,
         equationsPane,
+        playSidebarSections,
       };
       wsRef.current.send(JSON.stringify({
         type: "state_update",
@@ -291,7 +294,7 @@ export function useWebSocketControl({
         request_id: requestId,
       } as ControlResponse));
     }
-  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, sidebarApp, playbackState, windowSize, windowStart, windowEnd, yPrimaryDomain, ySecondaryDomain, autoScroll, isFullscreen, viewport, annotations, subtitles, visualizationFrame, equationsPane]);
+  }, [captures, selectedMetrics, analysisMetrics, derivationGroups, activeDerivationGroupId, displayDerivationGroupId, sidebarApp, playbackState, windowSize, windowStart, windowEnd, yPrimaryDomain, ySecondaryDomain, autoScroll, isFullscreen, viewport, annotations, subtitles, visualizationFrame, equationsPane, playSidebarSections]);
 
   const sendStateRef = useRef(sendState);
 
@@ -369,6 +372,7 @@ export function useWebSocketControl({
     subtitles,
     visualizationFrame,
     equationsPane,
+    playSidebarSections,
   ]);
 
   const sendAck = useCallback((requestId: string | undefined, command: string) => {

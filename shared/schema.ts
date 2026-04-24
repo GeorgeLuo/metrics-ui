@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PlaySidebarSection } from "./play-sidebar";
 
 export const captureRecordSchema = z.object({
   tick: z.number(),
@@ -1015,6 +1016,7 @@ export interface VisualizationState {
   subtitles: SubtitleOverlay[];
   visualizationFrame: VisualizationFrameState;
   equationsPane: EquationsPaneState;
+  playSidebarSections: PlaySidebarSection[];
 }
 
 export interface User {

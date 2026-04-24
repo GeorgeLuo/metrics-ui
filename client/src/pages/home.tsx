@@ -5410,6 +5410,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     subtitles,
     visualizationFrame,
     equationsPane,
+    playSidebarSections,
     onRestoreState: handleRestoreState,
     onSetSidebarApp: handleSetSidebarApp,
     onSourceModeChange: handleSourceModeChange,
