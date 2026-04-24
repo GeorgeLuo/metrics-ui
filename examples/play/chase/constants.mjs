@@ -26,7 +26,9 @@ export const CONTROL_CODES = new Set([
 ]);
 
 export const CHASER_AUTOPILOT_ACTION_ID = "chaser-autopilot";
+export const CHASER_VIEW_ACTION_ID = "chaser-view";
 export const CHASER_SPEED_ACTION_ID = "chaser-speed";
+export const STRATEGY_DEBUG_ACTION_ID = "strategy-debug";
 export const TARGET_SPEED_ACTION_ID = "target-speed";
 export const VEHICLE_TURN_RATE_ACTION_ID = "vehicle-turn-rate";
 export const VEHICLE_FOV_ACTION_ID = "vehicle-fov";

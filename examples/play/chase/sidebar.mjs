@@ -1,6 +1,8 @@
 import {
   CHASER_AUTOPILOT_ACTION_ID,
+  CHASER_VIEW_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
+  STRATEGY_DEBUG_ACTION_ID,
   TARGET_PROJECTION_DEBUG_ACTION_ID,
   TARGET_PROJECTION_HORIZON_ACTION_ID,
   TARGET_PROJECTION_RATE_ACTION_ID,
@@ -13,6 +15,7 @@ import { formatEditableNumber, radiansToDegrees } from "./math.mjs";
 export function publishSidebarSections(
   setSidebarSections,
   programmaticChaserEnabled,
+  frameVisibility,
   vehicleSettings,
   projectionSettings,
 ) {
@@ -37,6 +40,31 @@ export function publishSidebarSections(
         },
         { kind: "value", label: "Forward", value: "I" },
         { kind: "value", label: "Steer", value: "A / D" },
+      ],
+    },
+    {
+      id: "windows",
+      title: "Windows",
+      hint: "Launch or close floating views for the active Play example.",
+      rows: [
+        {
+          kind: "toggle",
+          id: CHASER_VIEW_ACTION_ID,
+          label: "Chaser View",
+          enabled: frameVisibility.chaserViewVisible,
+          enabledLabel: "open",
+          disabledLabel: "closed",
+          hint: "Open or close the chaser's forward-looking viewport.",
+        },
+        {
+          kind: "toggle",
+          id: STRATEGY_DEBUG_ACTION_ID,
+          label: "Strategy Debug",
+          enabled: frameVisibility.strategyDebugVisible,
+          enabledLabel: "open",
+          disabledLabel: "closed",
+          hint: "Open or close the strategy debug report window.",
+        },
       ],
     },
     {
