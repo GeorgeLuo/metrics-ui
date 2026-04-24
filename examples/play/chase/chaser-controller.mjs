@@ -56,8 +56,8 @@ export function selectPursuitPoint({
   chaserPosition,
   targetEstimate,
   predictionPlan,
-  chaserSpeedUnitsPerSecond,
-  speedUnitsPerSecond,
+  chaserSpeedUnitsPerFrame,
+  speedUnitsPerFrame,
 } = {}) {
   if (!chaserPosition) {
     return null;
@@ -70,7 +70,7 @@ export function selectPursuitPoint({
   const path = Array.isArray(predictionPlan?.path) ? predictionPlan.path : [];
   const safeSpeed = Math.max(
     0.001,
-    Number(chaserSpeedUnitsPerSecond ?? speedUnitsPerSecond) || 0,
+    Number(chaserSpeedUnitsPerFrame ?? speedUnitsPerFrame) || 0,
   );
   let fallbackSample = null;
   for (let index = path.length - 1; index >= 0; index -= 1) {
@@ -81,7 +81,7 @@ export function selectPursuitPoint({
   }
 
   for (const sample of path) {
-    if (!sample?.position || !Number.isFinite(sample.secondsAhead)) {
+    if (!sample?.position || !Number.isFinite(sample.framesAhead)) {
       continue;
     }
 
@@ -89,7 +89,7 @@ export function selectPursuitPoint({
       sample.position.x - chaserPosition.x,
       sample.position.z - chaserPosition.z,
     );
-    if (sample.secondsAhead >= distance / safeSpeed) {
+    if (sample.framesAhead >= distance / safeSpeed) {
       return {
         position: sample.position,
         source: "reachable-projection",
@@ -124,8 +124,8 @@ export function getProgrammaticChaserInput({
   targetEstimate,
   predictionPlan,
   autopilotState,
-  chaserSpeedUnitsPerSecond,
-  speedUnitsPerSecond,
+  chaserSpeedUnitsPerFrame,
+  speedUnitsPerFrame,
   columns,
   rows,
   obstacles,
@@ -134,8 +134,8 @@ export function getProgrammaticChaserInput({
     chaserPosition,
     targetEstimate,
     predictionPlan,
-    chaserSpeedUnitsPerSecond,
-    speedUnitsPerSecond,
+    chaserSpeedUnitsPerFrame,
+    speedUnitsPerFrame,
   });
   let goalDirection = null;
   let pursuitSource = "search";

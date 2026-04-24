@@ -1,10 +1,11 @@
 import {
+  ASSUMED_GAME_FRAMES_PER_SECOND,
   CHASE_RUNTIME_SETTINGS_KEY,
   CHASE_SETTINGS_STORAGE_KEY,
   DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  DEFAULT_TARGET_PROJECTION_SAMPLE_EVERY_FRAMES,
   MAX_TARGET_PROJECTION_HORIZON_FRAMES,
-  MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  MAX_TARGET_PROJECTION_SAMPLE_EVERY_FRAMES,
 } from "./constants.mjs";
 import { clampNumber } from "./math.mjs";
 
@@ -59,15 +60,23 @@ export function readStoredProjectionSettings() {
     ? stored.projection
     : {};
   const horizonFrames = Number(projection.horizonFrames);
-  const samplesPerSecond = Number(projection.samplesPerSecond);
+  const sampleEveryFrames = Number(projection.sampleEveryFrames);
+  const legacySamplesPerSecond = Number(projection.samplesPerSecond);
+  const resolvedSampleEveryFrames = Number.isFinite(sampleEveryFrames)
+    ? Math.round(clampNumber(sampleEveryFrames, 1, MAX_TARGET_PROJECTION_SAMPLE_EVERY_FRAMES))
+    : Number.isFinite(legacySamplesPerSecond) && legacySamplesPerSecond > 0
+      ? Math.round(clampNumber(
+        ASSUMED_GAME_FRAMES_PER_SECOND / legacySamplesPerSecond,
+        1,
+        MAX_TARGET_PROJECTION_SAMPLE_EVERY_FRAMES,
+      ))
+      : DEFAULT_TARGET_PROJECTION_SAMPLE_EVERY_FRAMES;
   return {
     visible: projection.visible === true,
     horizonFrames: Number.isFinite(horizonFrames)
       ? Math.round(clampNumber(horizonFrames, 1, MAX_TARGET_PROJECTION_HORIZON_FRAMES))
       : DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-    samplesPerSecond: Number.isFinite(samplesPerSecond)
-      ? clampNumber(samplesPerSecond, 0.5, MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND)
-      : DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+    sampleEveryFrames: resolvedSampleEveryFrames,
   };
 }
 
@@ -78,7 +87,7 @@ export function writeStoredProjectionSettings(projectionSettings) {
     projection: {
       visible: projectionSettings.visible,
       horizonFrames: projectionSettings.horizonFrames,
-      samplesPerSecond: projectionSettings.samplesPerSecond,
+      sampleEveryFrames: projectionSettings.sampleEveryFrames,
     },
   });
 }

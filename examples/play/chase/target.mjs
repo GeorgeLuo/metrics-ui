@@ -1,4 +1,8 @@
-import { EDGE_LOCK_EPSILON } from "./constants.mjs";
+import {
+  EDGE_LOCK_EPSILON,
+  TARGET_DRIFT_X_PHASE_PER_FRAME,
+  TARGET_DRIFT_Z_PHASE_PER_FRAME,
+} from "./constants.mjs";
 import {
   angleToVector,
   normalizeAngleDelta,
@@ -22,10 +26,10 @@ export function steerDirectionToward(currentDirection, desiredDirection, maxDelt
   return angleToVector(currentAngle + clampedDelta);
 }
 
-function getDriftDirection(timestamp) {
+function getDriftDirection(frameIndex) {
   return normalizeVector(
-    Math.sin(timestamp * 0.0007),
-    Math.cos(timestamp * 0.0005),
+    Math.sin(frameIndex * TARGET_DRIFT_X_PHASE_PER_FRAME),
+    Math.cos(frameIndex * TARGET_DRIFT_Z_PHASE_PER_FRAME),
   );
 }
 
@@ -57,10 +61,10 @@ export function getTargetMovementDecision(
   currentDirection,
   columns,
   rows,
-  timestamp,
+  frameIndex,
   obstacles,
 ) {
-  const drift = getDriftDirection(timestamp);
+  const drift = getDriftDirection(frameIndex);
   const wallPressure = getWorldWallPressure(targetPosition, columns, rows, obstacles);
   const wallDirection = {
     x: wallPressure.direction.x * wallPressure.magnitude * 2.5,
@@ -87,13 +91,13 @@ export function getTargetMovementDecision(
   };
 }
 
-export function getTargetDirection(targetPosition, currentDirection, columns, rows, timestamp, obstacles) {
+export function getTargetDirection(targetPosition, currentDirection, columns, rows, frameIndex, obstacles) {
   return getTargetMovementDecision(
     targetPosition,
     currentDirection,
     columns,
     rows,
-    timestamp,
+    frameIndex,
     obstacles,
   ).direction;
 }

@@ -11,7 +11,6 @@ import {
   TARGET_PROJECTION_COLOR,
 } from "./constants.mjs";
 import { vectorToAngle } from "./math.mjs";
-import { getTargetProjectionSampleCount } from "./target-prediction-plan.mjs";
 
 export function createCar(color) {
   const geometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
@@ -143,40 +142,53 @@ export function syncProjectionFrames(group, frames, count) {
   });
 }
 
+function getDisplayedProjectionPath(path, projectionSettings) {
+  if (!Array.isArray(path) || path.length === 0) {
+    return [];
+  }
+
+  const sampleEveryFrames = Math.max(
+    1,
+    Math.floor(Number(projectionSettings?.sampleEveryFrames) || 1),
+  );
+  const displayed = path.filter((sample) => sample.framesAhead % sampleEveryFrames === 0);
+  const lastSample = path[path.length - 1];
+  if (
+    lastSample?.position
+    && displayed[displayed.length - 1] !== lastSample
+  ) {
+    displayed.push(lastSample);
+  }
+  return displayed;
+}
+
 export function updateTargetProjectionDisplay(
   group,
   frames,
-  estimate,
-  targetPrediction,
   projectionSettings,
-  speedUnitsPerSecond,
   targetProjectionPath = null,
 ) {
   const projectionVisible = projectionSettings?.visible === true;
-  const hasExplicitPath = Array.isArray(targetProjectionPath);
-  const path = projectionVisible && hasExplicitPath ? targetProjectionPath : [];
-  const count = projectionVisible
-    ? (hasExplicitPath ? path.length : getTargetProjectionSampleCount(projectionSettings))
-    : 0;
-  const predictionDirection = targetPrediction?.direction ?? estimate.direction;
-  const canProject = Boolean(estimate.position && predictionDirection && count > 0);
+  const displayedPath = projectionVisible
+    ? getDisplayedProjectionPath(targetProjectionPath, projectionSettings)
+    : [];
+  const count = displayedPath.length;
+  const canProject = count > 0;
   group.visible = canProject;
   syncProjectionFrames(group, frames, canProject ? count : 0);
   if (!canProject) {
     return;
   }
 
-  const sampleIntervalSeconds = 1 / projectionSettings.samplesPerSecond;
   frames.forEach((frame, index) => {
-    const pathSample = path[index];
-    const projectionSeconds = (index + 1) * sampleIntervalSeconds;
-    const direction = pathSample?.direction ?? predictionDirection;
+    const pathSample = displayedPath[index];
+    const direction = pathSample?.direction;
+    if (!pathSample?.position || !direction) {
+      return;
+    }
     setProjectionFrame(
       frame,
-      pathSample?.position ?? {
-        x: estimate.position.x + predictionDirection.x * speedUnitsPerSecond * projectionSeconds,
-        z: estimate.position.z + predictionDirection.z * speedUnitsPerSecond * projectionSeconds,
-      },
+      pathSample.position,
       direction,
     );
   });
