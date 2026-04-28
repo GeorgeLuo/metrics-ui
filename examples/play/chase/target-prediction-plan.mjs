@@ -1,61 +1,59 @@
 import {
-  ASSUMED_GAME_FRAMES_PER_SECOND,
   DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
-  TARGET_PREDICTION_MAX_UNOBSERVED_SECONDS,
+  DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
+  TARGET_PREDICTION_MAX_UNOBSERVED_FRAMES,
   TARGET_PROJECTION_INVALIDATION_DISTANCE,
-  TARGET_PROJECTION_VALIDATION_LOOKAHEAD_SECONDS,
+  TARGET_PROJECTION_VALIDATION_LOOKAHEAD_FRAMES,
 } from "./constants.mjs";
 import { predictTargetMotionWithKuramoto } from "./prediction.mjs";
 import { buildTargetProjectionPath } from "./projection-path.mjs";
 
 const MAX_PENDING_VALIDATIONS = 24;
 
-function getPositiveNumber(value, fallback) {
+function getPositiveInteger(value, fallback) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) && numericValue > 0
-    ? numericValue
+    ? Math.max(1, Math.floor(numericValue))
     : fallback;
 }
 
 export function getTargetProjectionSampleCount({
   horizonFrames = DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  samplesPerSecond = DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  sampleSpacingFrames = DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
 } = {}) {
-  const normalizedHorizonFrames = getPositiveNumber(
+  const normalizedHorizonFrames = getPositiveInteger(
     horizonFrames,
     DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
   );
-  const normalizedSamplesPerSecond = getPositiveNumber(
-    samplesPerSecond,
-    DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  const normalizedSampleSpacingFrames = getPositiveInteger(
+    sampleSpacingFrames,
+    DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
   );
-  const horizonSeconds = normalizedHorizonFrames / ASSUMED_GAME_FRAMES_PER_SECOND;
-  return Math.max(1, Math.floor(horizonSeconds * normalizedSamplesPerSecond));
+  return Math.max(1, Math.ceil(normalizedHorizonFrames / normalizedSampleSpacingFrames));
 }
 
 export function createTargetPredictionPlanState() {
   return {
-    timeSeconds: 0,
+    elapsedFrames: 0,
     lastValidationErrorDistance: 0,
     pendingValidations: [],
   };
 }
 
-function getSampleNearestSeconds(path, secondsAhead) {
+function getSampleNearestFrames(path, framesAhead) {
   if (!Array.isArray(path) || path.length === 0) {
     return null;
   }
 
   return path.reduce((best, sample) => {
-    if (!sample?.position || !Number.isFinite(sample.secondsAhead)) {
+    if (!sample?.position || !Number.isFinite(sample.framesAhead)) {
       return best;
     }
     if (!best) {
       return sample;
     }
-    return Math.abs(sample.secondsAhead - secondsAhead)
-      < Math.abs(best.secondsAhead - secondsAhead)
+    return Math.abs(sample.framesAhead - framesAhead)
+      < Math.abs(best.framesAhead - framesAhead)
       ? sample
       : best;
   }, null);
@@ -69,7 +67,6 @@ function getPositionDistance(first, second) {
 
 function updatePredictionPlanState({
   state,
-  deltaSeconds,
   targetVisible,
   estimate,
 }) {
@@ -77,10 +74,7 @@ function updatePredictionPlanState({
     return;
   }
 
-  const elapsedSeconds = Number(deltaSeconds);
-  state.timeSeconds += Number.isFinite(elapsedSeconds) && elapsedSeconds > 0
-    ? elapsedSeconds
-    : 0;
+  state.elapsedFrames += 1;
 
   if (!targetVisible || !estimate?.position) {
     return;
@@ -89,7 +83,7 @@ function updatePredictionPlanState({
   let shouldClearValidations = false;
   const remainingValidations = [];
   for (const validation of state.pendingValidations) {
-    if (validation.dueTimeSeconds > state.timeSeconds) {
+    if (validation.dueFrame > state.elapsedFrames) {
       remainingValidations.push(validation);
       continue;
     }
@@ -111,16 +105,16 @@ function queuePredictionValidation(state, path) {
     return;
   }
 
-  const validationSample = getSampleNearestSeconds(
+  const validationSample = getSampleNearestFrames(
     path,
-    TARGET_PROJECTION_VALIDATION_LOOKAHEAD_SECONDS,
+    TARGET_PROJECTION_VALIDATION_LOOKAHEAD_FRAMES,
   );
   if (!validationSample?.position) {
     return;
   }
 
   state.pendingValidations.push({
-    dueTimeSeconds: state.timeSeconds + validationSample.secondsAhead,
+    dueFrame: state.elapsedFrames + validationSample.framesAhead,
     position: { ...validationSample.position },
   });
   state.pendingValidations = state.pendingValidations.slice(-MAX_PENDING_VALIDATIONS);
@@ -132,17 +126,14 @@ export function buildTargetPredictionPlan({
   rows,
   obstacles,
   wallAvoidanceEvidence,
-  speedUnitsPerSecond,
-  deltaSeconds = 0,
+  speedUnitsPerFrame,
   targetVisible = false,
   planState = null,
   horizonFrames = DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  samplesPerSecond = DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
-  sampleCount,
+  sampleSpacingFrames = DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
 } = {}) {
   updatePredictionPlanState({
     state: planState,
-    deltaSeconds,
     targetVisible,
     estimate,
   });
@@ -153,18 +144,22 @@ export function buildTargetPredictionPlan({
     obstacles,
     wallAvoidanceEvidence,
   });
-  const normalizedSamplesPerSecond = getPositiveNumber(
-    samplesPerSecond,
-    DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  const normalizedHorizonFrames = getPositiveInteger(
+    horizonFrames,
+    DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
   );
-  const resolvedSampleCount = Number.isFinite(Number(sampleCount))
-    ? Math.max(0, Math.floor(Number(sampleCount)))
-    : getTargetProjectionSampleCount({ horizonFrames, samplesPerSecond: normalizedSamplesPerSecond });
-  const sampleIntervalSeconds = 1 / normalizedSamplesPerSecond;
+  const normalizedSampleSpacingFrames = getPositiveInteger(
+    sampleSpacingFrames,
+    DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
+  );
+  const resolvedSampleCount = getTargetProjectionSampleCount({
+    horizonFrames: normalizedHorizonFrames,
+    sampleSpacingFrames: normalizedSampleSpacingFrames,
+  });
   const hasObservedTarget = targetVisible || Number(estimate?.observationCount) > 0;
   const isEstimateStale = !targetVisible && (
     !hasObservedTarget
-    || Number(estimate?.secondsSinceObservation) > TARGET_PREDICTION_MAX_UNOBSERVED_SECONDS
+    || Number(estimate?.framesSinceObservation) > TARGET_PREDICTION_MAX_UNOBSERVED_FRAMES
   );
   const invalidReason = isEstimateStale
     ? "stale-target-estimate"
@@ -173,9 +168,9 @@ export function buildTargetPredictionPlan({
   const path = actionable ? buildTargetProjectionPath({
     estimate,
     initialPrediction: prediction,
-    sampleCount: resolvedSampleCount,
-    sampleIntervalSeconds,
-    speedUnitsPerSecond,
+    horizonFrames: normalizedHorizonFrames,
+    sampleSpacingFrames: normalizedSampleSpacingFrames,
+    speedUnitsPerFrame,
     columns,
     rows,
     obstacles,
@@ -192,9 +187,8 @@ export function buildTargetPredictionPlan({
     prediction,
     path,
     sampleCount: resolvedSampleCount,
-    sampleIntervalSeconds,
-    horizonFrames,
-    samplesPerSecond: normalizedSamplesPerSecond,
+    sampleSpacingFrames: normalizedSampleSpacingFrames,
+    horizonFrames: normalizedHorizonFrames,
     validationErrorDistance: planState?.lastValidationErrorDistance ?? 0,
   };
 }

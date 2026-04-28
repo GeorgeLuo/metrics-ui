@@ -1,4 +1,10 @@
-import { EDGE_LOCK_EPSILON } from "./constants.mjs";
+import {
+  DEFAULT_TARGET_DRIFT_WEIGHT,
+  DEFAULT_TARGET_DRIFT_X_PHASE_PER_FRAME,
+  DEFAULT_TARGET_DRIFT_Z_PHASE_PER_FRAME,
+  DEFAULT_TARGET_WALL_AVOID_WEIGHT,
+  EDGE_LOCK_EPSILON,
+} from "./constants.mjs";
 import {
   angleToVector,
   normalizeAngleDelta,
@@ -22,10 +28,28 @@ export function steerDirectionToward(currentDirection, desiredDirection, maxDelt
   return angleToVector(currentAngle + clampedDelta);
 }
 
-function getDriftDirection(timestamp) {
+function getTargetPolicyValue(policy, key, fallback) {
+  const numericValue = Number(policy?.[key]);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+function getDriftDirection(frameIndex, policy) {
+  const safeFrameIndex = Number.isFinite(frameIndex) ? frameIndex : 0;
+  const driftXPhasePerFrame = getTargetPolicyValue(
+    policy,
+    "driftXPhasePerFrame",
+    DEFAULT_TARGET_DRIFT_X_PHASE_PER_FRAME,
+  );
+  const driftZPhasePerFrame = getTargetPolicyValue(
+    policy,
+    "driftZPhasePerFrame",
+    DEFAULT_TARGET_DRIFT_Z_PHASE_PER_FRAME,
+  );
+  const driftXPhaseOffset = getTargetPolicyValue(policy, "driftXPhaseOffset", 0);
+  const driftZPhaseOffset = getTargetPolicyValue(policy, "driftZPhaseOffset", 0);
   return normalizeVector(
-    Math.sin(timestamp * 0.0007),
-    Math.cos(timestamp * 0.0005),
+    Math.sin(safeFrameIndex * driftXPhasePerFrame + driftXPhaseOffset),
+    Math.cos(safeFrameIndex * driftZPhasePerFrame + driftZPhaseOffset),
   );
 }
 
@@ -57,18 +81,25 @@ export function getTargetMovementDecision(
   currentDirection,
   columns,
   rows,
-  timestamp,
+  frameIndex,
   obstacles,
+  policy = {},
 ) {
-  const drift = getDriftDirection(timestamp);
+  const drift = getDriftDirection(frameIndex, policy);
   const wallPressure = getWorldWallPressure(targetPosition, columns, rows, obstacles);
+  const driftWeight = getTargetPolicyValue(policy, "driftWeight", DEFAULT_TARGET_DRIFT_WEIGHT);
+  const wallAvoidWeight = getTargetPolicyValue(
+    policy,
+    "wallAvoidWeight",
+    DEFAULT_TARGET_WALL_AVOID_WEIGHT,
+  );
   const wallDirection = {
-    x: wallPressure.direction.x * wallPressure.magnitude * 2.5,
-    z: wallPressure.direction.z * wallPressure.magnitude * 2.5,
+    x: wallPressure.direction.x * wallPressure.magnitude * wallAvoidWeight,
+    z: wallPressure.direction.z * wallPressure.magnitude * wallAvoidWeight,
   };
   const direction = normalizeVector(
-    drift.x * 0.45 + wallDirection.x + currentDirection.x,
-    drift.z * 0.45 + wallDirection.z + currentDirection.z,
+    drift.x * driftWeight + wallDirection.x + currentDirection.x,
+    drift.z * driftWeight + wallDirection.z + currentDirection.z,
   );
   const constrainedDirection = constrainDirectionToBounds(
     targetPosition,
@@ -80,6 +111,7 @@ export function getTargetMovementDecision(
   return {
     direction: constrainedDirection,
     debug: {
+      policyId: typeof policy?.id === "string" ? policy.id : "baseline-drift-wall-avoid",
       wallAvoidanceActive: wallPressure.active,
       nearestWall: wallPressure.nearestWall,
       nearestDistance: wallPressure.nearestDistance,
@@ -87,13 +119,22 @@ export function getTargetMovementDecision(
   };
 }
 
-export function getTargetDirection(targetPosition, currentDirection, columns, rows, timestamp, obstacles) {
+export function getTargetDirection(
+  targetPosition,
+  currentDirection,
+  columns,
+  rows,
+  frameIndex,
+  obstacles,
+  policy,
+) {
   return getTargetMovementDecision(
     targetPosition,
     currentDirection,
     columns,
     rows,
-    timestamp,
+    frameIndex,
     obstacles,
+    policy,
   ).direction;
 }

@@ -2,9 +2,9 @@ import {
   CHASE_RUNTIME_SETTINGS_KEY,
   CHASE_SETTINGS_STORAGE_KEY,
   DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
   MAX_TARGET_PROJECTION_HORIZON_FRAMES,
-  MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  MAX_TARGET_PROJECTION_SPACING_FRAMES,
 } from "./constants.mjs";
 import { clampNumber } from "./math.mjs";
 
@@ -59,15 +59,19 @@ export function readStoredProjectionSettings() {
     ? stored.projection
     : {};
   const horizonFrames = Number(projection.horizonFrames);
-  const samplesPerSecond = Number(projection.samplesPerSecond);
+  const sampleSpacingFrames = Number(projection.sampleSpacingFrames);
   return {
     visible: projection.visible === true,
     horizonFrames: Number.isFinite(horizonFrames)
       ? Math.round(clampNumber(horizonFrames, 1, MAX_TARGET_PROJECTION_HORIZON_FRAMES))
       : DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-    samplesPerSecond: Number.isFinite(samplesPerSecond)
-      ? clampNumber(samplesPerSecond, 0.5, MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND)
-      : DEFAULT_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+    sampleSpacingFrames: Math.round(clampNumber(
+      Number.isFinite(sampleSpacingFrames)
+        ? sampleSpacingFrames
+        : DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
+      1,
+      MAX_TARGET_PROJECTION_SPACING_FRAMES,
+    )),
   };
 }
 
@@ -78,7 +82,7 @@ export function writeStoredProjectionSettings(projectionSettings) {
     projection: {
       visible: projectionSettings.visible,
       horizonFrames: projectionSettings.horizonFrames,
-      samplesPerSecond: projectionSettings.samplesPerSecond,
+      sampleSpacingFrames: projectionSettings.sampleSpacingFrames,
     },
   });
 }

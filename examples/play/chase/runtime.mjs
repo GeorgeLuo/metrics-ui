@@ -1,16 +1,16 @@
 import * as THREE from "three";
 import {
+  ASSUMED_GAME_FRAMES_PER_SECOND,
   CAR_HEIGHT,
   CHASER_AUTOPILOT_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
   CHASER_VIEW_ACTION_ID,
   CHASER_VIEW_MAX_DISTANCE,
-  DEFAULT_CHASER_SPEED_UNITS_PER_SECOND,
-  DEFAULT_CAR_TURN_RATE_RADIANS_PER_SECOND,
-  DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS,
-  DEFAULT_TARGET_SPEED_UNITS_PER_SECOND,
+  MAX_SIMULATION_FRAMES_PER_SECOND,
   MAX_TARGET_PROJECTION_HORIZON_FRAMES,
-  MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND,
+  MAX_TARGET_PROJECTION_SPACING_FRAMES,
+  MIN_SIMULATION_FRAMES_PER_SECOND,
+  SIMULATION_FPS_ACTION_ID,
   STRATEGY_DEBUG_ACTION_ID,
   TARGET_PROJECTION_DEBUG_ACTION_ID,
   TARGET_PROJECTION_HORIZON_ACTION_ID,
@@ -20,19 +20,8 @@ import {
   VEHICLE_TURN_RATE_ACTION_ID,
 } from "./constants.mjs";
 import {
-  createTargetMotionEstimate,
-  getChaserTargetPerception,
-  updateTargetMotionEstimate,
-} from "./chaser.mjs";
-import {
-  createChaserAutopilotState,
-  getProgrammaticChaserInput,
-} from "./chaser-controller.mjs";
-import {
-  angleToVector,
   clampNumber,
   degreesToRadians,
-  normalizeVector,
   parseEditableNumber,
   vectorToAngle,
 } from "./math.mjs";
@@ -49,35 +38,16 @@ import {
 } from "./rendering.mjs";
 import { publishSidebarSections } from "./sidebar.mjs";
 import {
-  buildTargetPredictionPlan,
-  createTargetPredictionPlanState,
-} from "./target-prediction-plan.mjs";
-import { readStoredProjectionSettings, writeStoredProjectionSettings } from "./settings.mjs";
+  readStoredProjectionSettings,
+  writeStoredProjectionSettings,
+} from "./settings.mjs";
+import { resolveChaseScenario } from "./scenario.mjs";
 import {
-  createTargetWallAvoidanceTruthState,
-  createWallAvoidanceEvidenceState,
-  updateTargetWallAvoidanceTruth,
-  updateWallAvoidanceEvidence,
-} from "./wall-avoidance-detection.mjs";
+  createChaseSimulationState,
+  stepChaseSimulation,
+} from "./simulation.mjs";
 import { mountStrategyDebugFrame } from "./strategy-debug.mjs";
-import {
-  getFieldObstacleLayout,
-  resolveObstacleCollisions,
-} from "./world.mjs";
-import {
-  constrainDirectionToBounds,
-  getTargetMovementDecision,
-  steerDirectionToward,
-} from "./target.mjs";
-
-function createVehicleSettings() {
-  return {
-    chaserSpeedUnitsPerSecond: DEFAULT_CHASER_SPEED_UNITS_PER_SECOND,
-    targetSpeedUnitsPerSecond: DEFAULT_TARGET_SPEED_UNITS_PER_SECOND,
-    turnRateRadiansPerSecond: DEFAULT_CAR_TURN_RATE_RADIANS_PER_SECOND,
-    fieldOfViewAngleRadians: DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS,
-  };
-}
+import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
 
 function createChaserViewController({ createFloatingFrame, vehicleSettings, onVisibilityChange }) {
   const chaserViewWidth = 280;
@@ -288,6 +258,7 @@ function registerSidebarActions({
   openStrategyDebug,
   closeStrategyDebug,
   updateFieldOfView,
+  simulationSettings,
   vehicleSettings,
   projectionSettings,
 }) {
@@ -309,24 +280,47 @@ function registerSidebarActions({
       closeChaserView();
     }
   });
+  setSidebarActionHandler(SIMULATION_FPS_ACTION_ID, (value) => {
+    const parsed = parseEditableNumber(value);
+    if (parsed !== null) {
+      simulationSettings.framesPerSecond = Math.round(clampNumber(
+        parsed,
+        MIN_SIMULATION_FRAMES_PER_SECOND,
+        MAX_SIMULATION_FRAMES_PER_SECOND,
+      ));
+    }
+    refreshSidebarSections();
+  });
   setSidebarActionHandler(CHASER_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
-      vehicleSettings.chaserSpeedUnitsPerSecond = clampNumber(parsed, 0.2, 12);
+      vehicleSettings.chaserSpeedUnitsPerFrame = clampNumber(
+        parsed,
+        0.2 / ASSUMED_GAME_FRAMES_PER_SECOND,
+        12 / ASSUMED_GAME_FRAMES_PER_SECOND,
+      );
     }
     refreshSidebarSections();
   });
   setSidebarActionHandler(TARGET_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
-      vehicleSettings.targetSpeedUnitsPerSecond = clampNumber(parsed, 0.2, 12);
+      vehicleSettings.targetSpeedUnitsPerFrame = clampNumber(
+        parsed,
+        0.2 / ASSUMED_GAME_FRAMES_PER_SECOND,
+        12 / ASSUMED_GAME_FRAMES_PER_SECOND,
+      );
     }
     refreshSidebarSections();
   });
   setSidebarActionHandler(VEHICLE_TURN_RATE_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
-      vehicleSettings.turnRateRadiansPerSecond = degreesToRadians(clampNumber(parsed, 10, 720));
+      vehicleSettings.turnRateRadiansPerFrame = degreesToRadians(clampNumber(
+        parsed,
+        10 / ASSUMED_GAME_FRAMES_PER_SECOND,
+        720 / ASSUMED_GAME_FRAMES_PER_SECOND,
+      ));
     }
     refreshSidebarSections();
   });
@@ -364,11 +358,11 @@ function registerSidebarActions({
   setSidebarActionHandler(TARGET_PROJECTION_RATE_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
-      projectionSettings.samplesPerSecond = clampNumber(
+      projectionSettings.sampleSpacingFrames = Math.round(clampNumber(
         parsed,
-        0.5,
-        MAX_TARGET_PROJECTION_SAMPLES_PER_SECOND,
-      );
+        1,
+        MAX_TARGET_PROJECTION_SPACING_FRAMES,
+      ));
       writeStoredProjectionSettings(projectionSettings);
     }
     refreshSidebarSections();
@@ -378,6 +372,7 @@ function registerSidebarActions({
 function clearSidebarActions(setSidebarActionHandler) {
   setSidebarActionHandler?.(CHASER_AUTOPILOT_ACTION_ID, null);
   setSidebarActionHandler?.(CHASER_VIEW_ACTION_ID, null);
+  setSidebarActionHandler?.(SIMULATION_FPS_ACTION_ID, null);
   setSidebarActionHandler?.(CHASER_SPEED_ACTION_ID, null);
   setSidebarActionHandler?.(STRATEGY_DEBUG_ACTION_ID, null);
   setSidebarActionHandler?.(TARGET_SPEED_ACTION_ID, null);
@@ -396,27 +391,32 @@ export function createPlayGame({
   setSidebarSections,
   setSidebarActionHandler,
 }) {
+  const scenario = resolveChaseScenario(defaultScenarioDefinition, { columns, rows });
+  const simulationState = createChaseSimulationState({ scenario, columns, rows });
   const pressedKeys = new Set();
-  let programmaticChaserEnabled = false;
   let chaserViewVisible = false;
   let strategyDebugVisible = false;
-  const vehicleSettings = createVehicleSettings();
-  const projectionSettings = readStoredProjectionSettings();
-  const wallAvoidanceEvidence = createWallAvoidanceEvidenceState();
-  const targetWallAvoidanceTruth = createTargetWallAvoidanceTruthState();
-  const targetPredictionPlanState = createTargetPredictionPlanState();
+  const simulationSettings = simulationState.simulationSettings;
+  const vehicleSettings = simulationState.vehicleSettings;
+  const projectionSettings = {
+    ...simulationState.projectionSettings,
+    ...readStoredProjectionSettings(),
+  };
+  simulationState.projectionSettings = projectionSettings;
   let chaserFieldOfView = null;
 
   const refreshSidebarSections = () => {
     publishSidebarSections(
       setSidebarSections,
-      programmaticChaserEnabled,
+      simulationState.programmaticChaserEnabled,
       {
         chaserViewVisible,
         strategyDebugVisible,
       },
+      simulationSettings,
       vehicleSettings,
       projectionSettings,
+      simulationState.runMetrics,
     );
   };
 
@@ -447,9 +447,9 @@ export function createPlayGame({
   refreshSidebarSections();
   registerSidebarActions({
     setSidebarActionHandler,
-    getProgrammaticChaserEnabled: () => programmaticChaserEnabled,
+    getProgrammaticChaserEnabled: () => simulationState.programmaticChaserEnabled,
     setProgrammaticChaserEnabled: (value) => {
-      programmaticChaserEnabled = value;
+      simulationState.programmaticChaserEnabled = value;
     },
     refreshSidebarSections,
     getChaserViewVisible: () => chaserViewVisible,
@@ -459,6 +459,7 @@ export function createPlayGame({
     openStrategyDebug: () => strategyDebugFrame.open(),
     closeStrategyDebug: () => strategyDebugFrame.close(),
     updateFieldOfView,
+    simulationSettings,
     vehicleSettings,
     projectionSettings,
   });
@@ -487,16 +488,9 @@ export function createPlayGame({
   const targetProjectionGroup = new THREE.Group();
   const targetProjectionFrames = [];
   targetProjectionGroup.visible = false;
-  const obstacles = getFieldObstacleLayout(columns, rows);
+  const obstacles = simulationState.obstacles;
   const obstacleMeshes = obstacles.walls.map(createWall);
   scene.add(chaserFieldOfView, targetProjectionGroup, chaser, target, ...obstacleMeshes);
-
-  const chaserPosition = { x: -columns * 0.38, z: 0 };
-  const chaserLookDirection = normalizeVector(1, 0);
-  const targetPosition = { x: columns / 4, z: 0 };
-  const targetDirection = normalizeVector(-1, 0.4);
-  const chaserAutopilotState = createChaserAutopilotState();
-  const targetMotionEstimate = createTargetMotionEstimate(targetPosition, targetDirection);
 
   const handleKeyDown = (event) => {
     if (!isControlCode(event.code) || isTextEditingTarget(event.target)) {
@@ -530,129 +524,54 @@ export function createPlayGame({
   resizeObserver.observe(container);
 
   let animationFrame = 0;
-  let previousTime = performance.now();
+  let previousTimestamp = null;
+  let accumulatedMs = 0;
+  const MAX_STEPS_PER_TICK = 8;
   const tick = (timestamp) => {
-    const deltaSeconds = Math.min(0.05, Math.max(0, (timestamp - previousTime) / 1000));
-    previousTime = timestamp;
+    if (previousTimestamp === null) {
+      previousTimestamp = timestamp;
+    }
+    const elapsedMs = Math.max(0, Math.min(250, timestamp - previousTimestamp));
+    previousTimestamp = timestamp;
+    const frameDurationMs = 1000 / Math.max(
+      MIN_SIMULATION_FRAMES_PER_SECOND,
+      Number(simulationSettings.framesPerSecond) || ASSUMED_GAME_FRAMES_PER_SECOND,
+    );
+    accumulatedMs = Math.min(accumulatedMs + elapsedMs, frameDurationMs * MAX_STEPS_PER_TICK);
+    const humanInput = getHumanChaserInput(pressedKeys);
+    let stepsThisTick = 0;
+    while (accumulatedMs >= frameDurationMs && stepsThisTick < MAX_STEPS_PER_TICK) {
+      stepChaseSimulation(simulationState, { humanInput });
+      accumulatedMs -= frameDurationMs;
+      stepsThisTick += 1;
+    }
 
-    const chaserPerception = getChaserTargetPerception(
+    const {
       chaserPosition,
+      chaserLookDirection,
       targetPosition,
-      chaserLookDirection,
-      vehicleSettings.fieldOfViewAngleRadians,
-      obstacles,
-    );
-    chaserView.setTargetVisible(chaserPerception.visible);
-    updateTargetMotionEstimate(
-      targetMotionEstimate,
-      chaserPerception,
-      chaserPosition,
-      chaserLookDirection,
-      deltaSeconds,
-      {
-        columns,
-        rows,
-        obstacles,
-      },
-    );
-    updateWallAvoidanceEvidence(wallAvoidanceEvidence, {
-      estimate: targetMotionEstimate,
-      targetVisible: chaserPerception.visible,
-      columns,
-      rows,
-      obstacles,
-    });
-    const targetPredictionPlan = buildTargetPredictionPlan({
-      estimate: targetMotionEstimate,
-      speedUnitsPerSecond: targetMotionEstimate.speedEstimateUnitsPerSecond,
-      columns,
-      rows,
-      obstacles,
-      wallAvoidanceEvidence,
-      deltaSeconds,
-      targetVisible: chaserPerception.visible,
-      planState: targetPredictionPlanState,
-      horizonFrames: projectionSettings.horizonFrames,
-      samplesPerSecond: projectionSettings.samplesPerSecond,
-    });
+      targetDirection,
+      targetWallAvoidanceTruth,
+      lastStep,
+    } = simulationState;
+    const chaserKnowledge = lastStep.chaserKnowledge;
+    const targetLocationMemory = chaserKnowledge.targetLocation ?? chaserKnowledge.memory?.targetLocation;
+    const targetMotionModel = chaserKnowledge.targetMotionModel ?? chaserKnowledge.targetEstimate;
+    chaserView.setTargetVisible(targetLocationMemory?.visible);
     updateTargetProjectionDisplay(
       targetProjectionGroup,
       targetProjectionFrames,
-      targetMotionEstimate,
-      targetPredictionPlan.prediction,
+      targetMotionModel,
+      chaserKnowledge.predictionPlan?.prediction,
       projectionSettings,
-      targetMotionEstimate.speedEstimateUnitsPerSecond,
-      targetPredictionPlan.path,
+      targetMotionModel?.speedEstimateUnitsPerFrame,
+      chaserKnowledge.predictionPlan?.path,
     );
-
-    const chaserInput = programmaticChaserEnabled
-      ? getProgrammaticChaserInput({
-        targetPerception: chaserPerception,
-        chaserPosition,
-        chaserLookDirection,
-        targetEstimate: targetMotionEstimate,
-        predictionPlan: targetPredictionPlan,
-        autopilotState: chaserAutopilotState,
-        chaserSpeedUnitsPerSecond: vehicleSettings.chaserSpeedUnitsPerSecond,
-        columns,
-        rows,
-        obstacles,
-      })
-      : getHumanChaserInput(pressedKeys);
-    const isChaserMoving = chaserInput.forward;
-    const steeringInput = chaserInput.steering;
-    if (isChaserMoving && steeringInput !== 0) {
-      const nextHeading = angleToVector(
-        vectorToAngle(chaserLookDirection)
-          + steeringInput * vehicleSettings.turnRateRadiansPerSecond * deltaSeconds,
-      );
-      chaserLookDirection.x = nextHeading.x;
-      chaserLookDirection.z = nextHeading.z;
-    }
-    const nextChaser = resolveObstacleCollisions({
-      x: chaserPosition.x
-        + chaserLookDirection.x * vehicleSettings.chaserSpeedUnitsPerSecond * deltaSeconds * (isChaserMoving ? 1 : 0),
-      z: chaserPosition.z
-        + chaserLookDirection.z * vehicleSettings.chaserSpeedUnitsPerSecond * deltaSeconds * (isChaserMoving ? 1 : 0),
-    }, chaserPosition, columns, rows, obstacles);
-    chaserPosition.x = nextChaser.x;
-    chaserPosition.z = nextChaser.z;
-
-    const targetMovementDecision = getTargetMovementDecision(
-      targetPosition,
-      targetDirection,
-      columns,
-      rows,
-      timestamp,
-      obstacles,
-    );
-    const nextDirection = constrainDirectionToBounds(
-      targetPosition,
-      steerDirectionToward(
-        targetDirection,
-        targetMovementDecision.direction,
-        vehicleSettings.turnRateRadiansPerSecond * deltaSeconds,
-      ),
-      columns,
-      rows,
-    );
-    updateTargetWallAvoidanceTruth(targetWallAvoidanceTruth, {
-      decisionDebug: targetMovementDecision.debug,
-    });
     strategyDebugFrame?.update({
-      wallEvidence: wallAvoidanceEvidence,
-      targetVisible: chaserPerception.visible,
+      knowledgeBase: chaserKnowledge,
       targetWallTruth: targetWallAvoidanceTruth,
-      targetEstimate: targetMotionEstimate,
     });
-    targetDirection.x = nextDirection.x;
-    targetDirection.z = nextDirection.z;
-    const nextTarget = resolveObstacleCollisions({
-      x: targetPosition.x + targetDirection.x * vehicleSettings.targetSpeedUnitsPerSecond * deltaSeconds,
-      z: targetPosition.z + targetDirection.z * vehicleSettings.targetSpeedUnitsPerSecond * deltaSeconds,
-    }, targetPosition, columns, rows, obstacles);
-    targetPosition.x = nextTarget.x;
-    targetPosition.z = nextTarget.z;
+    refreshSidebarSections();
 
     chaser.position.set(chaserPosition.x, CAR_HEIGHT / 2, chaserPosition.z);
     chaser.rotation.y = vectorToAngle(chaserLookDirection);

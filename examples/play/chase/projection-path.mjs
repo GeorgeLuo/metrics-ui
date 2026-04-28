@@ -4,11 +4,12 @@ import { getWallAvoidanceSignal } from "./prediction-strategies.mjs";
 import { constrainDirectionToBounds } from "./target.mjs";
 import { resolveObstacleCollisions } from "./world.mjs";
 
-function createProjectedEstimate(sourceEstimate, position, direction) {
+function createProjectedEstimate(sourceEstimate, position, direction, framesSinceObservation) {
   return {
     ...sourceEstimate,
     position: { ...position },
     direction: { ...direction },
+    framesSinceObservation,
     previousObservedDirection: sourceEstimate?.lastObservedDirection
       ? { ...sourceEstimate.lastObservedDirection }
       : sourceEstimate?.previousObservedDirection ?? null,
@@ -23,9 +24,9 @@ function hasActiveWallAvoidancePrediction(prediction) {
 export function buildTargetProjectionPath({
   estimate,
   initialPrediction,
-  sampleCount,
-  sampleIntervalSeconds,
-  speedUnitsPerSecond,
+  horizonFrames,
+  sampleSpacingFrames,
+  speedUnitsPerFrame,
   columns,
   rows,
   obstacles,
@@ -33,11 +34,12 @@ export function buildTargetProjectionPath({
 }) {
   if (
     !estimate?.position
-    || sampleCount <= 0
-    || !Number.isFinite(sampleIntervalSeconds)
-    || !Number.isFinite(speedUnitsPerSecond)
-    || sampleIntervalSeconds <= 0
-    || speedUnitsPerSecond <= 0
+    || !Number.isFinite(horizonFrames)
+    || !Number.isFinite(sampleSpacingFrames)
+    || !Number.isFinite(speedUnitsPerFrame)
+    || horizonFrames <= 0
+    || sampleSpacingFrames <= 0
+    || speedUnitsPerFrame <= 0
   ) {
     return [];
   }
@@ -48,10 +50,15 @@ export function buildTargetProjectionPath({
     initialPrediction?.direction?.x ?? estimate.direction?.x ?? 0,
     initialPrediction?.direction?.z ?? estimate.direction?.z ?? 0,
   );
-  let projectedEstimate = createProjectedEstimate(estimate, position, direction);
+  let projectedEstimate = createProjectedEstimate(
+    estimate,
+    position,
+    direction,
+    Number(estimate?.framesSinceObservation) || 0,
+  );
 
-  for (let index = 0; index < sampleCount; index += 1) {
-    const prediction = index === 0
+  for (let frame = 1; frame <= horizonFrames; frame += 1) {
+    const prediction = frame === 1
       ? initialPrediction
       : predictTargetMotionWithKuramoto(projectedEstimate, {
         columns,
@@ -59,34 +66,34 @@ export function buildTargetProjectionPath({
         obstacles,
         wallAvoidanceEvidence,
       });
-    const secondsAhead = (index + 1) * sampleIntervalSeconds;
     direction = normalizeVector(
       prediction?.direction?.x ?? direction.x,
       prediction?.direction?.z ?? direction.z,
     );
-    const useWallAvoidanceModel = hasActiveWallAvoidancePrediction(prediction);
-    if (useWallAvoidanceModel) {
+    if (hasActiveWallAvoidancePrediction(prediction)) {
       direction = constrainDirectionToBounds(position, direction, columns, rows);
     }
 
     const intendedPosition = {
-      x: position.x + direction.x * speedUnitsPerSecond * sampleIntervalSeconds,
-      z: position.z + direction.z * speedUnitsPerSecond * sampleIntervalSeconds,
+      x: position.x + direction.x * speedUnitsPerFrame,
+      z: position.z + direction.z * speedUnitsPerFrame,
     };
     const nextPosition = obstacles
       ? resolveObstacleCollisions(intendedPosition, position, columns, rows, obstacles)
       : intendedPosition;
 
-    samples.push({
-      index,
-      secondsAhead,
-      position: nextPosition,
-      direction,
-      prediction,
-    });
-
     position = nextPosition;
-    projectedEstimate = createProjectedEstimate(projectedEstimate, position, direction);
+    projectedEstimate = createProjectedEstimate(projectedEstimate, position, direction, frame);
+
+    if (frame % sampleSpacingFrames === 0 || frame === horizonFrames) {
+      samples.push({
+        index: samples.length,
+        framesAhead: frame,
+        position,
+        direction,
+        prediction,
+      });
+    }
   }
 
   return samples;

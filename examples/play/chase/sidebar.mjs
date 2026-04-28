@@ -2,6 +2,7 @@ import {
   CHASER_AUTOPILOT_ACTION_ID,
   CHASER_VIEW_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
+  SIMULATION_FPS_ACTION_ID,
   STRATEGY_DEBUG_ACTION_ID,
   TARGET_PROJECTION_DEBUG_ACTION_ID,
   TARGET_PROJECTION_HORIZON_ACTION_ID,
@@ -12,18 +13,65 @@ import {
 } from "./constants.mjs";
 import { formatEditableNumber, radiansToDegrees } from "./math.mjs";
 
+function formatRunMetric(value, digits = 0) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return "0";
+  }
+  return formatEditableNumber(numericValue, digits);
+}
+
 export function publishSidebarSections(
   setSidebarSections,
   programmaticChaserEnabled,
   frameVisibility,
+  simulationSettings,
   vehicleSettings,
   projectionSettings,
+  runMetrics = {},
 ) {
   if (typeof setSidebarSections !== "function") {
     return;
   }
 
   setSidebarSections([
+    {
+      id: "score",
+      title: "Score",
+      hint: "Live run metrics for comparing chase setups.",
+      rows: [
+        {
+          kind: "value",
+          label: "Touches",
+          value: formatRunMetric(runMetrics.touchCount, 0),
+        },
+        {
+          kind: "value",
+          label: "Frames",
+          value: formatRunMetric(runMetrics.elapsedFrames, 0),
+        },
+        {
+          kind: "value",
+          label: "Touches / 1k frames",
+          value: formatRunMetric(runMetrics.touchRatePerThousandFrames, 2),
+        },
+      ],
+    },
+    {
+      id: "simulation",
+      title: "Simulation",
+      hint: "Playback pacing for the discrete frame simulation.",
+      rows: [
+        {
+          kind: "editableValue",
+          id: SIMULATION_FPS_ACTION_ID,
+          label: "FPS",
+          value: formatEditableNumber(simulationSettings.framesPerSecond, 0),
+          suffix: "frames/s",
+          hint: "How many simulation frames to advance per real-time second while watching the run.",
+        },
+      ],
+    },
     {
       id: "controls",
       title: "Controls",
@@ -76,24 +124,24 @@ export function publishSidebarSections(
           kind: "editableValue",
           id: CHASER_SPEED_ACTION_ID,
           label: "Chaser speed",
-          value: formatEditableNumber(vehicleSettings.chaserSpeedUnitsPerSecond, 1),
-          suffix: "units/s",
+          value: formatEditableNumber(vehicleSettings.chaserSpeedUnitsPerFrame, 3),
+          suffix: "u/frame",
           hint: "Edit the blue chaser speed used for movement and intercept planning.",
         },
         {
           kind: "editableValue",
           id: TARGET_SPEED_ACTION_ID,
           label: "Target speed",
-          value: formatEditableNumber(vehicleSettings.targetSpeedUnitsPerSecond, 1),
-          suffix: "units/s",
+          value: formatEditableNumber(vehicleSettings.targetSpeedUnitsPerFrame, 3),
+          suffix: "u/frame",
           hint: "Edit the red target's true movement speed; the chaser must estimate this from field of view.",
         },
         {
           kind: "editableValue",
           id: VEHICLE_TURN_RATE_ACTION_ID,
           label: "Turn rate",
-          value: formatEditableNumber(radiansToDegrees(vehicleSettings.turnRateRadiansPerSecond), 0),
-          suffix: "deg/s",
+          value: formatEditableNumber(radiansToDegrees(vehicleSettings.turnRateRadiansPerFrame), 2),
+          suffix: "deg/frame",
           hint: "Edit the steering rate used by the same input model.",
         },
         {
@@ -131,10 +179,10 @@ export function publishSidebarSections(
         {
           kind: "editableValue",
           id: TARGET_PROJECTION_RATE_ACTION_ID,
-          label: "Rate",
-          value: formatEditableNumber(projectionSettings.samplesPerSecond, 1),
-          suffix: "rect/s",
-          hint: "How many projected rectangles to draw per second.",
+          label: "Spacing",
+          value: formatEditableNumber(projectionSettings.sampleSpacingFrames, 0),
+          suffix: "frames",
+          hint: "How many future frames to skip between projected rectangles.",
         },
       ],
     },
