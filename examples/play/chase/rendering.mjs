@@ -149,7 +149,7 @@ export function updateTargetProjectionDisplay(
   estimate,
   targetPrediction,
   projectionSettings,
-  speedUnitsPerSecond,
+  speedUnitsPerFrame,
   targetProjectionPath = null,
 ) {
   const projectionVisible = projectionSettings?.visible === true;
@@ -166,16 +166,17 @@ export function updateTargetProjectionDisplay(
     return;
   }
 
-  const sampleIntervalSeconds = 1 / projectionSettings.samplesPerSecond;
   frames.forEach((frame, index) => {
     const pathSample = path[index];
-    const projectionSeconds = (index + 1) * sampleIntervalSeconds;
+    const projectionFramesAhead = Number.isFinite(pathSample?.framesAhead)
+      ? pathSample.framesAhead
+      : (index + 1) * projectionSettings.sampleSpacingFrames;
     const direction = pathSample?.direction ?? predictionDirection;
     setProjectionFrame(
       frame,
       pathSample?.position ?? {
-        x: estimate.position.x + predictionDirection.x * speedUnitsPerSecond * projectionSeconds,
-        z: estimate.position.z + predictionDirection.z * speedUnitsPerSecond * projectionSeconds,
+        x: estimate.position.x + predictionDirection.x * speedUnitsPerFrame * projectionFramesAhead,
+        z: estimate.position.z + predictionDirection.z * speedUnitsPerFrame * projectionFramesAhead,
       },
       direction,
     );

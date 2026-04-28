@@ -126,7 +126,7 @@ export function buildTargetPredictionOscillators(estimate, context = {}) {
     }));
   }
 
-  const turnBias = Number(estimate?.observedTurnRateRadians);
+  const turnBias = Number(estimate?.observedTurnRadiansPerFrame);
   if (Number.isFinite(turnBias) && Math.abs(turnBias) > 0.001) {
     oscillators.push(createPredictionSignal({
       id: "recent-turn-bias",

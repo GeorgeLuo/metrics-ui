@@ -219,7 +219,21 @@ export function mountStrategyDebugFrame(createFloatingFrame, { onClose } = {}) {
   frame.mount.appendChild(root);
 
   return {
-    update({ wallEvidence, targetVisible, targetWallTruth, targetEstimate }) {
+    update({
+      knowledgeBase = null,
+      wallEvidence = knowledgeBase?.wallAvoidanceEvidence,
+      targetVisible = knowledgeBase?.targetLocation?.visible
+        ?? knowledgeBase?.memory?.targetLocation?.visible
+        ?? knowledgeBase?.perception?.visible
+        ?? false,
+      observedTargetMotion = knowledgeBase?.observedTargetMotion
+        ?? knowledgeBase?.memory?.observedTargetMotion
+        ?? knowledgeBase?.targetEstimate,
+      targetWallTruth,
+    }) {
+      if (!wallEvidence || !targetWallTruth) {
+        return;
+      }
       const latest = wallEvidence.latest;
       const targetLatest = targetWallTruth.latest;
       updateSummaryCard(summaryValues.target, targetWallTruth);
@@ -236,8 +250,8 @@ export function mountStrategyDebugFrame(createFloatingFrame, { onClose } = {}) {
         : `${latest.nearestWall} (${formatNumber(latest.nearestDistance)})`;
       detailValues.chaserEpisode.textContent = formatEpisodeStatus(latest);
       detailValues.chaserSamples.textContent = `${wallEvidence.observedSampleCount} observed`;
-      detailValues.targetSpeedEstimate.textContent = Number.isFinite(targetEstimate?.speedEstimateUnitsPerSecond)
-        ? `${formatNumber(targetEstimate.speedEstimateUnitsPerSecond)} units/s (${targetEstimate.speedObservationCount ?? 0})`
+      detailValues.targetSpeedEstimate.textContent = Number.isFinite(observedTargetMotion?.speedEstimateUnitsPerFrame)
+        ? `${formatNumber(observedTargetMotion.speedEstimateUnitsPerFrame)} u/frame (${observedTargetMotion.speedObservationCount ?? 0})`
         : "n/a";
     },
     close() {
