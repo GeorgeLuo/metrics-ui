@@ -48,6 +48,7 @@
     "lint:file-sizes": "node scripts/lint-file-sizes.mjs",
     "framegrid:debug:check": "node scripts/framegrid-debug-check.mjs",
     "refactor:regress": "node scripts/refactor-regress.mjs",
+    "play:chase:regress": "node --test examples/play/chase/chase-regression.test.mjs",
     "ws:single-frontend:regress": "node scripts/single-frontend-regress.mjs",
     "derivation:regress": "node scripts/derivation-plugin-regress.mjs",
     "derivation:chain:regress": "node scripts/derivation-chain-regress.mjs",
