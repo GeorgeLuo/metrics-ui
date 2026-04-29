@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
+import { readFileSync } from "node:fs";
 import { CAR_BOUND_RADIUS } from "./constants.mjs";
 import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
 import { resolveChaseScenario } from "./scenario.mjs";
 import {
   createChaseSimulationState,
+  getChaseSimulationTrace,
   stepChaseSimulation,
 } from "./simulation.mjs";
+import { createNodeJsonlTraceRecorder } from "./trace-recorder-node.mjs";
 import { getWallBounds } from "./world.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
@@ -257,4 +262,83 @@ test("chase regression predictions stay frame-indexed and ordered", () => {
     assert.ok(sample.framesAhead > previousFramesAhead, "framesAhead must be strictly increasing");
     previousFramesAhead = sample.framesAhead;
   }
+});
+
+test("chase trace recorder stores deterministic memory snapshots", () => {
+  const scenario = buildScenario((draft) => {
+    draft.trace = {
+      enabled: true,
+      sink: "memory",
+      everyNFrames: 15,
+    };
+  });
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+
+  for (let frame = 0; frame < 45; frame += 1) {
+    stepChaseSimulation(state, {
+      humanInput: idleInput(),
+    });
+  }
+
+  const trace = getChaseSimulationTrace(state);
+  assert.equal(trace.effectiveSink, "memory");
+  assert.equal(trace.recordedFrameCount, 3);
+  assert.deepEqual(
+    trace.frames.map((frame) => frame.frameIndex),
+    [15, 30, 45],
+  );
+  assert.equal(
+    trace.frames.at(-1)?.knowledge?.strategy?.targetPrediction?.sampleSpacingFrames,
+    20,
+  );
+  assert.ok(
+    typeof trace.frames.at(-1)?.knowledge?.targetLocation?.visible === "boolean",
+    "trace frame should include target visibility state",
+  );
+});
+
+test("chase trace recorder can write jsonl traces to file", () => {
+  const filePath = path.join(
+    os.tmpdir(),
+    `play-chase-trace-${process.pid}-${Date.now()}.jsonl`,
+  );
+  const scenario = buildScenario((draft) => {
+    draft.trace = {
+      enabled: true,
+      sink: "file",
+      filePath,
+      everyNFrames: 20,
+    };
+  });
+  const traceRecorder = createNodeJsonlTraceRecorder(scenario.trace);
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+    traceRecorder,
+  });
+
+  for (let frame = 0; frame < 40; frame += 1) {
+    stepChaseSimulation(state, {
+      humanInput: idleInput(),
+    });
+  }
+
+  const trace = getChaseSimulationTrace(state);
+  assert.equal(trace.effectiveSink, "file");
+  assert.equal(trace.recordedFrameCount, 2);
+
+  const lines = readFileSync(filePath, "utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  assert.equal(lines.length, 2);
+  const firstFrame = JSON.parse(lines[0]);
+  const secondFrame = JSON.parse(lines[1]);
+  assert.equal(firstFrame.frameIndex, 20);
+  assert.equal(secondFrame.frameIndex, 40);
 });

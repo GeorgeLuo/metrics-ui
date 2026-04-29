@@ -1,28 +1,23 @@
 import { CAR_BOUND_RADIUS } from "./constants.mjs";
-import {
-  createChaserKnowledgeBase,
-  getChaserKnowledgeSnapshot,
-  setChaserKnowledgeEngineEnabled,
-  updateChaserKnowledgeBase,
-} from "./chaser-knowledge.mjs";
-import {
-  createChaserAutopilotState,
-  getProgrammaticChaserInput,
-  setChaserActionEngineEnabled,
-} from "./chaser-controller.mjs";
+import { createChaserIdae, stepChaserIdae } from "./chaser-idae.mjs";
+import { createTargetIdae, stepTargetIdae } from "./target-idae.mjs";
 import {
   angleToVector,
   vectorToAngle,
 } from "./math.mjs";
 import {
   constrainDirectionToBounds,
-  getTargetMovementDecision,
   steerDirectionToward,
 } from "./target.mjs";
 import {
   createTargetWallAvoidanceTruthState,
   updateTargetWallAvoidanceTruth,
 } from "./wall-avoidance-detection.mjs";
+import {
+  createChaseTraceRecorder,
+  getChaseTraceRecorderSnapshot,
+  recordChaseTraceFrame,
+} from "./trace-recorder.mjs";
 import { resolveObstacleCollisions } from "./world.mjs";
 
 function createRunMetrics() {
@@ -54,62 +49,8 @@ function updateRunMetrics(runMetrics, chaserPosition, targetPosition) {
     : 0;
 }
 
-function applyScenarioEngineToggles(scenario, chaserKnowledgeBase, chaserAutopilotState) {
-  Object.entries(scenario?.engines?.knowledge ?? {}).forEach(([engineId, enabled]) => {
-    setChaserKnowledgeEngineEnabled(chaserKnowledgeBase, engineId, enabled);
-  });
-  Object.entries(scenario?.engines?.action ?? {}).forEach(([engineId, enabled]) => {
-    setChaserActionEngineEnabled(chaserAutopilotState, engineId, enabled);
-  });
-}
-
-export function createChaseSimulationState({
-  scenario,
-  columns,
-  rows,
-} = {}) {
-  const chaserKnowledgeBase = createChaserKnowledgeBase();
-  const chaserAutopilotState = createChaserAutopilotState();
-  applyScenarioEngineToggles(scenario, chaserKnowledgeBase, chaserAutopilotState);
-
-  return {
-    scenario,
-    columns,
-    rows,
-    frameIndex: 0,
-    simulationSettings: {
-      ...(scenario?.simulation ?? {}),
-    },
-    obstacles: scenario?.map?.obstacles ?? { walls: [] },
-    vehicleSettings: {
-      ...(scenario?.vehicleSettings ?? {}),
-    },
-    projectionSettings: {
-      ...(scenario?.projectionSettings ?? {}),
-    },
-    programmaticChaserEnabled: Boolean(scenario?.runtime?.programmaticChaserEnabled),
-    chaserPosition: { ...(scenario?.actors?.chaser?.position ?? { x: 0, z: 0 }) },
-    chaserLookDirection: { ...(scenario?.actors?.chaser?.direction ?? { x: 1, z: 0 }) },
-    targetPosition: { ...(scenario?.actors?.target?.position ?? { x: 0, z: 0 }) },
-    targetDirection: { ...(scenario?.actors?.target?.direction ?? { x: -1, z: 0 }) },
-    chaserKnowledgeBase,
-    chaserAutopilotState,
-    targetWallAvoidanceTruth: createTargetWallAvoidanceTruthState(),
-    runMetrics: createRunMetrics(),
-    lastStep: {
-      chaserKnowledge: getChaserKnowledgeSnapshot(chaserKnowledgeBase),
-      chaserInput: { forward: false, steering: 0 },
-      targetMovementDecision: null,
-    },
-  };
-}
-
-export function stepChaseSimulation(state, { humanInput } = {}) {
-  if (!state?.scenario) {
-    return state;
-  }
-
-  updateChaserKnowledgeBase(state.chaserKnowledgeBase, {
+function updateChaserReasoningState(state) {
+  const cycle = stepChaserIdae(state.chaserIdae, {
     chaserPosition: state.chaserPosition,
     targetPosition: state.targetPosition,
     chaserLookDirection: state.chaserLookDirection,
@@ -118,27 +59,18 @@ export function stepChaseSimulation(state, { humanInput } = {}) {
     columns: state.columns,
     rows: state.rows,
     projectionSettings: state.projectionSettings,
+    humanInput: state.pendingHumanInput,
+    programmaticChaserEnabled: state.programmaticChaserEnabled,
+    chaserSpeedUnitsPerFrame: state.vehicleSettings.chaserSpeedUnitsPerFrame,
   });
-  const chaserKnowledge = getChaserKnowledgeSnapshot(state.chaserKnowledgeBase);
+  state.chaserKnowledgeBase = state.chaserIdae.state.knowledgeBase;
+  state.chaserAutopilotState = state.chaserIdae.state.autopilotState;
+  return cycle;
+}
 
-  const chaserInput = state.programmaticChaserEnabled
-    ? getProgrammaticChaserInput({
-      knowledgeBase: chaserKnowledge,
-      chaserPosition: state.chaserPosition,
-      chaserLookDirection: state.chaserLookDirection,
-      autopilotState: state.chaserAutopilotState,
-      chaserSpeedUnitsPerFrame: state.vehicleSettings.chaserSpeedUnitsPerFrame,
-      columns: state.columns,
-      rows: state.rows,
-      obstacles: state.obstacles,
-    })
-    : {
-      forward: Boolean(humanInput?.forward),
-      steering: Number.isFinite(humanInput?.steering) ? humanInput.steering : 0,
-    };
-
-  const isChaserMoving = chaserInput.forward;
-  const steeringInput = chaserInput.steering;
+function applyChaserAction(state, chaserAction) {
+  const isChaserMoving = chaserAction.forward;
+  const steeringInput = chaserAction.steering;
   if (isChaserMoving && steeringInput !== 0) {
     const nextHeading = angleToVector(
       vectorToAngle(state.chaserLookDirection)
@@ -160,16 +92,21 @@ export function stepChaseSimulation(state, { humanInput } = {}) {
   }, state.chaserPosition, state.columns, state.rows, state.obstacles);
   state.chaserPosition.x = nextChaser.x;
   state.chaserPosition.z = nextChaser.z;
+}
 
-  const targetMovementDecision = getTargetMovementDecision(
-    state.targetPosition,
-    state.targetDirection,
-    state.columns,
-    state.rows,
-    state.frameIndex,
-    state.obstacles,
-    state.scenario.policies?.target,
-  );
+function advanceTargetState(state) {
+  const targetReasoning = stepTargetIdae(state.targetIdae, {
+    targetPosition: state.targetPosition,
+    targetDirection: state.targetDirection,
+    columns: state.columns,
+    rows: state.rows,
+    frameIndex: state.frameIndex,
+    obstacles: state.obstacles,
+  });
+  const targetMovementDecision = {
+    direction: targetReasoning?.action?.direction ?? state.targetDirection,
+    debug: targetReasoning?.action?.debug ?? null,
+  };
   const nextTargetDirection = constrainDirectionToBounds(
     state.targetPosition,
     steerDirectionToward(
@@ -195,13 +132,93 @@ export function stepChaseSimulation(state, { humanInput } = {}) {
   state.targetPosition.x = nextTarget.x;
   state.targetPosition.z = nextTarget.z;
 
+  return {
+    targetMovementDecision,
+    targetReasoning,
+  };
+}
+
+export function createChaseSimulationState({
+  scenario,
+  columns,
+  rows,
+  traceRecorder,
+} = {}) {
+  const chaserIdae = createChaserIdae({ scenario });
+  const targetIdae = createTargetIdae({ scenario });
+  const resolvedTraceRecorder = traceRecorder ?? createChaseTraceRecorder(scenario?.trace);
+
+  return {
+    scenario,
+    columns,
+    rows,
+    frameIndex: 0,
+    simulationSettings: {
+      ...(scenario?.simulation ?? {}),
+    },
+    obstacles: scenario?.map?.obstacles ?? { walls: [] },
+    vehicleSettings: {
+      ...(scenario?.vehicleSettings ?? {}),
+    },
+    projectionSettings: {
+      ...(scenario?.projectionSettings ?? {}),
+    },
+    programmaticChaserEnabled: Boolean(scenario?.runtime?.programmaticChaserEnabled),
+    chaserPosition: { ...(scenario?.actors?.chaser?.position ?? { x: 0, z: 0 }) },
+    chaserLookDirection: { ...(scenario?.actors?.chaser?.direction ?? { x: 1, z: 0 }) },
+    targetPosition: { ...(scenario?.actors?.target?.position ?? { x: 0, z: 0 }) },
+    targetDirection: { ...(scenario?.actors?.target?.direction ?? { x: -1, z: 0 }) },
+    chaserIdae,
+    targetIdae,
+    chaserKnowledgeBase: chaserIdae.state.knowledgeBase,
+    chaserAutopilotState: chaserIdae.state.autopilotState,
+    targetWallAvoidanceTruth: createTargetWallAvoidanceTruthState(),
+    traceRecorder: resolvedTraceRecorder,
+    runMetrics: createRunMetrics(),
+    pendingHumanInput: { forward: false, steering: 0 },
+    lastStep: {
+      chaserKnowledge: null,
+      chaserInput: { source: "human", forward: false, steering: 0 },
+      chaserAction: { source: "human", forward: false, steering: 0 },
+      targetReasoning: null,
+      targetMovementDecision: null,
+    },
+  };
+}
+
+export function stepChaseSimulation(state, { humanInput } = {}) {
+  if (!state?.scenario) {
+    return state;
+  }
+
+  state.pendingHumanInput = {
+    forward: Boolean(humanInput?.forward),
+    steering: Number.isFinite(humanInput?.steering) ? humanInput.steering : 0,
+  };
+  const chaserReasoning = updateChaserReasoningState(state);
+  const chaserKnowledge = chaserReasoning?.snapshot?.knowledge ?? null;
+  const chaserAction = chaserReasoning?.action ?? {
+    source: "human",
+    forward: false,
+    steering: 0,
+  };
+  applyChaserAction(state, chaserAction);
+  const {
+    targetMovementDecision,
+    targetReasoning,
+  } = advanceTargetState(state);
+
   updateRunMetrics(state.runMetrics, state.chaserPosition, state.targetPosition);
   state.lastStep = {
     chaserKnowledge,
-    chaserInput,
+    chaserInput: chaserAction,
+    chaserAction,
+    chaserReasoning,
+    targetReasoning,
     targetMovementDecision,
   };
   state.frameIndex += 1;
+  recordChaseTraceFrame(state.traceRecorder, state);
   return state;
 }
 
@@ -212,11 +229,13 @@ export function runChaseScenarioFrames({
   frameCount = 0,
   inputProvider,
   state,
+  traceRecorder,
 } = {}) {
   const simulationState = state ?? createChaseSimulationState({
     scenario,
     columns,
     rows,
+    traceRecorder,
   });
   const safeFrameCount = Math.max(0, Math.floor(Number(frameCount) || 0));
 
@@ -231,4 +250,8 @@ export function runChaseScenarioFrames({
   }
 
   return simulationState;
+}
+
+export function getChaseSimulationTrace(state) {
+  return getChaseTraceRecorderSnapshot(state?.traceRecorder);
 }

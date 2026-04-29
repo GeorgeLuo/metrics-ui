@@ -158,8 +158,9 @@ export function updateTargetProjectionDisplay(
   const count = projectionVisible
     ? (hasExplicitPath ? path.length : getTargetProjectionSampleCount(projectionSettings))
     : 0;
-  const predictionDirection = targetPrediction?.direction ?? estimate.direction;
-  const canProject = Boolean(estimate.position && predictionDirection && count > 0);
+  const estimatePosition = estimate?.position ?? null;
+  const predictionDirection = targetPrediction?.direction ?? estimate?.direction ?? null;
+  const canProject = Boolean(estimatePosition && predictionDirection && count > 0);
   group.visible = canProject;
   syncProjectionFrames(group, frames, canProject ? count : 0);
   if (!canProject) {

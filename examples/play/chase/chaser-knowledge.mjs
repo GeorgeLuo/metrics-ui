@@ -6,12 +6,14 @@ import {
   updateTargetLocationMemory,
 } from "./chaser.mjs";
 import {
-  buildTargetPredictionPlan,
-  createTargetPredictionPlanState,
-} from "./target-prediction-plan.mjs";
-import {
   getPatternConfidence,
 } from "./patterns.mjs";
+import {
+  getStrategyConfidence,
+  getStrategyState,
+  getStrategyOutput,
+  isStrategyActionable,
+} from "./strategies.mjs";
 import {
   buildTargetMotionModel,
   createTargetMotionPattern,
@@ -23,6 +25,11 @@ import {
   getWallAvoidancePatternOutput,
   updateWallAvoidancePattern,
 } from "./wall-avoidance-pattern.mjs";
+import {
+  createDisabledTargetPredictionPlan,
+  createTargetPredictionStrategy,
+  updateTargetPredictionStrategy,
+} from "./target-prediction-strategy.mjs";
 
 export const CHASER_KNOWLEDGE_ENGINE_IDS = Object.freeze({
   PERCEPTION: "perception",
@@ -35,26 +42,8 @@ function asEnabled(value, fallback = true) {
   return typeof value === "boolean" ? value : fallback;
 }
 
-function createDisabledPredictionPlan(invalidReason) {
-  return {
-    actionable: false,
-    invalidReason,
-    prediction: {
-      strategy: invalidReason,
-      direction: { x: 0, z: 0 },
-      consensus: 0,
-      oscillators: [],
-    },
-    path: [],
-    sampleCount: 0,
-    sampleSpacingFrames: 0,
-    horizonFrames: 0,
-    validationErrorDistance: 0,
-  };
-}
-
 function buildAssumedTargetBehavior(knowledgeBase) {
-  const predictionPlan = knowledgeBase?.strategies?.targetPrediction?.plan;
+  const predictionPlan = getStrategyOutput(knowledgeBase?.strategies?.targetPrediction);
   const prediction = predictionPlan?.prediction;
   const wallAvoidancePattern = getWallAvoidancePatternOutput(
     knowledgeBase?.patterns?.wallAvoidance,
@@ -116,10 +105,7 @@ export function createChaserKnowledgeBase({
       targetMotionHypothesis: createTargetMotionPattern(targetDirection),
     },
     strategies: {
-      targetPrediction: {
-        planState: createTargetPredictionPlanState(),
-        plan: createDisabledPredictionPlan("prediction-not-yet-built"),
-      },
+      targetPrediction: createTargetPredictionStrategy(),
     },
     assumedBehavior: {
       targetMotion: {
@@ -143,51 +129,7 @@ function getTargetMotionModel(knowledgeBase) {
   });
 }
 
-export function getChaserKnowledgeSnapshot(knowledgeBase) {
-  const targetLocation = knowledgeBase?.memory?.targetLocation ?? null;
-  const observedTargetMotion = knowledgeBase?.memory?.observedTargetMotion ?? null;
-  const targetMotionHypothesis = getTargetMotionHypothesis(
-    knowledgeBase?.patterns?.targetMotionHypothesis,
-  );
-  const wallAvoidancePattern = getWallAvoidancePatternOutput(
-    knowledgeBase?.patterns?.wallAvoidance,
-  );
-  const targetPrediction = knowledgeBase?.strategies?.targetPrediction ?? null;
-  const targetMotionModel = getTargetMotionModel(knowledgeBase);
-
-  return {
-    engines: { ...knowledgeBase?.engines },
-    memory: knowledgeBase?.memory ?? null,
-    patterns: {
-      wallAvoidance: wallAvoidancePattern,
-      targetMotionHypothesis,
-    },
-    strategies: knowledgeBase?.strategies ?? null,
-    patternStatus: {
-      wallAvoidance: {
-        id: knowledgeBase?.patterns?.wallAvoidance?.id ?? "wallAvoidance",
-        confidence: getPatternConfidence(knowledgeBase?.patterns?.wallAvoidance),
-      },
-      targetMotionHypothesis: {
-        id: knowledgeBase?.patterns?.targetMotionHypothesis?.id ?? "targetMotionHypothesis",
-        confidence: getPatternConfidence(knowledgeBase?.patterns?.targetMotionHypothesis),
-      },
-    },
-    targetLocation,
-    observedTargetMotion,
-    targetMotionHypothesis,
-    targetMotionModel,
-    wallAvoidancePattern,
-    predictionPlan: targetPrediction?.plan ?? null,
-    predictionPlanState: targetPrediction?.planState ?? null,
-    assumedBehavior: knowledgeBase?.assumedBehavior ?? null,
-    perception: targetLocation ?? { visible: false },
-    targetEstimate: targetMotionModel,
-    wallAvoidanceEvidence: wallAvoidancePattern,
-  };
-}
-
-export function updateChaserKnowledgeBase(
+export function observeChaserEnvironment(
   knowledgeBase,
   {
     chaserPosition,
@@ -195,16 +137,13 @@ export function updateChaserKnowledgeBase(
     chaserLookDirection,
     fieldOfViewAngleRadians,
     obstacles,
-    columns,
-    rows,
-    projectionSettings = {},
   } = {},
 ) {
   if (!knowledgeBase) {
     return null;
   }
 
-  const perception = knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.PERCEPTION]
+  return knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.PERCEPTION]
     ? getChaserTargetPerception(
       chaserPosition,
       targetPosition,
@@ -213,6 +152,19 @@ export function updateChaserKnowledgeBase(
       obstacles,
     )
     : { visible: false, disabled: true };
+}
+
+export function updateChaserMemoryStage(
+  knowledgeBase,
+  {
+    perception,
+    chaserPosition,
+    chaserLookDirection,
+  } = {},
+) {
+  if (!knowledgeBase) {
+    return null;
+  }
 
   updateTargetLocationMemory(
     knowledgeBase.memory.targetLocation,
@@ -226,6 +178,24 @@ export function updateChaserKnowledgeBase(
       knowledgeBase.memory.observedTargetMotion,
       knowledgeBase.memory.targetLocation,
     );
+  }
+
+  return knowledgeBase.memory;
+}
+
+export function updateChaserPatternStage(
+  knowledgeBase,
+  {
+    columns,
+    rows,
+    obstacles,
+  } = {},
+) {
+  if (!knowledgeBase) {
+    return null;
+  }
+
+  if (knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.TARGET_TRACKING]) {
     updateTargetMotionPattern(
       knowledgeBase.patterns.targetMotionHypothesis,
       {
@@ -256,24 +226,133 @@ export function updateChaserKnowledgeBase(
     ? getWallAvoidancePatternOutput(knowledgeBase.patterns.wallAvoidance)
     : null;
 
-  knowledgeBase.strategies.targetPrediction.plan = knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.PREDICTION_PLANNING]
-    ? buildTargetPredictionPlan({
-      estimate: targetMotionModel,
+  return {
+    targetMotionModel,
+    wallAvoidancePattern,
+  };
+}
+
+export function updateChaserStrategyStage(
+  knowledgeBase,
+  {
+    columns,
+    rows,
+    obstacles,
+    projectionSettings = {},
+    targetMotionModel = null,
+    wallAvoidancePattern = null,
+  } = {},
+) {
+  if (!knowledgeBase) {
+    return null;
+  }
+
+  const resolvedTargetMotionModel = targetMotionModel ?? getTargetMotionModel(knowledgeBase);
+  const resolvedWallAvoidancePattern = wallAvoidancePattern ?? (
+    knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.WALL_AVOIDANCE_INFERENCE]
+      ? getWallAvoidancePatternOutput(knowledgeBase.patterns.wallAvoidance)
+      : null
+  );
+
+  if (knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.PREDICTION_PLANNING]) {
+    updateTargetPredictionStrategy(knowledgeBase.strategies.targetPrediction, {
+      estimate: resolvedTargetMotionModel,
       columns,
       rows,
       obstacles,
-      wallAvoidanceEvidence: wallAvoidancePattern,
-      speedUnitsPerFrame: targetMotionModel?.speedEstimateUnitsPerFrame,
+      wallAvoidanceEvidence: resolvedWallAvoidancePattern,
+      speedUnitsPerFrame: resolvedTargetMotionModel?.speedEstimateUnitsPerFrame,
       targetVisible: knowledgeBase.memory.targetLocation.visible,
-      planState: knowledgeBase.strategies.targetPrediction.planState,
       horizonFrames: projectionSettings?.horizonFrames,
       sampleSpacingFrames: projectionSettings?.sampleSpacingFrames,
-    })
-    : createDisabledPredictionPlan("prediction-engine-disabled");
+    });
+  } else {
+    knowledgeBase.strategies.targetPrediction.output = createDisabledTargetPredictionPlan(
+      "prediction-engine-disabled",
+    );
+  }
 
   knowledgeBase.assumedBehavior = {
     targetMotion: buildAssumedTargetBehavior(knowledgeBase),
   };
+
+  return knowledgeBase.strategies;
+}
+
+export function getChaserKnowledgeSnapshot(knowledgeBase) {
+  const targetLocation = knowledgeBase?.memory?.targetLocation ?? null;
+  const observedTargetMotion = knowledgeBase?.memory?.observedTargetMotion ?? null;
+  const targetMotionHypothesis = getTargetMotionHypothesis(
+    knowledgeBase?.patterns?.targetMotionHypothesis,
+  );
+  const wallAvoidancePattern = getWallAvoidancePatternOutput(
+    knowledgeBase?.patterns?.wallAvoidance,
+  );
+  const targetPredictionStrategy = knowledgeBase?.strategies?.targetPrediction ?? null;
+  const targetPrediction = getStrategyOutput(targetPredictionStrategy);
+  const targetMotionModel = getTargetMotionModel(knowledgeBase);
+
+  return {
+    engines: { ...knowledgeBase?.engines },
+    memory: knowledgeBase?.memory ?? null,
+    patterns: {
+      wallAvoidance: wallAvoidancePattern,
+      targetMotionHypothesis,
+    },
+    strategies: {
+      targetPrediction,
+    },
+    patternStatus: {
+      wallAvoidance: {
+        id: knowledgeBase?.patterns?.wallAvoidance?.id ?? "wallAvoidance",
+        confidence: getPatternConfidence(knowledgeBase?.patterns?.wallAvoidance),
+      },
+      targetMotionHypothesis: {
+        id: knowledgeBase?.patterns?.targetMotionHypothesis?.id ?? "targetMotionHypothesis",
+        confidence: getPatternConfidence(knowledgeBase?.patterns?.targetMotionHypothesis),
+      },
+    },
+    strategyStatus: {
+      targetPrediction: {
+        id: targetPredictionStrategy?.id ?? "targetPrediction",
+        confidence: getStrategyConfidence(targetPredictionStrategy),
+        actionable: isStrategyActionable(targetPredictionStrategy),
+      },
+    },
+    targetLocation,
+    observedTargetMotion,
+    targetMotionHypothesis,
+    targetMotionModel,
+    wallAvoidancePattern,
+    predictionPlan: targetPrediction ?? null,
+    predictionPlanState: getStrategyState(targetPredictionStrategy),
+    assumedBehavior: knowledgeBase?.assumedBehavior ?? null,
+    perception: targetLocation ?? { visible: false },
+    targetEstimate: targetMotionModel,
+    wallAvoidanceEvidence: wallAvoidancePattern,
+  };
+}
+
+export function updateChaserKnowledgeBase(
+  knowledgeBase,
+  context = {},
+) {
+  if (!knowledgeBase) {
+    return null;
+  }
+
+  const perception = observeChaserEnvironment(knowledgeBase, context);
+  updateChaserMemoryStage(knowledgeBase, {
+    perception,
+    chaserPosition: context.chaserPosition,
+    chaserLookDirection: context.chaserLookDirection,
+  });
+  const patternStage = updateChaserPatternStage(knowledgeBase, context);
+  updateChaserStrategyStage(knowledgeBase, {
+    ...context,
+    targetMotionModel: patternStage?.targetMotionModel,
+    wallAvoidancePattern: patternStage?.wallAvoidancePattern,
+  });
 
   return knowledgeBase;
 }

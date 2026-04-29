@@ -32,6 +32,12 @@ const defaultScenarioDefinition = {
   simulation: {
     framesPerSecond: 60,
   },
+  trace: {
+    enabled: false,
+    sink: "none",
+    everyNFrames: 1,
+    filePath: null,
+  },
   policies: {
     target: {
       id: "baseline-drift-wall-avoid",
