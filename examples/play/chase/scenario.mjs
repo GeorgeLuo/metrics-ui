@@ -20,6 +20,7 @@ import {
   degreesToRadians,
   normalizeVector,
 } from "./math.mjs";
+import { CHASE_TRACE_SINKS } from "./trace-recorder.mjs";
 import { getFieldObstacleLayout } from "./world.mjs";
 
 function asRecord(value) {
@@ -189,6 +190,28 @@ function normalizeProjectionSpacingFrames(record) {
   return DEFAULT_TARGET_PROJECTION_SPACING_FRAMES;
 }
 
+function normalizeTraceSink(value) {
+  return Object.values(CHASE_TRACE_SINKS).includes(value)
+    ? value
+    : CHASE_TRACE_SINKS.NONE;
+}
+
+function normalizeTraceConfig(value) {
+  const record = asRecord(value) ?? {};
+  return {
+    enabled: normalizeBoolean(record.enabled, false),
+    sink: normalizeTraceSink(record.sink),
+    filePath: typeof record.filePath === "string" && record.filePath.trim()
+      ? record.filePath.trim()
+      : null,
+    everyNFrames: Math.round(clampNumber(
+      normalizeNumber(record.everyNFrames, 1),
+      1,
+      10_000,
+    )),
+  };
+}
+
 export function resolveChaseScenario(definition, { columns, rows } = {}) {
   const safeColumns = Number.isFinite(columns) && columns > 0 ? columns : 9;
   const safeRows = Number.isFinite(rows) && rows > 0 ? rows : 6;
@@ -269,6 +292,7 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
         MAX_SIMULATION_FRAMES_PER_SECOND,
       )),
     },
+    trace: normalizeTraceConfig(root.trace),
     policies: {
       target: normalizeTargetPolicy(policies.target),
     },

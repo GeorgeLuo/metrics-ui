@@ -554,18 +554,22 @@ export function createPlayGame({
       targetWallAvoidanceTruth,
       lastStep,
     } = simulationState;
-    const chaserKnowledge = lastStep.chaserKnowledge;
-    const targetLocationMemory = chaserKnowledge.targetLocation ?? chaserKnowledge.memory?.targetLocation;
-    const targetMotionModel = chaserKnowledge.targetMotionModel ?? chaserKnowledge.targetEstimate;
-    chaserView.setTargetVisible(targetLocationMemory?.visible);
+    const chaserKnowledge = lastStep.chaserKnowledge ?? null;
+    const targetLocationMemory = chaserKnowledge?.targetLocation
+      ?? chaserKnowledge?.memory?.targetLocation
+      ?? null;
+    const targetMotionModel = chaserKnowledge?.targetMotionModel
+      ?? chaserKnowledge?.targetEstimate
+      ?? null;
+    chaserView.setTargetVisible(Boolean(targetLocationMemory?.visible));
     updateTargetProjectionDisplay(
       targetProjectionGroup,
       targetProjectionFrames,
       targetMotionModel,
-      chaserKnowledge.predictionPlan?.prediction,
+      chaserKnowledge?.predictionPlan?.prediction,
       projectionSettings,
       targetMotionModel?.speedEstimateUnitsPerFrame,
-      chaserKnowledge.predictionPlan?.path,
+      chaserKnowledge?.predictionPlan?.path,
     );
     strategyDebugFrame?.update({
       knowledgeBase: chaserKnowledge,
