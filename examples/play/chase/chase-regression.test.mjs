@@ -309,6 +309,72 @@ test("chaser and evader IDAE snapshots follow the shared actor framework shape",
   }
 });
 
+test("pause-before-actions freezes a synced actor reasoning frame", () => {
+  const scenario = buildScenario((draft) => {
+    draft.actors.chaser.position = { x: 1.7, z: 0 };
+    draft.actors.chaser.direction = { x: 1, z: 0 };
+    draft.actors.evader.position = { x: 2.25, z: 0 };
+    draft.actors.evader.direction = { x: -1, z: 0 };
+  });
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  const startChaserPosition = { ...state.chaserPosition };
+  const startEvaderPosition = { ...state.evaderPosition };
+
+  stepChaseSimulation(state, {
+    humanInput: forwardInput(),
+    pauseBeforeActions: true,
+  });
+
+  assert.equal(state.frameIndex, 0);
+  assert.equal(state.runMetrics.elapsedFrames, 0);
+  assert.equal(state.lastStep.phase, "before-actions");
+  assert.equal(state.lastStep.actionApplicationPending, true);
+  assert.ok(state.pendingActionFrame, "expected pause to retain a pending action frame");
+  assert.deepEqual(state.chaserPosition, startChaserPosition);
+  assert.deepEqual(state.evaderPosition, startEvaderPosition);
+  assert.equal(state.lastStep.chaserAction?.forward, true);
+  assert.deepEqual(state.lastStep.frozenFrame?.chaserPosition, startChaserPosition);
+  assert.deepEqual(
+    state.lastStep.chaserReasoning?.snapshot?.selfState?.position,
+    startChaserPosition,
+  );
+  assert.deepEqual(
+    state.lastStep.evaderReasoning?.snapshot?.selfState?.position,
+    startEvaderPosition,
+  );
+  assert.deepEqual(
+    {
+      x: roundNumber(
+        state.lastStep.evaderReasoning?.snapshot?.memory?.directObservation?.chaserLocation?.position?.x,
+      ),
+      z: roundNumber(
+        state.lastStep.evaderReasoning?.snapshot?.memory?.directObservation?.chaserLocation?.position?.z,
+      ),
+    },
+    startChaserPosition,
+  );
+
+  stepChaseSimulation(state, {
+    humanInput: reverseInput(),
+    pauseBeforeActions: true,
+  });
+  assert.equal(state.frameIndex, 0);
+  assert.equal(state.lastStep.chaserAction?.forward, true);
+  assert.equal(state.lastStep.chaserAction?.reverse, false);
+
+  stepChaseSimulation(state, { pauseBeforeActions: false });
+  assert.equal(state.frameIndex, 1);
+  assert.equal(state.runMetrics.elapsedFrames, 1);
+  assert.equal(state.lastStep.phase, "after-actions");
+  assert.equal(state.lastStep.actionApplicationPending, false);
+  assert.equal(state.pendingActionFrame, null);
+  assert.ok(state.chaserPosition.x > startChaserPosition.x);
+});
+
 test("manual reverse moves the chaser backward and reverse steering turns the heading opposite forward drive", () => {
   const reverseState = createChaseSimulationState({
     scenario: cloneScenario(),
