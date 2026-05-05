@@ -12,8 +12,27 @@ import {
   EVADER_FIELD_OF_VIEW_COLOR,
   EVADER_PROJECTION_COLOR,
 } from "./constants.mjs";
-import { vectorToAngle } from "./math.mjs";
+import { normalizeVector, vectorToAngle } from "./math.mjs";
 import { getEvaderProjectionSampleCount } from "./evader-prediction-plan.mjs";
+
+const PREDICTION_DEBUG_PATTERN_PALETTE = Object.freeze([
+  0x38bdf8,
+  0xf59e0b,
+  0x22c55e,
+  0xa855f7,
+  0x14b8a6,
+  0xf97316,
+  0x84cc16,
+  0xec4899,
+]);
+const PREDICTION_DEBUG_STRATEGY_PALETTE = Object.freeze([
+  0xffffff,
+  0xf43f5e,
+  0x60a5fa,
+  0xfacc15,
+  0xc4b5fd,
+  0x34d399,
+]);
 
 export function createCar(color) {
   const geometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
@@ -122,12 +141,12 @@ function setProjectionFrame(frame, centerPosition, direction) {
   frame.rotation.y = vectorToAngle(direction);
 }
 
-function createProjectionFrame(opacity) {
+function createProjectionFrame(opacity, color = EVADER_PROJECTION_COLOR) {
   const boxGeometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
   const geometry = new THREE.EdgesGeometry(boxGeometry);
   boxGeometry.dispose();
   const material = new THREE.LineBasicMaterial({
-    color: EVADER_PROJECTION_COLOR,
+    color,
     transparent: true,
     opacity,
     depthWrite: false,
@@ -135,11 +154,16 @@ function createProjectionFrame(opacity) {
   return new THREE.LineSegments(geometry, material);
 }
 
-export function syncProjectionFrames(group, frames, count) {
+export function syncProjectionFrames(group, frames, count, {
+  color = EVADER_PROJECTION_COLOR,
+  maxOpacity = 0.42,
+  minOpacity = 0.08,
+  scale = 1,
+} = {}) {
   while (frames.length < count) {
     const index = frames.length;
-    const opacity = Math.max(0.08, 0.42 * (1 - index / Math.max(count, 1)));
-    const frame = createProjectionFrame(opacity);
+    const opacity = Math.max(minOpacity, maxOpacity * (1 - index / Math.max(count, 1)));
+    const frame = createProjectionFrame(opacity, color);
     frames.push(frame);
     group.add(frame);
   }
@@ -154,7 +178,9 @@ export function syncProjectionFrames(group, frames, count) {
   }
 
   frames.forEach((frame, index) => {
-    frame.material.opacity = Math.max(0.08, 0.42 * (1 - index / Math.max(count, 1)));
+    frame.material.opacity = Math.max(minOpacity, maxOpacity * (1 - index / Math.max(count, 1)));
+    frame.material.color.setHex(color);
+    frame.scale.setScalar(scale);
   });
 }
 
@@ -197,4 +223,204 @@ export function updateEvaderProjectionDisplay(
       direction,
     );
   });
+}
+
+function hashString(value) {
+  return String(value).split("").reduce(
+    (hash, character) => ((hash << 5) - hash + character.charCodeAt(0)) | 0,
+    0,
+  );
+}
+
+function getPaletteColor(id, palette) {
+  const index = Math.abs(hashString(id)) % palette.length;
+  return palette[index];
+}
+
+function clonePosition(position) {
+  return position
+    && Number.isFinite(position.x)
+    && Number.isFinite(position.z)
+    ? {
+      x: position.x,
+      z: position.z,
+    }
+    : null;
+}
+
+function cloneDirection(direction) {
+  return direction
+    && Number.isFinite(direction.x)
+    && Number.isFinite(direction.z)
+    ? {
+      x: direction.x,
+      z: direction.z,
+    }
+    : null;
+}
+
+function getPredictionSamplePosition(sample) {
+  return clonePosition(sample?.position ?? sample?.predictedPosition);
+}
+
+function getPredictionSampleDirection(sample, index, samples) {
+  const directDirection = cloneDirection(sample?.direction ?? sample?.predictedDirection);
+  if (directDirection) {
+    return directDirection;
+  }
+  const previousPosition = getPredictionSamplePosition(samples[index - 1]);
+  const nextPosition = getPredictionSamplePosition(samples[index + 1]);
+  if (previousPosition && nextPosition) {
+    const direction = normalizeVector(
+      nextPosition.x - previousPosition.x,
+      nextPosition.z - previousPosition.z,
+    );
+    if (direction.x !== 0 || direction.z !== 0) {
+      return direction;
+    }
+  }
+  return { x: 0, z: 1 };
+}
+
+function normalizePredictionSamples(path = []) {
+  return (Array.isArray(path) ? path : [])
+    .map((sample, index, samples) => {
+      const position = getPredictionSamplePosition(sample);
+      if (!position) {
+        return null;
+      }
+      return {
+        position,
+        direction: getPredictionSampleDirection(sample, index, samples),
+        framesAhead: Number(sample?.framesAhead ?? sample?.frameOffset) || index + 1,
+        confidence: Number.isFinite(sample?.confidence) ? sample.confidence : 0,
+      };
+    })
+    .filter(Boolean);
+}
+
+export function getPredictionDebugPathEntries(snapshot) {
+  const patternEntries = Object.entries(snapshot?.patternUnits ?? {})
+    .map(([id, patternUnit]) => ({
+      id: `pattern:${id}`,
+      sourceId: id,
+      label: id,
+      kind: "pattern",
+      color: getPaletteColor(`pattern:${id}`, PREDICTION_DEBUG_PATTERN_PALETTE),
+      samples: normalizePredictionSamples(patternUnit?.predictions),
+    }))
+    .filter((entry) => entry.samples.length > 0);
+  const strategyEntries = Object.entries(snapshot?.strategies ?? {})
+    .map(([id, strategy]) => ({
+      id: `strategy:${id}`,
+      sourceId: id,
+      label: `${id} consensus`,
+      kind: "strategy",
+      color: getPaletteColor(`strategy:${id}`, PREDICTION_DEBUG_STRATEGY_PALETTE),
+      samples: normalizePredictionSamples(strategy?.path),
+    }))
+    .filter((entry) => entry.samples.length > 0);
+
+  return [...patternEntries, ...strategyEntries];
+}
+
+function createPredictionPathDisplay(color) {
+  const group = new THREE.Group();
+  const lineGeometry = new THREE.BufferGeometry();
+  const lineMaterial = new THREE.LineBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+  });
+  const line = new THREE.Line(lineGeometry, lineMaterial);
+  group.add(line);
+  return {
+    group,
+    line,
+    frames: [],
+  };
+}
+
+function disposePredictionPathDisplay(parentGroup, display) {
+  if (!display) {
+    return;
+  }
+  syncProjectionFrames(display.group, display.frames, 0);
+  parentGroup.remove(display.group);
+  display.line.geometry.dispose();
+  display.line.material.dispose();
+}
+
+function syncPredictionPathLine(display, samples, color, opacity) {
+  display.line.material.color.setHex(color);
+  display.line.material.opacity = opacity;
+  display.line.visible = samples.length > 1;
+  display.line.geometry.dispose();
+  const positions = samples.flatMap((sample) => [
+    sample.position.x,
+    CAR_HEIGHT + 0.035,
+    sample.position.z,
+  ]);
+  display.line.geometry = new THREE.BufferGeometry();
+  display.line.geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3),
+  );
+}
+
+export function createPredictionDebugDisplayState() {
+  return {
+    displays: new Map(),
+  };
+}
+
+export function disposePredictionDebugDisplayState(group, state) {
+  for (const display of state?.displays?.values?.() ?? []) {
+    disposePredictionPathDisplay(group, display);
+  }
+  state?.displays?.clear?.();
+}
+
+export function updatePredictionDebugDisplay(group, state, snapshot, {
+  visible = false,
+} = {}) {
+  const entries = visible ? getPredictionDebugPathEntries(snapshot) : [];
+  const activeIds = new Set(entries.map((entry) => entry.id));
+
+  for (const [id, display] of state.displays.entries()) {
+    if (!activeIds.has(id)) {
+      disposePredictionPathDisplay(group, display);
+      state.displays.delete(id);
+    }
+  }
+
+  for (const entry of entries) {
+    if (!state.displays.has(entry.id)) {
+      const display = createPredictionPathDisplay(entry.color);
+      state.displays.set(entry.id, display);
+      group.add(display.group);
+    }
+    const display = state.displays.get(entry.id);
+    const isStrategyPath = entry.kind === "strategy";
+    syncPredictionPathLine(
+      display,
+      entry.samples,
+      entry.color,
+      isStrategyPath ? 0.82 : 0.48,
+    );
+    syncProjectionFrames(display.group, display.frames, entry.samples.length, {
+      color: entry.color,
+      maxOpacity: isStrategyPath ? 0.82 : 0.36,
+      minOpacity: isStrategyPath ? 0.18 : 0.07,
+      scale: isStrategyPath ? 1.12 : 0.86,
+    });
+    display.frames.forEach((frame, index) => {
+      const sample = entry.samples[index];
+      setProjectionFrame(frame, sample.position, sample.direction);
+    });
+  }
+
+  group.visible = visible && entries.length > 0;
+  return entries;
 }

@@ -35,7 +35,10 @@ import {
   createFieldOfViewCone,
   createFieldOfViewConeGeometry,
   createWall,
+  createPredictionDebugDisplayState,
+  disposePredictionDebugDisplayState,
   syncProjectionFrames,
+  updatePredictionDebugDisplay,
   updateEvaderProjectionDisplay,
 } from "./rendering.mjs";
 import { publishSidebarSections, createActorStrategyToggleActionId } from "./sidebar.mjs";
@@ -248,7 +251,11 @@ function createEvaderViewController({ createFloatingFrame, vehicleSettings, onVi
   });
 }
 
-function createIdaeDebugController({ createFloatingFrame, onVisibilityChange }) {
+function createIdaeDebugController({
+  createFloatingFrame,
+  onVisibilityChange,
+  onPredictionDebugChange,
+}) {
   let mountedDebugFrame = null;
   let suppressNextCloseNotification = false;
 
@@ -267,6 +274,7 @@ function createIdaeDebugController({ createFloatingFrame, onVisibilityChange }) 
     }
     mountedDebugFrame = mountIdaeDebugFrame(createFloatingFrame, {
       onClose: handleFrameClose,
+      onPredictionDebugChange,
     });
     if (mountedDebugFrame) {
       onVisibilityChange?.(true);
@@ -486,6 +494,10 @@ export function createPlayGame({
   let chaserViewVisible = false;
   let evaderViewVisible = false;
   let idaeDebugVisible = false;
+  let idaePredictionDebug = {
+    visible: false,
+    actorId: "chaser",
+  };
   const simulationSettings = simulationState.simulationSettings;
   const vehicleSettings = simulationState.vehicleSettings;
   const projectionSettings = {
@@ -534,6 +546,12 @@ export function createPlayGame({
     onVisibilityChange: (visible) => {
       idaeDebugVisible = visible;
       refreshSidebarSections();
+    },
+    onPredictionDebugChange: (nextState = {}) => {
+      idaePredictionDebug = {
+        visible: Boolean(nextState.visible),
+        actorId: typeof nextState.actorId === "string" ? nextState.actorId : "chaser",
+      };
     },
   });
   const updateFieldOfView = () => {
@@ -616,13 +634,17 @@ export function createPlayGame({
   const evader = createCar(0xf43f5e);
   const evaderProjectionGroup = new THREE.Group();
   const evaderProjectionFrames = [];
+  const idaePredictionDebugGroup = new THREE.Group();
+  const idaePredictionDebugDisplayState = createPredictionDebugDisplayState();
   evaderProjectionGroup.visible = false;
+  idaePredictionDebugGroup.visible = false;
   const obstacles = simulationState.obstacles;
   const obstacleMeshes = obstacles.walls.map(createWall);
   scene.add(
     chaserFieldOfView,
     evaderFieldOfView,
     evaderProjectionGroup,
+    idaePredictionDebugGroup,
     chaser,
     evader,
     ...obstacleMeshes,
@@ -714,6 +736,18 @@ export function createPlayGame({
       evaderPredictionPlan?.path ?? null,
     );
     const projectionDisplayMs = performance.now() - projectionDisplayStartMs;
+    const predictionDebugDisplayStartMs = performance.now();
+    const actorSnapshots = {
+      chaser: chaserSnapshot,
+      evader: lastStep.evaderReasoning?.snapshot ?? null,
+    };
+    updatePredictionDebugDisplay(
+      idaePredictionDebugGroup,
+      idaePredictionDebugDisplayState,
+      actorSnapshots[idaePredictionDebug.actorId] ?? null,
+      { visible: idaePredictionDebug.visible },
+    );
+    const predictionDebugDisplayMs = performance.now() - predictionDebugDisplayStartMs;
     const idaeDebugStartMs = performance.now();
     idaeDebugFrame?.update({
       chaserSnapshot,
@@ -776,11 +810,13 @@ export function createPlayGame({
       overSimulationBudget: totalTickMs > frameDurationMs,
       visible: {
         idaeDebug: idaeDebugVisible,
+        idaePredictionDebug: idaePredictionDebug.visible,
         chaserView: chaserViewVisible,
         evaderView: evaderViewVisible,
       },
       segments: {
         projectionDisplayMs,
+        predictionDebugDisplayMs,
         idaeDebugMs,
         sidebarMs,
         sceneSyncMs,
@@ -815,6 +851,7 @@ export function createPlayGame({
       evader.geometry.dispose();
       evader.material.dispose();
       syncProjectionFrames(evaderProjectionGroup, evaderProjectionFrames, 0);
+      disposePredictionDebugDisplayState(idaePredictionDebugGroup, idaePredictionDebugDisplayState);
       obstacleMeshes.forEach((obstacle) => {
         obstacle.geometry.dispose();
         obstacle.material.dispose();

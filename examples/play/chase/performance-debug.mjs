@@ -76,6 +76,7 @@ function cloneSample(sample) {
     ),
     visible: {
       idaeDebug: Boolean(sample?.visible?.idaeDebug),
+      idaePredictionDebug: Boolean(sample?.visible?.idaePredictionDebug),
       chaserView: Boolean(sample?.visible?.chaserView),
       evaderView: Boolean(sample?.visible?.evaderView),
     },
@@ -146,6 +147,7 @@ export function createChasePerformanceTracker({
     const debugValues = samples.map((sample) => sample.segments.idaeDebugMs);
     const sidebarValues = samples.map((sample) => sample.segments.sidebarMs);
     const projectionValues = samples.map((sample) => sample.segments.projectionDisplayMs);
+    const predictionDebugValues = samples.map((sample) => sample.segments.predictionDebugDisplayMs);
 
     return {
       generatedAt: new Date().toISOString(),
@@ -161,6 +163,7 @@ export function createChasePerformanceTracker({
         idaeDebug: summarize(debugValues),
         sidebar: summarize(sidebarValues),
         projectionDisplay: summarize(projectionValues),
+        predictionDebugDisplay: summarize(predictionDebugValues),
         catchupTickCount: samples.filter((sample) => sample.stepsThisTick > 1).length,
         overVisualBudgetCount: samples.filter((sample) => sample.overVisualBudget).length,
         overSimulationBudgetCount: samples.filter((sample) => sample.overSimulationBudget).length,
@@ -176,6 +179,7 @@ export function createChasePerformanceTracker({
         ...sample,
         segments: {
           projectionDisplayMs: Number(sample?.segments?.projectionDisplayMs) || 0,
+          predictionDebugDisplayMs: Number(sample?.segments?.predictionDebugDisplayMs) || 0,
           idaeDebugMs: Number(sample?.segments?.idaeDebugMs) || 0,
           sidebarMs: Number(sample?.segments?.sidebarMs) || 0,
           sceneSyncMs: Number(sample?.segments?.sceneSyncMs) || 0,
