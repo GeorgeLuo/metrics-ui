@@ -55,53 +55,27 @@ function clonePredictionPath(path) {
     }));
 }
 
-function cloneChaserKnowledge(knowledge) {
-  const targetLocation = knowledge?.targetLocation ?? knowledge?.memory?.targetLocation ?? null;
-  const observedTargetMotion = knowledge?.observedTargetMotion
-    ?? knowledge?.memory?.observedTargetMotion
-    ?? null;
-  const targetMotionHypothesis = knowledge?.targetMotionHypothesis
-    ?? knowledge?.patterns?.targetMotionHypothesis
-    ?? null;
-  const wallAvoidancePattern = knowledge?.wallAvoidancePattern
-    ?? knowledge?.wallAvoidanceEvidence
-    ?? knowledge?.patterns?.wallAvoidance
-    ?? null;
-  const predictionPlan = knowledge?.predictionPlan ?? null;
-  const prediction = predictionPlan?.prediction ?? null;
+function cloneChaserSnapshot(snapshot) {
+  const continuance = snapshot?.patterns?.continuance ?? null;
+  const wallAvoidancePattern = snapshot?.patterns?.wallAvoidance ?? null;
+  const evaderMotionModel = snapshot?.patterns?.evaderMotionModel ?? null;
+  const evaderPredictionPlan = snapshot?.strategies?.evaderPrediction ?? null;
+  const prediction = evaderPredictionPlan?.prediction ?? null;
 
   return {
-    targetLocation: targetLocation
-      ? {
-        visible: Boolean(targetLocation.visible),
-        position: clonePosition(targetLocation.position),
-        bearingRadians: targetLocation.bearingRadians ?? null,
-        distance: targetLocation.distance ?? null,
-        observationCount: Number(targetLocation.observationCount) || 0,
-        framesSinceObservation: Number(targetLocation.framesSinceObservation) || 0,
-        observationGapFrames: Number(targetLocation.observationGapFrames) || 0,
-      }
-      : null,
-    observedTargetMotion: observedTargetMotion
-      ? {
-        speedEstimateUnitsPerFrame: Number(observedTargetMotion.speedEstimateUnitsPerFrame) || 0,
-        speedObservationCount: Number(observedTargetMotion.speedObservationCount) || 0,
-        lastObservedDirection: cloneVector(observedTargetMotion.lastObservedDirection),
-        previousObservedDirection: cloneVector(observedTargetMotion.previousObservedDirection),
-        observedTurnRadiansPerFrame: Number(observedTargetMotion.observedTurnRadiansPerFrame) || 0,
-        lastObservedPosition: clonePosition(observedTargetMotion.lastObservedPosition),
-        observationCount: Number(observedTargetMotion.observationCount) || 0,
-        motionObservationCount: Number(observedTargetMotion.motionObservationCount) || 0,
-      }
-      : null,
-    patternStatus: cloneValue(knowledge?.patternStatus ?? null),
-    strategyStatus: cloneValue(knowledge?.strategyStatus ?? null),
+    selfState: cloneValue(snapshot?.selfState ?? null),
+    controllerState: cloneValue(snapshot?.controllerState ?? null),
+    engines: cloneValue(snapshot?.engines ?? null),
+    memory: cloneValue(snapshot?.memory ?? {}),
+    patternStatus: cloneValue(snapshot?.patternStatus ?? null),
+    strategyStatus: cloneValue(snapshot?.strategyStatus ?? null),
     patterns: {
-      targetMotionHypothesis: targetMotionHypothesis
+      evaderMotionModel: cloneValue(evaderMotionModel),
+      continuance: continuance
         ? {
-          position: clonePosition(targetMotionHypothesis.position),
-          direction: cloneVector(targetMotionHypothesis.direction),
-          framesSinceObservation: Number(targetMotionHypothesis.framesSinceObservation) || 0,
+          position: clonePosition(continuance.position),
+          direction: cloneVector(continuance.direction),
+          framesSinceObservation: Number(continuance.framesSinceObservation) || 0,
         }
         : null,
       wallAvoidance: wallAvoidancePattern
@@ -117,16 +91,15 @@ function cloneChaserKnowledge(knowledge) {
         }
         : null,
     },
-    targetMotionModel: cloneValue(knowledge?.targetMotionModel ?? knowledge?.targetEstimate ?? null),
-    strategy: {
-      targetPrediction: predictionPlan
+    strategies: {
+      evaderPrediction: evaderPredictionPlan
         ? {
-          actionable: Boolean(predictionPlan.actionable),
-          invalidReason: predictionPlan.invalidReason ?? null,
-          sampleCount: Number(predictionPlan.sampleCount) || 0,
-          sampleSpacingFrames: Number(predictionPlan.sampleSpacingFrames) || 0,
-          horizonFrames: Number(predictionPlan.horizonFrames) || 0,
-          validationErrorDistance: Number(predictionPlan.validationErrorDistance) || 0,
+          actionable: Boolean(evaderPredictionPlan.actionable),
+          invalidReason: evaderPredictionPlan.invalidReason ?? null,
+          sampleCount: Number(evaderPredictionPlan.sampleCount) || 0,
+          sampleSpacingFrames: Number(evaderPredictionPlan.sampleSpacingFrames) || 0,
+          horizonFrames: Number(evaderPredictionPlan.horizonFrames) || 0,
+          validationErrorDistance: Number(evaderPredictionPlan.validationErrorDistance) || 0,
           prediction: prediction
             ? {
               strategy: prediction.strategy ?? null,
@@ -135,11 +108,11 @@ function cloneChaserKnowledge(knowledge) {
               oscillators: cloneValue(prediction.oscillators ?? []),
             }
             : null,
-          path: clonePredictionPath(predictionPlan.path),
+          path: clonePredictionPath(evaderPredictionPlan.path),
         }
         : null,
     },
-    assumedBehavior: cloneValue(knowledge?.assumedBehavior ?? null),
+    assumedBehavior: cloneValue(snapshot?.assumedBehavior ?? null),
   };
 }
 
@@ -155,11 +128,11 @@ export function resolveChaseTraceConfig(config = {}) {
 }
 
 export function buildChaseTraceFrame(state) {
-  const knowledge = state?.lastStep?.chaserKnowledge ?? null;
+  const chaserReasoning = state?.lastStep?.chaserReasoning ?? null;
   const chaserInput = state?.lastStep?.chaserInput ?? null;
   const chaserAction = state?.lastStep?.chaserAction ?? chaserInput ?? null;
-  const targetReasoning = state?.lastStep?.targetReasoning ?? null;
-  const targetMovementDecision = state?.lastStep?.targetMovementDecision ?? null;
+  const evaderReasoning = state?.lastStep?.evaderReasoning ?? null;
+  const evaderMovementDecision = state?.lastStep?.evaderMovementDecision ?? null;
 
   return {
     frameIndex: Number(state?.frameIndex) || 0,
@@ -168,9 +141,9 @@ export function buildChaseTraceFrame(state) {
         position: clonePosition(state?.chaserPosition),
         direction: cloneVector(state?.chaserLookDirection),
       },
-      target: {
-        position: clonePosition(state?.targetPosition),
-        direction: cloneVector(state?.targetDirection),
+      evader: {
+        position: clonePosition(state?.evaderPosition),
+        direction: cloneVector(state?.evaderDirection),
       },
     },
     metrics: cloneValue(state?.runMetrics ?? null),
@@ -178,29 +151,30 @@ export function buildChaseTraceFrame(state) {
       programmaticChaserEnabled: Boolean(state?.programmaticChaserEnabled),
       chaserAction: cloneValue(chaserAction),
       chaserInput: cloneValue(chaserInput),
-      autopilot: state?.chaserAutopilotState
-        ? {
-          searchSteering: Number(state.chaserAutopilotState.searchSteering) || 0,
-          lastPursuitSource: state.chaserAutopilotState.lastPursuitSource ?? null,
-          wallFollowSign: Number(state.chaserAutopilotState.wallFollowSign) || 0,
-          actionEngines: cloneValue(state.chaserAutopilotState.actionEngines ?? {}),
-        }
-        : null,
     },
-    knowledge: cloneChaserKnowledge(knowledge),
-    targetDecision: targetMovementDecision
+    chaserReasoning: chaserReasoning
       ? {
-        direction: cloneVector(targetMovementDecision.direction),
-        debug: cloneValue(targetMovementDecision.debug),
+        action: cloneValue(chaserReasoning.action),
+        snapshot: cloneChaserSnapshot(chaserReasoning.snapshot),
       }
       : null,
-    targetReasoning: targetReasoning
+    evaderDecision: evaderMovementDecision
       ? {
-        action: cloneValue(targetReasoning.action),
-        snapshot: cloneValue(targetReasoning.snapshot),
+        forward: Boolean(evaderMovementDecision.forward),
+        steering: Number(evaderMovementDecision.steering) || 0,
+        direction: cloneVector(evaderMovementDecision.direction),
+        desiredDirection: cloneVector(evaderMovementDecision.desiredDirection),
+        nextDirection: cloneVector(evaderMovementDecision.nextDirection),
+        debug: cloneValue(evaderMovementDecision.debug),
       }
       : null,
-    targetTruth: cloneValue(state?.targetWallAvoidanceTruth ?? null),
+    evaderReasoning: evaderReasoning
+      ? {
+        action: cloneValue(evaderReasoning.action),
+        snapshot: cloneValue(evaderReasoning.snapshot),
+      }
+      : null,
+    evaderTruth: cloneValue(state?.evaderWallAvoidanceTruth ?? null),
   };
 }
 

@@ -1,12 +1,17 @@
 export function createStatefulPattern({
   id,
+  unit,
   createState,
   updateState,
   getOutput,
+  getEvidence,
+  getPredictions,
+  getPredictionUnit,
   getConfidence,
 } = {}) {
   const pattern = {
     id,
+    unit: unit ?? id,
     state: typeof createState === "function" ? createState() : null,
     update(context) {
       if (typeof updateState === "function") {
@@ -20,11 +25,31 @@ export function createStatefulPattern({
       }
       return pattern.state;
     },
+    getEvidence() {
+      if (typeof getEvidence === "function") {
+        return getEvidence(pattern.state);
+      }
+      return pattern.state?.evidence ?? null;
+    },
+    getPredictions() {
+      if (typeof getPredictions === "function") {
+        return getPredictions(pattern.state);
+      }
+      return Array.isArray(pattern.state?.predictions)
+        ? pattern.state.predictions
+        : [];
+    },
+    getPredictionUnit() {
+      if (typeof getPredictionUnit === "function") {
+        return getPredictionUnit(pattern.state);
+      }
+      return pattern.state?.predictionUnit ?? null;
+    },
     getConfidence() {
       if (typeof getConfidence === "function") {
         return Number(getConfidence(pattern.state)) || 0;
       }
-      return 0;
+      return Number(pattern.getPredictionUnit()?.confidence) || 0;
     },
   };
 
@@ -50,6 +75,36 @@ export function getPatternOutput(pattern) {
     return pattern.getOutput();
   }
   return getPatternState(pattern);
+}
+
+export function getPatternEvidence(pattern) {
+  if (!pattern) {
+    return null;
+  }
+  if (typeof pattern.getEvidence === "function") {
+    return pattern.getEvidence();
+  }
+  return null;
+}
+
+export function getPatternPredictions(pattern) {
+  if (!pattern) {
+    return [];
+  }
+  if (typeof pattern.getPredictions === "function") {
+    return pattern.getPredictions();
+  }
+  return [];
+}
+
+export function getPatternPredictionUnit(pattern) {
+  if (!pattern) {
+    return null;
+  }
+  if (typeof pattern.getPredictionUnit === "function") {
+    return pattern.getPredictionUnit();
+  }
+  return null;
 }
 
 export function getPatternConfidence(pattern) {

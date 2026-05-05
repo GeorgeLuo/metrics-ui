@@ -3,15 +3,17 @@ import {
   CAR_HEIGHT,
   CAR_LENGTH,
   CAR_WIDTH,
+  CHASER_FIELD_OF_VIEW_COLOR,
   CHASER_VIEW_CAMERA_HEIGHT,
   CHASER_VIEW_LOOK_DISTANCE,
   FIELD_OF_VIEW_DISTANCE,
   FIELD_OF_VIEW_SEGMENTS,
   OBSTACLE_PRISM_HEIGHT,
-  TARGET_PROJECTION_COLOR,
+  EVADER_FIELD_OF_VIEW_COLOR,
+  EVADER_PROJECTION_COLOR,
 } from "./constants.mjs";
 import { vectorToAngle } from "./math.mjs";
-import { getTargetProjectionSampleCount } from "./target-prediction-plan.mjs";
+import { getEvaderProjectionSampleCount } from "./evader-prediction-plan.mjs";
 
 export function createCar(color) {
   const geometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
@@ -63,15 +65,28 @@ export function createFieldOfViewConeGeometry(fieldOfViewAngleRadians) {
   return geometry;
 }
 
-export function createFieldOfViewCone(fieldOfViewAngleRadians) {
+export function createFieldOfViewCone(
+  fieldOfViewAngleRadians,
+  {
+    color = CHASER_FIELD_OF_VIEW_COLOR,
+    opacity = 0.16,
+  } = {},
+) {
   const material = new THREE.MeshBasicMaterial({
-    color: 0x38bdf8,
+    color,
     transparent: true,
-    opacity: 0.16,
+    opacity,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
   return new THREE.Mesh(createFieldOfViewConeGeometry(fieldOfViewAngleRadians), material);
+}
+
+export function createEvaderFieldOfViewCone(fieldOfViewAngleRadians) {
+  return createFieldOfViewCone(fieldOfViewAngleRadians, {
+    color: EVADER_FIELD_OF_VIEW_COLOR,
+    opacity: 0.12,
+  });
 }
 
 export function configureCamera(camera, columns, rows, width, height) {
@@ -112,7 +127,7 @@ function createProjectionFrame(opacity) {
   const geometry = new THREE.EdgesGeometry(boxGeometry);
   boxGeometry.dispose();
   const material = new THREE.LineBasicMaterial({
-    color: TARGET_PROJECTION_COLOR,
+    color: EVADER_PROJECTION_COLOR,
     transparent: true,
     opacity,
     depthWrite: false,
@@ -143,23 +158,23 @@ export function syncProjectionFrames(group, frames, count) {
   });
 }
 
-export function updateTargetProjectionDisplay(
+export function updateEvaderProjectionDisplay(
   group,
   frames,
   estimate,
-  targetPrediction,
+  evaderPrediction,
   projectionSettings,
   speedUnitsPerFrame,
-  targetProjectionPath = null,
+  evaderProjectionPath = null,
 ) {
   const projectionVisible = projectionSettings?.visible === true;
-  const hasExplicitPath = Array.isArray(targetProjectionPath);
-  const path = projectionVisible && hasExplicitPath ? targetProjectionPath : [];
+  const hasExplicitPath = Array.isArray(evaderProjectionPath);
+  const path = projectionVisible && hasExplicitPath ? evaderProjectionPath : [];
   const count = projectionVisible
-    ? (hasExplicitPath ? path.length : getTargetProjectionSampleCount(projectionSettings))
+    ? (hasExplicitPath ? path.length : getEvaderProjectionSampleCount(projectionSettings))
     : 0;
   const estimatePosition = estimate?.position ?? null;
-  const predictionDirection = targetPrediction?.direction ?? estimate?.direction ?? null;
+  const predictionDirection = evaderPrediction?.direction ?? estimate?.direction ?? null;
   const canProject = Boolean(estimatePosition && predictionDirection && count > 0);
   group.visible = canProject;
   syncProjectionFrames(group, frames, canProject ? count : 0);

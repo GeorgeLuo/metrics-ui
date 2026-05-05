@@ -1,17 +1,13 @@
 import { CAR_BOUND_RADIUS } from "./constants.mjs";
 import { createChaserIdae, stepChaserIdae } from "./chaser-idae.mjs";
-import { createTargetIdae, stepTargetIdae } from "./target-idae.mjs";
+import { createEvaderIdae, stepEvaderIdae } from "./evader-idae.mjs";
 import {
   angleToVector,
   vectorToAngle,
 } from "./math.mjs";
 import {
-  constrainDirectionToBounds,
-  steerDirectionToward,
-} from "./target.mjs";
-import {
-  createTargetWallAvoidanceTruthState,
-  updateTargetWallAvoidanceTruth,
+  createEvaderWallAvoidanceTruthState,
+  updateEvaderWallAvoidanceTruth,
 } from "./wall-avoidance-detection.mjs";
 import {
   createChaseTraceRecorder,
@@ -25,35 +21,92 @@ function createRunMetrics() {
     elapsedFrames: 0,
     touchCount: 0,
     touchRatePerThousandFrames: 0,
-    targetTouchActive: false,
+    evaderTouchActive: false,
   };
 }
 
-function updateRunMetrics(runMetrics, chaserPosition, targetPosition) {
+function updateRunMetrics(runMetrics, chaserPosition, evaderPosition) {
   if (!runMetrics) {
     return;
   }
 
   runMetrics.elapsedFrames += 1;
   const touchesTarget = Math.hypot(
-    chaserPosition.x - targetPosition.x,
-    chaserPosition.z - targetPosition.z,
+    chaserPosition.x - evaderPosition.x,
+    chaserPosition.z - evaderPosition.z,
   ) <= CAR_BOUND_RADIUS * 2;
 
-  if (touchesTarget && !runMetrics.targetTouchActive) {
+  if (touchesTarget && !runMetrics.evaderTouchActive) {
     runMetrics.touchCount += 1;
   }
-  runMetrics.targetTouchActive = touchesTarget;
+  runMetrics.evaderTouchActive = touchesTarget;
   runMetrics.touchRatePerThousandFrames = runMetrics.elapsedFrames > 0
     ? (runMetrics.touchCount / runMetrics.elapsedFrames) * 1000
     : 0;
 }
 
+function applyVehicleAction({
+  position,
+  direction,
+  action,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
+  columns,
+  rows,
+  obstacles,
+} = {}) {
+  const isMovingForward = Boolean(action?.forward);
+  const isMovingReverse = Boolean(action?.reverse);
+  const movementSign = isMovingForward ? 1 : isMovingReverse ? -1 : 0;
+  const isMoving = movementSign !== 0;
+  const steeringInput = Number.isFinite(action?.steering) ? action.steering : 0;
+  const actionNextDirection = action?.nextDirection;
+  let nextDirection = actionNextDirection
+    ? {
+      x: Number(actionNextDirection.x) || 0,
+      z: Number(actionNextDirection.z) || 0,
+    }
+    : {
+      x: Number(direction?.x) || 0,
+      z: Number(direction?.z) || 0,
+    };
+
+  if (!isMoving && !actionNextDirection) {
+    return {
+      direction: nextDirection,
+      position: {
+        x: Number(position?.x) || 0,
+        z: Number(position?.z) || 0,
+      },
+    };
+  }
+
+  if (!actionNextDirection && isMoving && steeringInput !== 0) {
+    nextDirection = angleToVector(
+      vectorToAngle(nextDirection)
+        + steeringInput * turnRateRadiansPerFrame * (isMovingReverse ? -1 : 1),
+    );
+  }
+
+  const nextPosition = resolveObstacleCollisions({
+    x: (Number(position?.x) || 0)
+      + nextDirection.x * speedUnitsPerFrame * movementSign,
+    z: (Number(position?.z) || 0)
+      + nextDirection.z * speedUnitsPerFrame * movementSign,
+  }, position, columns, rows, obstacles);
+
+  return {
+    direction: nextDirection,
+    position: nextPosition,
+  };
+}
+
 function updateChaserReasoningState(state) {
   const cycle = stepChaserIdae(state.chaserIdae, {
     chaserPosition: state.chaserPosition,
-    targetPosition: state.targetPosition,
+    evaderPosition: state.evaderPosition,
     chaserLookDirection: state.chaserLookDirection,
+    frameIndex: state.frameIndex,
     fieldOfViewAngleRadians: state.vehicleSettings.fieldOfViewAngleRadians,
     obstacles: state.obstacles,
     columns: state.columns,
@@ -63,79 +116,69 @@ function updateChaserReasoningState(state) {
     programmaticChaserEnabled: state.programmaticChaserEnabled,
     chaserSpeedUnitsPerFrame: state.vehicleSettings.chaserSpeedUnitsPerFrame,
   });
-  state.chaserKnowledgeBase = state.chaserIdae.state.knowledgeBase;
-  state.chaserAutopilotState = state.chaserIdae.state.autopilotState;
   return cycle;
 }
 
-function applyChaserAction(state, chaserAction) {
-  const isChaserMoving = chaserAction.forward;
-  const steeringInput = chaserAction.steering;
-  if (isChaserMoving && steeringInput !== 0) {
-    const nextHeading = angleToVector(
-      vectorToAngle(state.chaserLookDirection)
-        + steeringInput * state.vehicleSettings.turnRateRadiansPerFrame,
-    );
-    state.chaserLookDirection.x = nextHeading.x;
-    state.chaserLookDirection.z = nextHeading.z;
-  }
-
-  const nextChaser = resolveObstacleCollisions({
-    x: state.chaserPosition.x
-      + state.chaserLookDirection.x
-        * state.vehicleSettings.chaserSpeedUnitsPerFrame
-        * (isChaserMoving ? 1 : 0),
-    z: state.chaserPosition.z
-      + state.chaserLookDirection.z
-        * state.vehicleSettings.chaserSpeedUnitsPerFrame
-        * (isChaserMoving ? 1 : 0),
-  }, state.chaserPosition, state.columns, state.rows, state.obstacles);
-  state.chaserPosition.x = nextChaser.x;
-  state.chaserPosition.z = nextChaser.z;
-}
-
-function advanceTargetState(state) {
-  const targetReasoning = stepTargetIdae(state.targetIdae, {
-    targetPosition: state.targetPosition,
-    targetDirection: state.targetDirection,
+function updateEvaderReasoningState(state) {
+  return stepEvaderIdae(state.evaderIdae, {
+    evaderPosition: state.evaderPosition,
+    evaderDirection: state.evaderDirection,
+    chaserPosition: state.chaserPosition,
     columns: state.columns,
     rows: state.rows,
     frameIndex: state.frameIndex,
     obstacles: state.obstacles,
+    fieldOfViewAngleRadians: state.vehicleSettings.fieldOfViewAngleRadians,
+    turnRateRadiansPerFrame: state.vehicleSettings.turnRateRadiansPerFrame,
   });
-  const targetMovementDecision = {
-    direction: targetReasoning?.action?.direction ?? state.targetDirection,
-    debug: targetReasoning?.action?.debug ?? null,
-  };
-  const nextTargetDirection = constrainDirectionToBounds(
-    state.targetPosition,
-    steerDirectionToward(
-      state.targetDirection,
-      targetMovementDecision.direction,
-      state.vehicleSettings.turnRateRadiansPerFrame,
-    ),
-    state.columns,
-    state.rows,
-  );
-  updateTargetWallAvoidanceTruth(state.targetWallAvoidanceTruth, {
-    decisionDebug: targetMovementDecision.debug,
+}
+
+function applyChaserAction(state, chaserAction) {
+  const nextChaser = applyVehicleAction({
+    position: state.chaserPosition,
+    direction: state.chaserLookDirection,
+    action: chaserAction,
+    speedUnitsPerFrame: state.vehicleSettings.chaserSpeedUnitsPerFrame,
+    turnRateRadiansPerFrame: state.vehicleSettings.turnRateRadiansPerFrame,
+    columns: state.columns,
+    rows: state.rows,
+    obstacles: state.obstacles,
   });
-  state.targetDirection.x = nextTargetDirection.x;
-  state.targetDirection.z = nextTargetDirection.z;
+  state.chaserLookDirection.x = nextChaser.direction.x;
+  state.chaserLookDirection.z = nextChaser.direction.z;
+  state.chaserPosition.x = nextChaser.position.x;
+  state.chaserPosition.z = nextChaser.position.z;
+}
 
-  const nextTarget = resolveObstacleCollisions({
-    x: state.targetPosition.x
-      + state.targetDirection.x * state.vehicleSettings.targetSpeedUnitsPerFrame,
-    z: state.targetPosition.z
-      + state.targetDirection.z * state.vehicleSettings.targetSpeedUnitsPerFrame,
-  }, state.targetPosition, state.columns, state.rows, state.obstacles);
-  state.targetPosition.x = nextTarget.x;
-  state.targetPosition.z = nextTarget.z;
-
-  return {
-    targetMovementDecision,
-    targetReasoning,
+function applyEvaderAction(state, evaderAction) {
+  const evaderMovementDecision = {
+    forward: evaderAction?.forward ?? true,
+    steering: Number.isFinite(evaderAction?.steering)
+      ? evaderAction.steering
+      : 0,
+    desiredDirection: evaderAction?.desiredDirection ?? null,
+    nextDirection: evaderAction?.nextDirection ?? evaderAction?.direction ?? state.evaderDirection,
+    direction: evaderAction?.direction ?? state.evaderDirection,
+    debug: evaderAction?.debug ?? null,
   };
+  const nextEvader = applyVehicleAction({
+    position: state.evaderPosition,
+    direction: state.evaderDirection,
+    action: evaderMovementDecision,
+    speedUnitsPerFrame: state.vehicleSettings.evaderSpeedUnitsPerFrame,
+    turnRateRadiansPerFrame: state.vehicleSettings.turnRateRadiansPerFrame,
+    columns: state.columns,
+    rows: state.rows,
+    obstacles: state.obstacles,
+  });
+  updateEvaderWallAvoidanceTruth(state.evaderWallAvoidanceTruth, {
+    decisionDebug: evaderMovementDecision.debug,
+  });
+  state.evaderDirection.x = nextEvader.direction.x;
+  state.evaderDirection.z = nextEvader.direction.z;
+  state.evaderPosition.x = nextEvader.position.x;
+  state.evaderPosition.z = nextEvader.position.z;
+  return evaderMovementDecision;
 }
 
 export function createChaseSimulationState({
@@ -145,7 +188,7 @@ export function createChaseSimulationState({
   traceRecorder,
 } = {}) {
   const chaserIdae = createChaserIdae({ scenario });
-  const targetIdae = createTargetIdae({ scenario });
+  const evaderIdae = createEvaderIdae({ scenario });
   const resolvedTraceRecorder = traceRecorder ?? createChaseTraceRecorder(scenario?.trace);
 
   return {
@@ -166,22 +209,20 @@ export function createChaseSimulationState({
     programmaticChaserEnabled: Boolean(scenario?.runtime?.programmaticChaserEnabled),
     chaserPosition: { ...(scenario?.actors?.chaser?.position ?? { x: 0, z: 0 }) },
     chaserLookDirection: { ...(scenario?.actors?.chaser?.direction ?? { x: 1, z: 0 }) },
-    targetPosition: { ...(scenario?.actors?.target?.position ?? { x: 0, z: 0 }) },
-    targetDirection: { ...(scenario?.actors?.target?.direction ?? { x: -1, z: 0 }) },
+    evaderPosition: { ...(scenario?.actors?.evader?.position ?? { x: 0, z: 0 }) },
+    evaderDirection: { ...(scenario?.actors?.evader?.direction ?? { x: -1, z: 0 }) },
     chaserIdae,
-    targetIdae,
-    chaserKnowledgeBase: chaserIdae.state.knowledgeBase,
-    chaserAutopilotState: chaserIdae.state.autopilotState,
-    targetWallAvoidanceTruth: createTargetWallAvoidanceTruthState(),
+    evaderIdae,
+    evaderWallAvoidanceTruth: createEvaderWallAvoidanceTruthState(),
     traceRecorder: resolvedTraceRecorder,
     runMetrics: createRunMetrics(),
-    pendingHumanInput: { forward: false, steering: 0 },
+    pendingHumanInput: { forward: false, reverse: false, steering: 0 },
     lastStep: {
-      chaserKnowledge: null,
-      chaserInput: { source: "human", forward: false, steering: 0 },
-      chaserAction: { source: "human", forward: false, steering: 0 },
-      targetReasoning: null,
-      targetMovementDecision: null,
+      chaserInput: { source: "human", forward: false, reverse: false, steering: 0 },
+      chaserAction: { source: "human", forward: false, reverse: false, steering: 0 },
+      chaserReasoning: null,
+      evaderReasoning: null,
+      evaderMovementDecision: null,
     },
   };
 }
@@ -193,29 +234,30 @@ export function stepChaseSimulation(state, { humanInput } = {}) {
 
   state.pendingHumanInput = {
     forward: Boolean(humanInput?.forward),
+    reverse: Boolean(humanInput?.reverse),
     steering: Number.isFinite(humanInput?.steering) ? humanInput.steering : 0,
   };
   const chaserReasoning = updateChaserReasoningState(state);
-  const chaserKnowledge = chaserReasoning?.snapshot?.knowledge ?? null;
   const chaserAction = chaserReasoning?.action ?? {
     source: "human",
     forward: false,
+    reverse: false,
     steering: 0,
   };
   applyChaserAction(state, chaserAction);
-  const {
-    targetMovementDecision,
-    targetReasoning,
-  } = advanceTargetState(state);
+  const evaderReasoning = updateEvaderReasoningState(state);
+  const evaderMovementDecision = applyEvaderAction(
+    state,
+    evaderReasoning?.action ?? null,
+  );
 
-  updateRunMetrics(state.runMetrics, state.chaserPosition, state.targetPosition);
+  updateRunMetrics(state.runMetrics, state.chaserPosition, state.evaderPosition);
   state.lastStep = {
-    chaserKnowledge,
     chaserInput: chaserAction,
     chaserAction,
     chaserReasoning,
-    targetReasoning,
-    targetMovementDecision,
+    evaderReasoning,
+    evaderMovementDecision,
   };
   state.frameIndex += 1;
   recordChaseTraceFrame(state.traceRecorder, state);

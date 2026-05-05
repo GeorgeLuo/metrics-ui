@@ -2,12 +2,13 @@ import {
   CHASER_AUTOPILOT_ACTION_ID,
   CHASER_VIEW_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
+  EVADER_VIEW_ACTION_ID,
+  IDAE_DEBUG_ACTION_ID,
   SIMULATION_FPS_ACTION_ID,
-  STRATEGY_DEBUG_ACTION_ID,
-  TARGET_PROJECTION_DEBUG_ACTION_ID,
-  TARGET_PROJECTION_HORIZON_ACTION_ID,
-  TARGET_PROJECTION_RATE_ACTION_ID,
-  TARGET_SPEED_ACTION_ID,
+  EVADER_PROJECTION_DEBUG_ACTION_ID,
+  EVADER_PROJECTION_HORIZON_ACTION_ID,
+  EVADER_PROJECTION_RATE_ACTION_ID,
+  EVADER_SPEED_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
   VEHICLE_TURN_RATE_ACTION_ID,
 } from "./constants.mjs";
@@ -21,6 +22,42 @@ function formatRunMetric(value, digits = 0) {
   return formatEditableNumber(numericValue, digits);
 }
 
+function formatActorLabel(actorId) {
+  const value = String(actorId ?? "").trim();
+  if (!value) {
+    return "Actor";
+  }
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatStrategyLabel(strategyId) {
+  const value = String(strategyId ?? "").trim();
+  if (!value) {
+    return "Strategy";
+  }
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+export function createActorStrategyToggleActionId(actorId, strategyId) {
+  return `actor-strategy:${String(actorId ?? "").trim()}:${String(strategyId ?? "").trim()}`;
+}
+
+function buildActorStrategyRows(actorStrategyCollections = {}) {
+  return Object.entries(actorStrategyCollections).flatMap(([actorId, strategies]) =>
+    Object.entries(strategies ?? {}).map(([strategyId, enabled]) => ({
+      kind: "toggle",
+      id: createActorStrategyToggleActionId(actorId, strategyId),
+      label: `${formatActorLabel(actorId)}: ${formatStrategyLabel(strategyId)}`,
+      enabled: Boolean(enabled),
+      enabledLabel: "on",
+      disabledLabel: "off",
+      hint: `Enable or disable ${formatActorLabel(actorId).toLowerCase()} peer strategy ${formatStrategyLabel(strategyId).toLowerCase()}.`,
+    })));
+}
+
 export function publishSidebarSections(
   setSidebarSections,
   programmaticChaserEnabled,
@@ -28,13 +65,14 @@ export function publishSidebarSections(
   simulationSettings,
   vehicleSettings,
   projectionSettings,
+  actorStrategyCollections = {},
   runMetrics = {},
 ) {
   if (typeof setSidebarSections !== "function") {
     return;
   }
 
-  setSidebarSections([
+  const sections = [
     {
       id: "score",
       title: "Score",
@@ -84,9 +122,10 @@ export function publishSidebarSections(
           enabled: programmaticChaserEnabled,
           enabledLabel: "on",
           disabledLabel: "off",
-          hint: "Let the game algorithm press the same forward and steering inputs available to a human player.",
+          hint: "Let the game algorithm press the same forward, reverse, and steering inputs available to a human player.",
         },
         { kind: "value", label: "Forward", value: "I" },
+        { kind: "value", label: "Reverse", value: "K" },
         { kind: "value", label: "Steer", value: "A / D" },
       ],
     },
@@ -106,12 +145,21 @@ export function publishSidebarSections(
         },
         {
           kind: "toggle",
-          id: STRATEGY_DEBUG_ACTION_ID,
-          label: "Strategy Debug",
-          enabled: frameVisibility.strategyDebugVisible,
+          id: EVADER_VIEW_ACTION_ID,
+          label: "Evader View",
+          enabled: frameVisibility.evaderViewVisible,
           enabledLabel: "open",
           disabledLabel: "closed",
-          hint: "Open or close the strategy debug report window.",
+          hint: "Open or close the evader's forward-looking viewport.",
+        },
+        {
+          kind: "toggle",
+          id: IDAE_DEBUG_ACTION_ID,
+          label: "IDAE Debug",
+          enabled: frameVisibility.idaeDebugVisible,
+          enabledLabel: "open",
+          disabledLabel: "closed",
+          hint: "Open or close the live actor reasoning debug window.",
         },
       ],
     },
@@ -130,11 +178,11 @@ export function publishSidebarSections(
         },
         {
           kind: "editableValue",
-          id: TARGET_SPEED_ACTION_ID,
-          label: "Target speed",
-          value: formatEditableNumber(vehicleSettings.targetSpeedUnitsPerFrame, 3),
+          id: EVADER_SPEED_ACTION_ID,
+          label: "Evader speed",
+          value: formatEditableNumber(vehicleSettings.evaderSpeedUnitsPerFrame, 3),
           suffix: "u/frame",
-          hint: "Edit the red target's true movement speed; the chaser must estimate this from field of view.",
+          hint: "Edit the red evader's true movement speed; the chaser must estimate this from field of view.",
         },
         {
           kind: "editableValue",
@@ -142,7 +190,7 @@ export function publishSidebarSections(
           label: "Turn rate",
           value: formatEditableNumber(radiansToDegrees(vehicleSettings.turnRateRadiansPerFrame), 2),
           suffix: "deg/frame",
-          hint: "Edit the steering rate used by the same input model.",
+          hint: "Edit the steering rate used by the same forward and reverse input model.",
         },
         {
           kind: "editableValue",
@@ -157,20 +205,20 @@ export function publishSidebarSections(
     {
       id: "projection",
       title: "Projection",
-      hint: "Game-provided debug controls for the chaser target-path estimate.",
+      hint: "Game-provided debug controls for the chaser evader-path estimate.",
       rows: [
         {
           kind: "toggle",
-          id: TARGET_PROJECTION_DEBUG_ACTION_ID,
-          label: "Target projection",
+          id: EVADER_PROJECTION_DEBUG_ACTION_ID,
+          label: "Evader projection",
           enabled: projectionSettings.visible,
           enabledLabel: "on",
           disabledLabel: "off",
-          hint: "Show the chaser estimate of the target path.",
+          hint: "Show the chaser estimate of the evader path.",
         },
         {
           kind: "editableValue",
-          id: TARGET_PROJECTION_HORIZON_ACTION_ID,
+          id: EVADER_PROJECTION_HORIZON_ACTION_ID,
           label: "Horizon",
           value: formatEditableNumber(projectionSettings.horizonFrames, 0),
           suffix: "frames",
@@ -178,7 +226,7 @@ export function publishSidebarSections(
         },
         {
           kind: "editableValue",
-          id: TARGET_PROJECTION_RATE_ACTION_ID,
+          id: EVADER_PROJECTION_RATE_ACTION_ID,
           label: "Spacing",
           value: formatEditableNumber(projectionSettings.sampleSpacingFrames, 0),
           suffix: "frames",
@@ -186,5 +234,17 @@ export function publishSidebarSections(
         },
       ],
     },
-  ]);
+  ];
+
+  const actorStrategyRows = buildActorStrategyRows(actorStrategyCollections);
+  if (actorStrategyRows.length > 0) {
+    sections.splice(4, 0, {
+      id: "strategies",
+      title: "Strategies",
+      hint: "Live actor peer-strategy toggles generated from the current actor engine collections.",
+      rows: actorStrategyRows,
+    });
+  }
+
+  setSidebarSections(sections);
 }

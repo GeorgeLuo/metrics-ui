@@ -2,6 +2,7 @@ import {
   CONTROL_CODES,
   FORWARD_CONTROL_CODES,
   LEFT_CONTROL_CODES,
+  REVERSE_CONTROL_CODES,
   RIGHT_CONTROL_CODES,
 } from "./constants.mjs";
 
@@ -24,8 +25,11 @@ export function isControlCode(code) {
 }
 
 export function getHumanChaserInput(pressedKeys) {
+  const forwardPressed = hasPressedKey(pressedKeys, FORWARD_CONTROL_CODES);
+  const reversePressed = hasPressedKey(pressedKeys, REVERSE_CONTROL_CODES);
   return {
-    forward: hasPressedKey(pressedKeys, FORWARD_CONTROL_CODES),
+    forward: forwardPressed && !reversePressed,
+    reverse: reversePressed && !forwardPressed,
     steering:
       (hasPressedKey(pressedKeys, LEFT_CONTROL_CODES) ? 1 : 0)
       - (hasPressedKey(pressedKeys, RIGHT_CONTROL_CODES) ? 1 : 0),

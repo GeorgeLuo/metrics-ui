@@ -1,7 +1,5 @@
 import {
   CAR_BOUND_RADIUS,
-  MOVEMENT_CONSENSUS_COUPLING,
-  MOVEMENT_CONSENSUS_ITERATIONS,
   MOVEMENT_GOAL_WEIGHT,
   MOVEMENT_WALL_AVOID_WEIGHT,
   MOVEMENT_WALL_FOLLOW_WEIGHT,
@@ -9,7 +7,6 @@ import {
   MOVEMENT_WALL_UNSTICK_WEIGHT,
   WALL_AVOID_DISTANCE,
 } from "./constants.mjs";
-import { runKuramotoConsensus } from "./kuramoto.mjs";
 import { normalizeVector } from "./math.mjs";
 import { clampConfidence } from "./strategy-confidence.mjs";
 import { getWorldWallPressure } from "./world.mjs";
@@ -244,26 +241,19 @@ export function planLocalMovementDirection({
   obstacles,
   previousWallFollowSign = 1,
 } = {}) {
-  const normalizedGoal = normalizeVector(goalDirection?.x ?? 0, goalDirection?.z ?? 0);
+  const normalizedDesired = normalizeVector(goalDirection?.x ?? 0, goalDirection?.z ?? 0);
   const movement = buildLocalMovementSignals({
     position,
-    goalDirection: normalizedGoal,
+    goalDirection: normalizedDesired,
     columns,
     rows,
     obstacles,
     previousWallFollowSign,
   });
-  const consensus = runKuramotoConsensus(movement.signals, {
-    coupling: MOVEMENT_CONSENSUS_COUPLING,
-    iterations: MOVEMENT_CONSENSUS_ITERATIONS,
-  });
-  const consensusDirection = consensus.direction.x === 0 && consensus.direction.z === 0
-    ? normalizedGoal
-    : consensus.direction;
   const direction = constrainDirectionByLocalWalls({
     position,
-    desiredDirection: consensusDirection,
-    preferredDirection: normalizedGoal,
+    desiredDirection: normalizedDesired,
+    preferredDirection: normalizedDesired,
     columns,
     rows,
     obstacles,
@@ -273,7 +263,7 @@ export function planLocalMovementDirection({
 
   return {
     direction,
-    consensus,
+    consensus: null,
     signals: movement.signals,
     wallPressure: movement.wallPressure,
     wallFollowSign: movement.wallFollowSign,

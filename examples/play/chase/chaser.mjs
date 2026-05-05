@@ -1,10 +1,10 @@
 import {
   CAR_BOUND_RADIUS,
-  DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_FRAME,
+  DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME,
   FIELD_OF_VIEW_DISTANCE,
-  TARGET_ESTIMATE_MIN_MOVE_DISTANCE,
-  TARGET_SPEED_ESTIMATE_ALPHA,
-  TARGET_SPEED_ESTIMATE_MAX_UNITS_PER_FRAME,
+  EVADER_ESTIMATE_MIN_MOVE_DISTANCE,
+  EVADER_SPEED_ESTIMATE_ALPHA,
+  EVADER_SPEED_ESTIMATE_MAX_UNITS_PER_FRAME,
 } from "./constants.mjs";
 import {
   angleToVector,
@@ -16,7 +16,7 @@ import {
   isLineOfSightBlockedByObstacles,
 } from "./world.mjs";
 
-export function createTargetLocationMemory() {
+export function createActorLocationMemory() {
   return {
     visible: false,
     position: null,
@@ -28,16 +28,16 @@ export function createTargetLocationMemory() {
   };
 }
 
-export function createObservedTargetMotionMemory(
-  targetDirection = { x: 0, z: 0 },
+export function createObservedEvaderMotionMemory(
+  evaderDirection = { x: 0, z: 0 },
 ) {
-  const safeTargetDirection = targetDirection
-    ? { ...targetDirection }
+  const safeEvaderDirection = evaderDirection
+    ? { ...evaderDirection }
     : { x: 0, z: 0 };
   return {
-    speedEstimateUnitsPerFrame: DEFAULT_TARGET_SPEED_ESTIMATE_UNITS_PER_FRAME,
+    speedEstimateUnitsPerFrame: DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME,
     speedObservationCount: 0,
-    lastObservedDirection: safeTargetDirection,
+    lastObservedDirection: safeEvaderDirection,
     previousObservedDirection: null,
     observedTurnRadiansPerFrame: 0,
     lastObservedPosition: null,
@@ -46,68 +46,84 @@ export function createObservedTargetMotionMemory(
   };
 }
 
-export function getChaserTargetPerception(
-  chaserPosition,
-  targetPosition,
-  chaserLookDirection,
+export function getActorPerception(
+  actorPosition,
+  subjectPosition,
+  actorLookDirection,
   fieldOfViewAngleRadians,
   obstacles,
 ) {
-  const offsetX = targetPosition.x - chaserPosition.x;
-  const offsetZ = targetPosition.z - chaserPosition.z;
+  const offsetX = subjectPosition.x - actorPosition.x;
+  const offsetZ = subjectPosition.z - actorPosition.z;
   const distance = Math.hypot(offsetX, offsetZ);
   if (distance <= CAR_BOUND_RADIUS) {
     return { visible: true, bearingRadians: 0, distance };
   }
 
-  const targetDirection = normalizeVector(offsetX, offsetZ);
+  const subjectDirection = normalizeVector(offsetX, offsetZ);
   const bearingRadians = normalizeAngleDelta(
-    vectorToAngle(targetDirection) - vectorToAngle(chaserLookDirection),
+    vectorToAngle(subjectDirection) - vectorToAngle(actorLookDirection),
   );
-  const targetAngularRadius = Math.atan2(CAR_BOUND_RADIUS, distance);
+  const subjectAngularRadius = Math.atan2(CAR_BOUND_RADIUS, distance);
   const isVisible =
     distance <= FIELD_OF_VIEW_DISTANCE + CAR_BOUND_RADIUS
-    && Math.abs(bearingRadians) <= fieldOfViewAngleRadians / 2 + targetAngularRadius;
+    && Math.abs(bearingRadians) <= fieldOfViewAngleRadians / 2 + subjectAngularRadius;
   const isOccluded = isVisible
-    && isLineOfSightBlockedByObstacles(chaserPosition, targetPosition, obstacles);
+    && isLineOfSightBlockedByObstacles(actorPosition, subjectPosition, obstacles);
 
   return isVisible && !isOccluded
     ? { visible: true, bearingRadians, distance }
     : { visible: false };
 }
 
-export function getPerceivedTargetPosition(chaserPosition, chaserLookDirection, targetPerception) {
+export function getChaserEvaderPerception(
+  chaserPosition,
+  evaderPosition,
+  chaserLookDirection,
+  fieldOfViewAngleRadians,
+  obstacles,
+) {
+  return getActorPerception(
+    chaserPosition,
+    evaderPosition,
+    chaserLookDirection,
+    fieldOfViewAngleRadians,
+    obstacles,
+  );
+}
+
+export function getPerceivedActorPosition(actorPosition, actorLookDirection, actorPerception) {
   const bearingDirection = angleToVector(
-    vectorToAngle(chaserLookDirection) + targetPerception.bearingRadians,
+    vectorToAngle(actorLookDirection) + actorPerception.bearingRadians,
   );
   return {
-    x: chaserPosition.x + bearingDirection.x * targetPerception.distance,
-    z: chaserPosition.z + bearingDirection.z * targetPerception.distance,
+    x: actorPosition.x + bearingDirection.x * actorPerception.distance,
+    z: actorPosition.z + bearingDirection.z * actorPerception.distance,
   };
 }
 
-export function updateTargetLocationMemory(
+export function updateActorLocationMemory(
   locationMemory,
-  targetPerception,
-  chaserPosition,
-  chaserLookDirection,
+  actorPerception,
+  actorPosition,
+  actorLookDirection,
 ) {
   if (!locationMemory) {
     return null;
   }
 
-  if (targetPerception.visible) {
+  if (actorPerception.visible) {
     const observationGapFrames = locationMemory.position
       ? Math.max(1, locationMemory.framesSinceObservation + 1)
       : 1;
     locationMemory.visible = true;
-    locationMemory.position = getPerceivedTargetPosition(
-      chaserPosition,
-      chaserLookDirection,
-      targetPerception,
+    locationMemory.position = getPerceivedActorPosition(
+      actorPosition,
+      actorLookDirection,
+      actorPerception,
     );
-    locationMemory.bearingRadians = targetPerception.bearingRadians;
-    locationMemory.distance = targetPerception.distance;
+    locationMemory.bearingRadians = actorPerception.bearingRadians;
+    locationMemory.distance = actorPerception.distance;
     locationMemory.observationCount += 1;
     locationMemory.framesSinceObservation = 0;
     locationMemory.observationGapFrames = observationGapFrames;
@@ -123,59 +139,59 @@ export function updateTargetLocationMemory(
   return locationMemory;
 }
 
-export function updateObservedTargetMotionMemory(
-  observedTargetMotion,
-  targetLocationMemory,
+export function updateObservedEvaderMotionMemory(
+  observedEvaderMotion,
+  evaderLocationMemory,
 ) {
-  if (!observedTargetMotion) {
+  if (!observedEvaderMotion) {
     return null;
   }
 
-  if (targetLocationMemory?.visible && targetLocationMemory.position) {
-    observedTargetMotion.observationCount += 1;
-    const observedPosition = targetLocationMemory.position;
+  if (evaderLocationMemory?.visible && evaderLocationMemory.position) {
+    observedEvaderMotion.observationCount += 1;
+    const observedPosition = evaderLocationMemory.position;
 
-    if (observedTargetMotion.lastObservedPosition) {
+    if (observedEvaderMotion.lastObservedPosition) {
       const observedDelta = normalizeVector(
-        observedPosition.x - observedTargetMotion.lastObservedPosition.x,
-        observedPosition.z - observedTargetMotion.lastObservedPosition.z,
+        observedPosition.x - observedEvaderMotion.lastObservedPosition.x,
+        observedPosition.z - observedEvaderMotion.lastObservedPosition.z,
       );
       const observedMoveDistance = Math.hypot(
-        observedPosition.x - observedTargetMotion.lastObservedPosition.x,
-        observedPosition.z - observedTargetMotion.lastObservedPosition.z,
+        observedPosition.x - observedEvaderMotion.lastObservedPosition.x,
+        observedPosition.z - observedEvaderMotion.lastObservedPosition.z,
       );
-      if (observedMoveDistance >= TARGET_ESTIMATE_MIN_MOVE_DISTANCE) {
+      if (observedMoveDistance >= EVADER_ESTIMATE_MIN_MOVE_DISTANCE) {
         const observationGapFrames = Math.max(
           1,
-          Number(targetLocationMemory?.observationGapFrames) || 1,
+          Number(evaderLocationMemory?.observationGapFrames) || 1,
         );
         const observedSpeedPerFrame = observedMoveDistance / observationGapFrames;
         const clampedObservedSpeed = Math.min(
-          TARGET_SPEED_ESTIMATE_MAX_UNITS_PER_FRAME,
+          EVADER_SPEED_ESTIMATE_MAX_UNITS_PER_FRAME,
           Math.max(0, observedSpeedPerFrame),
         );
-        observedTargetMotion.speedEstimateUnitsPerFrame = observedTargetMotion.speedObservationCount > 0
-          ? observedTargetMotion.speedEstimateUnitsPerFrame
-            + (clampedObservedSpeed - observedTargetMotion.speedEstimateUnitsPerFrame)
-              * TARGET_SPEED_ESTIMATE_ALPHA
+        observedEvaderMotion.speedEstimateUnitsPerFrame = observedEvaderMotion.speedObservationCount > 0
+          ? observedEvaderMotion.speedEstimateUnitsPerFrame
+            + (clampedObservedSpeed - observedEvaderMotion.speedEstimateUnitsPerFrame)
+              * EVADER_SPEED_ESTIMATE_ALPHA
           : clampedObservedSpeed;
-        observedTargetMotion.speedObservationCount += 1;
-        const previousObservedDirection = observedTargetMotion.lastObservedDirection
-          ? { ...observedTargetMotion.lastObservedDirection }
+        observedEvaderMotion.speedObservationCount += 1;
+        const previousObservedDirection = observedEvaderMotion.lastObservedDirection
+          ? { ...observedEvaderMotion.lastObservedDirection }
           : null;
-        observedTargetMotion.previousObservedDirection = previousObservedDirection;
-        observedTargetMotion.lastObservedDirection = observedDelta;
-        observedTargetMotion.observedTurnRadiansPerFrame = previousObservedDirection
+        observedEvaderMotion.previousObservedDirection = previousObservedDirection;
+        observedEvaderMotion.lastObservedDirection = observedDelta;
+        observedEvaderMotion.observedTurnRadiansPerFrame = previousObservedDirection
           ? normalizeAngleDelta(
             vectorToAngle(observedDelta) - vectorToAngle(previousObservedDirection),
           ) / observationGapFrames
           : 0;
-        observedTargetMotion.motionObservationCount += 1;
+        observedEvaderMotion.motionObservationCount += 1;
       }
     }
 
-    observedTargetMotion.lastObservedPosition = observedPosition;
+    observedEvaderMotion.lastObservedPosition = observedPosition;
   }
 
-  return observedTargetMotion;
+  return observedEvaderMotion;
 }

@@ -1,10 +1,10 @@
 import {
   CHASE_RUNTIME_SETTINGS_KEY,
   CHASE_SETTINGS_STORAGE_KEY,
-  DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
-  MAX_TARGET_PROJECTION_HORIZON_FRAMES,
-  MAX_TARGET_PROJECTION_SPACING_FRAMES,
+  DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
+  DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
+  MAX_EVADER_PROJECTION_HORIZON_FRAMES,
+  MAX_EVADER_PROJECTION_SPACING_FRAMES,
 } from "./constants.mjs";
 import { clampNumber } from "./math.mjs";
 
@@ -63,14 +63,14 @@ export function readStoredProjectionSettings() {
   return {
     visible: projection.visible === true,
     horizonFrames: Number.isFinite(horizonFrames)
-      ? Math.round(clampNumber(horizonFrames, 1, MAX_TARGET_PROJECTION_HORIZON_FRAMES))
-      : DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
+      ? Math.round(clampNumber(horizonFrames, 1, MAX_EVADER_PROJECTION_HORIZON_FRAMES))
+      : DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
     sampleSpacingFrames: Math.round(clampNumber(
       Number.isFinite(sampleSpacingFrames)
         ? sampleSpacingFrames
-        : DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
+        : DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
       1,
-      MAX_TARGET_PROJECTION_SPACING_FRAMES,
+      MAX_EVADER_PROJECTION_SPACING_FRAMES,
     )),
   };
 }
