@@ -37,6 +37,16 @@ const STAGE_LABELS = Object.freeze({
   [STAGE_IDS.PERFORMANCE]: "Performance",
 });
 
+const PATTERN_VIEW_IDS = Object.freeze({
+  DETAILS: "details",
+  PREDICTIONS: "predictions",
+});
+
+const PATTERN_VIEW_LABELS = Object.freeze({
+  [PATTERN_VIEW_IDS.DETAILS]: "Main view: normal",
+  [PATTERN_VIEW_IDS.PREDICTIONS]: "Main view: prediction paths",
+});
+
 const PATTERN_LABELS = Object.freeze({
   continuance: "Continuance",
   wallAvoidance: "Wall avoidance",
@@ -627,12 +637,51 @@ function renderPerformanceStage(parent, payload = {}) {
   renderCollection(slowBody, performanceSnapshot?.slowSamples ?? []);
 }
 
-export function mountIdaeDebugFrame(createFloatingFrame, { onClose } = {}) {
+export function mountIdaeDebugFrame(createFloatingFrame, {
+  onClose,
+  onPredictionDebugChange,
+} = {}) {
   if (typeof createFloatingFrame !== "function") {
     return null;
   }
 
   const frameWidth = 390;
+  let activeActorId = ACTOR_IDS.CHASER;
+  let activeStageId = STAGE_IDS.MEMORY;
+  let patternSelectorOpen = false;
+  let patternSelectorSignature = null;
+  let patternViewSelectorOpen = false;
+  let patternViewSelectorSignature = null;
+  let predictionDebugSignature = null;
+  const activePatternIds = {
+    [ACTOR_IDS.CHASER]: null,
+    [ACTOR_IDS.EVADER]: null,
+  };
+  const activePatternViewIds = {
+    [ACTOR_IDS.CHASER]: PATTERN_VIEW_IDS.DETAILS,
+    [ACTOR_IDS.EVADER]: PATTERN_VIEW_IDS.DETAILS,
+  };
+  let latestPayload = {};
+
+  const emitPredictionDebugChange = ({ forceHidden = false } = {}) => {
+    if (typeof onPredictionDebugChange !== "function") {
+      return;
+    }
+    const visible = !forceHidden
+      && activeStageId === STAGE_IDS.PATTERNS
+      && activePatternViewIds[activeActorId] === PATTERN_VIEW_IDS.PREDICTIONS;
+    const nextState = {
+      visible,
+      actorId: activeActorId,
+    };
+    const signature = `${nextState.visible ? "1" : "0"}|${nextState.actorId}`;
+    if (signature === predictionDebugSignature) {
+      return;
+    }
+    predictionDebugSignature = signature;
+    onPredictionDebugChange(nextState);
+  };
+
   const frame = createFloatingFrame({
     id: "idae-debug",
     title: "IDAE Debug",
@@ -647,7 +696,10 @@ export function mountIdaeDebugFrame(createFloatingFrame, { onClose } = {}) {
     resizable: true,
     popoutable: true,
     closeable: true,
-    onClose,
+    onClose: () => {
+      emitPredictionDebugChange({ forceHidden: true });
+      onClose?.();
+    },
   });
 
   const root = document.createElement("div");
@@ -686,16 +738,55 @@ export function mountIdaeDebugFrame(createFloatingFrame, { onClose } = {}) {
     maxWidth: "100%",
   });
 
+  const patternViewSelectorSlot = document.createElement("div");
+  Object.assign(patternViewSelectorSlot.style, {
+    minWidth: "0",
+    maxWidth: "100%",
+  });
+
   const content = document.createElement("div");
-  let activeActorId = ACTOR_IDS.CHASER;
-  let activeStageId = STAGE_IDS.MEMORY;
-  let patternSelectorOpen = false;
-  let patternSelectorSignature = null;
-  const activePatternIds = {
-    [ACTOR_IDS.CHASER]: null,
-    [ACTOR_IDS.EVADER]: null,
+
+  const syncPatternViewSelector = ({ force = false } = {}) => {
+    const shouldShow = activeStageId === STAGE_IDS.PATTERNS;
+    if (!shouldShow) {
+      patternViewSelectorOpen = false;
+      patternViewSelectorSignature = null;
+      patternViewSelectorSlot.style.display = "none";
+      clearElement(patternViewSelectorSlot);
+      return;
+    }
+
+    const signature = [
+      activeActorId,
+      activeStageId,
+      activePatternViewIds[activeActorId] ?? "",
+    ].join("|");
+    if (!force && (patternViewSelectorOpen || signature === patternViewSelectorSignature)) {
+      patternViewSelectorSlot.style.display = "block";
+      return;
+    }
+
+    patternViewSelectorSignature = signature;
+    patternViewSelectorSlot.style.display = "block";
+    clearElement(patternViewSelectorSlot);
+    patternViewSelectorSlot.appendChild(createSelector({
+      options: PATTERN_VIEW_LABELS,
+      getValue: () => activePatternViewIds[activeActorId],
+      setValue: (value) => {
+        activePatternViewIds[activeActorId] = value;
+      },
+      onChange: () => {
+        patternViewSelectorOpen = false;
+        patternSelectorOpen = false;
+        patternSelectorSignature = null;
+        syncPatternViewSelector({ force: true });
+        renderActiveView();
+      },
+      onOpenChange: (open) => {
+        patternViewSelectorOpen = open;
+      },
+    }));
   };
-  let latestPayload = {};
 
   const syncPatternSelector = ({ force = false } = {}) => {
     const snapshot = getActorSnapshot(latestPayload, activeActorId);
@@ -750,6 +841,7 @@ export function mountIdaeDebugFrame(createFloatingFrame, { onClose } = {}) {
   };
 
   const renderActiveView = () => {
+    syncPatternViewSelector();
     syncPatternSelector();
     clearElement(content);
     const snapshot = getActorSnapshot(latestPayload, activeActorId);
@@ -769,6 +861,7 @@ export function mountIdaeDebugFrame(createFloatingFrame, { onClose } = {}) {
     } else if (activeStageId === STAGE_IDS.PERFORMANCE) {
       renderPerformanceStage(content, latestPayload);
     }
+    emitPredictionDebugChange();
   };
 
   selectorRow.append(
@@ -778,6 +871,8 @@ export function mountIdaeDebugFrame(createFloatingFrame, { onClose } = {}) {
       setValue: (value) => {
         patternSelectorOpen = false;
         patternSelectorSignature = null;
+        patternViewSelectorOpen = false;
+        patternViewSelectorSignature = null;
         activeActorId = value;
       },
       onChange: renderActiveView,
@@ -788,10 +883,13 @@ export function mountIdaeDebugFrame(createFloatingFrame, { onClose } = {}) {
       setValue: (value) => {
         patternSelectorOpen = false;
         patternSelectorSignature = null;
+        patternViewSelectorOpen = false;
+        patternViewSelectorSignature = null;
         activeStageId = value;
       },
       onChange: renderActiveView,
     }),
+    patternViewSelectorSlot,
     patternSelectorSlot,
   );
 
@@ -805,6 +903,7 @@ export function mountIdaeDebugFrame(createFloatingFrame, { onClose } = {}) {
       renderActiveView();
     },
     close() {
+      emitPredictionDebugChange({ forceHidden: true });
       frame.close();
     },
   };

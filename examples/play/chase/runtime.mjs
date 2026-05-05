@@ -13,6 +13,7 @@ import {
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
   MIN_SIMULATION_FRAMES_PER_SECOND,
   SIMULATION_FPS_ACTION_ID,
+  SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   EVADER_PROJECTION_DEBUG_ACTION_ID,
   EVADER_PROJECTION_HORIZON_ACTION_ID,
   EVADER_PROJECTION_RATE_ACTION_ID,
@@ -35,7 +36,10 @@ import {
   createFieldOfViewCone,
   createFieldOfViewConeGeometry,
   createWall,
+  createPredictionDebugDisplayState,
+  disposePredictionDebugDisplayState,
   syncProjectionFrames,
+  updatePredictionDebugDisplay,
   updateEvaderProjectionDisplay,
 } from "./rendering.mjs";
 import { publishSidebarSections, createActorStrategyToggleActionId } from "./sidebar.mjs";
@@ -248,7 +252,11 @@ function createEvaderViewController({ createFloatingFrame, vehicleSettings, onVi
   });
 }
 
-function createIdaeDebugController({ createFloatingFrame, onVisibilityChange }) {
+function createIdaeDebugController({
+  createFloatingFrame,
+  onVisibilityChange,
+  onPredictionDebugChange,
+}) {
   let mountedDebugFrame = null;
   let suppressNextCloseNotification = false;
 
@@ -267,6 +275,7 @@ function createIdaeDebugController({ createFloatingFrame, onVisibilityChange }) 
     }
     mountedDebugFrame = mountIdaeDebugFrame(createFloatingFrame, {
       onClose: handleFrameClose,
+      onPredictionDebugChange,
     });
     if (mountedDebugFrame) {
       onVisibilityChange?.(true);
@@ -370,6 +379,12 @@ function registerSidebarActions({
     }
     refreshSidebarSections();
   });
+  setSidebarActionHandler(SIMULATION_PAUSE_BEFORE_ACTIONS_ID, (value) => {
+    simulationSettings.pauseBeforeActions = typeof value === "boolean"
+      ? value
+      : !simulationSettings.pauseBeforeActions;
+    refreshSidebarSections();
+  });
   setSidebarActionHandler(CHASER_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
@@ -457,6 +472,7 @@ function clearSidebarActions(setSidebarActionHandler, actorStrategyCollections =
   setSidebarActionHandler?.(EVADER_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(IDAE_DEBUG_ACTION_ID, null);
   setSidebarActionHandler?.(SIMULATION_FPS_ACTION_ID, null);
+  setSidebarActionHandler?.(SIMULATION_PAUSE_BEFORE_ACTIONS_ID, null);
   setSidebarActionHandler?.(CHASER_SPEED_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_SPEED_ACTION_ID, null);
   setSidebarActionHandler?.(VEHICLE_TURN_RATE_ACTION_ID, null);
@@ -486,7 +502,12 @@ export function createPlayGame({
   let chaserViewVisible = false;
   let evaderViewVisible = false;
   let idaeDebugVisible = false;
+  let idaePredictionDebug = {
+    visible: false,
+    actorId: "chaser",
+  };
   const simulationSettings = simulationState.simulationSettings;
+  simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
   const vehicleSettings = simulationState.vehicleSettings;
   const projectionSettings = {
     ...simulationState.projectionSettings,
@@ -534,6 +555,12 @@ export function createPlayGame({
     onVisibilityChange: (visible) => {
       idaeDebugVisible = visible;
       refreshSidebarSections();
+    },
+    onPredictionDebugChange: (nextState = {}) => {
+      idaePredictionDebug = {
+        visible: Boolean(nextState.visible),
+        actorId: typeof nextState.actorId === "string" ? nextState.actorId : "chaser",
+      };
     },
   });
   const updateFieldOfView = () => {
@@ -616,13 +643,17 @@ export function createPlayGame({
   const evader = createCar(0xf43f5e);
   const evaderProjectionGroup = new THREE.Group();
   const evaderProjectionFrames = [];
+  const idaePredictionDebugGroup = new THREE.Group();
+  const idaePredictionDebugDisplayState = createPredictionDebugDisplayState();
   evaderProjectionGroup.visible = false;
+  idaePredictionDebugGroup.visible = false;
   const obstacles = simulationState.obstacles;
   const obstacleMeshes = obstacles.walls.map(createWall);
   scene.add(
     chaserFieldOfView,
     evaderFieldOfView,
     evaderProjectionGroup,
+    idaePredictionDebugGroup,
     chaser,
     evader,
     ...obstacleMeshes,
@@ -675,14 +706,25 @@ export function createPlayGame({
       MIN_SIMULATION_FRAMES_PER_SECOND,
       Number(simulationSettings.framesPerSecond) || ASSUMED_GAME_FRAMES_PER_SECOND,
     );
-    accumulatedMs = Math.min(accumulatedMs + elapsedMs, frameDurationMs * MAX_STEPS_PER_TICK);
+    const pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
+    accumulatedMs = pauseBeforeActions && simulationState.pendingActionFrame
+      ? 0
+      : Math.min(accumulatedMs + elapsedMs, frameDurationMs * MAX_STEPS_PER_TICK);
     const humanInput = getHumanChaserInput(pressedKeys);
     let stepsThisTick = 0;
     const stepStartMs = performance.now();
     while (accumulatedMs >= frameDurationMs && stepsThisTick < MAX_STEPS_PER_TICK) {
-      stepChaseSimulation(simulationState, { humanInput });
+      if (pauseBeforeActions && simulationState.pendingActionFrame) {
+        accumulatedMs = 0;
+        break;
+      }
+      stepChaseSimulation(simulationState, { humanInput, pauseBeforeActions });
       accumulatedMs -= frameDurationMs;
       stepsThisTick += 1;
+      if (pauseBeforeActions && simulationState.pendingActionFrame) {
+        accumulatedMs = 0;
+        break;
+      }
     }
     const stepMs = performance.now() - stepStartMs;
 
@@ -714,6 +756,18 @@ export function createPlayGame({
       evaderPredictionPlan?.path ?? null,
     );
     const projectionDisplayMs = performance.now() - projectionDisplayStartMs;
+    const predictionDebugDisplayStartMs = performance.now();
+    const actorSnapshots = {
+      chaser: chaserSnapshot,
+      evader: lastStep.evaderReasoning?.snapshot ?? null,
+    };
+    updatePredictionDebugDisplay(
+      idaePredictionDebugGroup,
+      idaePredictionDebugDisplayState,
+      actorSnapshots[idaePredictionDebug.actorId] ?? null,
+      { visible: idaePredictionDebug.visible },
+    );
+    const predictionDebugDisplayMs = performance.now() - predictionDebugDisplayStartMs;
     const idaeDebugStartMs = performance.now();
     idaeDebugFrame?.update({
       chaserSnapshot,
@@ -776,11 +830,13 @@ export function createPlayGame({
       overSimulationBudget: totalTickMs > frameDurationMs,
       visible: {
         idaeDebug: idaeDebugVisible,
+        idaePredictionDebug: idaePredictionDebug.visible,
         chaserView: chaserViewVisible,
         evaderView: evaderViewVisible,
       },
       segments: {
         projectionDisplayMs,
+        predictionDebugDisplayMs,
         idaeDebugMs,
         sidebarMs,
         sceneSyncMs,
@@ -815,6 +871,7 @@ export function createPlayGame({
       evader.geometry.dispose();
       evader.material.dispose();
       syncProjectionFrames(evaderProjectionGroup, evaderProjectionFrames, 0);
+      disposePredictionDebugDisplayState(idaePredictionDebugGroup, idaePredictionDebugDisplayState);
       obstacleMeshes.forEach((obstacle) => {
         obstacle.geometry.dispose();
         obstacle.material.dispose();

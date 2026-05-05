@@ -11,6 +11,7 @@ import {
   EVADER_SPEED_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
   VEHICLE_TURN_RATE_ACTION_ID,
+  SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
 } from "./constants.mjs";
 import { formatEditableNumber, radiansToDegrees } from "./math.mjs";
 
@@ -107,6 +108,15 @@ export function publishSidebarSections(
           value: formatEditableNumber(simulationSettings.framesPerSecond, 0),
           suffix: "frames/s",
           hint: "How many simulation frames to advance per real-time second while watching the run.",
+        },
+        {
+          kind: "toggle",
+          id: SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
+          label: "Pause before actions",
+          enabled: Boolean(simulationSettings.pauseBeforeActions),
+          enabledLabel: "paused",
+          disabledLabel: "running",
+          hint: "Freeze after all actor reasoning has run for the current frame, before actions update the world.",
         },
       ],
     },
