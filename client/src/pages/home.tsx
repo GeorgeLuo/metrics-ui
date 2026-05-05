@@ -1013,6 +1013,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       typeof document !== "undefined"
         ? document.querySelectorAll("[data-testid^='annotation-line-']").length
         : null;
+    const playChasePerformance =
+      typeof window !== "undefined"
+        ? (window as typeof window & { __metricsUiPlayChasePerformance?: unknown })
+            .__metricsUiPlayChasePerformance ?? null
+        : null;
     const chartContainerRect = chartContainerEl?.getBoundingClientRect?.();
     const chartCenterProbe =
       chartContainerRect && typeof document !== "undefined"
@@ -1157,6 +1162,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
         ),
         visualization: visualizationDebugRef.current,
         equationsFrame: equationsFrameDebugRef.current,
+        playChasePerformance,
       },
       localStorage: localStorageSnapshot,
     };
