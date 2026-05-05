@@ -3,16 +3,16 @@ import {
   DEFAULT_CHASER_SPEED_UNITS_PER_FRAME,
   DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
   DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS,
-  DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
-  DEFAULT_TARGET_PROJECTION_SPACING_FRAMES,
-  DEFAULT_TARGET_DRIFT_WEIGHT,
-  DEFAULT_TARGET_DRIFT_X_PHASE_PER_FRAME,
-  DEFAULT_TARGET_DRIFT_Z_PHASE_PER_FRAME,
-  DEFAULT_TARGET_SPEED_UNITS_PER_FRAME,
-  DEFAULT_TARGET_WALL_AVOID_WEIGHT,
+  DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
+  DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
+  DEFAULT_EVADER_DRIFT_WEIGHT,
+  DEFAULT_EVADER_DRIFT_X_PHASE_PER_FRAME,
+  DEFAULT_EVADER_DRIFT_Z_PHASE_PER_FRAME,
+  DEFAULT_EVADER_SPEED_UNITS_PER_FRAME,
+  DEFAULT_EVADER_WALL_AVOID_WEIGHT,
   MAX_SIMULATION_FRAMES_PER_SECOND,
-  MAX_TARGET_PROJECTION_HORIZON_FRAMES,
-  MAX_TARGET_PROJECTION_SPACING_FRAMES,
+  MAX_EVADER_PROJECTION_HORIZON_FRAMES,
+  MAX_EVADER_PROJECTION_SPACING_FRAMES,
   MIN_SIMULATION_FRAMES_PER_SECOND,
 } from "./constants.mjs";
 import {
@@ -21,6 +21,7 @@ import {
   normalizeVector,
 } from "./math.mjs";
 import { CHASE_TRACE_SINKS } from "./trace-recorder.mjs";
+import { CHASER_STRATEGY_IDS, EVADER_STRATEGY_IDS } from "./strategy-ids.mjs";
 import { getFieldObstacleLayout } from "./world.mjs";
 
 function asRecord(value) {
@@ -133,7 +134,18 @@ function normalizeBooleanMap(value) {
   );
 }
 
-function normalizeTargetPolicy(value) {
+function normalizeStrategyMap(value, knownIds, defaultEnabled = true) {
+  const record = asRecord(value);
+  const overrides = normalizeBooleanMap(record);
+  return Object.fromEntries(
+    knownIds.map((strategyId) => [
+      strategyId,
+      strategyId in overrides ? overrides[strategyId] : defaultEnabled,
+    ]),
+  );
+}
+
+function normalizeEvaderPolicy(value) {
   const record = asRecord(value) ?? {};
   return {
     id: typeof record.id === "string" && record.id.trim()
@@ -141,16 +153,22 @@ function normalizeTargetPolicy(value) {
       : "baseline-drift-wall-avoid",
     driftXPhasePerFrame: normalizeNumber(
       record.driftXPhasePerFrame,
-      DEFAULT_TARGET_DRIFT_X_PHASE_PER_FRAME,
+      DEFAULT_EVADER_DRIFT_X_PHASE_PER_FRAME,
     ),
     driftZPhasePerFrame: normalizeNumber(
       record.driftZPhasePerFrame,
-      DEFAULT_TARGET_DRIFT_Z_PHASE_PER_FRAME,
+      DEFAULT_EVADER_DRIFT_Z_PHASE_PER_FRAME,
     ),
     driftXPhaseOffset: normalizeNumber(record.driftXPhaseOffset, 0),
     driftZPhaseOffset: normalizeNumber(record.driftZPhaseOffset, 0),
-    driftWeight: normalizeNumber(record.driftWeight, DEFAULT_TARGET_DRIFT_WEIGHT),
-    wallAvoidWeight: normalizeNumber(record.wallAvoidWeight, DEFAULT_TARGET_WALL_AVOID_WEIGHT),
+    driftWeight: normalizeNumber(record.driftWeight, DEFAULT_EVADER_DRIFT_WEIGHT),
+    wallAvoidWeight: normalizeNumber(record.wallAvoidWeight, DEFAULT_EVADER_WALL_AVOID_WEIGHT),
+    evadeChaserWhenVisible: normalizeBoolean(record.evadeChaserWhenVisible, true),
+    evadeChaserWeight: normalizeNumber(record.evadeChaserWeight, 1.35),
+    baselineWeightWhenEvading: normalizeNumber(
+      record.baselineWeightWhenEvading,
+      DEFAULT_EVADER_DRIFT_WEIGHT,
+    ),
   };
 }
 
@@ -184,10 +202,10 @@ function normalizeTurnRateRadiansPerFrame(record) {
 function normalizeProjectionSpacingFrames(record) {
   const spacingFrames = Number(record?.sampleSpacingFrames);
   if (Number.isFinite(spacingFrames)) {
-    return Math.round(clampNumber(spacingFrames, 1, MAX_TARGET_PROJECTION_SPACING_FRAMES));
+    return Math.round(clampNumber(spacingFrames, 1, MAX_EVADER_PROJECTION_SPACING_FRAMES));
   }
 
-  return DEFAULT_TARGET_PROJECTION_SPACING_FRAMES;
+  return DEFAULT_EVADER_PROJECTION_SPACING_FRAMES;
 }
 
 function normalizeTraceSink(value) {
@@ -218,11 +236,11 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
   const root = asRecord(definition) ?? {};
   const actors = asRecord(root.actors) ?? {};
   const chaser = asRecord(actors.chaser) ?? {};
-  const target = asRecord(actors.target) ?? {};
+  const evader = asRecord(actors.evader) ?? {};
   const fallbackChaserPosition = { x: -safeColumns * 0.38, z: 0 };
-  const fallbackTargetPosition = { x: safeColumns / 4, z: 0 };
+  const fallbackEvaderPosition = { x: safeColumns / 4, z: 0 };
   const fallbackChaserDirection = { x: 1, z: 0 };
-  const fallbackTargetDirection = normalizeVector(-1, 0.4);
+  const fallbackEvaderDirection = normalizeVector(-1, 0.4);
   const vehicleSettings = asRecord(root.vehicleSettings) ?? {};
   const projectionSettings = asRecord(root.projectionSettings) ?? {};
   const runtime = asRecord(root.runtime) ?? {};
@@ -241,10 +259,18 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
       chaser: {
         position: normalizePosition(chaser.position, fallbackChaserPosition),
         direction: normalizeDirection(chaser.direction, fallbackChaserDirection),
+        strategies: normalizeStrategyMap(
+          chaser.strategies,
+          Object.values(CHASER_STRATEGY_IDS),
+        ),
       },
-      target: {
-        position: normalizePosition(target.position, fallbackTargetPosition),
-        direction: normalizeDirection(target.direction, fallbackTargetDirection),
+      evader: {
+        position: normalizePosition(evader.position, fallbackEvaderPosition),
+        direction: normalizeDirection(evader.direction, fallbackEvaderDirection),
+        strategies: normalizeStrategyMap(
+          evader.strategies,
+          Object.values(EVADER_STRATEGY_IDS),
+        ),
       },
     },
     vehicleSettings: {
@@ -254,9 +280,9 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
         min: 0.2 / ASSUMED_GAME_FRAMES_PER_SECOND,
         max: 12 / ASSUMED_GAME_FRAMES_PER_SECOND,
       }),
-      targetSpeedUnitsPerFrame: normalizeUnitsPerFrame(vehicleSettings, {
-        frameKey: "targetSpeedUnitsPerFrame",
-        fallback: DEFAULT_TARGET_SPEED_UNITS_PER_FRAME,
+      evaderSpeedUnitsPerFrame: normalizeUnitsPerFrame(vehicleSettings, {
+        frameKey: "evaderSpeedUnitsPerFrame",
+        fallback: DEFAULT_EVADER_SPEED_UNITS_PER_FRAME,
         min: 0.2 / ASSUMED_GAME_FRAMES_PER_SECOND,
         max: 12 / ASSUMED_GAME_FRAMES_PER_SECOND,
       }),
@@ -275,10 +301,10 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
       horizonFrames: Math.round(clampNumber(
         normalizeNumber(
           projectionSettings.horizonFrames,
-          DEFAULT_TARGET_PROJECTION_HORIZON_FRAMES,
+          DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
         ),
         1,
-        MAX_TARGET_PROJECTION_HORIZON_FRAMES,
+        MAX_EVADER_PROJECTION_HORIZON_FRAMES,
       )),
       sampleSpacingFrames: normalizeProjectionSpacingFrames(projectionSettings),
     },
@@ -294,11 +320,10 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
     },
     trace: normalizeTraceConfig(root.trace),
     policies: {
-      target: normalizeTargetPolicy(policies.target),
+      evader: normalizeEvaderPolicy(policies.evader),
     },
     engines: {
       knowledge: normalizeBooleanMap(engines.knowledge),
-      action: normalizeBooleanMap(engines.action),
     },
   };
 }

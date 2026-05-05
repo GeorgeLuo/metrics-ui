@@ -2,7 +2,10 @@ import {
   CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING,
   CHASER_AUTOPILOT_SEARCH_LEAD_RADIANS,
   CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS,
+  CHASER_STRATEGY_CONSENSUS_COUPLING,
+  CHASER_STRATEGY_CONSENSUS_ITERATIONS,
 } from "./constants.mjs";
+import { runKuramotoConsensus } from "./kuramoto.mjs";
 import {
   angleToVector,
   normalizeAngleDelta,
@@ -19,10 +22,10 @@ function getSteeringFromBearing(bearingRadians) {
       : 0;
 }
 
-function getDirectionToPosition(chaserPosition, targetPosition) {
+function getDirectionToPosition(chaserPosition, evaderPosition) {
   return normalizeVector(
-    targetPosition.x - chaserPosition.x,
-    targetPosition.z - chaserPosition.z,
+    evaderPosition.x - chaserPosition.x,
+    evaderPosition.z - chaserPosition.z,
   );
 }
 
@@ -30,9 +33,9 @@ function getBearingToDirection(chaserLookDirection, direction) {
   return normalizeAngleDelta(vectorToAngle(direction) - vectorToAngle(chaserLookDirection));
 }
 
-function getDirectionFromPerception(chaserLookDirection, targetPerception) {
+function getDirectionFromPerception(chaserLookDirection, evaderPerception) {
   return angleToVector(
-    vectorToAngle(chaserLookDirection) + targetPerception.bearingRadians,
+    vectorToAngle(chaserLookDirection) + evaderPerception.bearingRadians,
   );
 }
 
@@ -47,13 +50,14 @@ function createInactiveActionProposal(id, extra = {}) {
   return {
     id,
     active: false,
+    confidence: 0,
     ...extra,
   };
 }
 
 export function selectPursuitPoint({
   chaserPosition,
-  knowledgeBase,
+  snapshot,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
 } = {}) {
@@ -61,16 +65,14 @@ export function selectPursuitPoint({
     return null;
   }
 
-  const predictionPlan = knowledgeBase?.predictionPlan;
-  const targetMotionHypothesis = knowledgeBase?.targetMotionHypothesis
-    ?? knowledgeBase?.patterns?.targetMotionHypothesis
-    ?? knowledgeBase?.targetEstimate;
+  const evaderPredictionPlan = snapshot?.strategies?.evaderPrediction ?? null;
+  const continuance = snapshot?.patterns?.continuance ?? null;
 
-  if (predictionPlan?.actionable === false) {
+  if (evaderPredictionPlan?.actionable === false) {
     return null;
   }
 
-  const path = Array.isArray(predictionPlan?.path) ? predictionPlan.path : [];
+  const path = Array.isArray(evaderPredictionPlan?.path) ? evaderPredictionPlan.path : [];
   const safeSpeed = Math.max(
     0.001,
     Number(chaserSpeedUnitsPerFrame ?? speedUnitsPerFrame) || 0,
@@ -109,9 +111,9 @@ export function selectPursuitPoint({
     };
   }
 
-  if (targetMotionHypothesis?.position) {
+  if (continuance?.position) {
     return {
-      position: targetMotionHypothesis.position,
+      position: continuance.position,
       source: "current-estimate",
       sample: null,
     };
@@ -120,31 +122,32 @@ export function selectPursuitPoint({
   return null;
 }
 
-export function buildProjectionPursuitProposal({
+export function buildEvaderPredictionPursuitProposal({
   enabled,
   chaserPosition,
-  knowledgeBase,
+  snapshot,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
 } = {}) {
   if (!enabled) {
-    return createInactiveActionProposal("projectionPursuit");
+    return createInactiveActionProposal("evaderPredictionPursuit");
   }
 
   const pursuitPoint = selectPursuitPoint({
     chaserPosition,
-    knowledgeBase,
+    snapshot,
     chaserSpeedUnitsPerFrame,
     speedUnitsPerFrame,
   });
 
   if (!pursuitPoint?.position) {
-    return createInactiveActionProposal("projectionPursuit", { pursuitPoint: null });
+    return createInactiveActionProposal("evaderPredictionPursuit", { pursuitPoint: null });
   }
 
   return {
-    id: "projectionPursuit",
+    id: "evaderPredictionPursuit",
     active: true,
+    confidence: Number(snapshot?.strategies?.evaderPrediction?.prediction?.consensus) || 1,
     pursuitPoint,
     pursuitSource: pursuitPoint.source,
     goalDirection: getDirectionToPosition(chaserPosition, pursuitPoint.position),
@@ -154,17 +157,18 @@ export function buildProjectionPursuitProposal({
 export function buildVisibleBearingFallbackProposal({
   enabled,
   chaserLookDirection,
-  targetLocation,
+  evaderLocation,
 } = {}) {
-  if (!enabled || !targetLocation?.visible || !chaserLookDirection) {
-    return createInactiveActionProposal("visibleBearingFallback");
+  if (!enabled || !evaderLocation?.visible || !chaserLookDirection) {
+    return createInactiveActionProposal("lineOfSightPursuit");
   }
 
   return {
-    id: "visibleBearingFallback",
+    id: "lineOfSightPursuit",
     active: true,
+    confidence: 1,
     pursuitSource: "visible-bearing",
-    goalDirection: getDirectionFromPerception(chaserLookDirection, targetLocation),
+    goalDirection: getDirectionFromPerception(chaserLookDirection, evaderLocation),
   };
 }
 
@@ -180,8 +184,26 @@ export function buildSearchProposal({
   return {
     id: "search",
     active: true,
+    confidence: 1,
     pursuitSource: "search",
     goalDirection: getSearchDirection(chaserLookDirection, searchSteering),
+  };
+}
+
+function createPeerConsensusSignal(proposal) {
+  const direction = normalizeVector(
+    proposal?.goalDirection?.x ?? 0,
+    proposal?.goalDirection?.z ?? 0,
+  );
+  if (!proposal?.active || (direction.x === 0 && direction.z === 0)) {
+    return null;
+  }
+
+  return {
+    id: proposal.id,
+    direction,
+    confidence: Number.isFinite(proposal.confidence) ? proposal.confidence : 1,
+    weight: 1,
   };
 }
 
@@ -222,21 +244,18 @@ export function buildLocalNavigationProposal({
   };
 }
 
-function chooseBaseGoalProposal(proposals) {
-  if (proposals.projectionPursuit?.active) {
-    return proposals.projectionPursuit;
+function getPrimaryPeerProposal(proposals) {
+  if (proposals.evaderPredictionPursuit?.active) {
+    return proposals.evaderPredictionPursuit;
   }
-  if (proposals.visibleBearingFallback?.active) {
-    return proposals.visibleBearingFallback;
+  if (proposals.lineOfSightPursuit?.active) {
+    return proposals.lineOfSightPursuit;
   }
-  if (proposals.search?.active) {
-    return proposals.search;
-  }
-  return null;
+  return proposals.search?.active ? proposals.search : null;
 }
 
 export function planProgrammaticChaserAction({
-  knowledgeBase,
+  snapshot,
   chaserPosition,
   chaserLookDirection,
   actionEngines = {},
@@ -248,37 +267,55 @@ export function planProgrammaticChaserAction({
   rows,
   obstacles,
 } = {}) {
-  const targetLocation = knowledgeBase?.targetLocation
-    ?? knowledgeBase?.memory?.targetLocation
-    ?? knowledgeBase?.perception
-    ?? { visible: false };
+  const evaderLocation = snapshot?.memory?.directObservation?.evaderLocation ?? { visible: false };
 
   const proposals = {
-    projectionPursuit: buildProjectionPursuitProposal({
-      enabled: actionEngines.projectionPursuit !== false,
+    evaderPredictionPursuit: buildEvaderPredictionPursuitProposal({
+      enabled: actionEngines.evaderPredictionPursuit !== false,
       chaserPosition,
-      knowledgeBase,
+      snapshot,
       chaserSpeedUnitsPerFrame,
       speedUnitsPerFrame,
     }),
-    visibleBearingFallback: buildVisibleBearingFallbackProposal({
-      enabled: actionEngines.visibleBearingFallback !== false,
+    lineOfSightPursuit: buildVisibleBearingFallbackProposal({
+      enabled: actionEngines.lineOfSightPursuit !== false,
       chaserLookDirection,
-      targetLocation,
+      evaderLocation,
     }),
-    search: buildSearchProposal({
-      enabled: actionEngines.search !== false,
-      chaserLookDirection,
-      searchSteering,
-    }),
+    search: createInactiveActionProposal("search"),
   };
 
-  const chosenGoalProposal = chooseBaseGoalProposal(proposals);
-  const goalDirection = chosenGoalProposal?.goalDirection ?? null;
-  const pursuitPoint = chosenGoalProposal?.pursuitPoint ?? null;
-  const pursuitSource = chosenGoalProposal?.pursuitSource ?? "search";
+  const hasInformedProposal = proposals.evaderPredictionPursuit.active
+    || proposals.lineOfSightPursuit.active;
+  proposals.search = buildSearchProposal({
+    enabled: actionEngines.search !== false && !hasInformedProposal,
+    chaserLookDirection,
+    searchSteering,
+  });
+
+  const peerSignals = [
+    createPeerConsensusSignal(proposals.evaderPredictionPursuit),
+    createPeerConsensusSignal(proposals.lineOfSightPursuit),
+    createPeerConsensusSignal(proposals.search),
+  ].filter(Boolean);
+  const peerConsensus = runKuramotoConsensus(peerSignals, {
+    coupling: CHASER_STRATEGY_CONSENSUS_COUPLING,
+    iterations: CHASER_STRATEGY_CONSENSUS_ITERATIONS,
+  });
+
+  const primaryProposal = getPrimaryPeerProposal(proposals);
+  const goalDirection = peerConsensus.direction.x === 0 && peerConsensus.direction.z === 0
+    ? primaryProposal?.goalDirection ?? null
+    : peerConsensus.direction;
+  const pursuitPoint = proposals.evaderPredictionPursuit.active
+    ? proposals.evaderPredictionPursuit.pursuitPoint ?? null
+    : null;
+  const activePeerIds = peerSignals.map((signal) => signal.id);
+  const chosenPeerLabel = activePeerIds.length > 0
+    ? activePeerIds.join("+")
+    : "none";
   const localNavigation = buildLocalNavigationProposal({
-    enabled: actionEngines.localNavigation !== false,
+    enabled: true,
     chaserPosition,
     goalDirection,
     columns,
@@ -286,6 +323,13 @@ export function planProgrammaticChaserAction({
     obstacles,
     previousWallFollowSign,
   });
+  proposals.peerConsensus = {
+    id: "strategyConsensus",
+    active: activePeerIds.length > 0,
+    activePeerIds,
+    consensus: peerConsensus,
+    direction: goalDirection,
+  };
   proposals.localNavigation = localNavigation;
 
   const movement = localNavigation.movement;
@@ -303,17 +347,30 @@ export function planProgrammaticChaserAction({
       movement,
       desiredDirection,
       chosenStrategy: movement.wallPressure?.active
-        ? `${pursuitSource}+local-wall`
-        : pursuitSource,
-      searchSteeringHint: steering !== 0 ? steering : null,
+        ? `${chosenPeerLabel}+wallSafety`
+        : chosenPeerLabel,
+      searchSteeringHint: proposals.search.active && steering !== 0 ? steering : null,
       wallFollowSign: movement.wallFollowSign,
       proposals,
     };
   }
 
-  if (!targetLocation?.visible) {
+  if (!evaderLocation?.visible) {
+    if (!proposals.search.active) {
+      return {
+        forward: false,
+        reverse: false,
+        steering: 0,
+        desiredDirection: null,
+        chosenStrategy: "none",
+        searchSteeringHint: null,
+        wallFollowSign: movement.wallFollowSign,
+        proposals,
+      };
+    }
     return {
       forward: true,
+      reverse: false,
       steering: searchSteering,
       desiredDirection: null,
       chosenStrategy: "search",
@@ -323,13 +380,26 @@ export function planProgrammaticChaserAction({
     };
   }
 
-  const steering = getSteeringFromBearing(targetLocation.bearingRadians);
+  const steering = getSteeringFromBearing(evaderLocation.bearingRadians);
+  if (!proposals.lineOfSightPursuit.active) {
+    return {
+      forward: false,
+      reverse: false,
+      steering: 0,
+      desiredDirection: null,
+      chosenStrategy: "none",
+      searchSteeringHint: null,
+      wallFollowSign: movement.wallFollowSign,
+      proposals,
+    };
+  }
   return {
     forward: true,
+    reverse: false,
     steering,
     desiredDirection: null,
-    chosenStrategy: "visible-bearing",
-    searchSteeringHint: steering !== 0 ? steering : null,
+    chosenStrategy: "lineOfSightPursuit",
+    searchSteeringHint: null,
     wallFollowSign: movement.wallFollowSign,
     proposals,
   };

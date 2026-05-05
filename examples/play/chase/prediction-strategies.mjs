@@ -1,6 +1,6 @@
 import {
-  TARGET_PREDICTION_WALL_AVOIDANCE_MAX_BLEND,
-  TARGET_PREDICTION_WALL_AVOIDANCE_WEIGHT,
+  EVADER_PREDICTION_WALL_AVOIDANCE_MAX_BLEND,
+  EVADER_PREDICTION_WALL_AVOIDANCE_WEIGHT,
   WALL_AVOIDANCE_DETECTION_MIN_APPROACHES,
 } from "./constants.mjs";
 import {
@@ -12,9 +12,9 @@ import {
 import {
   clampConfidence,
   createPredictionSignal,
-  getRatioConfidence,
   getSampleConfidence,
 } from "./strategy-confidence.mjs";
+import { createPatternConfidence } from "./pattern-predictions.mjs";
 import { getWorldWallPressure } from "./world.mjs";
 
 const CURRENT_DIRECTION_WEIGHT = 1.2;
@@ -26,7 +26,7 @@ const LAST_DIRECTION_FULL_CONFIDENCE_OBSERVATIONS = 2;
 const TURN_BIAS_FULL_CONFIDENCE_OBSERVATIONS = 4;
 const MEANINGFUL_TURN_RATE_RADIANS = Math.PI / 5;
 
-export function getDefaultTargetPrediction(estimate) {
+export function getDefaultEvaderPrediction(estimate) {
   return {
     strategy: "continue-current-direction",
     direction: normalizeVector(estimate?.direction?.x ?? 0, estimate?.direction?.z ?? 0),
@@ -43,11 +43,10 @@ function getWallAvoidanceConfidence(wallAvoidanceEvidence) {
     return 0;
   }
 
-  return getRatioConfidence(
-    wallAvoidanceEvidence?.avoidedApproachCount,
-    possibleEvents,
-    WALL_AVOIDANCE_DETECTION_MIN_APPROACHES,
-  );
+  return createPatternConfidence({
+    confirmedCount: wallAvoidanceEvidence?.avoidedApproachCount,
+    opportunityCount: possibleEvents,
+  }).confidence;
 }
 
 export function getWallAvoidancePredictionSignal(
@@ -73,7 +72,7 @@ export function getWallAvoidancePredictionSignal(
     id: "wall-avoidance",
     direction: wallPressure.direction,
     confidence,
-    baseWeight: TARGET_PREDICTION_WALL_AVOIDANCE_WEIGHT,
+    baseWeight: EVADER_PREDICTION_WALL_AVOIDANCE_WEIGHT,
     metadata: {
       nearestWall: wallPressure.nearestWall,
       nearestDistance: wallPressure.nearestDistance,
@@ -83,8 +82,8 @@ export function getWallAvoidancePredictionSignal(
   });
 }
 
-export function buildTargetPredictionOscillators(estimate, context = {}) {
-  const defaultPrediction = getDefaultTargetPrediction(estimate);
+export function buildEvaderPredictionOscillators(estimate, context = {}) {
+  const defaultPrediction = getDefaultEvaderPrediction(estimate);
   const currentDirection = defaultPrediction.direction;
   if (currentDirection.x === 0 && currentDirection.z === 0) {
     return [];
@@ -157,17 +156,22 @@ export function blendDirectionTowardWallAvoidance(baseDirection, wallAvoidanceSi
   }
 
   const base = normalizeVector(baseDirection?.x ?? 0, baseDirection?.z ?? 0);
-  const target = normalizeVector(
+  const wallAvoidanceDirection = normalizeVector(
     wallAvoidanceSignal.direction.x,
     wallAvoidanceSignal.direction.z,
   );
-  if ((base.x === 0 && base.z === 0) || (target.x === 0 && target.z === 0)) {
+  if (
+    (base.x === 0 && base.z === 0)
+    || (wallAvoidanceDirection.x === 0 && wallAvoidanceDirection.z === 0)
+  ) {
     return base;
   }
 
   const blend = clampConfidence(wallAvoidanceSignal.confidence)
-    * TARGET_PREDICTION_WALL_AVOIDANCE_MAX_BLEND;
+    * EVADER_PREDICTION_WALL_AVOIDANCE_MAX_BLEND;
   const blendedAngle = vectorToAngle(base)
-    + normalizeAngleDelta(vectorToAngle(target) - vectorToAngle(base)) * blend;
+    + normalizeAngleDelta(
+      vectorToAngle(wallAvoidanceDirection) - vectorToAngle(base),
+    ) * blend;
   return angleToVector(blendedAngle);
 }

@@ -1,7 +1,7 @@
 import {
-  buildTargetPredictionPlan,
-  createTargetPredictionPlanState,
-} from "./target-prediction-plan.mjs";
+  buildEvaderPredictionPlan,
+  createEvaderPredictionPlanState,
+} from "./evader-prediction-plan.mjs";
 import {
   createStatefulStrategy,
   getStrategyOutput,
@@ -9,9 +9,9 @@ import {
   updateStrategy,
 } from "./strategies.mjs";
 
-export const TARGET_PREDICTION_STRATEGY_ID = "targetPrediction";
+export const EVADER_PREDICTION_STRATEGY_ID = "evaderPrediction";
 
-export function createDisabledTargetPredictionPlan(invalidReason) {
+export function createDisabledEvaderPredictionPlan(invalidReason) {
   return {
     actionable: false,
     invalidReason,
@@ -29,20 +29,19 @@ export function createDisabledTargetPredictionPlan(invalidReason) {
   };
 }
 
-export function createTargetPredictionStrategy() {
+export function createEvaderPredictionStrategy() {
   return createStatefulStrategy({
-    id: TARGET_PREDICTION_STRATEGY_ID,
-    createState: createTargetPredictionPlanState,
-    createOutput: () => createDisabledTargetPredictionPlan("prediction-not-yet-built"),
-    deriveOutput: (planState, context = {}) => buildTargetPredictionPlan({
+    id: EVADER_PREDICTION_STRATEGY_ID,
+    createState: createEvaderPredictionPlanState,
+    createOutput: () => createDisabledEvaderPredictionPlan("prediction-not-yet-built"),
+    deriveOutput: (planState, context = {}) => buildEvaderPredictionPlan({
       estimate: context.estimate,
+      patternUnits: context.patternUnits,
+      evaderVisible: context.evaderVisible,
+      planState,
       columns: context.columns,
       rows: context.rows,
       obstacles: context.obstacles,
-      wallAvoidanceEvidence: context.wallAvoidanceEvidence,
-      speedUnitsPerFrame: context.speedUnitsPerFrame,
-      targetVisible: context.targetVisible,
-      planState,
       horizonFrames: context.horizonFrames,
       sampleSpacingFrames: context.sampleSpacingFrames,
     }),
@@ -51,14 +50,14 @@ export function createTargetPredictionStrategy() {
   });
 }
 
-export function updateTargetPredictionStrategy(strategy, context) {
+export function updateEvaderPredictionStrategy(strategy, context) {
   return updateStrategy(strategy, context);
 }
 
-export function getTargetPredictionPlan(strategy) {
+export function getEvaderPredictionPlan(strategy) {
   return getStrategyOutput(strategy);
 }
 
-export function getTargetPredictionStrategyState(strategy) {
+export function getEvaderPredictionStrategyState(strategy) {
   return getStrategyState(strategy);
 }

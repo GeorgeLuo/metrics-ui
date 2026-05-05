@@ -28,7 +28,7 @@ export function createWallAvoidanceEvidenceState() {
   return createBaseWallAvoidanceState();
 }
 
-export function createTargetWallAvoidanceTruthState() {
+export function createEvaderWallAvoidanceTruthState() {
   return createBaseWallAvoidanceState();
 }
 
@@ -109,7 +109,7 @@ function updateStateFromWallPressure(state, wallPressure, observed = true) {
   return state;
 }
 
-export function updateTargetWallAvoidanceTruth(
+export function updateEvaderWallAvoidanceTruth(
   state,
   {
     decisionDebug,
@@ -127,13 +127,13 @@ export function updateWallAvoidanceEvidence(
   state,
   {
     estimate,
-    targetVisible,
+    evaderVisible,
     columns,
     rows,
     obstacles,
   },
 ) {
-  const observed = Boolean(targetVisible && estimate?.observationCount > 0 && estimate?.position);
+  const observed = Boolean(evaderVisible && estimate?.observationCount > 0 && estimate?.position);
   if (!observed) {
     state.latest = {
       ...state.latest,

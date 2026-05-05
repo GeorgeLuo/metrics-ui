@@ -3,6 +3,7 @@ import {
   planProgrammaticChaserAction,
   selectPursuitPoint,
 } from "./chaser-action-strategies.mjs";
+import { CHASER_STRATEGY_IDS } from "./strategy-ids.mjs";
 
 export function createChaserAutopilotState() {
   return {
@@ -13,12 +14,7 @@ export function createChaserAutopilotState() {
   };
 }
 
-export const CHASER_ACTION_ENGINE_IDS = Object.freeze({
-  PROJECTION_PURSUIT: "projectionPursuit",
-  VISIBLE_BEARING_FALLBACK: "visibleBearingFallback",
-  SEARCH: "search",
-  LOCAL_NAVIGATION: "localNavigation",
-});
+export const CHASER_ACTION_ENGINE_IDS = CHASER_STRATEGY_IDS;
 
 function asEnabled(value, fallback = true) {
   return typeof value === "boolean" ? value : fallback;
@@ -26,20 +22,16 @@ function asEnabled(value, fallback = true) {
 
 export function createChaserActionEngines(overrides = {}) {
   return {
-    [CHASER_ACTION_ENGINE_IDS.PROJECTION_PURSUIT]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.PROJECTION_PURSUIT],
+    [CHASER_ACTION_ENGINE_IDS.EVADER_PREDICTION_PURSUIT]: asEnabled(
+      overrides[CHASER_ACTION_ENGINE_IDS.EVADER_PREDICTION_PURSUIT],
       true,
     ),
-    [CHASER_ACTION_ENGINE_IDS.VISIBLE_BEARING_FALLBACK]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.VISIBLE_BEARING_FALLBACK],
+    [CHASER_ACTION_ENGINE_IDS.LINE_OF_SIGHT_PURSUIT]: asEnabled(
+      overrides[CHASER_ACTION_ENGINE_IDS.LINE_OF_SIGHT_PURSUIT],
       true,
     ),
     [CHASER_ACTION_ENGINE_IDS.SEARCH]: asEnabled(
       overrides[CHASER_ACTION_ENGINE_IDS.SEARCH],
-      true,
-    ),
-    [CHASER_ACTION_ENGINE_IDS.LOCAL_NAVIGATION]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.LOCAL_NAVIGATION],
       true,
     ),
   };
@@ -53,7 +45,7 @@ export function setChaserActionEngineEnabled(autopilotState, engineId, enabled) 
 }
 
 export function getProgrammaticChaserInput({
-  knowledgeBase,
+  snapshot,
   chaserPosition,
   chaserLookDirection,
   autopilotState,
@@ -65,7 +57,7 @@ export function getProgrammaticChaserInput({
 } = {}) {
   const actionEngines = autopilotState?.actionEngines ?? createChaserActionEngines();
   const actionPlan = planProgrammaticChaserAction({
-    knowledgeBase,
+    snapshot,
     chaserPosition,
     chaserLookDirection,
     actionEngines,

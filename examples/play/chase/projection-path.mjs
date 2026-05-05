@@ -1,7 +1,7 @@
 import { normalizeVector } from "./math.mjs";
-import { predictTargetMotionWithKuramoto } from "./prediction.mjs";
+import { predictEvaderMotionWithKuramoto } from "./prediction.mjs";
 import { getWallAvoidanceSignal } from "./prediction-strategies.mjs";
-import { constrainDirectionToBounds } from "./target.mjs";
+import { constrainDirectionToBounds } from "./evader.mjs";
 import { resolveObstacleCollisions } from "./world.mjs";
 
 function createProjectedEstimate(sourceEstimate, position, direction, framesSinceObservation) {
@@ -21,9 +21,10 @@ function hasActiveWallAvoidancePrediction(prediction) {
   return Boolean(prediction?.wallAvoidance || getWallAvoidanceSignal(prediction?.oscillators ?? []));
 }
 
-export function buildTargetProjectionPath({
+export function buildEvaderProjectionPath({
   estimate,
   initialPrediction,
+  predictMotion = predictEvaderMotionWithKuramoto,
   horizonFrames,
   sampleSpacingFrames,
   speedUnitsPerFrame,
@@ -60,7 +61,7 @@ export function buildTargetProjectionPath({
   for (let frame = 1; frame <= horizonFrames; frame += 1) {
     const prediction = frame === 1
       ? initialPrediction
-      : predictTargetMotionWithKuramoto(projectedEstimate, {
+      : predictMotion(projectedEstimate, {
         columns,
         rows,
         obstacles,
