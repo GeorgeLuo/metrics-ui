@@ -13,6 +13,7 @@ import {
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
   MIN_SIMULATION_FRAMES_PER_SECOND,
   SIMULATION_FPS_ACTION_ID,
+  SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   EVADER_PROJECTION_DEBUG_ACTION_ID,
   EVADER_PROJECTION_HORIZON_ACTION_ID,
   EVADER_PROJECTION_RATE_ACTION_ID,
@@ -378,6 +379,12 @@ function registerSidebarActions({
     }
     refreshSidebarSections();
   });
+  setSidebarActionHandler(SIMULATION_PAUSE_BEFORE_ACTIONS_ID, (value) => {
+    simulationSettings.pauseBeforeActions = typeof value === "boolean"
+      ? value
+      : !simulationSettings.pauseBeforeActions;
+    refreshSidebarSections();
+  });
   setSidebarActionHandler(CHASER_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
@@ -465,6 +472,7 @@ function clearSidebarActions(setSidebarActionHandler, actorStrategyCollections =
   setSidebarActionHandler?.(EVADER_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(IDAE_DEBUG_ACTION_ID, null);
   setSidebarActionHandler?.(SIMULATION_FPS_ACTION_ID, null);
+  setSidebarActionHandler?.(SIMULATION_PAUSE_BEFORE_ACTIONS_ID, null);
   setSidebarActionHandler?.(CHASER_SPEED_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_SPEED_ACTION_ID, null);
   setSidebarActionHandler?.(VEHICLE_TURN_RATE_ACTION_ID, null);
@@ -499,6 +507,7 @@ export function createPlayGame({
     actorId: "chaser",
   };
   const simulationSettings = simulationState.simulationSettings;
+  simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
   const vehicleSettings = simulationState.vehicleSettings;
   const projectionSettings = {
     ...simulationState.projectionSettings,
@@ -697,14 +706,25 @@ export function createPlayGame({
       MIN_SIMULATION_FRAMES_PER_SECOND,
       Number(simulationSettings.framesPerSecond) || ASSUMED_GAME_FRAMES_PER_SECOND,
     );
-    accumulatedMs = Math.min(accumulatedMs + elapsedMs, frameDurationMs * MAX_STEPS_PER_TICK);
+    const pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
+    accumulatedMs = pauseBeforeActions && simulationState.pendingActionFrame
+      ? 0
+      : Math.min(accumulatedMs + elapsedMs, frameDurationMs * MAX_STEPS_PER_TICK);
     const humanInput = getHumanChaserInput(pressedKeys);
     let stepsThisTick = 0;
     const stepStartMs = performance.now();
     while (accumulatedMs >= frameDurationMs && stepsThisTick < MAX_STEPS_PER_TICK) {
-      stepChaseSimulation(simulationState, { humanInput });
+      if (pauseBeforeActions && simulationState.pendingActionFrame) {
+        accumulatedMs = 0;
+        break;
+      }
+      stepChaseSimulation(simulationState, { humanInput, pauseBeforeActions });
       accumulatedMs -= frameDurationMs;
       stepsThisTick += 1;
+      if (pauseBeforeActions && simulationState.pendingActionFrame) {
+        accumulatedMs = 0;
+        break;
+      }
     }
     const stepMs = performance.now() - stepStartMs;
 

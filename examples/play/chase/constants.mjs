@@ -41,6 +41,7 @@ export const EVADER_PROJECTION_HORIZON_ACTION_ID = "evader-projection-horizon";
 export const EVADER_PROJECTION_RATE_ACTION_ID = "evader-projection-rate";
 export const EVADER_PROJECTION_SPACING_ACTION_ID = EVADER_PROJECTION_RATE_ACTION_ID;
 export const SIMULATION_FPS_ACTION_ID = "simulation-fps";
+export const SIMULATION_PAUSE_BEFORE_ACTIONS_ID = "simulation-pause-before-actions";
 
 export const CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS = 0.08;
 export const CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING = 1;
