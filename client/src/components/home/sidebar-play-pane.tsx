@@ -99,6 +99,14 @@ function renderGameSectionRow(
   onGameAction: (actionId: string, value?: unknown) => void,
 ) {
   if (row.kind === "toggle") {
+    const lightClass = row.tone === "playback"
+      ? row.enabled
+        ? "bg-emerald-400 hover:bg-emerald-300"
+        : "bg-emerald-500/20 hover:bg-emerald-500/35"
+      : row.enabled
+        ? "bg-blue-500/80 hover:bg-blue-500"
+        : "bg-blue-500/20 hover:bg-blue-500/45";
+
     return (
       <div
         key={`${row.id}:${index}`}
@@ -111,11 +119,7 @@ function renderGameSectionRow(
           onClick={() => onGameAction(row.id, !row.enabled)}
           aria-label={`${row.enabled ? "Disable" : "Enable"} ${row.label}`}
           aria-pressed={row.enabled}
-          className={`h-3 w-3 shrink-0 p-0 leading-none rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${
-            row.enabled
-              ? "bg-blue-500/80 hover:bg-blue-500"
-              : "bg-blue-500/20 hover:bg-blue-500/45"
-          }`}
+          className={`h-3 w-3 shrink-0 p-0 leading-none rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30 ${lightClass}`}
           data-hint={row.hint}
         />
       </div>

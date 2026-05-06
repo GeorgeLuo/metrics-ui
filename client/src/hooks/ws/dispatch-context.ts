@@ -131,6 +131,7 @@ export interface WsCommandDispatchContext {
   onClearSubtitles: () => void;
   getMemoryStats: () => MemoryStatsResponse;
   getUiDebug?: () => UiDebugResponse;
+  getPlayDebug?: () => unknown;
   onStateSync?: (captures: { captureId: string; lastTick?: number | null }[]) => void;
   onDerivationPlugins?: (plugins: unknown[]) => void;
   onUiNotice?: (notice: UiNotice) => void;

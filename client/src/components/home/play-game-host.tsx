@@ -13,6 +13,7 @@ type PlayGameHostProps = {
   rows: number;
   onSidebarSectionsChange?: (sections: PlaySidebarSection[]) => void;
   onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
+  onDebugSnapshotChange?: (snapshot: unknown) => void;
 };
 
 type PlayFloatingFrameSize = {
@@ -56,6 +57,7 @@ type PlayGameRuntimeContext = {
   createFloatingFrame: (options: PlayFloatingFrameOptions) => PlayFloatingFrameHandle;
   setSidebarSections: (sections: unknown) => void;
   setSidebarActionHandler: (actionId: string, handler: ((value?: unknown) => void) | null) => void;
+  setDebugSnapshot: (snapshot: unknown) => void;
 };
 
 type PlayGameInstance = {
@@ -121,6 +123,7 @@ export function PlayGameHost({
   rows,
   onSidebarSectionsChange,
   onSidebarActionHandlerChange,
+  onDebugSnapshotChange,
 }: PlayGameHostProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -184,6 +187,10 @@ export function PlayGameHost({
     }
   }, []);
 
+  const setDebugSnapshot = useCallback((snapshot: unknown) => {
+    onDebugSnapshotChange?.(snapshot);
+  }, [onDebugSnapshotChange]);
+
   const dispatchSidebarAction = useCallback((actionId: string, value?: unknown) => {
     const normalizedActionId = normalizeSidebarActionId(actionId);
     if (!normalizedActionId) {
@@ -227,6 +234,7 @@ export function PlayGameHost({
           createFloatingFrame,
           setSidebarSections,
           setSidebarActionHandler,
+          setDebugSnapshot,
         });
       })
       .catch((error: unknown) => {
@@ -247,9 +255,10 @@ export function PlayGameHost({
         });
         sidebarActionHandlersRef.current.clear();
         setSidebarSections([]);
+        setDebugSnapshot(null);
       }
     };
-  }, [columns, createFloatingFrame, gameLabel, moduleUrl, rows, setSidebarActionHandler, setSidebarSections]);
+  }, [columns, createFloatingFrame, gameLabel, moduleUrl, rows, setDebugSnapshot, setSidebarActionHandler, setSidebarSections]);
 
   return (
     <div

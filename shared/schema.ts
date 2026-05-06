@@ -949,6 +949,7 @@ export type ControlCommand =
       windowEnd?: number;
     } & ControlRequestBase)
   | ({ type: "get_ui_debug"; scope?: string } & ControlRequestBase)
+  | ({ type: "get_play_debug" } & ControlRequestBase)
   | ({ type: "get_memory_stats" } & ControlRequestBase)
   | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase)
   | ({ type: "get_derivation_plugins" } & ControlRequestBase)
@@ -975,6 +976,7 @@ export interface ControlResponse {
     | "render_table"
     | "render_debug"
     | "ui_debug"
+    | "play_debug"
     | "ui_notice"
     | "ui_error"
     | "memory_stats"

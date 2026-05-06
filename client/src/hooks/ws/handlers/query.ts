@@ -186,6 +186,34 @@ export function handleQueryCommand(
       context.sendAck(requestId, command.type);
       return true;
     }
+    case "get_play_debug": {
+      if (!context.getPlayDebug) {
+        context.sendError(requestId, "Play debug not available.");
+        return true;
+      }
+      let debug: unknown;
+      try {
+        debug = context.getPlayDebug();
+      } catch (error) {
+        context.sendError(
+          requestId,
+          error instanceof Error ? error.message : "Failed to build Play debug payload.",
+          { command: "get_play_debug" },
+        );
+        return true;
+      }
+      if (debug === null || debug === undefined) {
+        context.sendError(requestId, "No Play debug snapshot is available. Activate the Play sub-app and wait for the game to load.");
+        return true;
+      }
+      context.sendMessage({
+        type: "play_debug",
+        request_id: requestId,
+        payload: debug,
+      });
+      context.sendAck(requestId, command.type);
+      return true;
+    }
     case "get_memory_stats": {
       const stats = context.getMemoryStats();
       context.sendMessage({

@@ -54,6 +54,7 @@ import {
 } from "./simulation.mjs";
 import { mountIdaeDebugFrame } from "./idae-debug.mjs";
 import { createChasePerformanceTracker } from "./performance-debug.mjs";
+import { buildChaseDebugSnapshot } from "./debug-snapshot.mjs";
 import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
 import { setChaserActionEngineEnabled } from "./chaser-controller.mjs";
 import { setEvaderStrategyEngineEnabled } from "./evader-idae.mjs";
@@ -381,7 +382,7 @@ function registerSidebarActions({
   });
   setSidebarActionHandler(SIMULATION_PAUSE_BEFORE_ACTIONS_ID, (value) => {
     simulationSettings.pauseBeforeActions = typeof value === "boolean"
-      ? value
+      ? !value
       : !simulationSettings.pauseBeforeActions;
     refreshSidebarSections();
   });
@@ -494,6 +495,7 @@ export function createPlayGame({
   createFloatingFrame,
   setSidebarSections,
   setSidebarActionHandler,
+  setDebugSnapshot,
 }) {
   const scenario = resolveChaseScenario(defaultScenarioDefinition, { columns, rows });
   const simulationState = createChaseSimulationState({ scenario, columns, rows });
@@ -505,6 +507,12 @@ export function createPlayGame({
   let idaePredictionDebug = {
     visible: false,
     actorId: "chaser",
+  };
+  const publishDebugSnapshot = () => {
+    setDebugSnapshot?.(buildChaseDebugSnapshot(simulationState, {
+      performance: performanceTracker.getSnapshot(),
+      predictionDebug: idaePredictionDebug,
+    }));
   };
   const simulationSettings = simulationState.simulationSettings;
   simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
@@ -845,6 +853,7 @@ export function createPlayGame({
         evaderViewRenderMs,
       },
     });
+    publishDebugSnapshot();
     animationFrame = window.requestAnimationFrame(tick);
   };
   animationFrame = window.requestAnimationFrame(tick);
@@ -881,6 +890,7 @@ export function createPlayGame({
       evaderView.dispose();
       idaeDebugFrame.dispose();
       performanceTracker.reset();
+      setDebugSnapshot?.(null);
     },
   };
 }

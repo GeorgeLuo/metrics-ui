@@ -558,6 +558,7 @@ const RESPONSE_REQUIRED_COMMANDS = new Set<ControlCommand["type"]>([
   "get_render_table",
   "get_render_debug",
   "get_ui_debug",
+  "get_play_debug",
   "get_memory_stats",
   "get_metric_coverage",
 ]);
