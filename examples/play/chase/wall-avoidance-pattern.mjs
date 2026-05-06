@@ -18,6 +18,7 @@ import { buildEvaderProjectionPath } from "./projection-path.mjs";
 
 export const WALL_AVOIDANCE_PATTERN_ID = "wallAvoidance";
 const WALL_AVOIDANCE_PATTERN_UNIT = "wall-avoidance-motion-deflection";
+const WALL_AVOIDANCE_PATTERN_STRATEGY = "wall-avoidance-intercept";
 
 function getPositiveInteger(value, fallback) {
   const numericValue = Number(value);
@@ -36,6 +37,25 @@ function cloneWallAvoidanceEvidence(state) {
     pendingApproach: state?.pendingApproach ? { ...state.pendingApproach } : null,
     cooldownWall: state?.cooldownWall ?? null,
     latest: state?.latest ? { ...state.latest } : null,
+  };
+}
+
+function createWallAvoidancePatternPrediction(sample, confidenceParts, initialPrediction) {
+  const projectionPrediction = sample.prediction ?? null;
+  const wallAvoidance = projectionPrediction?.wallAvoidance
+    ?? initialPrediction?.wallAvoidance
+    ?? null;
+
+  return {
+    strategy: WALL_AVOIDANCE_PATTERN_STRATEGY,
+    direction: sample.direction,
+    consensus: confidenceParts.confidence,
+    oscillators: Array.isArray(projectionPrediction?.oscillators)
+      ? projectionPrediction.oscillators
+      : [],
+    wallAvoidance,
+    actionable: true,
+    projectionPrediction,
   };
 }
 
@@ -99,11 +119,21 @@ function buildWallAvoidancePatternPredictionSet(state, {
         position: sample.position,
         direction: sample.direction,
         confidenceParts,
-        prediction: sample.prediction,
+        prediction: createWallAvoidancePatternPrediction(
+          sample,
+          confidenceParts,
+          initialPrediction,
+        ),
         metadata: {
-          strategy: sample.prediction?.strategy ?? null,
-          nearestWall: sample.prediction?.wallAvoidance?.nearestWall ?? null,
-          nearestDistance: sample.prediction?.wallAvoidance?.nearestDistance ?? null,
+          strategy: WALL_AVOIDANCE_PATTERN_STRATEGY,
+          projectionStrategy: sample.prediction?.strategy ?? null,
+          projectionActionable: sample.prediction?.actionable ?? null,
+          nearestWall: sample.prediction?.wallAvoidance?.nearestWall
+            ?? initialPrediction?.wallAvoidance?.nearestWall
+            ?? null,
+          nearestDistance: sample.prediction?.wallAvoidance?.nearestDistance
+            ?? initialPrediction?.wallAvoidance?.nearestDistance
+            ?? null,
         },
       });
     }),
