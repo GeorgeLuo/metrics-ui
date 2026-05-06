@@ -1,3 +1,5 @@
+import { getPredictionPerformanceSnapshot } from "./prediction-performance.mjs";
+
 function cloneSerializable(value, seen = new WeakSet()) {
   if (value === null || value === undefined) {
     return value ?? null;
@@ -126,6 +128,9 @@ export function buildChaseDebugSnapshot(simulationState, {
       evader: buildActorDebug(lastStep.evaderReasoning),
     },
     predictionConsensus: buildPredictionConsensusDebug(chaserSnapshot),
+    predictionPerformance: getPredictionPerformanceSnapshot(
+      simulationState?.predictionPerformance,
+    ),
     ui: {
       predictionDebug: cloneSerializable(predictionDebug),
       performance: cloneSerializable(performance),

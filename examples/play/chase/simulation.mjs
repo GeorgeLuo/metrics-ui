@@ -14,6 +14,11 @@ import {
   getChaseTraceRecorderSnapshot,
   recordChaseTraceFrame,
 } from "./trace-recorder.mjs";
+import {
+  createPredictionPerformanceTracker,
+  recordPredictionPerformanceSet,
+  validatePredictionPerformance,
+} from "./prediction-performance.mjs";
 import { resolveObstacleCollisions } from "./world.mjs";
 
 function createRunMetrics() {
@@ -235,6 +240,12 @@ function buildReasonedActionFrame(state, { humanInput } = {}) {
     state,
     evaderReasoning?.action ?? null,
   );
+  recordPredictionPerformanceSet(state.predictionPerformance, {
+    frameIndex: state.frameIndex,
+    targetId: "evader",
+    producerId: "chaser.evaderPrediction",
+    path: chaserReasoning?.snapshot?.strategies?.evaderPrediction?.path ?? [],
+  });
 
   return {
     phase: "before-actions",
@@ -264,6 +275,12 @@ function commitReasonedActionFrame(state, actionFrame) {
     state,
     actionFrame.evaderMovementDecision,
   );
+  validatePredictionPerformance(state.predictionPerformance, {
+    frameIndex: state.frameIndex + 1,
+    targetId: "evader",
+    actualPosition: state.evaderPosition,
+    actualDirection: state.evaderDirection,
+  });
   updateRunMetrics(state.runMetrics, state.chaserPosition, state.evaderPosition);
   state.lastStep = {
     ...actionFrame,
@@ -310,6 +327,7 @@ export function createChaseSimulationState({
     chaserIdae,
     evaderIdae,
     evaderWallAvoidanceTruth: createEvaderWallAvoidanceTruthState(),
+    predictionPerformance: createPredictionPerformanceTracker(),
     traceRecorder: resolvedTraceRecorder,
     runMetrics: createRunMetrics(),
     pendingHumanInput: { forward: false, reverse: false, steering: 0 },

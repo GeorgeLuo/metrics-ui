@@ -30,6 +30,7 @@ import {
   createEvaderPredictionStrategy,
   updateEvaderPredictionStrategy,
 } from "./evader-prediction-strategy.mjs";
+import { CHASER_PATTERN_IDS } from "./strategy-ids.mjs";
 
 export const CHASER_KNOWLEDGE_ENGINE_IDS = Object.freeze({
   PERCEPTION: "perception",
@@ -37,6 +38,23 @@ export const CHASER_KNOWLEDGE_ENGINE_IDS = Object.freeze({
   WALL_AVOIDANCE_INFERENCE: "wallAvoidanceInference",
   PREDICTION_PLANNING: "predictionPlanning",
 });
+
+function createChaserPatternEngines(overrides = {}) {
+  return {
+    [CHASER_PATTERN_IDS.CONTINUANCE]: asEnabled(
+      overrides[CHASER_PATTERN_IDS.CONTINUANCE],
+      true,
+    ),
+    [CHASER_PATTERN_IDS.WALL_AVOIDANCE]: asEnabled(
+      overrides[CHASER_PATTERN_IDS.WALL_AVOIDANCE],
+      true,
+    ),
+  };
+}
+
+function isPatternEnabled(knowledgeBase, patternId) {
+  return knowledgeBase?.patternEngines?.[patternId] !== false;
+}
 
 function asEnabled(value, fallback = true) {
   return typeof value === "boolean" ? value : fallback;
@@ -93,9 +111,11 @@ export function setChaserKnowledgeEngineEnabled(knowledgeBase, engineId, enabled
 export function createChaserKnowledgeBase({
   evaderDirection = { x: 0, z: 0 },
   engines,
+  patterns,
 } = {}) {
   return {
     engines: createChaserKnowledgeEngines(engines),
+    patternEngines: createChaserPatternEngines(patterns),
     memory: {
       directObservation: {
         evaderLocation: createActorLocationMemory(),
@@ -219,7 +239,10 @@ export function updateChaserPatternStage(
 
   const evaderMotionModel = getEvaderMotionModel(knowledgeBase);
 
-  if (knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.WALL_AVOIDANCE_INFERENCE]) {
+  if (
+    knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.WALL_AVOIDANCE_INFERENCE]
+    && isPatternEnabled(knowledgeBase, CHASER_PATTERN_IDS.WALL_AVOIDANCE)
+  ) {
     updateWallAvoidancePattern(knowledgeBase.patterns.wallAvoidance, {
       estimate: evaderMotionModel,
       evaderVisible: knowledgeBase.memory.directObservation.evaderLocation.visible,
@@ -232,19 +255,17 @@ export function updateChaserPatternStage(
     });
   }
 
-  const wallAvoidancePattern = knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.WALL_AVOIDANCE_INFERENCE]
+  const wallAvoidancePattern = (
+    knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.WALL_AVOIDANCE_INFERENCE]
+    && isPatternEnabled(knowledgeBase, CHASER_PATTERN_IDS.WALL_AVOIDANCE)
+  )
     ? getWallAvoidancePatternOutput(knowledgeBase.patterns.wallAvoidance)
     : null;
 
   return {
     evaderMotionModel,
     wallAvoidancePattern,
-    patternUnits: {
-      continuance: getPatternPredictionUnit(
-        knowledgeBase.patterns.continuance,
-      ),
-      wallAvoidance: getPatternPredictionUnit(knowledgeBase.patterns.wallAvoidance),
-    },
+    patternUnits: getChaserPatternUnits(knowledgeBase),
   };
 }
 
@@ -269,10 +290,7 @@ export function updateChaserStrategyStage(
     updateEvaderPredictionStrategy(knowledgeBase.strategies.evaderPrediction, {
       estimate: resolvedEvaderMotionModel,
       patternUnits: patternUnits ?? {
-        continuance: getPatternPredictionUnit(
-          knowledgeBase.patterns.continuance,
-        ),
-        wallAvoidance: getPatternPredictionUnit(knowledgeBase.patterns.wallAvoidance),
+        ...getChaserPatternUnits(knowledgeBase),
       },
       evaderVisible: knowledgeBase.memory.directObservation.evaderLocation.visible,
       columns,
@@ -296,12 +314,30 @@ export function updateChaserStrategyStage(
 
 function getChaserPatternUnits(knowledgeBase) {
   return {
-    continuance: getPatternPredictionUnit(
-      knowledgeBase?.patterns?.continuance,
-    ),
-    wallAvoidance: getPatternPredictionUnit(
-      knowledgeBase?.patterns?.wallAvoidance,
-    ),
+    ...(isPatternEnabled(knowledgeBase, CHASER_PATTERN_IDS.CONTINUANCE)
+      ? {
+        continuance: getPatternPredictionUnit(
+          knowledgeBase?.patterns?.continuance,
+        ),
+      }
+      : {}),
+    ...(isPatternEnabled(knowledgeBase, CHASER_PATTERN_IDS.WALL_AVOIDANCE)
+      ? {
+        wallAvoidance: getPatternPredictionUnit(
+          knowledgeBase?.patterns?.wallAvoidance,
+        ),
+      }
+      : {}),
+  };
+}
+
+function getChaserPatternStatus(knowledgeBase, patternId, pattern) {
+  const predictionUnit = getPatternPredictionUnit(pattern);
+  return {
+    id: pattern?.id ?? patternId,
+    enabled: isPatternEnabled(knowledgeBase, patternId),
+    confidence: getPatternConfidence(pattern),
+    predictionCount: predictionUnit?.predictionCount ?? 0,
   };
 }
 
@@ -327,20 +363,16 @@ export function getChaserKnowledgeSnapshot(knowledgeBase) {
       evaderPrediction,
     },
     patternStatus: {
-      wallAvoidance: {
-        id: knowledgeBase?.patterns?.wallAvoidance?.id ?? "wallAvoidance",
-        confidence: getPatternConfidence(knowledgeBase?.patterns?.wallAvoidance),
-        predictionCount: getPatternPredictionUnit(
-          knowledgeBase?.patterns?.wallAvoidance,
-        )?.predictionCount ?? 0,
-      },
-      continuance: {
-        id: knowledgeBase?.patterns?.continuance?.id ?? "continuance",
-        confidence: getPatternConfidence(knowledgeBase?.patterns?.continuance),
-        predictionCount: getPatternPredictionUnit(
-          knowledgeBase?.patterns?.continuance,
-        )?.predictionCount ?? 0,
-      },
+      wallAvoidance: getChaserPatternStatus(
+        knowledgeBase,
+        CHASER_PATTERN_IDS.WALL_AVOIDANCE,
+        knowledgeBase?.patterns?.wallAvoidance,
+      ),
+      continuance: getChaserPatternStatus(
+        knowledgeBase,
+        CHASER_PATTERN_IDS.CONTINUANCE,
+        knowledgeBase?.patterns?.continuance,
+      ),
     },
     strategyStatus: {
       evaderPrediction: {
