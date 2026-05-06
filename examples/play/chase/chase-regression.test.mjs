@@ -418,6 +418,26 @@ test("chase regression predictions stay frame-indexed and ordered", () => {
   }
 });
 
+test("wall-avoidance pattern predictions expose the pattern strategy name", () => {
+  const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "rectified_projection_158");
+  assert.ok(regressionCase, "rectified_projection_158 regression case is missing");
+  const { state } = runRegressionCase(regressionCase);
+  const predictions = state.lastStep.chaserReasoning?.snapshot
+    ?.patternUnits
+    ?.wallAvoidance
+    ?.predictions ?? [];
+
+  assert.ok(predictions.length > 0, "expected wall-avoidance predictions");
+  for (const prediction of predictions) {
+    assert.equal(prediction.sourcePatternId, "wallAvoidance");
+    assert.equal(prediction.prediction?.strategy, "wall-avoidance-intercept");
+    assert.equal(prediction.prediction?.actionable, true);
+    assert.equal(prediction.metadata?.strategy, "wall-avoidance-intercept");
+    assert.notEqual(prediction.prediction?.strategy, "wall-avoidance-pattern-inactive");
+    assert.notEqual(prediction.metadata?.strategy, "wall-avoidance-pattern-inactive");
+  }
+});
+
 test("continuance is a structured default velocity prediction unit", () => {
   const scenario = buildScenario((draft) => {
     draft.runtime.programmaticChaserEnabled = true;
