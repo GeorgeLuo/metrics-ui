@@ -136,6 +136,20 @@ function renderGameSectionRow(
     );
   }
 
+  if (row.kind === "action") {
+    return (
+      <button
+        key={`${row.id}:${index}`}
+        type="button"
+        onClick={() => onGameAction(row.id)}
+        className={`${SIDEBAR_BODY_TEXT_CLASS} w-fit text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30`}
+        data-hint={row.hint}
+      >
+        {row.label}
+      </button>
+    );
+  }
+
   if (row.kind === "value") {
     return (
       <div key={`${row.label}:${index}`} className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed">

@@ -12,6 +12,7 @@ import {
   VEHICLE_FOV_ACTION_ID,
   VEHICLE_TURN_RATE_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
+  SIMULATION_RESET_ACTION_ID,
 } from "./constants.mjs";
 import { formatEditableNumber, radiansToDegrees } from "./math.mjs";
 
@@ -118,6 +119,12 @@ export function publishSidebarSections(
           disabledLabel: "paused",
           tone: "playback",
           hint: "Freeze after all actor reasoning has run for the current frame, before actions update the world.",
+        },
+        {
+          kind: "action",
+          id: SIMULATION_RESET_ACTION_ID,
+          label: "Reset",
+          hint: "Reset the Chase run to a fresh initial state.",
         },
       ],
     },
