@@ -21,7 +21,7 @@ import {
   normalizeVector,
 } from "./math.mjs";
 import { CHASE_TRACE_SINKS } from "./trace-recorder.mjs";
-import { CHASER_STRATEGY_IDS, EVADER_STRATEGY_IDS } from "./strategy-ids.mjs";
+import { CHASER_PATTERN_IDS, CHASER_STRATEGY_IDS, EVADER_STRATEGY_IDS } from "./strategy-ids.mjs";
 import { getFieldObstacleLayout } from "./world.mjs";
 
 function asRecord(value) {
@@ -259,6 +259,10 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
       chaser: {
         position: normalizePosition(chaser.position, fallbackChaserPosition),
         direction: normalizeDirection(chaser.direction, fallbackChaserDirection),
+        patterns: normalizeStrategyMap(
+          chaser.patterns,
+          Object.values(CHASER_PATTERN_IDS),
+        ),
         strategies: normalizeStrategyMap(
           chaser.strategies,
           Object.values(CHASER_STRATEGY_IDS),

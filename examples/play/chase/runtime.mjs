@@ -14,6 +14,7 @@ import {
   MIN_SIMULATION_FRAMES_PER_SECOND,
   SIMULATION_FPS_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
+  SIMULATION_RESET_ACTION_ID,
   EVADER_PROJECTION_DEBUG_ACTION_ID,
   EVADER_PROJECTION_HORIZON_ACTION_ID,
   EVADER_PROJECTION_RATE_ACTION_ID,
@@ -332,6 +333,7 @@ function registerSidebarActions({
   simulationSettings,
   vehicleSettings,
   projectionSettings,
+  resetSimulation,
   getActorStrategyCollections,
   setActorStrategyEnabled,
 }) {
@@ -385,6 +387,9 @@ function registerSidebarActions({
       ? !value
       : !simulationSettings.pauseBeforeActions;
     refreshSidebarSections();
+  });
+  setSidebarActionHandler(SIMULATION_RESET_ACTION_ID, () => {
+    resetSimulation?.();
   });
   setSidebarActionHandler(CHASER_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
@@ -474,6 +479,7 @@ function clearSidebarActions(setSidebarActionHandler, actorStrategyCollections =
   setSidebarActionHandler?.(IDAE_DEBUG_ACTION_ID, null);
   setSidebarActionHandler?.(SIMULATION_FPS_ACTION_ID, null);
   setSidebarActionHandler?.(SIMULATION_PAUSE_BEFORE_ACTIONS_ID, null);
+  setSidebarActionHandler?.(SIMULATION_RESET_ACTION_ID, null);
   setSidebarActionHandler?.(CHASER_SPEED_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_SPEED_ACTION_ID, null);
   setSidebarActionHandler?.(VEHICLE_TURN_RATE_ACTION_ID, null);
@@ -524,6 +530,9 @@ export function createPlayGame({
   simulationState.projectionSettings = projectionSettings;
   let chaserFieldOfView = null;
   let evaderFieldOfView = null;
+  let animationFrame = 0;
+  let previousTimestamp = null;
+  let accumulatedMs = 0;
 
   const refreshSidebarSections = () => {
     publishSidebarSections(
@@ -585,6 +594,48 @@ export function createPlayGame({
     chaserView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
     evaderView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
   };
+  const resetSimulation = () => {
+    const freshState = createChaseSimulationState({ scenario, columns, rows });
+    const nextSimulationSettings = { ...freshState.simulationSettings };
+    const nextVehicleSettings = { ...freshState.vehicleSettings };
+    const nextProjectionSettings = {
+      ...freshState.projectionSettings,
+      ...readStoredProjectionSettings(),
+    };
+
+    Object.keys(simulationState).forEach((key) => {
+      delete simulationState[key];
+    });
+    Object.assign(simulationState, freshState);
+
+    Object.keys(simulationSettings).forEach((key) => {
+      delete simulationSettings[key];
+    });
+    Object.assign(simulationSettings, nextSimulationSettings);
+    simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
+
+    Object.keys(vehicleSettings).forEach((key) => {
+      delete vehicleSettings[key];
+    });
+    Object.assign(vehicleSettings, nextVehicleSettings);
+
+    Object.keys(projectionSettings).forEach((key) => {
+      delete projectionSettings[key];
+    });
+    Object.assign(projectionSettings, nextProjectionSettings);
+
+    simulationState.simulationSettings = simulationSettings;
+    simulationState.vehicleSettings = vehicleSettings;
+    simulationState.projectionSettings = projectionSettings;
+
+    pressedKeys.clear();
+    previousTimestamp = null;
+    accumulatedMs = 0;
+    performanceTracker.reset();
+    updateFieldOfView();
+    refreshSidebarSections();
+    publishDebugSnapshot();
+  };
 
   refreshSidebarSections();
   registerSidebarActions({
@@ -607,6 +658,7 @@ export function createPlayGame({
     simulationSettings,
     vehicleSettings,
     projectionSettings,
+    resetSimulation,
     getActorStrategyCollections: () => getActorStrategyCollections(simulationState),
     setActorStrategyEnabled: (actorId, strategyId, enabled) => {
       if (actorId === "chaser") {
@@ -699,9 +751,6 @@ export function createPlayGame({
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(container);
 
-  let animationFrame = 0;
-  let previousTimestamp = null;
-  let accumulatedMs = 0;
   const MAX_STEPS_PER_TICK = 8;
   const tick = (timestamp) => {
     const tickStartMs = performance.now();

@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import { readFileSync } from "node:fs";
-import { CAR_BOUND_RADIUS } from "./constants.mjs";
+import {
+  CAR_BOUND_RADIUS,
+  SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
+  SIMULATION_RESET_ACTION_ID,
+} from "./constants.mjs";
 import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
 import { compareChaseStrategyCombinations } from "./chase-strategy-comparison.mjs";
 import { resolveChaseScenario } from "./scenario.mjs";
@@ -13,8 +17,10 @@ import {
   stepChaseSimulation,
 } from "./simulation.mjs";
 import { createChasePerformanceTracker } from "./performance-debug.mjs";
+import { getPredictionPerformanceSnapshot } from "./prediction-performance.mjs";
 import { createNodeJsonlTraceRecorder } from "./trace-recorder-node.mjs";
 import { getWallBounds } from "./world.mjs";
+import { publishSidebarSections } from "./sidebar.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 const BASE_SCENARIO = Object.freeze(resolveChaseScenario(defaultScenarioDefinition, GRID));
@@ -404,6 +410,50 @@ test("manual reverse moves the chaser backward and reverse steering turns the he
   );
 });
 
+test("chase sidebar exposes reset directly below playback", () => {
+  const state = createChaseSimulationState({
+    scenario: cloneScenario(),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  let sections = [];
+  publishSidebarSections(
+    (nextSections) => {
+      sections = nextSections;
+    },
+    state.programmaticChaserEnabled,
+    {
+      chaserViewVisible: false,
+      evaderViewVisible: false,
+      idaeDebugVisible: false,
+    },
+    state.simulationSettings,
+    state.vehicleSettings,
+    state.projectionSettings,
+    {},
+    state.runMetrics,
+  );
+
+  const simulationRows = sections.find((section) => section.id === "simulation")?.rows ?? [];
+  const playbackIndex = simulationRows.findIndex(
+    (row) => row.id === SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
+  );
+  const resetIndex = simulationRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
+
+  assert.notEqual(playbackIndex, -1);
+  assert.equal(resetIndex, playbackIndex + 1);
+  assert.deepEqual(
+    {
+      kind: simulationRows[resetIndex]?.kind,
+      label: simulationRows[resetIndex]?.label,
+    },
+    {
+      kind: "action",
+      label: "Reset",
+    },
+  );
+});
+
 test("chase regression predictions stay frame-indexed and ordered", () => {
   const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "rectified_projection_158");
   assert.ok(regressionCase, "rectified_projection_158 regression case is missing");
@@ -436,6 +486,71 @@ test("wall-avoidance pattern predictions expose the pattern strategy name", () =
     assert.notEqual(prediction.prediction?.strategy, "wall-avoidance-pattern-inactive");
     assert.notEqual(prediction.metadata?.strategy, "wall-avoidance-pattern-inactive");
   }
+});
+
+test("chaser pattern config filters prediction sources without disabling support state", () => {
+  const scenario = buildScenario((draft) => {
+    draft.runtime.programmaticChaserEnabled = true;
+    draft.actors.chaser.patterns = {
+      continuance: false,
+      wallAvoidance: true,
+    };
+  });
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  let wallOnlySnapshot = null;
+
+  for (let frame = 0; frame < 500; frame += 1) {
+    stepChaseSimulation(state, { humanInput: idleInput() });
+    const snapshot = state.lastStep.chaserReasoning?.snapshot;
+    const sourcePatternIds = snapshot?.strategies?.evaderPrediction?.prediction?.sourcePatternIds ?? [];
+    if (sourcePatternIds.includes("wallAvoidance")) {
+      wallOnlySnapshot = snapshot;
+      break;
+    }
+  }
+
+  assert.ok(wallOnlySnapshot, "expected a wall-only prediction window");
+  assert.equal(wallOnlySnapshot?.patternStatus?.continuance?.enabled, false);
+  assert.equal(wallOnlySnapshot?.patternStatus?.wallAvoidance?.enabled, true);
+  assert.ok(
+    (wallOnlySnapshot?.patternStatus?.continuance?.predictionCount ?? 0) > 0,
+    "continuance should still update as support state for the motion estimate",
+  );
+  assert.deepEqual(
+    wallOnlySnapshot?.strategies?.evaderPrediction?.prediction?.sourcePatternIds,
+    ["wallAvoidance"],
+  );
+});
+
+test("global prediction performance validates source-agnostic predictions", () => {
+  const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "rectified_projection_158");
+  assert.ok(regressionCase, "rectified_projection_158 regression case is missing");
+  const { state } = runRegressionCase(regressionCase);
+  const snapshot = getPredictionPerformanceSnapshot(state.predictionPerformance);
+  const sourceRows = snapshot?.bySourceHorizon ?? [];
+
+  assert.ok(snapshot?.validatedCount > 0, "expected validated predictions");
+  assert.ok(snapshot?.pendingCount > 0, "expected pending future predictions");
+  assert.ok(
+    sourceRows.some((row) => row.sourceId === "consensus"),
+    "expected consensus predictions to be tracked",
+  );
+  assert.ok(
+    sourceRows.some((row) => row.sourceId !== "consensus"),
+    "expected non-consensus prediction sources to be tracked generically",
+  );
+  assert.ok(
+    sourceRows.every((row) => row.targetId === "evader"),
+    "expected prediction performance rows to identify the predicted target",
+  );
+  assert.ok(
+    sourceRows.every((row) => Number.isFinite(row.meanPositionError)),
+    "expected every tracked source to report mean position error",
+  );
 });
 
 test("continuance is a structured default velocity prediction unit", () => {

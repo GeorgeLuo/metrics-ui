@@ -4,6 +4,12 @@ export type PlaySidebarSectionRow =
       text: string;
     }
   | {
+      kind: "action";
+      id: string;
+      label: string;
+      hint?: string;
+    }
+  | {
       kind: "value";
       label: string;
       value: string;
@@ -79,6 +85,19 @@ function normalizeRow(value: unknown): PlaySidebarSectionRow | null {
   }
 
   const label = normalizeText(record.label, 80);
+  if (record.kind === "action" || record.kind === "button") {
+    const id = normalizeId(record.id ?? record.actionId);
+    if (id && label) {
+      const hint = normalizeText(record.hint);
+      return {
+        kind: "action",
+        id,
+        label,
+        ...(hint ? { hint } : {}),
+      };
+    }
+  }
+
   if (record.kind === "editableValue" || record.kind === "editable-value") {
     const id = normalizeId(record.id ?? record.actionId);
     const rowValue = normalizeText(record.value, 80);

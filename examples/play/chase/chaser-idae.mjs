@@ -30,7 +30,11 @@ function normalizeHumanAction(humanInput) {
 
 function createChaserIdaeState({ scenario } = {}) {
   const actorState = {
-    ...createChaserKnowledgeBase(),
+    ...createChaserKnowledgeBase({
+      evaderDirection: scenario?.actors?.evader?.direction,
+      engines: scenario?.engines?.knowledge,
+      patterns: scenario?.actors?.chaser?.patterns,
+    }),
     policy: {},
     selfState: null,
     controllerState: createChaserAutopilotState(),
