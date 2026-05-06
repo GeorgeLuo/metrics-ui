@@ -572,6 +572,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const visualizationDebugRef = useRef<VisualizationDebugState | null>(null);
   const equationsFrameDebugRef = useRef<FrameGridDebugSnapshot | null>(null);
   const playSidebarActionHandlerRef = useRef<((actionId: string, value?: unknown) => void) | null>(null);
+  const playDebugSnapshotRef = useRef<unknown>(null);
   const equationsProtocolHandlersRef = useRef<EquationsProtocolHandlers>({});
   const [playFrameGridDebugSnapshot, setPlayFrameGridDebugSnapshot] =
     useState<FrameGridDebugSnapshot | null>(null);
@@ -595,6 +596,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handlePlaySidebarAction = useCallback((actionId: string, value?: unknown) => {
     playSidebarActionHandlerRef.current?.(actionId, value);
   }, []);
+  const handlePlayDebugSnapshotChange = useCallback((snapshot: unknown) => {
+    playDebugSnapshotRef.current = snapshot;
+  }, []);
   const handlePlayGameAction = useCallback((actionId: string, value?: unknown) => {
     const handler = playSidebarActionHandlerRef.current;
     if (!handler) {
@@ -603,6 +607,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     handler(actionId, value);
     return true;
   }, []);
+  const getPlayDebug = useCallback(() => playDebugSnapshotRef.current, []);
   const handleSetEquationsTopicCommand = useCallback((topicId: string, options?: { preserveViewMode?: boolean }) =>
     equationsProtocolHandlersRef.current.setTopic?.(topicId, options) === true, []);
   const handleSetEquationsViewModeCommand = useCallback((viewMode: VisualizationState["equationsPane"]["viewMode"]) =>
@@ -5476,6 +5481,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     onClearSubtitles: handleClearSubtitles,
     getMemoryStats: buildMemoryStats,
     getUiDebug,
+    getPlayDebug,
     onDerivationPlugins: (plugins) => {
       setDerivationPluginsError(null);
       setDerivationPlugins(normalizeDerivationPlugins(plugins));
@@ -6673,6 +6679,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onFrameGridDebugChange={handlePlayFrameDebugChange}
               onSidebarSectionsChange={handlePlaySidebarSectionsChange}
               onSidebarActionHandlerChange={handlePlaySidebarActionHandlerChange}
+              onDebugSnapshotChange={handlePlayDebugSnapshotChange}
             />
           )}
         </div>

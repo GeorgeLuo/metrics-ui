@@ -29,6 +29,7 @@ type PlayMainPanelProps = {
   onFrameGridDebugChange?: (debug: FrameGridDebugSnapshot) => void;
   onSidebarSectionsChange?: (sections: PlaySidebarSection[]) => void;
   onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
+  onDebugSnapshotChange?: (snapshot: unknown) => void;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -91,6 +92,7 @@ export function PlayMainPanel({
   onFrameGridDebugChange,
   onSidebarSectionsChange,
   onSidebarActionHandlerChange,
+  onDebugSnapshotChange,
 }: PlayMainPanelProps) {
   const [games, setGames] = useState<PlayGameCatalogEntry[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -164,6 +166,7 @@ export function PlayMainPanel({
               rows={rows}
               onSidebarSectionsChange={onSidebarSectionsChange}
               onSidebarActionHandlerChange={onSidebarActionHandlerChange}
+              onDebugSnapshotChange={onDebugSnapshotChange}
             />
           )}
         </FrameGrid.Item>

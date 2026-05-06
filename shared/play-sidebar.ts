@@ -28,6 +28,7 @@ export type PlaySidebarSectionRow =
       enabled: boolean;
       enabledLabel?: string;
       disabledLabel?: string;
+      tone?: "default" | "playback";
       hint?: string;
     };
 
@@ -100,6 +101,7 @@ function normalizeRow(value: unknown): PlaySidebarSectionRow | null {
     if (id && label) {
       const enabledLabel = normalizeText(record.enabledLabel, 40);
       const disabledLabel = normalizeText(record.disabledLabel, 40);
+      const tone = record.tone === "playback" ? "playback" : null;
       const hint = normalizeText(record.hint);
       return {
         kind: "toggle",
@@ -108,6 +110,7 @@ function normalizeRow(value: unknown): PlaySidebarSectionRow | null {
         enabled: Boolean(record.enabled),
         ...(enabledLabel ? { enabledLabel } : {}),
         ...(disabledLabel ? { disabledLabel } : {}),
+        ...(tone ? { tone } : {}),
         ...(hint ? { hint } : {}),
       };
     }

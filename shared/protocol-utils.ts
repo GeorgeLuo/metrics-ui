@@ -660,7 +660,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
   });
 
   return {
-    protocolVersion: "1.1.0",
+    protocolVersion: "1.2.0",
     commands: [
       "hello",
       "get_state",
@@ -733,6 +733,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "get_render_table",
       "get_render_debug",
       "get_ui_debug",
+      "get_play_debug",
       "get_memory_stats",
       "get_metric_coverage",
     ],
@@ -748,6 +749,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "render_table",
       "render_debug",
       "ui_debug",
+      "play_debug",
       "ui_notice",
       "ui_error",
       "memory_stats",

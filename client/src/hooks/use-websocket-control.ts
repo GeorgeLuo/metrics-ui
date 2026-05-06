@@ -123,6 +123,7 @@ interface UseWebSocketControlProps {
   onClearSubtitles: () => void;
   getMemoryStats: () => MemoryStatsResponse;
   getUiDebug?: () => UiDebugResponse;
+  getPlayDebug?: () => unknown;
   onUiNotice?: (notice: { message: string; context?: Record<string, unknown>; requestId?: string }) => void;
   onUiError?: (notice: { error: string; context?: Record<string, unknown>; requestId?: string }) => void;
   onReconnect?: () => void;
@@ -220,6 +221,7 @@ export function useWebSocketControl({
   onClearSubtitles,
   getMemoryStats,
   getUiDebug,
+  getPlayDebug,
   onUiNotice,
   onUiError,
   onStateSync,
@@ -496,6 +498,7 @@ export function useWebSocketControl({
       onClearSubtitles,
       getMemoryStats,
       getUiDebug,
+      getPlayDebug,
       onStateSync,
       onDerivationPlugins,
       onUiNotice,
@@ -579,6 +582,7 @@ export function useWebSocketControl({
     onClearSubtitles,
     getMemoryStats,
     getUiDebug,
+    getPlayDebug,
     onStateSync,
     onDerivationPlugins,
     onUiNotice,

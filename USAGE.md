@@ -504,6 +504,10 @@ Play sub-app:
 - WS `play_game_action` invokes those same game-provided action handlers. Activate `play` first and wait for the game to load before sending game actions.
 - `get_state` / `state_update` now include `playSidebarSections`, which mirror the current Play left-pane controls exactly: section titles, row labels, action ids, current values, and toggle states.
 - Agents should inspect `playSidebarSections` before sending `play_game_action` instead of assuming hardcoded action ids or units. Play controls are game-defined.
+- `{"type":"get_play_debug","request_id":"play-debug-1"}` returns the current game-published debug snapshot as `play_debug`. For Chase, this includes the current/frozen frame, actor IDAE snapshots, pattern prediction units, and the chaser Kuramoto prediction consensus path.
+- Simeval CLI helper: `simeval ui play-debug --summary --ui ws://localhost:5050/ws/control` prints a compact interpretation of the current Chase debug frame; omit `--summary` to dump the full JSON payload.
+- Chase performance helper: `simeval ui play-perf --ui ws://localhost:5050/ws/control` prints the current Chase runtime timing summary. Add `--open-debug`, `--open-views`, or `--fps 60` to configure the run before sampling.
+- FrameGrid layout check: `simeval ui framegrid-check --scope equations --ui ws://localhost:5050/ws/control` validates the active Equations FrameGrid debug geometry.
 - Set `METRICS_UI_PLAY_GAME_CATALOG_FILE=/path/to/play-game-catalog.json` to use another catalog file locally.
 
 Query/debug commands:
@@ -512,6 +516,7 @@ Query/debug commands:
 - `{"type":"get_render_table","captureId":"abc","windowStart":1,"windowEnd":100}`
 - `{"type":"get_render_debug","captureId":"abc"}`
 - `{"type":"get_ui_debug","scope":"visualization"}`
+- `{"type":"get_play_debug","request_id":"play-debug-1"}`
 - `{"type":"get_memory_stats"}`
 
 Presentation commands:
@@ -716,6 +721,7 @@ Capture streaming (push records over WS):
 - `get_render_table`
 - `get_render_debug`
 - `get_ui_debug`
+- `get_play_debug`
 - `get_memory_stats`
 - `get_metric_coverage`
 <!-- WS:COMMANDS:END -->
@@ -734,6 +740,7 @@ Common responses include:
 - `render_table`
 - `render_debug`
 - `ui_debug`
+- `play_debug`
 - `ui_notice`
 - `ui_error`
 - `memory_stats`
@@ -755,6 +762,7 @@ Common responses include:
 - `render_table`
 - `render_debug`
 - `ui_debug`
+- `play_debug`
 - `ui_notice`
 - `ui_error`
 - `memory_stats`
