@@ -23,6 +23,8 @@ type SidebarPlayPaneProps = {
 
 const PLAY_INLINE_EDIT_NUMERIC_CLASS =
   "h-auto p-0 text-xs md:text-xs font-mono text-foreground bg-transparent border-0 shadow-none focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+const PLAY_INLINE_SELECT_CLASS =
+  "h-auto max-w-[9.5rem] rounded-none border-0 bg-transparent p-0 text-right text-xs md:text-xs font-mono text-foreground shadow-none outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0";
 
 function formatNumber(value: number | null | undefined): string {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "none";
@@ -133,6 +135,30 @@ function renderGameSectionRow(
         row={row}
         onGameAction={onGameAction}
       />
+    );
+  }
+
+  if (row.kind === "select") {
+    return (
+      <div
+        key={`${row.id}:${index}`}
+        className={`flex items-center justify-between gap-2 ${SIDEBAR_BODY_TEXT_CLASS}`}
+        data-hint={row.hint}
+      >
+        <span className="min-w-0">{row.label}</span>
+        <select
+          value={row.value}
+          onChange={(event) => onGameAction(row.id, event.target.value)}
+          aria-label={row.label}
+          className={PLAY_INLINE_SELECT_CLASS}
+        >
+          {row.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
     );
   }
 
