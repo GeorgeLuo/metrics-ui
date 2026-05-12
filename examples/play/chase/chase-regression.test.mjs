@@ -5,10 +5,16 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import {
   CAR_BOUND_RADIUS,
+  SCENARIO_SELECT_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
 } from "./constants.mjs";
 import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
+import {
+  DEFAULT_CHASE_SCENARIO_ID,
+  getChaseScenarioDefinition,
+  getChaseScenarioOptions,
+} from "./scenarios/index.mjs";
 import { compareChaseStrategyCombinations } from "./chase-strategy-comparison.mjs";
 import { resolveChaseScenario } from "./scenario.mjs";
 import {
@@ -379,6 +385,84 @@ test("pause-before-actions freezes a synced actor reasoning frame", () => {
   assert.equal(state.lastStep.actionApplicationPending, false);
   assert.equal(state.pendingActionFrame, null);
   assert.ok(state.chaserPosition.x > startChaserPosition.x);
+});
+
+test("scenario config can omit the evader without debug hardcoding", () => {
+  const scenarioDefinition = getChaseScenarioDefinition("no-evader");
+  const scenario = resolveChaseScenario(scenarioDefinition, GRID);
+  assert.equal(scenario.actors.evader.exists, false);
+  assert.equal(scenario.actors.evader.position, null);
+  assert.equal(scenario.actors.evader.direction, null);
+
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  assert.equal(state.evaderExists, false);
+  assert.equal(state.evaderPosition, null);
+  assert.equal(state.evaderDirection, null);
+  assert.equal(state.evaderIdae, null);
+
+  for (let frame = 0; frame < 20; frame += 1) {
+    stepChaseSimulation(state, {
+      humanInput: idleInput(),
+    });
+  }
+
+  const predictionPlan = state.lastStep.chaserReasoning?.snapshot?.strategies?.evaderPrediction;
+  assert.equal(state.frameIndex, 20);
+  assert.equal(state.lastStep.evaderReasoning, null);
+  assert.equal(state.lastStep.evaderMovementDecision, null);
+  assert.equal(state.runMetrics.touchCount, 0);
+  assert.equal(state.lastStep.chaserReasoning?.observation?.absent, true);
+  assert.equal(predictionPlan?.actionable, false);
+  assert.equal(predictionPlan?.invalidReason, "target-absent");
+  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.evaderMotionModel, null);
+  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.continuance, null);
+  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.wallAvoidance, null);
+  assert.deepEqual(state.lastStep.chaserReasoning?.snapshot?.patternUnits, {});
+  assert.equal(state.lastStep.chaserAction?.chosenStrategy, "search");
+  assert.equal(state.lastStep.chaserAction?.forward, true);
+});
+
+test("chase sidebar exposes scenario selector from the scenario catalog", () => {
+  const state = createChaseSimulationState({
+    scenario: cloneScenario(),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  let sections = [];
+  publishSidebarSections(
+    (nextSections) => {
+      sections = nextSections;
+    },
+    state.programmaticChaserEnabled,
+    {
+      chaserViewVisible: false,
+      evaderViewVisible: false,
+      idaeDebugVisible: false,
+    },
+    state.simulationSettings,
+    state.vehicleSettings,
+    state.projectionSettings,
+    {},
+    state.runMetrics,
+    {
+      activeScenarioId: DEFAULT_CHASE_SCENARIO_ID,
+      options: getChaseScenarioOptions(),
+      evaderExists: true,
+    },
+  );
+
+  const scenarioRows = sections.find((section) => section.id === "scenario")?.rows ?? [];
+  const scenarioSelect = scenarioRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
+  assert.equal(scenarioSelect?.kind, "select");
+  assert.equal(scenarioSelect?.value, DEFAULT_CHASE_SCENARIO_ID);
+  assert.ok(
+    scenarioSelect?.options?.some((option) => option.value === "no-evader"),
+    "expected sidebar scenario selector to include the no-evader scenario",
+  );
 });
 
 test("manual reverse moves the chaser backward and reverse steering turns the heading opposite forward drive", () => {

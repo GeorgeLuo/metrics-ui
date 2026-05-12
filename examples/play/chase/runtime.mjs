@@ -6,6 +6,7 @@ import {
   CHASER_SPEED_ACTION_ID,
   CHASER_VIEW_ACTION_ID,
   CHASER_VIEW_MAX_DISTANCE,
+  SCENARIO_SELECT_ACTION_ID,
   EVADER_VIEW_ACTION_ID,
   IDAE_DEBUG_ACTION_ID,
   MAX_SIMULATION_FRAMES_PER_SECOND,
@@ -56,7 +57,11 @@ import {
 import { mountIdaeDebugFrame } from "./idae-debug.mjs";
 import { createChasePerformanceTracker } from "./performance-debug.mjs";
 import { buildChaseDebugSnapshot } from "./debug-snapshot.mjs";
-import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
+import {
+  DEFAULT_CHASE_SCENARIO_ID,
+  getChaseScenarioDefinition,
+  getChaseScenarioOptions,
+} from "./scenarios/index.mjs";
 import { setChaserActionEngineEnabled } from "./chaser-controller.mjs";
 import { setEvaderStrategyEngineEnabled } from "./evader-idae.mjs";
 
@@ -207,16 +212,19 @@ function createActorViewController({
       return;
     }
     configureChaserViewCamera(mountedView.camera, actorPosition, actorLookDirection);
+    const actorMeshVisible = actorMesh.visible;
+    const actorFieldOfViewVisible = actorFieldOfView.visible;
+    const otherActorFieldOfViewVisible = otherActorFieldOfView?.visible ?? false;
     actorMesh.visible = false;
     actorFieldOfView.visible = false;
     if (otherActorFieldOfView) {
       otherActorFieldOfView.visible = false;
     }
     mountedView.renderer.render(scene, mountedView.camera);
-    actorMesh.visible = true;
-    actorFieldOfView.visible = true;
+    actorMesh.visible = actorMeshVisible;
+    actorFieldOfView.visible = actorFieldOfViewVisible;
     if (otherActorFieldOfView) {
-      otherActorFieldOfView.visible = true;
+      otherActorFieldOfView.visible = otherActorFieldOfViewVisible;
     }
   };
 
@@ -334,6 +342,7 @@ function registerSidebarActions({
   vehicleSettings,
   projectionSettings,
   resetSimulation,
+  loadScenario,
   getActorStrategyCollections,
   setActorStrategyEnabled,
 }) {
@@ -390,6 +399,11 @@ function registerSidebarActions({
   });
   setSidebarActionHandler(SIMULATION_RESET_ACTION_ID, () => {
     resetSimulation?.();
+  });
+  setSidebarActionHandler(SCENARIO_SELECT_ACTION_ID, (value) => {
+    if (typeof value === "string" && value.trim()) {
+      loadScenario?.(value.trim());
+    }
   });
   setSidebarActionHandler(CHASER_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
@@ -474,6 +488,7 @@ function registerSidebarActions({
 
 function clearSidebarActions(setSidebarActionHandler, actorStrategyCollections = {}) {
   setSidebarActionHandler?.(CHASER_AUTOPILOT_ACTION_ID, null);
+  setSidebarActionHandler?.(SCENARIO_SELECT_ACTION_ID, null);
   setSidebarActionHandler?.(CHASER_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(IDAE_DEBUG_ACTION_ID, null);
@@ -503,7 +518,12 @@ export function createPlayGame({
   setSidebarActionHandler,
   setDebugSnapshot,
 }) {
-  const scenario = resolveChaseScenario(defaultScenarioDefinition, { columns, rows });
+  const scenarioOptions = getChaseScenarioOptions();
+  let activeScenarioId = DEFAULT_CHASE_SCENARIO_ID;
+  let scenario = resolveChaseScenario(
+    getChaseScenarioDefinition(activeScenarioId),
+    { columns, rows },
+  );
   const simulationState = createChaseSimulationState({ scenario, columns, rows });
   const performanceTracker = createChasePerformanceTracker();
   const pressedKeys = new Set();
@@ -548,6 +568,11 @@ export function createPlayGame({
       projectionSettings,
       getActorStrategyCollections(simulationState),
       simulationState.runMetrics,
+      {
+        activeScenarioId,
+        options: scenarioOptions,
+        evaderExists: simulationState.evaderExists !== false,
+      },
     );
   };
 
@@ -594,8 +619,8 @@ export function createPlayGame({
     chaserView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
     evaderView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
   };
-  const resetSimulation = () => {
-    const freshState = createChaseSimulationState({ scenario, columns, rows });
+  const replaceSimulationState = (nextScenario) => {
+    const freshState = createChaseSimulationState({ scenario: nextScenario, columns, rows });
     const nextSimulationSettings = { ...freshState.simulationSettings };
     const nextVehicleSettings = { ...freshState.vehicleSettings };
     const nextProjectionSettings = {
@@ -636,6 +661,18 @@ export function createPlayGame({
     refreshSidebarSections();
     publishDebugSnapshot();
   };
+  const resetSimulation = () => {
+    replaceSimulationState(scenario);
+  };
+  const loadScenario = (scenarioId) => {
+    const scenarioDefinition = getChaseScenarioDefinition(scenarioId);
+    activeScenarioId = scenarioDefinition.id ?? DEFAULT_CHASE_SCENARIO_ID;
+    scenario = resolveChaseScenario(scenarioDefinition, { columns, rows });
+    replaceSimulationState(scenario);
+    if (simulationState.evaderExists === false && evaderViewVisible) {
+      evaderView.close();
+    }
+  };
 
   refreshSidebarSections();
   registerSidebarActions({
@@ -659,6 +696,7 @@ export function createPlayGame({
     vehicleSettings,
     projectionSettings,
     resetSimulation,
+    loadScenario,
     getActorStrategyCollections: () => getActorStrategyCollections(simulationState),
     setActorStrategyEnabled: (actorId, strategyId, enabled) => {
       if (actorId === "chaser") {
@@ -788,6 +826,7 @@ export function createPlayGame({
     const {
       chaserPosition,
       chaserLookDirection,
+      evaderExists,
       evaderPosition,
       evaderDirection,
       evaderWallAvoidanceTruth,
@@ -801,7 +840,7 @@ export function createPlayGame({
       lastStep.evaderReasoning?.snapshot?.memory?.directObservation?.chaserLocation?.visible,
     );
     chaserView.setTrackedActorVisible(Boolean(evaderLocationMemory?.visible));
-    evaderView.setTrackedActorVisible(chaserVisibleFromEvader);
+    evaderView.setTrackedActorVisible(Boolean(evaderExists && chaserVisibleFromEvader));
     const projectionDisplayStartMs = performance.now();
     updateEvaderProjectionDisplay(
       evaderProjectionGroup,
@@ -844,10 +883,14 @@ export function createPlayGame({
     chaser.rotation.y = vectorToAngle(chaserLookDirection);
     chaserFieldOfView.position.set(chaserPosition.x, 0, chaserPosition.z);
     chaserFieldOfView.rotation.y = vectorToAngle(chaserLookDirection);
-    evader.position.set(evaderPosition.x, CAR_HEIGHT / 2, evaderPosition.z);
-    evader.rotation.y = vectorToAngle(evaderDirection);
-    evaderFieldOfView.position.set(evaderPosition.x, 0, evaderPosition.z);
-    evaderFieldOfView.rotation.y = vectorToAngle(evaderDirection);
+    evader.visible = Boolean(evaderExists && evaderPosition && evaderDirection);
+    evaderFieldOfView.visible = Boolean(evaderExists && evaderPosition && evaderDirection);
+    if (evader.visible) {
+      evader.position.set(evaderPosition.x, CAR_HEIGHT / 2, evaderPosition.z);
+      evader.rotation.y = vectorToAngle(evaderDirection);
+      evaderFieldOfView.position.set(evaderPosition.x, 0, evaderPosition.z);
+      evaderFieldOfView.rotation.y = vectorToAngle(evaderDirection);
+    }
     const sceneSyncMs = performance.now() - sceneSyncStartMs;
 
     const mainRenderStartMs = performance.now();
@@ -864,14 +907,16 @@ export function createPlayGame({
     });
     const chaserViewRenderMs = performance.now() - chaserViewRenderStartMs;
     const evaderViewRenderStartMs = performance.now();
-    evaderView.render({
-      scene,
-      actorMesh: evader,
-      actorFieldOfView: evaderFieldOfView,
-      otherActorFieldOfView: chaserFieldOfView,
-      actorPosition: evaderPosition,
-      actorLookDirection: evaderDirection,
-    });
+    if (evaderExists && evaderPosition && evaderDirection) {
+      evaderView.render({
+        scene,
+        actorMesh: evader,
+        actorFieldOfView: evaderFieldOfView,
+        otherActorFieldOfView: chaserFieldOfView,
+        actorPosition: evaderPosition,
+        actorLookDirection: evaderDirection,
+      });
+    }
     const evaderViewRenderMs = performance.now() - evaderViewRenderStartMs;
     const totalTickMs = performance.now() - tickStartMs;
     performanceTracker.recordTick({
