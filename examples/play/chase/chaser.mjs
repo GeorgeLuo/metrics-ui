@@ -53,6 +53,10 @@ export function getActorPerception(
   fieldOfViewAngleRadians,
   obstacles,
 ) {
+  if (!actorPosition || !subjectPosition || !actorLookDirection) {
+    return { visible: false, absent: !subjectPosition };
+  }
+
   const offsetX = subjectPosition.x - actorPosition.x;
   const offsetZ = subjectPosition.z - actorPosition.z;
   const distance = Math.hypot(offsetX, offsetZ);

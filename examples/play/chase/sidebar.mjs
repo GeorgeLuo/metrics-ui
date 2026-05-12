@@ -2,6 +2,7 @@ import {
   CHASER_AUTOPILOT_ACTION_ID,
   CHASER_VIEW_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
+  SCENARIO_SELECT_ACTION_ID,
   EVADER_VIEW_ACTION_ID,
   IDAE_DEBUG_ACTION_ID,
   SIMULATION_FPS_ACTION_ID,
@@ -60,6 +61,43 @@ function buildActorStrategyRows(actorStrategyCollections = {}) {
     })));
 }
 
+function buildScenarioSection(scenarioControls = {}) {
+  const options = Array.isArray(scenarioControls.options)
+    ? scenarioControls.options
+      .filter((option) => option?.value && option?.label)
+      .map((option) => ({
+        value: String(option.value),
+        label: String(option.label),
+      }))
+    : [];
+  const activeScenarioId = String(scenarioControls.activeScenarioId ?? "");
+
+  if (options.length === 0 || !activeScenarioId) {
+    return null;
+  }
+
+  return {
+    id: "scenario",
+    title: "Scenario",
+    hint: "Load a chase scenario config and reset the simulation to that setup.",
+    rows: [
+      {
+        kind: "select",
+        id: SCENARIO_SELECT_ACTION_ID,
+        label: "Loaded",
+        value: activeScenarioId,
+        options,
+        hint: "Switch the scenario config used by the Chase simulation.",
+      },
+      {
+        kind: "value",
+        label: "Evader",
+        value: scenarioControls.evaderExists === false ? "absent" : "present",
+      },
+    ],
+  };
+}
+
 export function publishSidebarSections(
   setSidebarSections,
   programmaticChaserEnabled,
@@ -69,11 +107,13 @@ export function publishSidebarSections(
   projectionSettings,
   actorStrategyCollections = {},
   runMetrics = {},
+  scenarioControls = {},
 ) {
   if (typeof setSidebarSections !== "function") {
     return;
   }
 
+  const evaderExists = scenarioControls.evaderExists !== false;
   const sections = [
     {
       id: "score",
@@ -161,7 +201,7 @@ export function publishSidebarSections(
           disabledLabel: "closed",
           hint: "Open or close the chaser's forward-looking viewport.",
         },
-        {
+        ...(evaderExists ? [{
           kind: "toggle",
           id: EVADER_VIEW_ACTION_ID,
           label: "Evader View",
@@ -169,7 +209,7 @@ export function publishSidebarSections(
           enabledLabel: "open",
           disabledLabel: "closed",
           hint: "Open or close the evader's forward-looking viewport.",
-        },
+        }] : []),
         {
           kind: "toggle",
           id: IDAE_DEBUG_ACTION_ID,
@@ -194,14 +234,14 @@ export function publishSidebarSections(
           suffix: "u/frame",
           hint: "Edit the blue chaser speed used for movement and intercept planning.",
         },
-        {
+        ...(evaderExists ? [{
           kind: "editableValue",
           id: EVADER_SPEED_ACTION_ID,
           label: "Evader speed",
           value: formatEditableNumber(vehicleSettings.evaderSpeedUnitsPerFrame, 3),
           suffix: "u/frame",
           hint: "Edit the red evader's true movement speed; the chaser must estimate this from field of view.",
-        },
+        }] : []),
         {
           kind: "editableValue",
           id: VEHICLE_TURN_RATE_ACTION_ID,
@@ -254,9 +294,22 @@ export function publishSidebarSections(
     },
   ];
 
+  if (!evaderExists) {
+    const projectionSectionIndex = sections.findIndex((section) => section.id === "projection");
+    if (projectionSectionIndex !== -1) {
+      sections.splice(projectionSectionIndex, 1);
+    }
+  }
+
+  const scenarioSection = buildScenarioSection(scenarioControls);
+  if (scenarioSection) {
+    sections.unshift(scenarioSection);
+  }
+
   const actorStrategyRows = buildActorStrategyRows(actorStrategyCollections);
   if (actorStrategyRows.length > 0) {
-    sections.splice(4, 0, {
+    const vehicleSectionIndex = sections.findIndex((section) => section.id === "vehicle");
+    sections.splice(vehicleSectionIndex === -1 ? sections.length : vehicleSectionIndex, 0, {
       id: "strategies",
       title: "Strategies",
       hint: "Live actor peer-strategy toggles generated from the current actor engine collections.",

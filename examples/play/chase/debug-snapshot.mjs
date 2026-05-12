@@ -108,6 +108,7 @@ export function buildChaseDebugSnapshot(simulationState, {
     world: {
       columns: Number(simulationState?.columns) || 0,
       rows: Number(simulationState?.rows) || 0,
+      evaderExists: simulationState?.evaderExists !== false,
       chaserPosition: cloneVector(simulationState?.chaserPosition),
       chaserLookDirection: cloneVector(simulationState?.chaserLookDirection),
       evaderPosition: cloneVector(simulationState?.evaderPosition),
