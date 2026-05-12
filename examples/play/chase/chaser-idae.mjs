@@ -29,9 +29,10 @@ function normalizeHumanAction(humanInput) {
 }
 
 function createChaserIdaeState({ scenario } = {}) {
+  const evaderExists = scenario?.actors?.evader?.exists !== false;
   const actorState = {
     ...createChaserKnowledgeBase({
-      evaderDirection: scenario?.actors?.evader?.direction,
+      evaderDirection: evaderExists ? scenario?.actors?.evader?.direction : null,
       engines: scenario?.engines?.knowledge,
       patterns: scenario?.actors?.chaser?.patterns,
     }),
@@ -80,6 +81,7 @@ const CHASER_PATTERN_MODULES = [
   {
     id: "patternInference",
     update: ({ state, frameContext }) => updateChaserPatternStage(state, {
+      evaderExists: frameContext.evaderExists !== false,
       columns: frameContext.columns,
       rows: frameContext.rows,
       obstacles: frameContext.obstacles,
@@ -92,6 +94,7 @@ const CHASER_STRATEGY_MODULES = [
   {
     id: "evaderPrediction",
     update: ({ state, frameContext, cycle }) => updateChaserStrategyStage(state, {
+      evaderExists: frameContext.evaderExists !== false,
       columns: frameContext.columns,
       rows: frameContext.rows,
       obstacles: frameContext.obstacles,

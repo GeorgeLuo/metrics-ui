@@ -247,6 +247,7 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
   const simulation = asRecord(root.simulation) ?? {};
   const engines = asRecord(root.engines) ?? {};
   const policies = asRecord(root.policies) ?? {};
+  const evaderExists = normalizeBoolean(evader.exists, true);
 
   return {
     id: typeof root.id === "string" && root.id.trim() ? root.id.trim() : "default",
@@ -269,8 +270,13 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
         ),
       },
       evader: {
-        position: normalizePosition(evader.position, fallbackEvaderPosition),
-        direction: normalizeDirection(evader.direction, fallbackEvaderDirection),
+        exists: evaderExists,
+        position: evaderExists
+          ? normalizePosition(evader.position, fallbackEvaderPosition)
+          : null,
+        direction: evaderExists
+          ? normalizeDirection(evader.direction, fallbackEvaderDirection)
+          : null,
         strategies: normalizeStrategyMap(
           evader.strategies,
           Object.values(EVADER_STRATEGY_IDS),

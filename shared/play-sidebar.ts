@@ -23,6 +23,17 @@ export type PlaySidebarSectionRow =
       hint?: string;
     }
   | {
+      kind: "select";
+      id: string;
+      label: string;
+      value: string;
+      options: Array<{
+        value: string;
+        label: string;
+      }>;
+      hint?: string;
+    }
+  | {
       kind: "list";
       label?: string;
       items: string[];
@@ -48,6 +59,7 @@ export type PlaySidebarSection = {
 const MAX_SECTIONS = 8;
 const MAX_ROWS_PER_SECTION = 24;
 const MAX_LIST_ITEMS = 12;
+const MAX_SELECT_OPTIONS = 24;
 const MAX_TEXT_LENGTH = 160;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -71,6 +83,21 @@ function normalizeId(value: unknown): string | null {
   }
   const id = text.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   return id || null;
+}
+
+function normalizeSelectOption(value: unknown): { value: string; label: string } | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const optionValue = normalizeText(record.value ?? record.id, 80);
+  const optionLabel = normalizeText(record.label ?? record.value ?? record.id, 80);
+  return optionValue && optionLabel
+    ? {
+      value: optionValue,
+      label: optionLabel,
+    }
+    : null;
 }
 
 function normalizeRow(value: unknown): PlaySidebarSectionRow | null {
@@ -110,6 +137,28 @@ function normalizeRow(value: unknown): PlaySidebarSectionRow | null {
         label,
         value: rowValue,
         ...(suffix ? { suffix } : {}),
+        ...(hint ? { hint } : {}),
+      };
+    }
+  }
+
+  if (record.kind === "select") {
+    const id = normalizeId(record.id ?? record.actionId);
+    const rowValue = normalizeText(record.value, 80);
+    const options = Array.isArray(record.options)
+      ? record.options.flatMap((option) => {
+        const normalized = normalizeSelectOption(option);
+        return normalized ? [normalized] : [];
+      }).slice(0, MAX_SELECT_OPTIONS)
+      : [];
+    if (id && label && rowValue && options.length > 0) {
+      const hint = normalizeText(record.hint);
+      return {
+        kind: "select",
+        id,
+        label,
+        value: rowValue,
+        options,
         ...(hint ? { hint } : {}),
       };
     }

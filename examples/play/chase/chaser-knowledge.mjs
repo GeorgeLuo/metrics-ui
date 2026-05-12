@@ -114,6 +114,7 @@ export function createChaserKnowledgeBase({
   patterns,
 } = {}) {
   return {
+    evaderExists: true,
     engines: createChaserKnowledgeEngines(engines),
     patternEngines: createChaserPatternEngines(patterns),
     memory: {
@@ -210,6 +211,7 @@ export function updateChaserMemoryStage(
 export function updateChaserPatternStage(
   knowledgeBase,
   {
+    evaderExists = true,
     columns,
     rows,
     obstacles,
@@ -218,6 +220,15 @@ export function updateChaserPatternStage(
 ) {
   if (!knowledgeBase) {
     return null;
+  }
+  knowledgeBase.evaderExists = evaderExists !== false;
+
+  if (!evaderExists) {
+    return {
+      evaderMotionModel: null,
+      wallAvoidancePattern: null,
+      patternUnits: {},
+    };
   }
 
   if (knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.EVADER_TRACKING]) {
@@ -272,6 +283,7 @@ export function updateChaserPatternStage(
 export function updateChaserStrategyStage(
   knowledgeBase,
   {
+    evaderExists = true,
     columns,
     rows,
     obstacles,
@@ -282,6 +294,17 @@ export function updateChaserStrategyStage(
 ) {
   if (!knowledgeBase) {
     return null;
+  }
+  knowledgeBase.evaderExists = evaderExists !== false;
+
+  if (!evaderExists) {
+    knowledgeBase.strategies.evaderPrediction.output = createDisabledEvaderPredictionPlan(
+      "target-absent",
+    );
+    knowledgeBase.assumedBehavior = {
+      evaderMotion: buildAssumedEvaderBehavior(knowledgeBase),
+    };
+    return knowledgeBase.strategies;
   }
 
   const resolvedEvaderMotionModel = evaderMotionModel ?? getEvaderMotionModel(knowledgeBase);
@@ -313,6 +336,10 @@ export function updateChaserStrategyStage(
 }
 
 function getChaserPatternUnits(knowledgeBase) {
+  if (knowledgeBase?.evaderExists === false) {
+    return {};
+  }
+
   return {
     ...(isPatternEnabled(knowledgeBase, CHASER_PATTERN_IDS.CONTINUANCE)
       ? {
@@ -344,19 +371,20 @@ function getChaserPatternStatus(knowledgeBase, patternId, pattern) {
 export function getChaserKnowledgeSnapshot(knowledgeBase) {
   const evaderPredictionStrategy = knowledgeBase?.strategies?.evaderPrediction ?? null;
   const evaderPrediction = getStrategyOutput(evaderPredictionStrategy);
-  const evaderMotionModel = getEvaderMotionModel(knowledgeBase);
+  const evaderExists = knowledgeBase?.evaderExists !== false;
+  const evaderMotionModel = evaderExists ? getEvaderMotionModel(knowledgeBase) : null;
 
   return {
     engines: { ...knowledgeBase?.engines },
     memory: knowledgeBase?.memory ?? null,
     patterns: {
       evaderMotionModel,
-      wallAvoidance: getWallAvoidancePatternOutput(
+      wallAvoidance: evaderExists ? getWallAvoidancePatternOutput(
         knowledgeBase?.patterns?.wallAvoidance,
-      ),
-      continuance: getContinuancePatternOutput(
+      ) : null,
+      continuance: evaderExists ? getContinuancePatternOutput(
         knowledgeBase?.patterns?.continuance,
-      ),
+      ) : null,
     },
     patternUnits: getChaserPatternUnits(knowledgeBase),
     strategies: {

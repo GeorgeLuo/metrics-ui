@@ -17,6 +17,10 @@ function buildFullStrategyMap(baseMap, overrides = {}, knownIds = []) {
   );
 }
 
+function cloneVector(vector) {
+  return vector ? { ...vector } : null;
+}
+
 function createScenarioForStrategyCombination({
   baseScenarioDefinition = defaultScenarioDefinition,
   columns = 9,
@@ -103,9 +107,9 @@ export function measureChaseScenarioAsymptote({
     finalState: {
       frameIndex: state.frameIndex,
       chaserPosition: { ...state.chaserPosition },
-      evaderPosition: { ...state.evaderPosition },
+      evaderPosition: cloneVector(state.evaderPosition),
       chaserDirection: { ...state.chaserLookDirection },
-      evaderDirection: { ...state.evaderDirection },
+      evaderDirection: cloneVector(state.evaderDirection),
     },
   };
 }

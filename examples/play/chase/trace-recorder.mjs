@@ -142,6 +142,7 @@ export function buildChaseTraceFrame(state) {
         direction: cloneVector(state?.chaserLookDirection),
       },
       evader: {
+        exists: state?.evaderExists !== false,
         position: clonePosition(state?.evaderPosition),
         direction: cloneVector(state?.evaderDirection),
       },
