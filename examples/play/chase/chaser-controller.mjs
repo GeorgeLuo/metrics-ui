@@ -51,6 +51,7 @@ export function getProgrammaticChaserInput({
   autopilotState,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
   columns,
   rows,
   obstacles,
@@ -65,6 +66,7 @@ export function getProgrammaticChaserInput({
     previousWallFollowSign: autopilotState?.wallFollowSign ?? 1,
     chaserSpeedUnitsPerFrame,
     speedUnitsPerFrame,
+    turnRateRadiansPerFrame,
     columns,
     rows,
     obstacles,
@@ -80,9 +82,11 @@ export function getProgrammaticChaserInput({
 
   return {
     forward: actionPlan.forward,
+    reverse: actionPlan.reverse,
     steering: actionPlan.steering,
     pursuitPoint: actionPlan.pursuitPoint ?? null,
     movement: actionPlan.movement ?? null,
+    actionPath: actionPlan.actionPath ?? [],
     chosenStrategy: actionPlan.chosenStrategy,
     actionStrategies: actionPlan.proposals,
     actionPlan,

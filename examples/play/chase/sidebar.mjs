@@ -6,9 +6,10 @@ import {
   EVADER_VIEW_ACTION_ID,
   IDAE_DEBUG_ACTION_ID,
   SIMULATION_FPS_ACTION_ID,
-  EVADER_PROJECTION_DEBUG_ACTION_ID,
   EVADER_PROJECTION_HORIZON_ACTION_ID,
   EVADER_PROJECTION_RATE_ACTION_ID,
+  EVADER_PROJECTION_VIEW_ACTION_ID,
+  EVADER_PROJECTION_VIEW_MODES,
   EVADER_SPEED_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
   VEHICLE_TURN_RATE_ACTION_ID,
@@ -62,6 +63,27 @@ function buildActorStrategyRows(actorStrategyCollections = {}) {
     })));
 }
 
+function buildProgrammaticChaserRow(programmaticChaserEnabled) {
+  return {
+    kind: "toggle",
+    id: CHASER_AUTOPILOT_ACTION_ID,
+    label: "Programmatic chaser",
+    enabled: programmaticChaserEnabled,
+    enabledLabel: "on",
+    disabledLabel: "off",
+    hint: "Let the game algorithm press the same forward, reverse, and steering inputs available to a human player.",
+  };
+}
+
+function getEvaderProjectionViewMode(projectionSettings = {}, predictionDebugState = {}) {
+  if (predictionDebugState.visible) {
+    return EVADER_PROJECTION_VIEW_MODES.PREDICTION_PATHS;
+  }
+  return projectionSettings.visible
+    ? EVADER_PROJECTION_VIEW_MODES.ESTIMATE
+    : EVADER_PROJECTION_VIEW_MODES.HIDDEN;
+}
+
 function buildScenarioRows(scenarioControls = {}) {
   const options = Array.isArray(scenarioControls.options)
     ? scenarioControls.options
@@ -105,6 +127,7 @@ export function publishSidebarSections(
   actorStrategyCollections = {},
   runMetrics = {},
   scenarioControls = {},
+  predictionDebugState = {},
 ) {
   if (typeof setSidebarSections !== "function") {
     return;
@@ -138,28 +161,6 @@ export function publishSidebarSections(
       label: "Reset",
       hint: "Reset the Chase run to a fresh initial state.",
     },
-    {
-      kind: "toggle",
-      id: SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
-      label: "Debug overlay",
-      enabled: Boolean(simulationSettings.greentextDebugVisible),
-      enabledLabel: "shown",
-      disabledLabel: "hidden",
-      hint: "Show or hide a green text debug overlay in the bottom-right of the Chase view.",
-    },
-    { kind: "header", label: "Controls" },
-    {
-      kind: "toggle",
-      id: CHASER_AUTOPILOT_ACTION_ID,
-      label: "Programmatic chaser",
-      enabled: programmaticChaserEnabled,
-      enabledLabel: "on",
-      disabledLabel: "off",
-      hint: "Let the game algorithm press the same forward, reverse, and steering inputs available to a human player.",
-    },
-    { kind: "value", label: "Forward", value: "I" },
-    { kind: "value", label: "Reverse", value: "K" },
-    { kind: "value", label: "Steer", value: "A / D" },
   ];
   const settingsSection = {
     id: "settings",
@@ -192,10 +193,61 @@ export function publishSidebarSections(
       ],
     },
     {
-      id: "windows",
-      title: "Windows",
-      hint: "Launch or close floating views for the active Play example.",
+      id: "view",
+      title: "View",
+      hint: "Launch windows and toggle visual debug layers for the active Chase run.",
       rows: [
+        ...(evaderExists ? [
+          { kind: "header", label: "Evader projection" },
+          {
+            kind: "select",
+            id: EVADER_PROJECTION_VIEW_ACTION_ID,
+            label: "Evader projection",
+            value: getEvaderProjectionViewMode(projectionSettings, predictionDebugState),
+            options: [
+              {
+                value: EVADER_PROJECTION_VIEW_MODES.HIDDEN,
+                label: "off",
+              },
+              {
+                value: EVADER_PROJECTION_VIEW_MODES.ESTIMATE,
+                label: "consensus",
+              },
+              {
+                value: EVADER_PROJECTION_VIEW_MODES.PREDICTION_PATHS,
+                label: "split",
+              },
+            ],
+            hint: "Choose the main-view evader projection display.",
+          },
+          {
+            kind: "editableValue",
+            id: EVADER_PROJECTION_HORIZON_ACTION_ID,
+            label: "Horizon",
+            value: formatEditableNumber(projectionSettings.horizonFrames, 0),
+            suffix: "frames",
+            hint: "How many game frames into the future to project.",
+          },
+          {
+            kind: "editableValue",
+            id: EVADER_PROJECTION_RATE_ACTION_ID,
+            label: "Spacing",
+            value: formatEditableNumber(projectionSettings.sampleSpacingFrames, 0),
+            suffix: "frames",
+            hint: "How many future frames to skip between projected rectangles.",
+          },
+        ] : []),
+        { kind: "header", label: "Debug" },
+        {
+          kind: "toggle",
+          id: SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
+          label: "Debug overlay",
+          enabled: Boolean(simulationSettings.greentextDebugVisible),
+          enabledLabel: "shown",
+          disabledLabel: "hidden",
+          hint: "Show or hide a green text debug overlay in the bottom-right of the Chase view.",
+        },
+        { kind: "header", label: "Windows" },
         {
           kind: "toggle",
           id: CHASER_VIEW_ACTION_ID,
@@ -262,57 +314,25 @@ export function publishSidebarSections(
           suffix: "deg",
           hint: "Edit the blue chaser field of view.",
         },
-      ],
-    },
-    {
-      id: "projection",
-      title: "Projection",
-      hint: "Game-provided debug controls for the chaser evader-path estimate.",
-      rows: [
-        {
-          kind: "toggle",
-          id: EVADER_PROJECTION_DEBUG_ACTION_ID,
-          label: "Evader projection",
-          enabled: projectionSettings.visible,
-          enabledLabel: "on",
-          disabledLabel: "off",
-          hint: "Show the chaser estimate of the evader path.",
-        },
-        {
-          kind: "editableValue",
-          id: EVADER_PROJECTION_HORIZON_ACTION_ID,
-          label: "Horizon",
-          value: formatEditableNumber(projectionSettings.horizonFrames, 0),
-          suffix: "frames",
-          hint: "How many game frames into the future to project.",
-        },
-        {
-          kind: "editableValue",
-          id: EVADER_PROJECTION_RATE_ACTION_ID,
-          label: "Spacing",
-          value: formatEditableNumber(projectionSettings.sampleSpacingFrames, 0),
-          suffix: "frames",
-          hint: "How many future frames to skip between projected rectangles.",
-        },
+        { kind: "header", label: "Controls" },
+        { kind: "value", label: "Forward", value: "I" },
+        { kind: "value", label: "Reverse", value: "K" },
+        { kind: "value", label: "Steer", value: "A / D" },
       ],
     },
   ];
 
-  if (!evaderExists) {
-    const projectionSectionIndex = sections.findIndex((section) => section.id === "projection");
-    if (projectionSectionIndex !== -1) {
-      sections.splice(projectionSectionIndex, 1);
-    }
-  }
-
-  const actorStrategyRows = buildActorStrategyRows(actorStrategyCollections);
-  if (actorStrategyRows.length > 0) {
+  const strategyRows = [
+    buildProgrammaticChaserRow(programmaticChaserEnabled),
+    ...buildActorStrategyRows(actorStrategyCollections),
+  ];
+  if (strategyRows.length > 0) {
     const vehicleSectionIndex = sections.findIndex((section) => section.id === "vehicle");
     sections.splice(vehicleSectionIndex === -1 ? sections.length : vehicleSectionIndex, 0, {
       id: "strategies",
       title: "Strategies",
-      hint: "Live actor peer-strategy toggles generated from the current actor engine collections.",
-      rows: actorStrategyRows,
+      hint: "Programmatic control and live actor peer-strategy toggles generated from the current actor engine collections.",
+      rows: strategyRows,
     });
   }
 
