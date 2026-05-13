@@ -10,7 +10,13 @@ import {
 } from "react";
 import { ExternalLink, GripVertical, Minimize2, X } from "lucide-react";
 import { createPortal } from "react-dom";
-import { buildPopoutWindowFeatures } from "@/lib/popout-window";
+import {
+  buildPopoutWindowFeatures,
+  copyPopoutStyleNodes,
+  createPopoutContainer,
+  getAccessiblePopoutDocument,
+  startPopoutErrorDiagnostics,
+} from "@/lib/popout-window";
 import { readStorageJson, writeStorageJson } from "@/lib/dashboard/storage";
 import { cn } from "@/lib/utils";
 
@@ -336,29 +342,6 @@ export function FloatingFrame({
   const [isPoppedOut, setIsPoppedOut] = useState(false);
   const lastDockRequestTokenRef = useRef<number | undefined>(dockRequestToken);
 
-  const syncPopoutDocumentStyles = useCallback(() => {
-    const popup = popoutWindowRef.current;
-    if (!popup || popup.closed) {
-      return;
-    }
-    popup.document.title = popoutWindowTitle ?? title;
-    popup.document.documentElement.className = document.documentElement.className;
-    popup.document.body.className = document.body.className;
-    popup.document.body.style.margin = "0";
-    popup.document.body.style.width = "100vw";
-    popup.document.body.style.height = "100vh";
-    popup.document.body.style.overflow = "hidden";
-
-    const existingNodes = popup.document.querySelectorAll("[data-floating-frame-style='1']");
-    existingNodes.forEach((node) => node.remove());
-    const styleNodes = document.head.querySelectorAll("style, link[rel='stylesheet']");
-    styleNodes.forEach((node) => {
-      const clone = node.cloneNode(true) as HTMLElement;
-      clone.setAttribute("data-floating-frame-style", "1");
-      popup.document.head.appendChild(clone);
-    });
-  }, [popoutWindowTitle, title]);
-
   const clearPopoutState = useCallback(() => {
     popoutContainerRef.current = null;
     popoutWindowRef.current = null;
@@ -366,6 +349,30 @@ export function FloatingFrame({
     setIsMinimized(false);
     onPopoutChange?.(false);
   }, [onPopoutChange]);
+
+  const syncPopoutDocumentStyles = useCallback(() => {
+    const popup = popoutWindowRef.current;
+    const popupDocument = getAccessiblePopoutDocument(popup);
+    if (!popupDocument) {
+      return;
+    }
+    try {
+      popupDocument.title = popoutWindowTitle ?? title;
+      popupDocument.documentElement.className = document.documentElement.className;
+      popupDocument.body.className = document.body.className;
+      popupDocument.body.style.margin = "0";
+      popupDocument.body.style.width = "100vw";
+      popupDocument.body.style.height = "100vh";
+      popupDocument.body.style.overflow = "hidden";
+
+      copyPopoutStyleNodes({
+        targetDocument: popupDocument,
+        markerAttribute: "data-floating-frame-style",
+      });
+    } catch {
+      clearPopoutState();
+    }
+  }, [clearPopoutState, popoutWindowTitle, title]);
 
   const closePopout = useCallback(() => {
     const popup = popoutWindowRef.current;
@@ -396,8 +403,9 @@ export function FloatingFrame({
       return;
     }
 
+    startPopoutErrorDiagnostics(`floating-frame:${popoutWindowName}`);
     const popup = window.open(
-      "",
+      "about:blank",
       popoutWindowName,
       buildPopoutWindowFeatures(),
     );
@@ -405,11 +413,16 @@ export function FloatingFrame({
       return;
     }
 
-    popup.document.body.innerHTML = "";
-    const container = popup.document.createElement("div");
-    container.style.width = "100%";
-    container.style.height = "100%";
-    popup.document.body.appendChild(container);
+    const container = createPopoutContainer(popup);
+    if (!container) {
+      try {
+        popup.close();
+      } catch {
+        // ignore close errors
+      }
+      clearPopoutState();
+      return;
+    }
 
     const handleBeforeUnload = () => {
       clearPopoutState();

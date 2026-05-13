@@ -43,6 +43,13 @@ function formatDebugNumber(value: number): string {
   return value.toFixed(2).replace(/\.?0+$/, "");
 }
 
+function getDebugSnapshotSignature(snapshot: FrameGridDebugSnapshot): string {
+  return JSON.stringify({
+    ...snapshot,
+    generatedAt: "",
+  });
+}
+
 type ParsedItem = {
   key: string;
   placement: FrameGridItemPlacement;
@@ -120,7 +127,11 @@ function useContainerSize(containerRef: React.RefObject<HTMLDivElement>): Contai
 
     const update = () => {
       const rect = node.getBoundingClientRect();
-      setSize({ width: rect.width, height: rect.height });
+      setSize((current) => (
+        current.width === rect.width && current.height === rect.height
+          ? current
+          : { width: rect.width, height: rect.height }
+      ));
     };
 
     update();
@@ -159,6 +170,7 @@ function FrameGridRoot({
   renderItem,
 }: FrameGridProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lastDebugSignatureRef = useRef("");
   const container = useContainerSize(containerRef);
   const effectiveShowOuterFrame = layoutDebug || showOuterFrame;
   const effectiveShowContentFrame = layoutDebug || showContentFrame;
@@ -342,7 +354,17 @@ function FrameGridRoot({
   ]);
 
   useEffect(() => {
-    onDebug?.(debugSnapshot);
+    if (!onDebug) {
+      return;
+    }
+
+    const signature = getDebugSnapshotSignature(debugSnapshot);
+    if (signature === lastDebugSignatureRef.current) {
+      return;
+    }
+
+    lastDebugSignatureRef.current = signature;
+    onDebug(debugSnapshot);
   }, [debugSnapshot, onDebug]);
 
   const rootClassName = className ? `relative h-full w-full overflow-hidden ${className}` : "relative h-full w-full overflow-hidden";

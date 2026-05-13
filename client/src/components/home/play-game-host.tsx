@@ -68,6 +68,8 @@ type PlayGameModule = {
   createPlayGame?: (context: PlayGameRuntimeContext) => PlayGameInstance | void;
 };
 
+const SIDEBAR_VALUE_UPDATE_MIN_MS = 250;
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -95,6 +97,32 @@ function makeFrameMount(): HTMLDivElement {
     overflow: "hidden",
   });
   return mount;
+}
+
+function nowMs(): number {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+}
+
+function getSidebarSectionsSignature(
+  sections: PlaySidebarSection[],
+  options: { ignoreDisplayValues?: boolean } = {},
+): string {
+  if (!options.ignoreDisplayValues) {
+    return JSON.stringify(sections);
+  }
+
+  return JSON.stringify(
+    sections.map((section) => ({
+      ...section,
+      rows: section.rows.map((row) => (
+        row.kind === "value"
+          ? { ...row, value: "" }
+          : row
+      )),
+    })),
+  );
 }
 
 function PlayFloatingFrameMount({ mount }: { mount: HTMLDivElement }) {
@@ -128,8 +156,20 @@ export function PlayGameHost({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const sidebarActionHandlersRef = useRef<Map<string, (value?: unknown) => void>>(new Map());
+  const onSidebarSectionsChangeRef = useRef(onSidebarSectionsChange);
+  const pendingSidebarSectionsRef = useRef<PlaySidebarSection[] | null>(null);
+  const pendingSidebarSignatureRef = useRef("");
+  const pendingSidebarLayoutSignatureRef = useRef("");
+  const sidebarSignatureRef = useRef("");
+  const sidebarLayoutSignatureRef = useRef("");
+  const sidebarLastPublishAtRef = useRef(0);
+  const sidebarPublishTimerRef = useRef<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [floatingFrames, setFloatingFrames] = useState<PlayFloatingFrameRecord[]>([]);
+
+  useEffect(() => {
+    onSidebarSectionsChangeRef.current = onSidebarSectionsChange;
+  }, [onSidebarSectionsChange]);
 
   const closeFloatingFrame = useCallback((frameId: string) => {
     setFloatingFrames((prev) => {
@@ -171,9 +211,74 @@ export function PlayGameHost({
     };
   }, [closeFloatingFrame]);
 
+  const publishSidebarSections = useCallback((
+    sections: PlaySidebarSection[],
+    signature: string,
+    layoutSignature: string,
+  ) => {
+    pendingSidebarSectionsRef.current = null;
+    pendingSidebarSignatureRef.current = "";
+    pendingSidebarLayoutSignatureRef.current = "";
+    sidebarSignatureRef.current = signature;
+    sidebarLayoutSignatureRef.current = layoutSignature;
+    sidebarLastPublishAtRef.current = nowMs();
+    onSidebarSectionsChangeRef.current?.(sections);
+  }, []);
+
+  const clearPendingSidebarPublish = useCallback(() => {
+    if (sidebarPublishTimerRef.current !== null) {
+      window.clearTimeout(sidebarPublishTimerRef.current);
+      sidebarPublishTimerRef.current = null;
+    }
+    pendingSidebarSectionsRef.current = null;
+    pendingSidebarSignatureRef.current = "";
+    pendingSidebarLayoutSignatureRef.current = "";
+  }, []);
+
+  const flushPendingSidebarSections = useCallback(() => {
+    sidebarPublishTimerRef.current = null;
+    const sections = pendingSidebarSectionsRef.current;
+    if (!sections) {
+      return;
+    }
+    publishSidebarSections(
+      sections,
+      pendingSidebarSignatureRef.current,
+      pendingSidebarLayoutSignatureRef.current,
+    );
+  }, [publishSidebarSections]);
+
   const setSidebarSections = useCallback((sections: unknown) => {
-    onSidebarSectionsChange?.(normalizePlaySidebarSections(sections));
-  }, [onSidebarSectionsChange]);
+    const normalized = normalizePlaySidebarSections(sections);
+    const signature = getSidebarSectionsSignature(normalized);
+    if (signature === sidebarSignatureRef.current) {
+      return;
+    }
+
+    const layoutSignature = getSidebarSectionsSignature(normalized, {
+      ignoreDisplayValues: true,
+    });
+    const elapsedMs = nowMs() - sidebarLastPublishAtRef.current;
+    if (
+      layoutSignature !== sidebarLayoutSignatureRef.current
+      || sidebarLastPublishAtRef.current === 0
+      || elapsedMs >= SIDEBAR_VALUE_UPDATE_MIN_MS
+    ) {
+      clearPendingSidebarPublish();
+      publishSidebarSections(normalized, signature, layoutSignature);
+      return;
+    }
+
+    pendingSidebarSectionsRef.current = normalized;
+    pendingSidebarSignatureRef.current = signature;
+    pendingSidebarLayoutSignatureRef.current = layoutSignature;
+    if (sidebarPublishTimerRef.current === null) {
+      sidebarPublishTimerRef.current = window.setTimeout(
+        flushPendingSidebarSections,
+        SIDEBAR_VALUE_UPDATE_MIN_MS - elapsedMs,
+      );
+    }
+  }, [clearPendingSidebarPublish, flushPendingSidebarSections, publishSidebarSections]);
 
   const setSidebarActionHandler = useCallback((actionId: string, handler: ((value?: unknown) => void) | null) => {
     const normalizedActionId = normalizeSidebarActionId(actionId);
@@ -254,11 +359,12 @@ export function PlayGameHost({
           return [];
         });
         sidebarActionHandlersRef.current.clear();
+        clearPendingSidebarPublish();
         setSidebarSections([]);
         setDebugSnapshot(null);
       }
     };
-  }, [columns, createFloatingFrame, gameLabel, moduleUrl, rows, setDebugSnapshot, setSidebarActionHandler, setSidebarSections]);
+  }, [clearPendingSidebarPublish, columns, createFloatingFrame, gameLabel, moduleUrl, rows, setDebugSnapshot, setSidebarActionHandler, setSidebarSections]);
 
   return (
     <div
