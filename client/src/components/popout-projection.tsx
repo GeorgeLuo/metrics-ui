@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { buildPopoutWindowFeatures } from "@/lib/popout-window";
+import {
+  buildPopoutWindowFeatures,
+  copyPopoutStyleNodes,
+  createPopoutContainer,
+  getAccessiblePopoutDocument,
+  startPopoutErrorDiagnostics,
+} from "@/lib/popout-window";
 
 interface PopoutProjectionProps {
   open: boolean;
@@ -13,22 +19,26 @@ interface PopoutProjectionProps {
 }
 
 function syncProjectionStyles(popup: Window, title: string) {
-  popup.document.title = title;
-  popup.document.documentElement.className = document.documentElement.className;
-  popup.document.body.className = document.body.className;
-  popup.document.body.style.margin = "0";
-  popup.document.body.style.width = "100vw";
-  popup.document.body.style.height = "100vh";
-  popup.document.body.style.overflow = "hidden";
+  const popupDocument = getAccessiblePopoutDocument(popup);
+  if (!popupDocument) {
+    return;
+  }
+  try {
+    popupDocument.title = title;
+    popupDocument.documentElement.className = document.documentElement.className;
+    popupDocument.body.className = document.body.className;
+    popupDocument.body.style.margin = "0";
+    popupDocument.body.style.width = "100vw";
+    popupDocument.body.style.height = "100vh";
+    popupDocument.body.style.overflow = "hidden";
 
-  const existingNodes = popup.document.querySelectorAll("[data-popout-projection-style='1']");
-  existingNodes.forEach((node) => node.remove());
-  const styleNodes = document.head.querySelectorAll("style, link[rel='stylesheet']");
-  styleNodes.forEach((node) => {
-    const clone = node.cloneNode(true) as HTMLElement;
-    clone.setAttribute("data-popout-projection-style", "1");
-    popup.document.head.appendChild(clone);
-  });
+    copyPopoutStyleNodes({
+      targetDocument: popupDocument,
+      markerAttribute: "data-popout-projection-style",
+    });
+  } catch {
+    // Popout windows can be closed or navigated while style sync is queued.
+  }
 }
 
 export function PopoutProjection({
@@ -76,17 +86,24 @@ export function PopoutProjection({
       return;
     }
 
-    const popup = window.open("", windowName, buildPopoutWindowFeatures({ width, height }));
+    startPopoutErrorDiagnostics(`popout-projection:${windowName}`);
+    const popup = window.open("about:blank", windowName, buildPopoutWindowFeatures({ width, height }));
     if (!popup) {
       onOpenChange(false);
       return;
     }
 
-    popup.document.body.innerHTML = "";
-    const container = popup.document.createElement("div");
-    container.style.width = "100%";
-    container.style.height = "100%";
-    popup.document.body.appendChild(container);
+    const container = createPopoutContainer(popup);
+    if (!container) {
+      try {
+        popup.close();
+      } catch {
+        // ignore close errors
+      }
+      clearRefs();
+      onOpenChange(false);
+      return;
+    }
 
     const handleBeforeUnload = () => {
       clearRefs();
