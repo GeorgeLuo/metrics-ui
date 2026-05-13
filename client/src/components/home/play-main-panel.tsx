@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FrameGrid, type FrameGridDebugSnapshot, type FrameGridSpec } from "@/components/frame-grid";
 import { PlayGameHost } from "@/components/home/play-game-host";
 import type { PlaySidebarSection } from "@/lib/play/sidebar-sections";
@@ -128,11 +128,11 @@ export function PlayMainPanel({
 
   const selectedGame = games[0] ?? null;
   const [columns, rows] = selectedGame?.grid ?? FALLBACK_GRID;
-  const frameGridSpec: FrameGridSpec = {
+  const frameGridSpec = useMemo<FrameGridSpec>(() => ({
     ...PLAY_FRAME_GRID_SPEC,
     frameAspect: selectedGame?.frameAspect ?? FALLBACK_GRID,
     grid: [columns, rows],
-  };
+  }), [columns, rows, selectedGame?.frameAspect]);
 
   return (
     <main
