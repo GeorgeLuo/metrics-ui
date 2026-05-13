@@ -79,8 +79,10 @@ function createActorViewController({
   const chaserViewWidth = 280;
   let mountedView = null;
   let suppressNextCloseNotification = false;
+  let resizeFrame = 0;
 
   const resizeMountedView = () => {
+    resizeFrame = 0;
     if (!mountedView) {
       return;
     }
@@ -90,6 +92,12 @@ function createActorViewController({
     mountedView.camera.aspect = viewWidth / viewHeight;
     mountedView.camera.updateProjectionMatrix();
   };
+  const scheduleMountedViewResize = () => {
+    if (resizeFrame !== 0) {
+      return;
+    }
+    resizeFrame = requestAnimationFrame(resizeMountedView);
+  };
 
   const disposeMountedView = (notifyVisibilityChange) => {
     if (!mountedView) {
@@ -97,6 +105,10 @@ function createActorViewController({
         onVisibilityChange?.(false);
       }
       return;
+    }
+    if (resizeFrame !== 0) {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = 0;
     }
     mountedView.resizeObserver.disconnect();
     mountedView.renderer.dispose();
@@ -140,7 +152,7 @@ function createActorViewController({
       0.04,
       CHASER_VIEW_MAX_DISTANCE,
     );
-    const resizeObserver = new ResizeObserver(resizeMountedView);
+    const resizeObserver = new ResizeObserver(scheduleMountedViewResize);
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(0x000000, 0);

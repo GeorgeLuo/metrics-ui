@@ -17,6 +17,11 @@ function getEventErrorObject(event: Event): unknown {
   return "error" in event ? (event as ErrorEvent).error : null;
 }
 
+function isResizeObserverDeliveryWarning(event: ErrorEvent): boolean {
+  return event.message === "ResizeObserver loop completed with undelivered notifications."
+    || event.message === "ResizeObserver loop limit exceeded";
+}
+
 function getTargetSummary(target: EventTarget | null): Record<string, unknown> {
   if (!target) {
     return { kind: "null" };
@@ -85,6 +90,9 @@ function installPopoutErrorDiagnostics() {
     "error",
     (event) => {
       if (Date.now() > popoutDiagnosticsUntil) {
+        return;
+      }
+      if (isResizeObserverDeliveryWarning(event)) {
         return;
       }
       const entry = createPopoutErrorEntry(event);
