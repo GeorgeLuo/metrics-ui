@@ -898,6 +898,22 @@ export function mountIdaeDebugFrame(createFloatingFrame, {
   renderActiveView();
 
   return {
+    setPredictionDebug(nextState = {}) {
+      const requestedActorId = typeof nextState.actorId === "string"
+        && Object.hasOwn(ACTOR_LABELS, nextState.actorId)
+        ? nextState.actorId
+        : activeActorId;
+      activeActorId = requestedActorId;
+      activeStageId = STAGE_IDS.PATTERNS;
+      activePatternViewIds[activeActorId] = nextState.visible
+        ? PATTERN_VIEW_IDS.PREDICTIONS
+        : PATTERN_VIEW_IDS.DETAILS;
+      patternSelectorOpen = false;
+      patternSelectorSignature = null;
+      patternViewSelectorOpen = false;
+      patternViewSelectorSignature = null;
+      renderActiveView();
+    },
     update(payload = {}) {
       latestPayload = payload;
       renderActiveView();

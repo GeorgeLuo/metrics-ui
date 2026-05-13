@@ -37,6 +37,7 @@ export const IDAE_DEBUG_ACTION_ID = "idae-debug";
 export const EVADER_SPEED_ACTION_ID = "evader-speed";
 export const VEHICLE_TURN_RATE_ACTION_ID = "vehicle-turn-rate";
 export const VEHICLE_FOV_ACTION_ID = "vehicle-fov";
+export const EVADER_PROJECTION_VIEW_ACTION_ID = "evader-projection-view";
 export const EVADER_PROJECTION_DEBUG_ACTION_ID = "evader-projection-debug";
 export const EVADER_PROJECTION_HORIZON_ACTION_ID = "evader-projection-horizon";
 export const EVADER_PROJECTION_RATE_ACTION_ID = "evader-projection-rate";
@@ -45,6 +46,11 @@ export const SIMULATION_FPS_ACTION_ID = "simulation-fps";
 export const SIMULATION_GREENTEXT_DEBUG_ACTION_ID = "simulation-greentext-debug";
 export const SIMULATION_PAUSE_BEFORE_ACTIONS_ID = "simulation-pause-before-actions";
 export const SIMULATION_RESET_ACTION_ID = "simulation-reset";
+export const EVADER_PROJECTION_VIEW_MODES = Object.freeze({
+  HIDDEN: "hidden",
+  ESTIMATE: "estimate",
+  PREDICTION_PATHS: "prediction-paths",
+});
 
 export const CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS = 0.08;
 export const CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING = 1;

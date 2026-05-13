@@ -20,6 +20,8 @@ import {
   EVADER_PROJECTION_DEBUG_ACTION_ID,
   EVADER_PROJECTION_HORIZON_ACTION_ID,
   EVADER_PROJECTION_RATE_ACTION_ID,
+  EVADER_PROJECTION_VIEW_ACTION_ID,
+  EVADER_PROJECTION_VIEW_MODES,
   EVADER_SPEED_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
   VEHICLE_TURN_RATE_ACTION_ID,
@@ -311,6 +313,7 @@ function createIdaeDebugController({
   createFloatingFrame,
   onVisibilityChange,
   onPredictionDebugChange,
+  getPredictionDebugState,
 }) {
   let mountedDebugFrame = null;
   let suppressNextCloseNotification = false;
@@ -328,10 +331,14 @@ function createIdaeDebugController({
     if (mountedDebugFrame) {
       return;
     }
+    const requestedPredictionDebug = getPredictionDebugState?.() ?? null;
     mountedDebugFrame = mountIdaeDebugFrame(createFloatingFrame, {
       onClose: handleFrameClose,
       onPredictionDebugChange,
     });
+    if (requestedPredictionDebug?.visible) {
+      mountedDebugFrame?.setPredictionDebug?.(requestedPredictionDebug);
+    }
     if (mountedDebugFrame) {
       onVisibilityChange?.(true);
     }
@@ -352,6 +359,7 @@ function createIdaeDebugController({
     open,
     close,
     dispose: () => close({ notifyVisibilityChange: false }),
+    setPredictionDebug: (nextState) => mountedDebugFrame?.setPredictionDebug?.(nextState),
     update: (payload) => mountedDebugFrame?.update(payload),
     isOpen: () => mountedDebugFrame !== null,
   };
@@ -391,6 +399,8 @@ function registerSidebarActions({
   loadScenario,
   getActorStrategyCollections,
   setActorStrategyEnabled,
+  getPredictionDebugState,
+  setPredictionDebugState,
 }) {
   if (typeof setSidebarActionHandler !== "function") {
     return;
@@ -504,6 +514,25 @@ function registerSidebarActions({
     writeStoredProjectionSettings(projectionSettings);
     refreshSidebarSections();
   });
+  setSidebarActionHandler(EVADER_PROJECTION_VIEW_ACTION_ID, (value) => {
+    const mode = Object.values(EVADER_PROJECTION_VIEW_MODES).includes(value)
+      ? value
+      : EVADER_PROJECTION_VIEW_MODES.HIDDEN;
+    if (mode === EVADER_PROJECTION_VIEW_MODES.PREDICTION_PATHS) {
+      setPredictionDebugState?.({
+        visible: true,
+        actorId: getPredictionDebugState?.()?.actorId ?? "chaser",
+      }, { syncDebugFrame: true });
+    } else {
+      setPredictionDebugState?.({
+        visible: false,
+        actorId: getPredictionDebugState?.()?.actorId ?? "chaser",
+      }, { syncDebugFrame: true });
+      projectionSettings.visible = mode === EVADER_PROJECTION_VIEW_MODES.ESTIMATE;
+      writeStoredProjectionSettings(projectionSettings);
+    }
+    refreshSidebarSections();
+  });
   setSidebarActionHandler(EVADER_PROJECTION_HORIZON_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
     if (parsed !== null) {
@@ -554,6 +583,7 @@ function clearSidebarActions(setSidebarActionHandler, actorStrategyCollections =
   setSidebarActionHandler?.(VEHICLE_TURN_RATE_ACTION_ID, null);
   setSidebarActionHandler?.(VEHICLE_FOV_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_PROJECTION_DEBUG_ACTION_ID, null);
+  setSidebarActionHandler?.(EVADER_PROJECTION_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_PROJECTION_HORIZON_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_PROJECTION_RATE_ACTION_ID, null);
   Object.entries(actorStrategyCollections).forEach(([actorId, strategies]) => {
@@ -585,7 +615,7 @@ export function createPlayGame({
   let evaderViewVisible = false;
   let idaeDebugVisible = false;
   let idaePredictionDebug = {
-    visible: false,
+    visible: true,
     actorId: "chaser",
   };
   const publishDebugSnapshot = () => {
@@ -635,6 +665,7 @@ export function createPlayGame({
         options: scenarioOptions,
         evaderExists: simulationState.evaderExists !== false,
       },
+      idaePredictionDebug,
     );
   };
 
@@ -654,18 +685,28 @@ export function createPlayGame({
       refreshSidebarSections();
     },
   });
-  const idaeDebugFrame = createIdaeDebugController({
+  let idaeDebugFrame = null;
+  const applyPredictionDebugState = (nextState = {}, { syncDebugFrame = false } = {}) => {
+    idaePredictionDebug = {
+      visible: Boolean(nextState.visible),
+      actorId: typeof nextState.actorId === "string" ? nextState.actorId : "chaser",
+    };
+    if (syncDebugFrame) {
+      idaeDebugFrame?.setPredictionDebug?.(idaePredictionDebug);
+    }
+    refreshSidebarSections();
+    publishDebugSnapshot();
+  };
+  idaeDebugFrame = createIdaeDebugController({
     createFloatingFrame,
     onVisibilityChange: (visible) => {
       idaeDebugVisible = visible;
       refreshSidebarSections();
     },
     onPredictionDebugChange: (nextState = {}) => {
-      idaePredictionDebug = {
-        visible: Boolean(nextState.visible),
-        actorId: typeof nextState.actorId === "string" ? nextState.actorId : "chaser",
-      };
+      applyPredictionDebugState(nextState);
     },
+    getPredictionDebugState: () => idaePredictionDebug,
   });
   const updateFieldOfView = () => {
     if (chaserFieldOfView) {
@@ -781,6 +822,8 @@ export function createPlayGame({
         );
       }
     },
+    getPredictionDebugState: () => idaePredictionDebug,
+    setPredictionDebugState: applyPredictionDebugState,
   });
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });

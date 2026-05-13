@@ -119,6 +119,7 @@ function chooseChaserIdaeAction(state, frameContext) {
       chaserLookDirection: frameContext.chaserLookDirection,
       autopilotState: state.controllerState,
       chaserSpeedUnitsPerFrame: frameContext.chaserSpeedUnitsPerFrame,
+      turnRateRadiansPerFrame: frameContext.turnRateRadiansPerFrame,
       columns: frameContext.columns,
       rows: frameContext.rows,
       obstacles: frameContext.obstacles,

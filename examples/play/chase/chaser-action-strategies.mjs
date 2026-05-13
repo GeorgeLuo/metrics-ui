@@ -4,6 +4,7 @@ import {
   CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS,
   CHASER_STRATEGY_CONSENSUS_COUPLING,
   CHASER_STRATEGY_CONSENSUS_ITERATIONS,
+  DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
 } from "./constants.mjs";
 import { runKuramotoConsensus } from "./kuramoto.mjs";
 import {
@@ -12,7 +13,54 @@ import {
   normalizeVector,
   vectorToAngle,
 } from "./math.mjs";
-import { planLocalMovementDirection } from "./movement-strategies.mjs";
+
+const DEFAULT_ACTION_PATH_HORIZON_FRAMES = 36;
+const MAX_ACTION_PATH_HORIZON_FRAMES = 120;
+
+function clampNumber(value, min, max) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, numericValue));
+}
+
+function clampUnit(value) {
+  return clampNumber(value, -1, 1);
+}
+
+function getPositiveInteger(value, fallback) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? Math.max(1, Math.floor(numericValue))
+    : fallback;
+}
+
+function normalizeActionPathHorizon(value) {
+  return Math.min(
+    MAX_ACTION_PATH_HORIZON_FRAMES,
+    getPositiveInteger(value, DEFAULT_ACTION_PATH_HORIZON_FRAMES),
+  );
+}
+
+function clonePosition(position, fallback = { x: 0, z: 0 }) {
+  const x = Number(position?.x);
+  const z = Number(position?.z);
+  return {
+    x: Number.isFinite(x) ? x : fallback.x,
+    z: Number.isFinite(z) ? z : fallback.z,
+  };
+}
+
+function cloneDirection(direction, fallback = { x: 1, z: 0 }) {
+  const x = Number(direction?.x);
+  const z = Number(direction?.z);
+  const normalized = normalizeVector(
+    Number.isFinite(x) ? x : fallback.x,
+    Number.isFinite(z) ? z : fallback.z,
+  );
+  return normalized.x === 0 && normalized.z === 0 ? { ...fallback } : normalized;
+}
 
 function getSteeringFromBearing(bearingRadians) {
   return bearingRadians > CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS
@@ -46,11 +94,194 @@ function getSearchDirection(chaserLookDirection, searchSteering) {
   );
 }
 
+function stepActionPathFrame({
+  position,
+  direction,
+  throttle,
+  steering,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
+} = {}) {
+  const currentPosition = clonePosition(position);
+  const currentDirection = cloneDirection(direction);
+  const resolvedThrottle = clampUnit(throttle);
+  const resolvedSteering = clampUnit(steering);
+  const speed = Math.max(0, Number(speedUnitsPerFrame) || 0);
+  const turnRate = Math.max(
+    0,
+    Number(turnRateRadiansPerFrame) || DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
+  );
+  const isMoving = Math.abs(resolvedThrottle) > 0.001;
+  const nextDirection = isMoving && resolvedSteering !== 0
+    ? angleToVector(
+      vectorToAngle(currentDirection)
+        + resolvedSteering * turnRate * (resolvedThrottle < 0 ? -1 : 1),
+    )
+    : currentDirection;
+  const nextPosition = {
+    x: currentPosition.x + nextDirection.x * speed * resolvedThrottle,
+    z: currentPosition.z + nextDirection.z * speed * resolvedThrottle,
+  };
+
+  return {
+    throttle: resolvedThrottle,
+    steering: resolvedSteering,
+    position: nextPosition,
+    direction: nextDirection,
+  };
+}
+
+function createActionFrame({
+  frameOffset,
+  throttle,
+  steering,
+  position,
+  direction,
+  metadata = {},
+}) {
+  const resolvedThrottle = clampUnit(throttle);
+  const resolvedSteering = clampUnit(steering);
+  return {
+    frameOffset,
+    framesAhead: frameOffset,
+    throttle: resolvedThrottle,
+    steer: resolvedSteering,
+    steering: resolvedSteering,
+    forward: resolvedThrottle > 0.001,
+    reverse: resolvedThrottle < -0.001,
+    predictedPosition: clonePosition(position),
+    predictedDirection: cloneDirection(direction),
+    ...metadata,
+  };
+}
+
+function buildFeasibleActionPath({
+  chaserPosition,
+  chaserLookDirection,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
+  horizonFrames,
+  getFrameSteering,
+  getFrameThrottle = () => 1,
+  metadata = {},
+} = {}) {
+  let position = clonePosition(chaserPosition);
+  let direction = cloneDirection(chaserLookDirection);
+  const path = [];
+  const frameCount = normalizeActionPathHorizon(horizonFrames);
+
+  for (let frameOffset = 1; frameOffset <= frameCount; frameOffset += 1) {
+    const steering = clampUnit(getFrameSteering?.({ position, direction, frameOffset }) ?? 0);
+    const throttle = clampUnit(getFrameThrottle?.({ position, direction, frameOffset }) ?? 1);
+    const nextFrame = stepActionPathFrame({
+      position,
+      direction,
+      throttle,
+      steering,
+      speedUnitsPerFrame,
+      turnRateRadiansPerFrame,
+    });
+    position = nextFrame.position;
+    direction = nextFrame.direction;
+    path.push(createActionFrame({
+      frameOffset,
+      throttle: nextFrame.throttle,
+      steering: nextFrame.steering,
+      position,
+      direction,
+      metadata,
+    }));
+  }
+
+  return path;
+}
+
+function buildActionPathToPosition({
+  chaserPosition,
+  chaserLookDirection,
+  targetPosition,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
+  horizonFrames,
+  metadata,
+} = {}) {
+  if (!targetPosition) {
+    return [];
+  }
+  return buildFeasibleActionPath({
+    chaserPosition,
+    chaserLookDirection,
+    speedUnitsPerFrame,
+    turnRateRadiansPerFrame,
+    horizonFrames,
+    metadata: {
+      ...metadata,
+      targetPosition: clonePosition(targetPosition),
+    },
+    getFrameSteering: ({ position, direction }) => {
+      const targetDirection = getDirectionToPosition(position, targetPosition);
+      return getSteeringFromBearing(getBearingToDirection(direction, targetDirection));
+    },
+  });
+}
+
+function buildActionPathToDirection({
+  chaserPosition,
+  chaserLookDirection,
+  targetDirection,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
+  horizonFrames,
+  metadata,
+} = {}) {
+  const normalizedTargetDirection = normalizeVector(targetDirection?.x ?? 0, targetDirection?.z ?? 0);
+  if (normalizedTargetDirection.x === 0 && normalizedTargetDirection.z === 0) {
+    return [];
+  }
+  return buildFeasibleActionPath({
+    chaserPosition,
+    chaserLookDirection,
+    speedUnitsPerFrame,
+    turnRateRadiansPerFrame,
+    horizonFrames,
+    metadata: {
+      ...metadata,
+      targetDirection: normalizedTargetDirection,
+    },
+    getFrameSteering: ({ direction }) =>
+      getSteeringFromBearing(getBearingToDirection(direction, normalizedTargetDirection)),
+  });
+}
+
+function buildSearchActionPath({
+  chaserPosition,
+  chaserLookDirection,
+  searchSteering,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
+  horizonFrames,
+} = {}) {
+  const steering = clampUnit(searchSteering);
+  return buildFeasibleActionPath({
+    chaserPosition,
+    chaserLookDirection,
+    speedUnitsPerFrame,
+    turnRateRadiansPerFrame,
+    horizonFrames,
+    metadata: {
+      targetDirection: getSearchDirection(chaserLookDirection, steering),
+    },
+    getFrameSteering: () => steering,
+  });
+}
+
 function createInactiveActionProposal(id, extra = {}) {
   return {
     id,
     active: false,
     confidence: 0,
+    actionPath: [],
+    firstAction: null,
     ...extra,
   };
 }
@@ -143,9 +374,11 @@ export function selectPursuitPoint({
 export function buildEvaderPredictionPursuitProposal({
   enabled,
   chaserPosition,
+  chaserLookDirection,
   snapshot,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
 } = {}) {
   if (!enabled) {
     return createInactiveActionProposal("evaderPredictionPursuit");
@@ -162,42 +395,87 @@ export function buildEvaderPredictionPursuitProposal({
     return createInactiveActionProposal("evaderPredictionPursuit", { pursuitPoint: null });
   }
 
+  const goalDirection = getDirectionToPosition(chaserPosition, pursuitPoint.position);
+  const actionPath = buildActionPathToPosition({
+    chaserPosition,
+    chaserLookDirection,
+    targetPosition: pursuitPoint.position,
+    speedUnitsPerFrame: chaserSpeedUnitsPerFrame ?? speedUnitsPerFrame,
+    turnRateRadiansPerFrame,
+    horizonFrames: pursuitPoint.sample?.framesAhead,
+    metadata: {
+      proposalId: "evaderPredictionPursuit",
+      pursuitSource: pursuitPoint.source,
+    },
+  });
+
   return {
     id: "evaderPredictionPursuit",
     active: true,
     confidence: Number(snapshot?.strategies?.evaderPrediction?.prediction?.consensus) || 1,
     pursuitPoint,
     pursuitSource: pursuitPoint.source,
-    goalDirection: getDirectionToPosition(chaserPosition, pursuitPoint.position),
+    goalDirection,
+    actionPath,
+    firstAction: actionPath[0] ?? null,
   };
 }
 
 export function buildVisibleBearingFallbackProposal({
   enabled,
+  chaserPosition,
   chaserLookDirection,
   evaderLocation,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
 } = {}) {
   if (!enabled || !evaderLocation?.visible || !chaserLookDirection) {
     return createInactiveActionProposal("lineOfSightPursuit");
   }
+
+  const goalDirection = getDirectionFromPerception(chaserLookDirection, evaderLocation);
+  const actionPath = buildActionPathToDirection({
+    chaserPosition,
+    chaserLookDirection,
+    targetDirection: goalDirection,
+    speedUnitsPerFrame,
+    turnRateRadiansPerFrame,
+    metadata: {
+      proposalId: "lineOfSightPursuit",
+      pursuitSource: "visible-bearing",
+    },
+  });
 
   return {
     id: "lineOfSightPursuit",
     active: true,
     confidence: 1,
     pursuitSource: "visible-bearing",
-    goalDirection: getDirectionFromPerception(chaserLookDirection, evaderLocation),
+    goalDirection,
+    actionPath,
+    firstAction: actionPath[0] ?? null,
   };
 }
 
 export function buildSearchProposal({
   enabled,
+  chaserPosition,
   chaserLookDirection,
   searchSteering = CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
 } = {}) {
   if (!enabled || !chaserLookDirection) {
     return createInactiveActionProposal("search");
   }
+
+  const actionPath = buildSearchActionPath({
+    chaserPosition,
+    chaserLookDirection,
+    searchSteering,
+    speedUnitsPerFrame,
+    turnRateRadiansPerFrame,
+  });
 
   return {
     id: "search",
@@ -205,13 +483,15 @@ export function buildSearchProposal({
     confidence: 1,
     pursuitSource: "search",
     goalDirection: getSearchDirection(chaserLookDirection, searchSteering),
+    actionPath,
+    firstAction: actionPath[0] ?? null,
   };
 }
 
 function createPeerConsensusSignal(proposal) {
   const direction = normalizeVector(
-    proposal?.goalDirection?.x ?? 0,
-    proposal?.goalDirection?.z ?? 0,
+    proposal?.firstAction?.predictedDirection?.x ?? proposal?.goalDirection?.x ?? 0,
+    proposal?.firstAction?.predictedDirection?.z ?? proposal?.goalDirection?.z ?? 0,
   );
   if (!proposal?.active || (direction.x === 0 && direction.z === 0)) {
     return null;
@@ -227,38 +507,134 @@ function createPeerConsensusSignal(proposal) {
 
 export function buildLocalNavigationProposal({
   enabled,
-  chaserPosition,
-  goalDirection,
-  columns,
-  rows,
-  obstacles,
+  direction,
+  actionPath = [],
   previousWallFollowSign,
 } = {}) {
-  if (!enabled) {
+  return {
+    id: "localNavigation",
+    active: Boolean(enabled),
+    disabledReason: "chaser-wall-safety-disabled",
+    movement: {
+      direction: direction ?? { x: 0, z: 0 },
+      wallPressure: null,
+      wallFollowSign: previousWallFollowSign ?? 1,
+      signals: [],
+      consensus: null,
+      actionPath,
+    },
+  };
+}
+
+function getActivePathProposals(proposals) {
+  return [
+    proposals.evaderPredictionPursuit,
+    proposals.lineOfSightPursuit,
+    proposals.search,
+  ].filter((proposal) => proposal?.active && Array.isArray(proposal.actionPath)
+    && proposal.actionPath.length > 0);
+}
+
+function getProposalFrame(proposal, index) {
+  if (!proposal?.actionPath?.length) {
+    return null;
+  }
+  return proposal.actionPath[Math.min(index, proposal.actionPath.length - 1)] ?? null;
+}
+
+function mixProposalActionAtFrame(proposals, index) {
+  const weightedFrames = proposals.flatMap((proposal) => {
+    const frame = getProposalFrame(proposal, index);
+    const confidence = Number.isFinite(proposal?.confidence)
+      ? Math.max(0, Math.min(1, proposal.confidence))
+      : 1;
+    return frame && confidence > 0
+      ? [{
+        frame,
+        proposal,
+        weight: confidence,
+      }]
+      : [];
+  });
+  const totalWeight = weightedFrames.reduce((sum, entry) => sum + entry.weight, 0);
+  if (totalWeight <= 0) {
+    return null;
+  }
+  const throttle = weightedFrames.reduce(
+    (sum, entry) => sum + (Number(entry.frame.throttle) || 0) * entry.weight,
+    0,
+  ) / totalWeight;
+  const steering = weightedFrames.reduce(
+    (sum, entry) => sum + (Number(entry.frame.steer) || 0) * entry.weight,
+    0,
+  ) / totalWeight;
+
+  return {
+    throttle: clampUnit(throttle),
+    steering: clampUnit(steering),
+    sourceProposalIds: weightedFrames.map((entry) => entry.proposal.id),
+  };
+}
+
+function buildActionPathConsensus({
+  proposals,
+  chaserPosition,
+  chaserLookDirection,
+  speedUnitsPerFrame,
+  turnRateRadiansPerFrame,
+} = {}) {
+  const activeProposals = getActivePathProposals(proposals);
+  if (activeProposals.length === 0) {
     return {
-      id: "localNavigation",
+      id: "actionPathConsensus",
       active: false,
-      movement: {
-        direction: goalDirection ?? { x: 0, z: 0 },
-        wallPressure: null,
-        wallFollowSign: previousWallFollowSign ?? 1,
-        signals: [],
-        consensus: null,
-      },
+      path: [],
+      firstAction: null,
+      sourceProposalIds: [],
     };
   }
 
+  const horizonFrames = Math.max(
+    1,
+    ...activeProposals.map((proposal) => proposal.actionPath.length),
+  );
+  let position = clonePosition(chaserPosition);
+  let direction = cloneDirection(chaserLookDirection);
+  const path = [];
+
+  for (let index = 0; index < horizonFrames; index += 1) {
+    const mixedAction = mixProposalActionAtFrame(activeProposals, index);
+    if (!mixedAction) {
+      break;
+    }
+    const nextFrame = stepActionPathFrame({
+      position,
+      direction,
+      throttle: mixedAction.throttle,
+      steering: mixedAction.steering,
+      speedUnitsPerFrame,
+      turnRateRadiansPerFrame,
+    });
+    position = nextFrame.position;
+    direction = nextFrame.direction;
+    path.push(createActionFrame({
+      frameOffset: index + 1,
+      throttle: nextFrame.throttle,
+      steering: nextFrame.steering,
+      position,
+      direction,
+      metadata: {
+        sourceProposalIds: mixedAction.sourceProposalIds,
+      },
+    }));
+  }
+
   return {
-    id: "localNavigation",
-    active: true,
-    movement: planLocalMovementDirection({
-      position: chaserPosition,
-      goalDirection,
-      columns,
-      rows,
-      obstacles,
-      previousWallFollowSign,
-    }),
+    id: "actionPathConsensus",
+    active: path.length > 0,
+    path,
+    firstAction: path[0] ?? null,
+    sourceProposalIds: activeProposals.map((proposal) => proposal.id),
   };
 }
 
@@ -281,35 +657,41 @@ export function planProgrammaticChaserAction({
   previousWallFollowSign = 1,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
-  columns,
-  rows,
-  obstacles,
+  turnRateRadiansPerFrame,
 } = {}) {
   const evaderLocation = snapshot?.memory?.directObservation?.evaderLocation ?? { visible: false };
   const motiveSignal = buildChaserMotiveSignal({ evaderLocation });
   const shouldChase = motiveSignal.id === CHASER_MOTIVE_IDS.CHASE;
   const shouldSearch = motiveSignal.id === CHASER_MOTIVE_IDS.SEARCH;
+  const actionSpeedUnitsPerFrame = chaserSpeedUnitsPerFrame ?? speedUnitsPerFrame;
 
   const proposals = {
     evaderPredictionPursuit: buildEvaderPredictionPursuitProposal({
       enabled: shouldChase && actionEngines.evaderPredictionPursuit !== false,
       chaserPosition,
+      chaserLookDirection,
       snapshot,
-      chaserSpeedUnitsPerFrame,
-      speedUnitsPerFrame,
+      chaserSpeedUnitsPerFrame: actionSpeedUnitsPerFrame,
+      turnRateRadiansPerFrame,
     }),
     lineOfSightPursuit: buildVisibleBearingFallbackProposal({
       enabled: shouldChase && actionEngines.lineOfSightPursuit !== false,
+      chaserPosition,
       chaserLookDirection,
       evaderLocation,
+      speedUnitsPerFrame: actionSpeedUnitsPerFrame,
+      turnRateRadiansPerFrame,
     }),
     search: createInactiveActionProposal("search"),
   };
 
   proposals.search = buildSearchProposal({
     enabled: shouldSearch && actionEngines.search !== false,
+    chaserPosition,
     chaserLookDirection,
     searchSteering,
+    speedUnitsPerFrame: actionSpeedUnitsPerFrame,
+    turnRateRadiansPerFrame,
   });
 
   const peerSignals = [
@@ -333,13 +715,19 @@ export function planProgrammaticChaserAction({
   const chosenPeerLabel = activePeerIds.length > 0
     ? activePeerIds.join("+")
     : "none";
-  const localNavigation = buildLocalNavigationProposal({
-    enabled: true,
+  const actionPathConsensus = buildActionPathConsensus({
+    proposals,
     chaserPosition,
-    goalDirection,
-    columns,
-    rows,
-    obstacles,
+    chaserLookDirection,
+    speedUnitsPerFrame: actionSpeedUnitsPerFrame,
+    turnRateRadiansPerFrame,
+  });
+  const firstAction = actionPathConsensus.firstAction;
+  const actionPathDirection = firstAction?.predictedDirection ?? goalDirection;
+  const localNavigation = buildLocalNavigationProposal({
+    enabled: false,
+    direction: actionPathDirection,
+    actionPath: actionPathConsensus.path,
     previousWallFollowSign,
   });
   proposals.peerConsensus = {
@@ -349,6 +737,7 @@ export function planProgrammaticChaserAction({
     consensus: peerConsensus,
     direction: goalDirection,
   };
+  proposals.actionPathConsensus = actionPathConsensus;
   proposals.motiveSignal = motiveSignal;
   proposals.localNavigation = localNavigation;
 
@@ -357,19 +746,19 @@ export function planProgrammaticChaserAction({
     ? goalDirection
     : movement.direction;
 
-  if (desiredDirection && chaserLookDirection) {
-    const bearingRadians = getBearingToDirection(chaserLookDirection, desiredDirection);
-    const steering = getSteeringFromBearing(bearingRadians);
+  if (firstAction) {
     return {
-      forward: true,
-      steering,
+      forward: firstAction.forward,
+      reverse: firstAction.reverse,
+      steering: firstAction.steer,
       pursuitPoint,
       movement,
       desiredDirection,
-      chosenStrategy: movement.wallPressure?.active
-        ? `${chosenPeerLabel}+wallSafety`
-        : chosenPeerLabel,
-      searchSteeringHint: proposals.search.active && steering !== 0 ? steering : null,
+      actionPath: actionPathConsensus.path,
+      chosenStrategy: chosenPeerLabel,
+      searchSteeringHint: proposals.search.active && firstAction.steer !== 0
+        ? firstAction.steer
+        : null,
       wallFollowSign: movement.wallFollowSign,
       proposals,
     };

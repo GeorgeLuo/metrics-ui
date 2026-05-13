@@ -319,7 +319,7 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
       sampleSpacingFrames: normalizeProjectionSpacingFrames(projectionSettings),
     },
     runtime: {
-      programmaticChaserEnabled: normalizeBoolean(runtime.programmaticChaserEnabled, false),
+      programmaticChaserEnabled: normalizeBoolean(runtime.programmaticChaserEnabled, true),
     },
     simulation: {
       framesPerSecond: Math.round(clampNumber(
@@ -327,6 +327,7 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
         MIN_SIMULATION_FRAMES_PER_SECOND,
         MAX_SIMULATION_FRAMES_PER_SECOND,
       )),
+      greentextDebugVisible: normalizeBoolean(simulation.greentextDebugVisible, true),
     },
     trace: normalizeTraceConfig(root.trace),
     policies: {
