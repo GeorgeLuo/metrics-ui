@@ -1,5 +1,9 @@
 export type PlaySidebarSectionRow =
   | {
+      kind: "header";
+      label: string;
+    }
+  | {
       kind: "text";
       text: string;
     }
@@ -53,6 +57,7 @@ export type PlaySidebarSection = {
   id: string;
   title: string;
   hint?: string;
+  defaultOpen?: boolean;
   rows: PlaySidebarSectionRow[];
 };
 
@@ -112,6 +117,11 @@ function normalizeRow(value: unknown): PlaySidebarSectionRow | null {
   }
 
   const label = normalizeText(record.label, 80);
+  if (record.kind === "header" || record.kind === "sectionHeader") {
+    const headerLabel = label ?? normalizeText(record.title, 80);
+    return headerLabel ? { kind: "header", label: headerLabel } : null;
+  }
+
   if (record.kind === "action" || record.kind === "button") {
     const id = normalizeId(record.id ?? record.actionId);
     if (id && label) {
@@ -232,10 +242,12 @@ function normalizeSection(value: unknown): PlaySidebarSection | null {
   }
 
   const hint = normalizeText(record.hint);
+  const defaultOpen = typeof record.defaultOpen === "boolean" ? record.defaultOpen : null;
   return {
     id,
     title,
     ...(hint ? { hint } : {}),
+    ...(defaultOpen !== null ? { defaultOpen } : {}),
     rows,
   };
 }

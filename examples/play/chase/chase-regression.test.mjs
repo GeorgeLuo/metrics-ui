@@ -5,6 +5,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import {
   CAR_BOUND_RADIUS,
+  CHASER_AUTOPILOT_ACTION_ID,
   SCENARIO_SELECT_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
@@ -429,7 +430,7 @@ test("scenario config can omit the evader without debug hardcoding", () => {
   assert.equal(state.lastStep.chaserAction?.forward, true);
 });
 
-test("chase sidebar exposes scenario selector from the scenario catalog", () => {
+test("chase sidebar exposes scenario selector from settings", () => {
   const state = createChaseSimulationState({
     scenario: cloneScenario(),
     columns: GRID.columns,
@@ -458,8 +459,23 @@ test("chase sidebar exposes scenario selector from the scenario catalog", () => 
     },
   );
 
-  const scenarioRows = sections.find((section) => section.id === "scenario")?.rows ?? [];
-  const scenarioSelect = scenarioRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
+  const settingsSection = sections.find((section) => section.id === "settings");
+  const settingsRows = settingsSection?.rows ?? [];
+  const scenarioSelect = settingsRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
+  const scenarioHeaderIndex = settingsRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Scenario",
+  );
+  const simulationHeaderIndex = settingsRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Simulation",
+  );
+  const controlsHeaderIndex = settingsRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Controls",
+  );
+  assert.equal(scenarioHeaderIndex, 0);
+  assert.equal(simulationHeaderIndex > scenarioHeaderIndex, true);
+  assert.equal(controlsHeaderIndex > simulationHeaderIndex, true);
+  assert.equal(settingsSection?.defaultOpen, false);
+  assert.equal(sections[sections.length - 1]?.id, "settings");
   assert.equal(scenarioSelect?.kind, "select");
   assert.equal(scenarioSelect?.value, DEFAULT_CHASE_SCENARIO_ID);
   assert.ok(
@@ -521,22 +537,33 @@ test("chase sidebar exposes reset directly below playback", () => {
     state.runMetrics,
   );
 
-  const simulationRows = sections.find((section) => section.id === "simulation")?.rows ?? [];
-  const playbackIndex = simulationRows.findIndex(
+  const settingsRows = sections.find((section) => section.id === "settings")?.rows ?? [];
+  const playbackIndex = settingsRows.findIndex(
     (row) => row.id === SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   );
-  const resetIndex = simulationRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
-  const greentextIndex = simulationRows.findIndex(
+  const resetIndex = settingsRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
+  const greentextIndex = settingsRows.findIndex(
     (row) => row.id === SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   );
+  const controlsHeaderIndex = settingsRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Controls",
+  );
+  const chaserAutopilotIndex = settingsRows.findIndex(
+    (row) => row.id === CHASER_AUTOPILOT_ACTION_ID,
+  );
 
+  assert.equal(sections.some((section) => section.id === "scenario"), false);
+  assert.equal(sections.some((section) => section.id === "simulation"), false);
+  assert.equal(sections.some((section) => section.id === "controls"), false);
   assert.notEqual(playbackIndex, -1);
   assert.equal(resetIndex, playbackIndex + 1);
   assert.equal(greentextIndex, resetIndex + 1);
+  assert.equal(controlsHeaderIndex, greentextIndex + 1);
+  assert.equal(chaserAutopilotIndex, controlsHeaderIndex + 1);
   assert.deepEqual(
     {
-      kind: simulationRows[resetIndex]?.kind,
-      label: simulationRows[resetIndex]?.label,
+      kind: settingsRows[resetIndex]?.kind,
+      label: settingsRows[resetIndex]?.label,
     },
     {
       kind: "action",
@@ -545,9 +572,9 @@ test("chase sidebar exposes reset directly below playback", () => {
   );
   assert.deepEqual(
     {
-      kind: simulationRows[greentextIndex]?.kind,
-      label: simulationRows[greentextIndex]?.label,
-      enabled: simulationRows[greentextIndex]?.enabled,
+      kind: settingsRows[greentextIndex]?.kind,
+      label: settingsRows[greentextIndex]?.label,
+      enabled: settingsRows[greentextIndex]?.enabled,
     },
     {
       kind: "toggle",

@@ -62,7 +62,7 @@ function buildActorStrategyRows(actorStrategyCollections = {}) {
     })));
 }
 
-function buildScenarioSection(scenarioControls = {}) {
+function buildScenarioRows(scenarioControls = {}) {
   const options = Array.isArray(scenarioControls.options)
     ? scenarioControls.options
       .filter((option) => option?.value && option?.label)
@@ -74,29 +74,25 @@ function buildScenarioSection(scenarioControls = {}) {
   const activeScenarioId = String(scenarioControls.activeScenarioId ?? "");
 
   if (options.length === 0 || !activeScenarioId) {
-    return null;
+    return [];
   }
 
-  return {
-    id: "scenario",
-    title: "Scenario",
-    hint: "Load a chase scenario config and reset the simulation to that setup.",
-    rows: [
-      {
-        kind: "select",
-        id: SCENARIO_SELECT_ACTION_ID,
-        label: "Loaded",
-        value: activeScenarioId,
-        options,
-        hint: "Switch the scenario config used by the Chase simulation.",
-      },
-      {
-        kind: "value",
-        label: "Evader",
-        value: scenarioControls.evaderExists === false ? "absent" : "present",
-      },
-    ],
-  };
+  return [
+    { kind: "header", label: "Scenario" },
+    {
+      kind: "select",
+      id: SCENARIO_SELECT_ACTION_ID,
+      label: "Loaded",
+      value: activeScenarioId,
+      options,
+      hint: "Switch the scenario config used by the Chase simulation.",
+    },
+    {
+      kind: "value",
+      label: "Evader",
+      value: scenarioControls.evaderExists === false ? "absent" : "present",
+    },
+  ];
 }
 
 export function publishSidebarSections(
@@ -115,6 +111,63 @@ export function publishSidebarSections(
   }
 
   const evaderExists = scenarioControls.evaderExists !== false;
+  const settingsRows = [
+    ...buildScenarioRows(scenarioControls),
+    { kind: "header", label: "Simulation" },
+    {
+      kind: "editableValue",
+      id: SIMULATION_FPS_ACTION_ID,
+      label: "FPS",
+      value: formatEditableNumber(simulationSettings.framesPerSecond, 0),
+      suffix: "frames/s",
+      hint: "How many simulation frames to advance per real-time second while watching the run.",
+    },
+    {
+      kind: "toggle",
+      id: SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
+      label: "Playback",
+      enabled: !Boolean(simulationSettings.pauseBeforeActions),
+      enabledLabel: "playing",
+      disabledLabel: "paused",
+      tone: "playback",
+      hint: "Freeze after all actor reasoning has run for the current frame, before actions update the world.",
+    },
+    {
+      kind: "action",
+      id: SIMULATION_RESET_ACTION_ID,
+      label: "Reset",
+      hint: "Reset the Chase run to a fresh initial state.",
+    },
+    {
+      kind: "toggle",
+      id: SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
+      label: "Debug overlay",
+      enabled: Boolean(simulationSettings.greentextDebugVisible),
+      enabledLabel: "shown",
+      disabledLabel: "hidden",
+      hint: "Show or hide a green text debug overlay in the bottom-right of the Chase view.",
+    },
+    { kind: "header", label: "Controls" },
+    {
+      kind: "toggle",
+      id: CHASER_AUTOPILOT_ACTION_ID,
+      label: "Programmatic chaser",
+      enabled: programmaticChaserEnabled,
+      enabledLabel: "on",
+      disabledLabel: "off",
+      hint: "Let the game algorithm press the same forward, reverse, and steering inputs available to a human player.",
+    },
+    { kind: "value", label: "Forward", value: "I" },
+    { kind: "value", label: "Reverse", value: "K" },
+    { kind: "value", label: "Steer", value: "A / D" },
+  ];
+  const settingsSection = {
+    id: "settings",
+    title: "Settings",
+    hint: "Scenario, playback, and control settings for the active Chase run.",
+    defaultOpen: false,
+    rows: settingsRows,
+  };
   const sections = [
     {
       id: "score",
@@ -136,65 +189,6 @@ export function publishSidebarSections(
           label: "Touches / 1k frames",
           value: formatRunMetric(runMetrics.touchRatePerThousandFrames, 2),
         },
-      ],
-    },
-    {
-      id: "simulation",
-      title: "Simulation",
-      hint: "Playback pacing for the discrete frame simulation.",
-      rows: [
-        {
-          kind: "editableValue",
-          id: SIMULATION_FPS_ACTION_ID,
-          label: "FPS",
-          value: formatEditableNumber(simulationSettings.framesPerSecond, 0),
-          suffix: "frames/s",
-          hint: "How many simulation frames to advance per real-time second while watching the run.",
-        },
-        {
-          kind: "toggle",
-          id: SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
-          label: "Playback",
-          enabled: !Boolean(simulationSettings.pauseBeforeActions),
-          enabledLabel: "playing",
-          disabledLabel: "paused",
-          tone: "playback",
-          hint: "Freeze after all actor reasoning has run for the current frame, before actions update the world.",
-        },
-        {
-          kind: "action",
-          id: SIMULATION_RESET_ACTION_ID,
-          label: "Reset",
-          hint: "Reset the Chase run to a fresh initial state.",
-        },
-        {
-          kind: "toggle",
-          id: SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
-          label: "Debug overlay",
-          enabled: Boolean(simulationSettings.greentextDebugVisible),
-          enabledLabel: "shown",
-          disabledLabel: "hidden",
-          hint: "Show or hide a green text debug overlay in the bottom-right of the Chase view.",
-        },
-      ],
-    },
-    {
-      id: "controls",
-      title: "Controls",
-      hint: "Game-provided controls for the active Play example.",
-      rows: [
-        {
-          kind: "toggle",
-          id: CHASER_AUTOPILOT_ACTION_ID,
-          label: "Programmatic chaser",
-          enabled: programmaticChaserEnabled,
-          enabledLabel: "on",
-          disabledLabel: "off",
-          hint: "Let the game algorithm press the same forward, reverse, and steering inputs available to a human player.",
-        },
-        { kind: "value", label: "Forward", value: "I" },
-        { kind: "value", label: "Reverse", value: "K" },
-        { kind: "value", label: "Steer", value: "A / D" },
       ],
     },
     {
@@ -311,11 +305,6 @@ export function publishSidebarSections(
     }
   }
 
-  const scenarioSection = buildScenarioSection(scenarioControls);
-  if (scenarioSection) {
-    sections.unshift(scenarioSection);
-  }
-
   const actorStrategyRows = buildActorStrategyRows(actorStrategyCollections);
   if (actorStrategyRows.length > 0) {
     const vehicleSectionIndex = sections.findIndex((section) => section.id === "vehicle");
@@ -326,6 +315,8 @@ export function publishSidebarSections(
       rows: actorStrategyRows,
     });
   }
+
+  sections.push(settingsSection);
 
   setSidebarSections(sections);
 }
