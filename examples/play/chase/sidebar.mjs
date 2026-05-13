@@ -12,6 +12,7 @@ import {
   EVADER_SPEED_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
   VEHICLE_TURN_RATE_ACTION_ID,
+  SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
 } from "./constants.mjs";
@@ -165,6 +166,15 @@ export function publishSidebarSections(
           id: SIMULATION_RESET_ACTION_ID,
           label: "Reset",
           hint: "Reset the Chase run to a fresh initial state.",
+        },
+        {
+          kind: "toggle",
+          id: SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
+          label: "Debug overlay",
+          enabled: Boolean(simulationSettings.greentextDebugVisible),
+          enabledLabel: "shown",
+          disabledLabel: "hidden",
+          hint: "Show or hide a green text debug overlay in the bottom-right of the Chase view.",
         },
       ],
     },

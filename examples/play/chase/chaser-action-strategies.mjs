@@ -55,6 +55,24 @@ function createInactiveActionProposal(id, extra = {}) {
   };
 }
 
+export const CHASER_MOTIVE_IDS = Object.freeze({
+  CHASE: "chase",
+  SEARCH: "search",
+});
+
+export function buildChaserMotiveSignal({
+  evaderLocation,
+} = {}) {
+  const evaderInLineOfSight = Boolean(evaderLocation?.visible);
+  return {
+    id: evaderInLineOfSight ? CHASER_MOTIVE_IDS.CHASE : CHASER_MOTIVE_IDS.SEARCH,
+    source: "line-of-sight-rule",
+    reason: evaderInLineOfSight ? "evader-visible" : "evader-not-visible",
+    confidence: 1,
+    evaderInLineOfSight,
+  };
+}
+
 export function selectPursuitPoint({
   chaserPosition,
   snapshot,
@@ -268,27 +286,28 @@ export function planProgrammaticChaserAction({
   obstacles,
 } = {}) {
   const evaderLocation = snapshot?.memory?.directObservation?.evaderLocation ?? { visible: false };
+  const motiveSignal = buildChaserMotiveSignal({ evaderLocation });
+  const shouldChase = motiveSignal.id === CHASER_MOTIVE_IDS.CHASE;
+  const shouldSearch = motiveSignal.id === CHASER_MOTIVE_IDS.SEARCH;
 
   const proposals = {
     evaderPredictionPursuit: buildEvaderPredictionPursuitProposal({
-      enabled: actionEngines.evaderPredictionPursuit !== false,
+      enabled: shouldChase && actionEngines.evaderPredictionPursuit !== false,
       chaserPosition,
       snapshot,
       chaserSpeedUnitsPerFrame,
       speedUnitsPerFrame,
     }),
     lineOfSightPursuit: buildVisibleBearingFallbackProposal({
-      enabled: actionEngines.lineOfSightPursuit !== false,
+      enabled: shouldChase && actionEngines.lineOfSightPursuit !== false,
       chaserLookDirection,
       evaderLocation,
     }),
     search: createInactiveActionProposal("search"),
   };
 
-  const hasInformedProposal = proposals.evaderPredictionPursuit.active
-    || proposals.lineOfSightPursuit.active;
   proposals.search = buildSearchProposal({
-    enabled: actionEngines.search !== false && !hasInformedProposal,
+    enabled: shouldSearch && actionEngines.search !== false,
     chaserLookDirection,
     searchSteering,
   });
@@ -330,6 +349,7 @@ export function planProgrammaticChaserAction({
     consensus: peerConsensus,
     direction: goalDirection,
   };
+  proposals.motiveSignal = motiveSignal;
   proposals.localNavigation = localNavigation;
 
   const movement = localNavigation.movement;

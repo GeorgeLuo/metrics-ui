@@ -249,7 +249,7 @@ export function SidebarPlayPane({
   gameSections,
   onGameAction,
 }: SidebarPlayPaneProps) {
-  const [isDebugOpen, setIsDebugOpen] = useState(true);
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
   const spec = frameGridDebugSnapshot?.spec;
   const layout = frameGridDebugSnapshot?.layout;
 
