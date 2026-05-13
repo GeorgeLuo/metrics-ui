@@ -176,6 +176,17 @@ function renderGameSectionRow(
     );
   }
 
+  if (row.kind === "header") {
+    return (
+      <div
+        key={`${row.label}:${index}`}
+        className={`${SIDEBAR_SECTION_KICKER_CLASS} pt-2 first:pt-0`}
+      >
+        {row.label}
+      </div>
+    );
+  }
+
   if (row.kind === "value") {
     return (
       <div key={`${row.label}:${index}`} className="flex items-baseline justify-between gap-2 text-[11px] leading-relaxed">
@@ -214,7 +225,7 @@ function PlayGameSidebarSection({
   section: PlaySidebarSection;
   onGameAction: (actionId: string, value?: unknown) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(section.defaultOpen ?? true);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -249,7 +260,7 @@ export function SidebarPlayPane({
   gameSections,
   onGameAction,
 }: SidebarPlayPaneProps) {
-  const [isDebugOpen, setIsDebugOpen] = useState(true);
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
   const spec = frameGridDebugSnapshot?.spec;
   const layout = frameGridDebugSnapshot?.layout;
 

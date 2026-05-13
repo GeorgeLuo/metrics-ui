@@ -5,7 +5,9 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import {
   CAR_BOUND_RADIUS,
+  CHASER_AUTOPILOT_ACTION_ID,
   SCENARIO_SELECT_ACTION_ID,
+  SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
 } from "./constants.mjs";
@@ -131,7 +133,7 @@ const REGRESSION_CASES = [
     },
   },
   {
-    name: "rectified_projection_158",
+    name: "search_motive_after_lost_sight_158",
     frameCount: 158,
     buildScenario: () => buildScenario((scenario) => {
       scenario.actors.chaser.position = { x: -3.7, z: -1.6 };
@@ -143,17 +145,17 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 158,
-      chaser: { x: 1.6432, z: -0.9208, dx: 0.2436, dz: 0.9699 },
+      chaser: { x: 0.4004, z: -2.7406, dx: -0.9686, dz: -0.2487 },
       evader: { x: 3.5442, z: 1.5626, dx: -0.6742, dz: 0.7385 },
       touches: 0,
-      visible: true,
+      visible: false,
       prediction: {
         actionable: true,
         invalidReason: null,
-        strategy: "rectified-evader-projection",
+        strategy: "continuance-default",
         pathLen: 6,
         firstAhead: 20,
-        sourcePatternIds: ["continuance", "wallAvoidance"],
+        sourcePatternIds: ["continuance"],
       },
       inference: { speed: 0.0467, wallScore: 1 },
     },
@@ -284,8 +286,10 @@ for (const regressionCase of REGRESSION_CASES) {
 }
 
 test("chase regression is deterministic across repeated runs", () => {
-  const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "rectified_projection_158");
-  assert.ok(regressionCase, "rectified_projection_158 regression case is missing");
+  const regressionCase = REGRESSION_CASES.find(
+    (entry) => entry.name === "search_motive_after_lost_sight_158",
+  );
+  assert.ok(regressionCase, "search_motive_after_lost_sight_158 regression case is missing");
   const first = runRegressionCase(regressionCase);
   const second = runRegressionCase(regressionCase);
   assert.deepEqual(first.summary, second.summary);
@@ -426,7 +430,7 @@ test("scenario config can omit the evader without debug hardcoding", () => {
   assert.equal(state.lastStep.chaserAction?.forward, true);
 });
 
-test("chase sidebar exposes scenario selector from the scenario catalog", () => {
+test("chase sidebar exposes scenario selector from settings", () => {
   const state = createChaseSimulationState({
     scenario: cloneScenario(),
     columns: GRID.columns,
@@ -455,8 +459,23 @@ test("chase sidebar exposes scenario selector from the scenario catalog", () => 
     },
   );
 
-  const scenarioRows = sections.find((section) => section.id === "scenario")?.rows ?? [];
-  const scenarioSelect = scenarioRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
+  const settingsSection = sections.find((section) => section.id === "settings");
+  const settingsRows = settingsSection?.rows ?? [];
+  const scenarioSelect = settingsRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
+  const scenarioHeaderIndex = settingsRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Scenario",
+  );
+  const simulationHeaderIndex = settingsRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Simulation",
+  );
+  const controlsHeaderIndex = settingsRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Controls",
+  );
+  assert.equal(scenarioHeaderIndex, 0);
+  assert.equal(simulationHeaderIndex > scenarioHeaderIndex, true);
+  assert.equal(controlsHeaderIndex > simulationHeaderIndex, true);
+  assert.equal(settingsSection?.defaultOpen, false);
+  assert.equal(sections[sections.length - 1]?.id, "settings");
   assert.equal(scenarioSelect?.kind, "select");
   assert.equal(scenarioSelect?.value, DEFAULT_CHASE_SCENARIO_ID);
   assert.ok(
@@ -518,29 +537,56 @@ test("chase sidebar exposes reset directly below playback", () => {
     state.runMetrics,
   );
 
-  const simulationRows = sections.find((section) => section.id === "simulation")?.rows ?? [];
-  const playbackIndex = simulationRows.findIndex(
+  const settingsRows = sections.find((section) => section.id === "settings")?.rows ?? [];
+  const playbackIndex = settingsRows.findIndex(
     (row) => row.id === SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   );
-  const resetIndex = simulationRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
+  const resetIndex = settingsRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
+  const greentextIndex = settingsRows.findIndex(
+    (row) => row.id === SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
+  );
+  const controlsHeaderIndex = settingsRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Controls",
+  );
+  const chaserAutopilotIndex = settingsRows.findIndex(
+    (row) => row.id === CHASER_AUTOPILOT_ACTION_ID,
+  );
 
+  assert.equal(sections.some((section) => section.id === "scenario"), false);
+  assert.equal(sections.some((section) => section.id === "simulation"), false);
+  assert.equal(sections.some((section) => section.id === "controls"), false);
   assert.notEqual(playbackIndex, -1);
   assert.equal(resetIndex, playbackIndex + 1);
+  assert.equal(greentextIndex, resetIndex + 1);
+  assert.equal(controlsHeaderIndex, greentextIndex + 1);
+  assert.equal(chaserAutopilotIndex, controlsHeaderIndex + 1);
   assert.deepEqual(
     {
-      kind: simulationRows[resetIndex]?.kind,
-      label: simulationRows[resetIndex]?.label,
+      kind: settingsRows[resetIndex]?.kind,
+      label: settingsRows[resetIndex]?.label,
     },
     {
       kind: "action",
       label: "Reset",
     },
   );
+  assert.deepEqual(
+    {
+      kind: settingsRows[greentextIndex]?.kind,
+      label: settingsRows[greentextIndex]?.label,
+      enabled: settingsRows[greentextIndex]?.enabled,
+    },
+    {
+      kind: "toggle",
+      label: "Debug overlay",
+      enabled: false,
+    },
+  );
 });
 
 test("chase regression predictions stay frame-indexed and ordered", () => {
-  const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "rectified_projection_158");
-  assert.ok(regressionCase, "rectified_projection_158 regression case is missing");
+  const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "search_motive_after_lost_sight_158");
+  assert.ok(regressionCase, "search_motive_after_lost_sight_158 regression case is missing");
   const { state } = runRegressionCase(regressionCase);
   const path = state.lastStep.chaserReasoning?.snapshot?.strategies?.evaderPrediction?.path ?? [];
   assert.ok(path.length > 0, "expected a non-empty prediction path");
@@ -553,13 +599,34 @@ test("chase regression predictions stay frame-indexed and ordered", () => {
 });
 
 test("wall-avoidance pattern predictions expose the pattern strategy name", () => {
-  const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "rectified_projection_158");
-  assert.ok(regressionCase, "rectified_projection_158 regression case is missing");
-  const { state } = runRegressionCase(regressionCase);
-  const predictions = state.lastStep.chaserReasoning?.snapshot
-    ?.patternUnits
-    ?.wallAvoidance
-    ?.predictions ?? [];
+  const regressionCase = REGRESSION_CASES.find(
+    (entry) => entry.name === "search_motive_after_lost_sight_158",
+  );
+  assert.ok(regressionCase, "search_motive_after_lost_sight_158 regression case is missing");
+  const scenario = regressionCase.buildScenario();
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  state.projectionSettings.visible = true;
+  let predictions = [];
+
+  for (let frame = 0; frame < 800; frame += 1) {
+    stepChaseSimulation(state, {
+      humanInput: regressionCase.inputProvider({
+        frameIndex: state.frameIndex,
+        state,
+      }),
+    });
+    predictions = state.lastStep.chaserReasoning?.snapshot
+      ?.patternUnits
+      ?.wallAvoidance
+      ?.predictions ?? [];
+    if (predictions.length > 0) {
+      break;
+    }
+  }
 
   assert.ok(predictions.length > 0, "expected wall-avoidance predictions");
   for (const prediction of predictions) {
@@ -611,8 +678,10 @@ test("chaser pattern config filters prediction sources without disabling support
 });
 
 test("global prediction performance validates source-agnostic predictions", () => {
-  const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "rectified_projection_158");
-  assert.ok(regressionCase, "rectified_projection_158 regression case is missing");
+  const regressionCase = REGRESSION_CASES.find(
+    (entry) => entry.name === "search_motive_after_lost_sight_158",
+  );
+  assert.ok(regressionCase, "search_motive_after_lost_sight_158 regression case is missing");
   const { state } = runRegressionCase(regressionCase);
   const snapshot = getPredictionPerformanceSnapshot(state.predictionPerformance);
   const sourceRows = snapshot?.bySourceHorizon ?? [];
@@ -676,7 +745,7 @@ test("continuance is a structured default velocity prediction unit", () => {
   assert.equal(firstPrediction?.confidenceParts?.opportunityCount, 0);
 });
 
-test("chaser can keep pursuing a continuance prediction after losing sight", () => {
+test("chaser search motive supersedes continuance prediction after losing sight", () => {
   const scenario = buildScenario((draft) => {
     draft.runtime.programmaticChaserEnabled = true;
     draft.actors.chaser.position = { x: -3.7, z: -1.6 };
@@ -706,6 +775,11 @@ test("chaser can keep pursuing a continuance prediction after losing sight", () 
         pathLen: plan.path?.length ?? 0,
         firstAhead: plan.path?.[0]?.framesAhead ?? null,
         chosenStrategy: state.lastStep.chaserAction?.chosenStrategy ?? null,
+        motiveId: state.lastStep.chaserAction?.actionStrategies?.motiveSignal?.id ?? null,
+        predictionPursuitActive: Boolean(
+          state.lastStep.chaserAction?.actionStrategies?.evaderPredictionPursuit?.active,
+        ),
+        searchActive: Boolean(state.lastStep.chaserAction?.actionStrategies?.search?.active),
         wallProbability: roundNumber(wallPrediction?.confidenceParts?.probability ?? 0, 4),
         wallCredibleLowerBound: roundNumber(
           wallPrediction?.confidenceParts?.credibleLowerBound ?? 0,
@@ -722,7 +796,10 @@ test("chaser can keep pursuing a continuance prediction after losing sight", () 
     persisted: false,
     pathLen: 6,
     firstAhead: 20,
-    chosenStrategy: "evaderPredictionPursuit",
+    chosenStrategy: "search",
+    motiveId: "search",
+    predictionPursuitActive: false,
+    searchActive: true,
     wallProbability: 0,
     wallCredibleLowerBound: 0,
   });

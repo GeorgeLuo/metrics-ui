@@ -14,6 +14,7 @@ import {
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
   MIN_SIMULATION_FRAMES_PER_SECOND,
   SIMULATION_FPS_ACTION_ID,
+  SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
   EVADER_PROJECTION_DEBUG_ACTION_ID,
@@ -240,6 +241,50 @@ function createActorViewController({
   };
 }
 
+function createGreentextDebugOverlay(container) {
+  const element = document.createElement("pre");
+  Object.assign(element.style, {
+    position: "absolute",
+    right: "12px",
+    bottom: "12px",
+    zIndex: "30",
+    display: "none",
+    margin: "0",
+    padding: "0",
+    maxWidth: "min(360px, calc(100% - 24px))",
+    color: "rgb(34, 197, 94)",
+    background: "transparent",
+    border: "0",
+    borderRadius: "0",
+    font: "600 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    letterSpacing: "0.02em",
+    pointerEvents: "none",
+    whiteSpace: "pre-wrap",
+  });
+  container.appendChild(element);
+
+  return {
+    update({ visible, text } = {}) {
+      element.style.display = visible ? "block" : "none";
+      element.textContent = text ?? "";
+    },
+    dispose() {
+      element.remove();
+    },
+  };
+}
+
+function buildGreentextDebugText(simulationState) {
+  const motiveId = simulationState?.lastStep?.chaserAction
+    ?.actionStrategies
+    ?.motiveSignal
+    ?.id ?? "none";
+  return [
+    `frame: ${Number(simulationState?.frameIndex) || 0}`,
+    `chaser motive: ${motiveId}`,
+  ].join("\n");
+}
+
 function createChaserViewController({ createFloatingFrame, vehicleSettings, onVisibilityChange }) {
   return createActorViewController({
     createFloatingFrame,
@@ -338,6 +383,7 @@ function registerSidebarActions({
   openIdaeDebug,
   closeIdaeDebug,
   updateFieldOfView,
+  updateGreentextDebugOverlay,
   simulationSettings,
   vehicleSettings,
   projectionSettings,
@@ -395,6 +441,13 @@ function registerSidebarActions({
     simulationSettings.pauseBeforeActions = typeof value === "boolean"
       ? !value
       : !simulationSettings.pauseBeforeActions;
+    refreshSidebarSections();
+  });
+  setSidebarActionHandler(SIMULATION_GREENTEXT_DEBUG_ACTION_ID, (value) => {
+    simulationSettings.greentextDebugVisible = typeof value === "boolean"
+      ? value
+      : !simulationSettings.greentextDebugVisible;
+    updateGreentextDebugOverlay?.();
     refreshSidebarSections();
   });
   setSidebarActionHandler(SIMULATION_RESET_ACTION_ID, () => {
@@ -493,6 +546,7 @@ function clearSidebarActions(setSidebarActionHandler, actorStrategyCollections =
   setSidebarActionHandler?.(EVADER_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(IDAE_DEBUG_ACTION_ID, null);
   setSidebarActionHandler?.(SIMULATION_FPS_ACTION_ID, null);
+  setSidebarActionHandler?.(SIMULATION_GREENTEXT_DEBUG_ACTION_ID, null);
   setSidebarActionHandler?.(SIMULATION_PAUSE_BEFORE_ACTIONS_ID, null);
   setSidebarActionHandler?.(SIMULATION_RESET_ACTION_ID, null);
   setSidebarActionHandler?.(CHASER_SPEED_ACTION_ID, null);
@@ -542,6 +596,7 @@ export function createPlayGame({
   };
   const simulationSettings = simulationState.simulationSettings;
   simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
+  simulationSettings.greentextDebugVisible = Boolean(simulationSettings.greentextDebugVisible);
   const vehicleSettings = simulationState.vehicleSettings;
   const projectionSettings = {
     ...simulationState.projectionSettings,
@@ -550,9 +605,16 @@ export function createPlayGame({
   simulationState.projectionSettings = projectionSettings;
   let chaserFieldOfView = null;
   let evaderFieldOfView = null;
+  let greentextDebugOverlay = null;
   let animationFrame = 0;
   let previousTimestamp = null;
   let accumulatedMs = 0;
+  const updateGreentextDebugOverlay = () => {
+    greentextDebugOverlay?.update({
+      visible: Boolean(simulationSettings.greentextDebugVisible),
+      text: buildGreentextDebugText(simulationState),
+    });
+  };
 
   const refreshSidebarSections = () => {
     publishSidebarSections(
@@ -620,6 +682,7 @@ export function createPlayGame({
     evaderView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
   };
   const replaceSimulationState = (nextScenario) => {
+    const greentextDebugVisible = Boolean(simulationSettings.greentextDebugVisible);
     const freshState = createChaseSimulationState({ scenario: nextScenario, columns, rows });
     const nextSimulationSettings = { ...freshState.simulationSettings };
     const nextVehicleSettings = { ...freshState.vehicleSettings };
@@ -638,6 +701,7 @@ export function createPlayGame({
     });
     Object.assign(simulationSettings, nextSimulationSettings);
     simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
+    simulationSettings.greentextDebugVisible = greentextDebugVisible;
 
     Object.keys(vehicleSettings).forEach((key) => {
       delete vehicleSettings[key];
@@ -658,6 +722,7 @@ export function createPlayGame({
     accumulatedMs = 0;
     performanceTracker.reset();
     updateFieldOfView();
+    updateGreentextDebugOverlay();
     refreshSidebarSections();
     publishDebugSnapshot();
   };
@@ -692,6 +757,7 @@ export function createPlayGame({
     openIdaeDebug: () => idaeDebugFrame.open(),
     closeIdaeDebug: () => idaeDebugFrame.close(),
     updateFieldOfView,
+    updateGreentextDebugOverlay,
     simulationSettings,
     vehicleSettings,
     projectionSettings,
@@ -723,6 +789,8 @@ export function createPlayGame({
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.domElement.className = "block h-full w-full";
   container.appendChild(renderer.domElement);
+  greentextDebugOverlay = createGreentextDebugOverlay(container);
+  updateGreentextDebugOverlay();
 
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-columns / 2, columns / 2, rows / 2, -rows / 2, 0.1, 100);
@@ -877,6 +945,7 @@ export function createPlayGame({
     const sidebarStartMs = performance.now();
     refreshSidebarSections();
     const sidebarMs = performance.now() - sidebarStartMs;
+    updateGreentextDebugOverlay();
 
     const sceneSyncStartMs = performance.now();
     chaser.position.set(chaserPosition.x, CAR_HEIGHT / 2, chaserPosition.z);
@@ -971,6 +1040,7 @@ export function createPlayGame({
       chaserFieldOfView.material.dispose();
       evaderFieldOfView.geometry.dispose();
       evaderFieldOfView.material.dispose();
+      greentextDebugOverlay?.dispose();
       evader.geometry.dispose();
       evader.material.dispose();
       syncProjectionFrames(evaderProjectionGroup, evaderProjectionFrames, 0);
