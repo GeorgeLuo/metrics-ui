@@ -42,6 +42,11 @@ export const EVADER_PROJECTION_DEBUG_ACTION_ID = "evader-projection-debug";
 export const EVADER_PROJECTION_HORIZON_ACTION_ID = "evader-projection-horizon";
 export const EVADER_PROJECTION_RATE_ACTION_ID = "evader-projection-rate";
 export const EVADER_PROJECTION_SPACING_ACTION_ID = EVADER_PROJECTION_RATE_ACTION_ID;
+export const CHASER_ACTION_PATH_VIEW_ACTION_ID = "chaser-action-path-view";
+export const CHASER_ACTION_PATH_HORIZON_ACTION_ID = "chaser-action-path-horizon";
+export const CHASER_ACTION_PATH_RATE_ACTION_ID = "chaser-action-path-rate";
+export const CHASER_ACTION_PATH_SPACING_ACTION_ID = CHASER_ACTION_PATH_RATE_ACTION_ID;
+export const CHASER_MAP_OVERLAY_ACTION_ID = "chaser-map-overlay";
 export const SIMULATION_FPS_ACTION_ID = "simulation-fps";
 export const SIMULATION_GREENTEXT_DEBUG_ACTION_ID = "simulation-greentext-debug";
 export const SIMULATION_PAUSE_BEFORE_ACTIONS_ID = "simulation-pause-before-actions";
@@ -50,6 +55,20 @@ export const EVADER_PROJECTION_VIEW_MODES = Object.freeze({
   HIDDEN: "hidden",
   ESTIMATE: "estimate",
   PREDICTION_PATHS: "prediction-paths",
+});
+export const CHASER_ACTION_PATH_VIEW_MODES = Object.freeze({
+  HIDDEN: "hidden",
+  ALL: "all",
+  ACTION_PATH_CONSENSUS: "actionPathConsensus",
+  EVADER_PREDICTION_PURSUIT: "evaderPredictionPursuit",
+  LINE_OF_SIGHT_PURSUIT: "lineOfSightPursuit",
+  SEARCH: "search",
+});
+export const CHASER_MAP_OVERLAY_VIEW_MODES = Object.freeze({
+  HIDDEN: "hidden",
+  KNOWLEDGE: "knowledge",
+  RECENCY: "recency",
+  ALL: "all",
 });
 
 export const CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS = 0.08;
@@ -61,6 +80,10 @@ export const DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES = 120;
 export const DEFAULT_EVADER_PROJECTION_SPACING_FRAMES = 20;
 export const MAX_EVADER_PROJECTION_HORIZON_FRAMES = 600;
 export const MAX_EVADER_PROJECTION_SPACING_FRAMES = 120;
+export const DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES = 36;
+export const DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES = 6;
+export const MAX_CHASER_ACTION_PATH_HORIZON_FRAMES = 120;
+export const MAX_CHASER_ACTION_PATH_SPACING_FRAMES = 60;
 export const MIN_SIMULATION_FRAMES_PER_SECOND = 1;
 export const MAX_SIMULATION_FRAMES_PER_SECOND = 240;
 export const EVADER_ESTIMATE_MIN_MOVE_DISTANCE = 0.02;

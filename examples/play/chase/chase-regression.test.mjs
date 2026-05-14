@@ -5,7 +5,13 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import {
   CAR_BOUND_RADIUS,
+  CHASER_ACTION_PATH_HORIZON_ACTION_ID,
+  CHASER_ACTION_PATH_RATE_ACTION_ID,
+  CHASER_ACTION_PATH_VIEW_ACTION_ID,
+  CHASER_ACTION_PATH_VIEW_MODES,
   CHASER_AUTOPILOT_ACTION_ID,
+  CHASER_MAP_OVERLAY_ACTION_ID,
+  CHASER_MAP_OVERLAY_VIEW_MODES,
   EVADER_PROJECTION_VIEW_ACTION_ID,
   EVADER_PROJECTION_VIEW_MODES,
   SCENARIO_SELECT_ACTION_ID,
@@ -31,6 +37,12 @@ import { getPredictionPerformanceSnapshot } from "./prediction-performance.mjs";
 import { createNodeJsonlTraceRecorder } from "./trace-recorder-node.mjs";
 import { getWallBounds } from "./world.mjs";
 import { publishSidebarSections } from "./sidebar.mjs";
+import { getChaserActionPathDebugEntries } from "./rendering.mjs";
+import {
+  createMapShapeMemory,
+  RECENT_VISITATION_MAX_AGE_FRAMES,
+  updateMapShapeMemory,
+} from "./chaser-map-memory.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 const BASE_SCENARIO = Object.freeze(resolveChaseScenario(defaultScenarioDefinition, GRID));
@@ -285,6 +297,131 @@ function runRegressionCase(regressionCase) {
   };
 }
 
+function getChaserMapShapeMemory(state) {
+  return state.lastStep.chaserReasoning?.snapshot?.memory?.abstracted?.mapShape ?? null;
+}
+
+test("chaser map memory records only obstacles visible through field of view", () => {
+  const buildPassiveMapScenario = (chaserDirection) => buildScenario((scenario) => {
+    scenario.actors.evader.exists = false;
+    scenario.actors.evader.position = null;
+    scenario.actors.evader.direction = null;
+    scenario.actors.chaser.position = { x: -3.42, z: 0 };
+    scenario.actors.chaser.direction = chaserDirection;
+    scenario.runtime.programmaticChaserEnabled = false;
+  });
+
+  const unseenState = createChaseSimulationState({
+    scenario: buildPassiveMapScenario({ x: -1, z: 0 }),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  stepChaseSimulation(unseenState, { humanInput: idleInput() });
+  assert.deepEqual(getChaserMapShapeMemory(unseenState)?.observedWallIds, []);
+  assert.equal(unseenState.lastStep.chaserReasoning?.observation?.map?.visibleWalls?.length, 0);
+  const unseenKnownAreaCount = getChaserMapShapeMemory(unseenState)?.knownAreas?.length ?? 0;
+  assert.ok(
+    unseenKnownAreaCount > 0,
+    "expected empty visible space to be recorded as known area",
+  );
+  stepChaseSimulation(unseenState, { humanInput: idleInput() });
+  assert.equal(
+    getChaserMapShapeMemory(unseenState)?.knownAreas?.length,
+    unseenKnownAreaCount,
+    "re-observing the same cells should not make map knowledge visually denser",
+  );
+  assert.ok(
+    (getChaserMapShapeMemory(unseenState)?.recentlyObservedAreas?.length ?? 0) > 0,
+    "expected recent visitation memory to be tracked separately from known map cells",
+  );
+
+  const seenState = createChaseSimulationState({
+    scenario: buildPassiveMapScenario({ x: 1, z: 0 }),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  stepChaseSimulation(seenState, { humanInput: idleInput() });
+  assert.deepEqual(getChaserMapShapeMemory(seenState)?.observedWallIds, ["center-square"]);
+  assert.deepEqual(
+    getChaserMapShapeMemory(seenState)?.obstacles?.walls?.map((wall) => wall.id),
+    ["center-square"],
+  );
+  assert.ok(
+    (getChaserMapShapeMemory(seenState)?.knownAreas?.[0]?.vertices?.length ?? 0) >= 3,
+    "expected known area overlay geometry to come from map memory",
+  );
+});
+
+test("chaser map recency ages out without deleting persistent map knowledge", () => {
+  const memory = createMapShapeMemory();
+  const visibleCell = {
+    id: "0:0",
+    cellX: 0,
+    cellZ: 0,
+    vertices: [
+      { x: 0, z: 0 },
+      { x: 0.3, z: 0 },
+      { x: 0.3, z: 0.3 },
+      { x: 0, z: 0.3 },
+    ],
+  };
+
+  updateMapShapeMemory(memory, {
+    visibleWalls: [],
+    visibleArea: {
+      cells: [visibleCell],
+    },
+  }, 1);
+  assert.deepEqual(memory.knownAreaIds, ["0:0"]);
+  assert.deepEqual(memory.recentlyObservedAreaIds, ["0:0"]);
+
+  updateMapShapeMemory(memory, {
+    visibleWalls: [],
+    visibleArea: {
+      cells: [],
+    },
+  }, RECENT_VISITATION_MAX_AGE_FRAMES + 2);
+
+  assert.deepEqual(memory.knownAreaIds, ["0:0"]);
+  assert.deepEqual(memory.recentlyObservedAreaIds, []);
+});
+
+test("chaser projections do not use obstacle meta knowledge before the map is observed", () => {
+  const scenario = buildScenario((entry) => {
+    entry.actors.chaser.position = { x: -4, z: 2.4 };
+    entry.actors.chaser.direction = { x: 1, z: 0 };
+    entry.actors.evader.position = { x: -3, z: 2.4 };
+    entry.actors.evader.direction = { x: 0.7809, z: -0.6247 };
+    entry.vehicleSettings.fieldOfViewAngleRadians = Math.PI / 9;
+    entry.projectionSettings.horizonFrames = 120;
+    entry.projectionSettings.sampleSpacingFrames = 10;
+    entry.runtime.programmaticChaserEnabled = false;
+  });
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+
+  stepChaseSimulation(state, { humanInput: idleInput() });
+
+  const mapShapeMemory = getChaserMapShapeMemory(state);
+  const predictionPath = state.lastStep.chaserReasoning
+    ?.snapshot
+    ?.strategies
+    ?.evaderPrediction
+    ?.path ?? [];
+  const centerWallBounds = getWallBounds(state.obstacles.walls[0]);
+
+  assert.deepEqual(mapShapeMemory?.observedWallIds, []);
+  assert.ok((mapShapeMemory?.knownAreas?.length ?? 0) > 0);
+  assert.ok(predictionPath.length > 0, "expected visible-evader prediction path");
+  assert.ok(
+    predictionPath.some((sample) => isPositionInsideBounds(sample.position, centerWallBounds)),
+    "expected prediction to ignore the unseen center obstacle",
+  );
+});
+
 for (const regressionCase of REGRESSION_CASES) {
   test(`chase regression snapshot: ${regressionCase.name}`, () => {
     const result = runRegressionCase(regressionCase);
@@ -525,7 +662,7 @@ test("manual reverse moves the chaser backward and reverse steering turns the he
   );
 });
 
-test("chase sidebar exposes reset directly below playback", () => {
+test("chase sidebar exposes reset in the score section", () => {
   const state = createChaseSimulationState({
     scenario: cloneScenario(),
     columns: GRID.columns,
@@ -555,10 +692,12 @@ test("chase sidebar exposes reset directly below playback", () => {
   );
 
   const settingsRows = sections.find((section) => section.id === "settings")?.rows ?? [];
+  const scoreRows = sections.find((section) => section.id === "score")?.rows ?? [];
   const playbackIndex = settingsRows.findIndex(
     (row) => row.id === SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   );
-  const resetIndex = settingsRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
+  const settingsResetIndex = settingsRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
+  const scoreResetIndex = scoreRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
   const greentextIndex = settingsRows.findIndex(
     (row) => row.id === SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   );
@@ -590,10 +729,22 @@ test("chase sidebar exposes reset directly below playback", () => {
     (row) => row.kind === "header" && row.label === "Windows",
   );
   const projectionHeaderIndex = viewRows.findIndex(
-    (row) => row.kind === "header" && row.label === "Evader projection",
+    (row) => row.kind === "header" && row.label === "Path visualizations",
   );
   const projectionSelectIndex = viewRows.findIndex(
     (row) => row.id === EVADER_PROJECTION_VIEW_ACTION_ID,
+  );
+  const chaserPathSelectIndex = viewRows.findIndex(
+    (row) => row.id === CHASER_ACTION_PATH_VIEW_ACTION_ID,
+  );
+  const chaserPathHorizonIndex = viewRows.findIndex(
+    (row) => row.id === CHASER_ACTION_PATH_HORIZON_ACTION_ID,
+  );
+  const chaserPathRateIndex = viewRows.findIndex(
+    (row) => row.id === CHASER_ACTION_PATH_RATE_ACTION_ID,
+  );
+  const mapOverlayIndex = viewRows.findIndex(
+    (row) => row.id === CHASER_MAP_OVERLAY_ACTION_ID,
   );
   const debugHeaderIndex = viewRows.findIndex(
     (row) => row.kind === "header" && row.label === "Debug",
@@ -608,7 +759,8 @@ test("chase sidebar exposes reset directly below playback", () => {
   assert.equal(sections.some((section) => section.id === "windows"), false);
   assert.equal(sections.some((section) => section.id === "projection"), false);
   assert.notEqual(playbackIndex, -1);
-  assert.equal(resetIndex, playbackIndex + 1);
+  assert.equal(settingsResetIndex, -1);
+  assert.equal(scoreResetIndex, 3);
   assert.equal(greentextIndex, -1);
   assert.equal(settingsControlsHeaderIndex, -1);
   assert.equal(settingsChaserAutopilotIndex, -1);
@@ -620,7 +772,11 @@ test("chase sidebar exposes reset directly below playback", () => {
   assert.equal(steerControlIndex, reverseControlIndex + 1);
   assert.equal(projectionHeaderIndex, 0);
   assert.equal(projectionSelectIndex, projectionHeaderIndex + 1);
-  assert.equal(debugHeaderIndex > projectionSelectIndex, true);
+  assert.equal(chaserPathSelectIndex > projectionSelectIndex, true);
+  assert.equal(chaserPathHorizonIndex, chaserPathSelectIndex + 1);
+  assert.equal(chaserPathRateIndex, chaserPathHorizonIndex + 1);
+  assert.equal(mapOverlayIndex, chaserPathRateIndex + 1);
+  assert.equal(debugHeaderIndex > mapOverlayIndex, true);
   assert.deepEqual(
     {
       kind: viewRows[projectionSelectIndex]?.kind,
@@ -639,6 +795,74 @@ test("chase sidebar exposes reset directly below playback", () => {
       ],
     },
   );
+  assert.deepEqual(
+    {
+      kind: viewRows[chaserPathSelectIndex]?.kind,
+      label: viewRows[chaserPathSelectIndex]?.label,
+      value: viewRows[chaserPathSelectIndex]?.value,
+      options: viewRows[chaserPathSelectIndex]?.options?.map((option) => option.value),
+    },
+    {
+      kind: "select",
+      label: "Chaser paths",
+      value: CHASER_ACTION_PATH_VIEW_MODES.HIDDEN,
+      options: [
+        CHASER_ACTION_PATH_VIEW_MODES.HIDDEN,
+        CHASER_ACTION_PATH_VIEW_MODES.ALL,
+        CHASER_ACTION_PATH_VIEW_MODES.ACTION_PATH_CONSENSUS,
+        CHASER_ACTION_PATH_VIEW_MODES.EVADER_PREDICTION_PURSUIT,
+        CHASER_ACTION_PATH_VIEW_MODES.LINE_OF_SIGHT_PURSUIT,
+        CHASER_ACTION_PATH_VIEW_MODES.SEARCH,
+      ],
+    },
+  );
+  assert.deepEqual(
+    {
+      kind: viewRows[chaserPathHorizonIndex]?.kind,
+      label: viewRows[chaserPathHorizonIndex]?.label,
+      value: viewRows[chaserPathHorizonIndex]?.value,
+      suffix: viewRows[chaserPathHorizonIndex]?.suffix,
+    },
+    {
+      kind: "editableValue",
+      label: "Chaser horizon",
+      value: "36",
+      suffix: "frames",
+    },
+  );
+  assert.deepEqual(
+    {
+      kind: viewRows[chaserPathRateIndex]?.kind,
+      label: viewRows[chaserPathRateIndex]?.label,
+      value: viewRows[chaserPathRateIndex]?.value,
+      suffix: viewRows[chaserPathRateIndex]?.suffix,
+    },
+    {
+      kind: "editableValue",
+      label: "Chaser spacing",
+      value: "6",
+      suffix: "frames",
+    },
+  );
+  assert.deepEqual(
+    {
+      kind: viewRows[mapOverlayIndex]?.kind,
+      label: viewRows[mapOverlayIndex]?.label,
+      value: viewRows[mapOverlayIndex]?.value,
+      options: viewRows[mapOverlayIndex]?.options?.map((option) => option.value),
+    },
+    {
+      kind: "select",
+      label: "Map overlay",
+      value: CHASER_MAP_OVERLAY_VIEW_MODES.HIDDEN,
+      options: [
+        CHASER_MAP_OVERLAY_VIEW_MODES.HIDDEN,
+        CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE,
+        CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY,
+        CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
+      ],
+    },
+  );
   assert.equal(viewGreentextIndex, debugHeaderIndex + 1);
   assert.equal(windowsHeaderIndex > viewGreentextIndex, true);
   assert.equal(
@@ -647,8 +871,8 @@ test("chase sidebar exposes reset directly below playback", () => {
   );
   assert.deepEqual(
     {
-      kind: settingsRows[resetIndex]?.kind,
-      label: settingsRows[resetIndex]?.label,
+      kind: scoreRows[scoreResetIndex]?.kind,
+      label: scoreRows[scoreResetIndex]?.label,
     },
     {
       kind: "action",
@@ -700,15 +924,45 @@ test("chase sidebar projection dropdown syncs prediction path debug mode", () =>
       visible: true,
       actorId: "chaser",
     },
+    {
+      viewMode: CHASER_ACTION_PATH_VIEW_MODES.ALL,
+      horizonFrames: 18,
+      sampleSpacingFrames: 3,
+    },
+    {
+      viewMode: CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
+    },
   );
 
   const projectionSelect = sections
     .find((section) => section.id === "view")
     ?.rows
     ?.find((row) => row.id === EVADER_PROJECTION_VIEW_ACTION_ID);
+  const chaserPathSelect = sections
+    .find((section) => section.id === "view")
+    ?.rows
+    ?.find((row) => row.id === CHASER_ACTION_PATH_VIEW_ACTION_ID);
+  const chaserPathHorizon = sections
+    .find((section) => section.id === "view")
+    ?.rows
+    ?.find((row) => row.id === CHASER_ACTION_PATH_HORIZON_ACTION_ID);
+  const chaserPathRate = sections
+    .find((section) => section.id === "view")
+    ?.rows
+    ?.find((row) => row.id === CHASER_ACTION_PATH_RATE_ACTION_ID);
+  const mapOverlaySelect = sections
+    .find((section) => section.id === "view")
+    ?.rows
+    ?.find((row) => row.id === CHASER_MAP_OVERLAY_ACTION_ID);
 
   assert.equal(projectionSelect?.kind, "select");
   assert.equal(projectionSelect?.value, EVADER_PROJECTION_VIEW_MODES.PREDICTION_PATHS);
+  assert.equal(chaserPathSelect?.kind, "select");
+  assert.equal(chaserPathSelect?.value, CHASER_ACTION_PATH_VIEW_MODES.ALL);
+  assert.equal(chaserPathHorizon?.value, "18");
+  assert.equal(chaserPathRate?.value, "3");
+  assert.equal(mapOverlaySelect?.kind, "select");
+  assert.equal(mapOverlaySelect?.value, CHASER_MAP_OVERLAY_VIEW_MODES.ALL);
 });
 
 test("chase regression predictions stay frame-indexed and ordered", () => {
@@ -745,6 +999,57 @@ test("chaser action peers expose feasible paths with local wall safety disabled"
   assert.equal(actionStrategies.localNavigation?.active, false);
   assert.equal(actionStrategies.localNavigation?.movement?.wallPressure, null);
   assert.equal(String(state.lastStep.chaserAction?.chosenStrategy).includes("wallSafety"), false);
+
+  const allDebugEntries = getChaserActionPathDebugEntries(
+    state.lastStep.chaserAction,
+    CHASER_ACTION_PATH_VIEW_MODES.ALL,
+    {
+      horizonFrames: 18,
+      sampleSpacingFrames: 6,
+    },
+  );
+  const predictionDebugEntries = getChaserActionPathDebugEntries(
+    state.lastStep.chaserAction,
+    CHASER_ACTION_PATH_VIEW_MODES.EVADER_PREDICTION_PURSUIT,
+    {
+      horizonFrames: 18,
+      sampleSpacingFrames: 6,
+    },
+  );
+  assert.equal(
+    getChaserActionPathDebugEntries(
+      state.lastStep.chaserAction,
+      CHASER_ACTION_PATH_VIEW_MODES.HIDDEN,
+    ).length,
+    0,
+  );
+  assert.ok(
+    allDebugEntries.some((entry) =>
+      entry.sourceId === CHASER_ACTION_PATH_VIEW_MODES.ACTION_PATH_CONSENSUS),
+    "expected all mode to include the consensus path",
+  );
+  assert.ok(
+    allDebugEntries.some((entry) =>
+      entry.sourceId === CHASER_ACTION_PATH_VIEW_MODES.EVADER_PREDICTION_PURSUIT),
+    "expected all mode to include the prediction pursuit path",
+  );
+  assert.deepEqual(
+    predictionDebugEntries.map((entry) => entry.sourceId),
+    [CHASER_ACTION_PATH_VIEW_MODES.EVADER_PREDICTION_PURSUIT],
+  );
+  assert.ok(
+    allDebugEntries.every((entry) =>
+      entry.samples.every((sample) =>
+        Number.isFinite(sample.position.x) && Number.isFinite(sample.position.z))),
+    "debug entries should expose normalized positions for rendering",
+  );
+  assert.ok(
+    allDebugEntries.every((entry) =>
+      entry.samples.every((sample) =>
+        sample.framesAhead <= 18
+        && (sample.framesAhead % 6 === 0 || sample.framesAhead === entry.samples.at(-1)?.framesAhead))),
+    "debug entries should honor chaser path horizon and spacing",
+  );
 });
 
 test("wall-avoidance pattern predictions expose the pattern strategy name", () => {

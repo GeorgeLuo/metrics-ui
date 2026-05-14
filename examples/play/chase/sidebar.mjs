@@ -1,7 +1,15 @@
 import {
+  CHASER_ACTION_PATH_HORIZON_ACTION_ID,
+  CHASER_ACTION_PATH_RATE_ACTION_ID,
+  CHASER_ACTION_PATH_VIEW_ACTION_ID,
+  CHASER_ACTION_PATH_VIEW_MODES,
   CHASER_AUTOPILOT_ACTION_ID,
+  CHASER_MAP_OVERLAY_ACTION_ID,
+  CHASER_MAP_OVERLAY_VIEW_MODES,
   CHASER_VIEW_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
+  DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES,
+  DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES,
   SCENARIO_SELECT_ACTION_ID,
   EVADER_VIEW_ACTION_ID,
   IDAE_DEBUG_ACTION_ID,
@@ -84,6 +92,34 @@ function getEvaderProjectionViewMode(projectionSettings = {}, predictionDebugSta
     : EVADER_PROJECTION_VIEW_MODES.HIDDEN;
 }
 
+function getChaserActionPathViewMode(actionPathDebugState = {}) {
+  return Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(actionPathDebugState.viewMode)
+    ? actionPathDebugState.viewMode
+    : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;
+}
+
+function getChaserMapOverlayViewMode(mapKnowledgeDebugState = {}) {
+  if (Object.values(CHASER_MAP_OVERLAY_VIEW_MODES).includes(mapKnowledgeDebugState.viewMode)) {
+    return mapKnowledgeDebugState.viewMode;
+  }
+  if (mapKnowledgeDebugState.visible && mapKnowledgeDebugState.recencyVisible) {
+    return CHASER_MAP_OVERLAY_VIEW_MODES.ALL;
+  }
+  if (mapKnowledgeDebugState.recencyVisible) {
+    return CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY;
+  }
+  return mapKnowledgeDebugState.visible
+    ? CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
+    : CHASER_MAP_OVERLAY_VIEW_MODES.HIDDEN;
+}
+
+function getPositiveFrameCount(value, fallback) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? Math.max(1, Math.round(numericValue))
+    : fallback;
+}
+
 function buildScenarioRows(scenarioControls = {}) {
   const options = Array.isArray(scenarioControls.options)
     ? scenarioControls.options
@@ -128,6 +164,8 @@ export function publishSidebarSections(
   runMetrics = {},
   scenarioControls = {},
   predictionDebugState = {},
+  actionPathDebugState = {},
+  mapKnowledgeDebugState = {},
 ) {
   if (typeof setSidebarSections !== "function") {
     return;
@@ -154,12 +192,6 @@ export function publishSidebarSections(
       disabledLabel: "paused",
       tone: "playback",
       hint: "Freeze after all actor reasoning has run for the current frame, before actions update the world.",
-    },
-    {
-      kind: "action",
-      id: SIMULATION_RESET_ACTION_ID,
-      label: "Reset",
-      hint: "Reset the Chase run to a fresh initial state.",
     },
   ];
   const settingsSection = {
@@ -190,6 +222,12 @@ export function publishSidebarSections(
           label: "Touches / 1k frames",
           value: formatRunMetric(runMetrics.touchRatePerThousandFrames, 2),
         },
+        {
+          kind: "action",
+          id: SIMULATION_RESET_ACTION_ID,
+          label: "Reset",
+          hint: "Reset the Chase run to a fresh initial state.",
+        },
       ],
     },
     {
@@ -197,8 +235,8 @@ export function publishSidebarSections(
       title: "View",
       hint: "Launch windows and toggle visual debug layers for the active Chase run.",
       rows: [
+        { kind: "header", label: "Path visualizations" },
         ...(evaderExists ? [
-          { kind: "header", label: "Evader projection" },
           {
             kind: "select",
             id: EVADER_PROJECTION_VIEW_ACTION_ID,
@@ -237,6 +275,92 @@ export function publishSidebarSections(
             hint: "How many future frames to skip between projected rectangles.",
           },
         ] : []),
+        {
+          kind: "select",
+          id: CHASER_ACTION_PATH_VIEW_ACTION_ID,
+          label: "Chaser paths",
+          value: getChaserActionPathViewMode(actionPathDebugState),
+          options: [
+            {
+              value: CHASER_ACTION_PATH_VIEW_MODES.HIDDEN,
+              label: "off",
+            },
+            {
+              value: CHASER_ACTION_PATH_VIEW_MODES.ALL,
+              label: "all",
+            },
+            {
+              value: CHASER_ACTION_PATH_VIEW_MODES.ACTION_PATH_CONSENSUS,
+              label: "consensus",
+            },
+            {
+              value: CHASER_ACTION_PATH_VIEW_MODES.EVADER_PREDICTION_PURSUIT,
+              label: "prediction",
+            },
+            {
+              value: CHASER_ACTION_PATH_VIEW_MODES.LINE_OF_SIGHT_PURSUIT,
+              label: "line of sight",
+            },
+            {
+              value: CHASER_ACTION_PATH_VIEW_MODES.SEARCH,
+              label: "search",
+            },
+          ],
+          hint: "Choose which feasible chaser proposal paths to draw in the main Chase view.",
+        },
+        {
+          kind: "editableValue",
+          id: CHASER_ACTION_PATH_HORIZON_ACTION_ID,
+          label: "Chaser horizon",
+          value: formatEditableNumber(
+            getPositiveFrameCount(
+              actionPathDebugState.horizonFrames,
+              DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES,
+            ),
+            0,
+          ),
+          suffix: "frames",
+          hint: "How many game frames of feasible chaser proposal paths to draw.",
+        },
+        {
+          kind: "editableValue",
+          id: CHASER_ACTION_PATH_RATE_ACTION_ID,
+          label: "Chaser spacing",
+          value: formatEditableNumber(
+            getPositiveFrameCount(
+              actionPathDebugState.sampleSpacingFrames,
+              DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES,
+            ),
+            0,
+          ),
+          suffix: "frames",
+          hint: "How many future frames to skip between chaser path rectangles.",
+        },
+        {
+          kind: "select",
+          id: CHASER_MAP_OVERLAY_ACTION_ID,
+          label: "Map overlay",
+          value: getChaserMapOverlayViewMode(mapKnowledgeDebugState),
+          options: [
+            {
+              value: CHASER_MAP_OVERLAY_VIEW_MODES.HIDDEN,
+              label: "off",
+            },
+            {
+              value: CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE,
+              label: "knowledge",
+            },
+            {
+              value: CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY,
+              label: "recency",
+            },
+            {
+              value: CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
+              label: "all",
+            },
+          ],
+          hint: "Choose which chaser map-memory overlay to draw in the main Chase view.",
+        },
         { kind: "header", label: "Debug" },
         {
           kind: "toggle",
