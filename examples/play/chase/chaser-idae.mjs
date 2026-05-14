@@ -66,6 +66,10 @@ function deriveChaserSelfState(_state, frameContext = {}) {
   };
 }
 
+function getRememberedObstaclesFromSnapshot(snapshot) {
+  return snapshot?.memory?.abstracted?.mapShape?.obstacles ?? { walls: [] };
+}
+
 const CHASER_MEMORY_MODULES = [
   {
     id: "observationMemory",
@@ -73,6 +77,7 @@ const CHASER_MEMORY_MODULES = [
       perception: cycle.observation,
       chaserPosition: frameContext.chaserPosition,
       chaserLookDirection: frameContext.chaserLookDirection,
+      frameIndex: frameContext.frameIndex,
     }),
   },
 ];
@@ -84,7 +89,6 @@ const CHASER_PATTERN_MODULES = [
       evaderExists: frameContext.evaderExists !== false,
       columns: frameContext.columns,
       rows: frameContext.rows,
-      obstacles: frameContext.obstacles,
       projectionSettings: frameContext.projectionSettings,
     }),
   },
@@ -97,7 +101,6 @@ const CHASER_STRATEGY_MODULES = [
       evaderExists: frameContext.evaderExists !== false,
       columns: frameContext.columns,
       rows: frameContext.rows,
-      obstacles: frameContext.obstacles,
       projectionSettings: frameContext.projectionSettings,
       evaderMotionModel: cycle.patterns?.patternInference?.evaderMotionModel,
       patternUnits: cycle.patterns?.patternInference?.patternUnits,
@@ -122,7 +125,7 @@ function chooseChaserIdaeAction(state, frameContext) {
       turnRateRadiansPerFrame: frameContext.turnRateRadiansPerFrame,
       columns: frameContext.columns,
       rows: frameContext.rows,
-      obstacles: frameContext.obstacles,
+      obstacles: getRememberedObstaclesFromSnapshot(snapshot),
     }),
   };
 }

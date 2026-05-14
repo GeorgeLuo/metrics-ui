@@ -60,7 +60,8 @@ function doesLineSegmentIntersectBounds(startPosition, endPosition, bounds) {
 }
 
 export function isLineOfSightBlockedByObstacles(startPosition, endPosition, obstacles) {
-  return obstacles.walls.some((wall) =>
+  const walls = Array.isArray(obstacles?.walls) ? obstacles.walls : [];
+  return walls.some((wall) =>
     doesLineSegmentIntersectBounds(startPosition, endPosition, getWallBounds(wall)),
   );
 }
