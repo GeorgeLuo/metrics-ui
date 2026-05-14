@@ -2,13 +2,21 @@ import * as THREE from "three";
 import {
   ASSUMED_GAME_FRAMES_PER_SECOND,
   CAR_HEIGHT,
+  CHASER_ACTION_PATH_HORIZON_ACTION_ID,
+  CHASER_ACTION_PATH_RATE_ACTION_ID,
+  CHASER_ACTION_PATH_VIEW_ACTION_ID,
+  CHASER_ACTION_PATH_VIEW_MODES,
   CHASER_AUTOPILOT_ACTION_ID,
+  CHASER_MAP_OVERLAY_ACTION_ID,
+  CHASER_MAP_OVERLAY_VIEW_MODES,
   CHASER_SPEED_ACTION_ID,
   CHASER_VIEW_ACTION_ID,
   CHASER_VIEW_MAX_DISTANCE,
   SCENARIO_SELECT_ACTION_ID,
   EVADER_VIEW_ACTION_ID,
   IDAE_DEBUG_ACTION_ID,
+  MAX_CHASER_ACTION_PATH_HORIZON_FRAMES,
+  MAX_CHASER_ACTION_PATH_SPACING_FRAMES,
   MAX_SIMULATION_FRAMES_PER_SECOND,
   MAX_EVADER_PROJECTION_HORIZON_FRAMES,
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
@@ -40,16 +48,27 @@ import {
   createEvaderFieldOfViewCone,
   createFieldOfViewCone,
   createFieldOfViewConeGeometry,
+  createMapKnowledgeOverlayDisplayState,
+  createMapRecencyOverlayDisplayState,
   createWall,
+  disposeMapKnowledgeOverlayDisplayState,
+  disposeMapRecencyOverlayDisplayState,
   createPredictionDebugDisplayState,
   disposePredictionDebugDisplayState,
   syncProjectionFrames,
+  updateChaserActionPathDebugDisplay,
+  updateMapKnowledgeOverlayDisplay,
+  updateMapRecencyOverlayDisplay,
   updatePredictionDebugDisplay,
   updateEvaderProjectionDisplay,
 } from "./rendering.mjs";
 import { publishSidebarSections, createActorStrategyToggleActionId } from "./sidebar.mjs";
 import {
+  readStoredActionPathDebugSettings,
+  readStoredMapKnowledgeDebugSettings,
   readStoredProjectionSettings,
+  writeStoredActionPathDebugSettings,
+  writeStoredMapKnowledgeDebugSettings,
   writeStoredProjectionSettings,
 } from "./settings.mjs";
 import { resolveChaseScenario } from "./scenario.mjs";
@@ -388,6 +407,24 @@ function getActorStrategyCollections(simulationState) {
   };
 }
 
+function isMapKnowledgeOverlayVisible(settings = {}) {
+  return settings.viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
+    || settings.viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL
+    || (
+      !Object.values(CHASER_MAP_OVERLAY_VIEW_MODES).includes(settings.viewMode)
+      && settings.visible === true
+    );
+}
+
+function isMapRecencyOverlayVisible(settings = {}) {
+  return settings.viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY
+    || settings.viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL
+    || (
+      !Object.values(CHASER_MAP_OVERLAY_VIEW_MODES).includes(settings.viewMode)
+      && settings.recencyVisible === true
+    );
+}
+
 function registerSidebarActions({
   setSidebarActionHandler,
   getProgrammaticChaserEnabled,
@@ -407,6 +444,8 @@ function registerSidebarActions({
   simulationSettings,
   vehicleSettings,
   projectionSettings,
+  actionPathDebugSettings,
+  mapKnowledgeDebugSettings,
   resetSimulation,
   loadScenario,
   getActorStrategyCollections,
@@ -567,6 +606,44 @@ function registerSidebarActions({
     }
     refreshSidebarSections();
   });
+  setSidebarActionHandler(CHASER_ACTION_PATH_VIEW_ACTION_ID, (value) => {
+    actionPathDebugSettings.viewMode = Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(value)
+      ? value
+      : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;
+    writeStoredActionPathDebugSettings(actionPathDebugSettings);
+    refreshSidebarSections();
+  });
+  setSidebarActionHandler(CHASER_ACTION_PATH_HORIZON_ACTION_ID, (value) => {
+    const parsed = parseEditableNumber(value);
+    if (parsed !== null) {
+      actionPathDebugSettings.horizonFrames = Math.round(
+        clampNumber(parsed, 1, MAX_CHASER_ACTION_PATH_HORIZON_FRAMES),
+      );
+      writeStoredActionPathDebugSettings(actionPathDebugSettings);
+    }
+    refreshSidebarSections();
+  });
+  setSidebarActionHandler(CHASER_ACTION_PATH_RATE_ACTION_ID, (value) => {
+    const parsed = parseEditableNumber(value);
+    if (parsed !== null) {
+      actionPathDebugSettings.sampleSpacingFrames = Math.round(clampNumber(
+        parsed,
+        1,
+        MAX_CHASER_ACTION_PATH_SPACING_FRAMES,
+      ));
+      writeStoredActionPathDebugSettings(actionPathDebugSettings);
+    }
+    refreshSidebarSections();
+  });
+  setSidebarActionHandler(CHASER_MAP_OVERLAY_ACTION_ID, (value) => {
+    mapKnowledgeDebugSettings.viewMode = Object.values(CHASER_MAP_OVERLAY_VIEW_MODES).includes(value)
+      ? value
+      : CHASER_MAP_OVERLAY_VIEW_MODES.HIDDEN;
+    mapKnowledgeDebugSettings.visible = isMapKnowledgeOverlayVisible(mapKnowledgeDebugSettings);
+    mapKnowledgeDebugSettings.recencyVisible = isMapRecencyOverlayVisible(mapKnowledgeDebugSettings);
+    writeStoredMapKnowledgeDebugSettings(mapKnowledgeDebugSettings);
+    refreshSidebarSections();
+  });
 
   Object.entries(getActorStrategyCollections?.() ?? {}).forEach(([actorId, strategies]) => {
     Object.keys(strategies ?? {}).forEach((strategyId) => {
@@ -598,6 +675,10 @@ function clearSidebarActions(setSidebarActionHandler, actorStrategyCollections =
   setSidebarActionHandler?.(EVADER_PROJECTION_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_PROJECTION_HORIZON_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_PROJECTION_RATE_ACTION_ID, null);
+  setSidebarActionHandler?.(CHASER_ACTION_PATH_VIEW_ACTION_ID, null);
+  setSidebarActionHandler?.(CHASER_ACTION_PATH_HORIZON_ACTION_ID, null);
+  setSidebarActionHandler?.(CHASER_ACTION_PATH_RATE_ACTION_ID, null);
+  setSidebarActionHandler?.(CHASER_MAP_OVERLAY_ACTION_ID, null);
   Object.entries(actorStrategyCollections).forEach(([actorId, strategies]) => {
     Object.keys(strategies ?? {}).forEach((strategyId) => {
       setSidebarActionHandler?.(createActorStrategyToggleActionId(actorId, strategyId), null);
@@ -644,6 +725,8 @@ export function createPlayGame({
     ...simulationState.projectionSettings,
     ...readStoredProjectionSettings(),
   };
+  const actionPathDebugSettings = readStoredActionPathDebugSettings();
+  const mapKnowledgeDebugSettings = readStoredMapKnowledgeDebugSettings();
   simulationState.projectionSettings = projectionSettings;
   let chaserFieldOfView = null;
   let evaderFieldOfView = null;
@@ -678,6 +761,8 @@ export function createPlayGame({
         evaderExists: simulationState.evaderExists !== false,
       },
       idaePredictionDebug,
+      actionPathDebugSettings,
+      mapKnowledgeDebugSettings,
     );
   };
 
@@ -814,6 +899,8 @@ export function createPlayGame({
     simulationSettings,
     vehicleSettings,
     projectionSettings,
+    actionPathDebugSettings,
+    mapKnowledgeDebugSettings,
     resetSimulation,
     loadScenario,
     getActorStrategyCollections: () => getActorStrategyCollections(simulationState),
@@ -866,15 +953,27 @@ export function createPlayGame({
   const evaderProjectionFrames = [];
   const idaePredictionDebugGroup = new THREE.Group();
   const idaePredictionDebugDisplayState = createPredictionDebugDisplayState();
+  const chaserActionPathDebugGroup = new THREE.Group();
+  const chaserActionPathDebugDisplayState = createPredictionDebugDisplayState();
+  const mapKnowledgeOverlayGroup = new THREE.Group();
+  const mapKnowledgeOverlayDisplayState = createMapKnowledgeOverlayDisplayState();
+  const mapRecencyOverlayGroup = new THREE.Group();
+  const mapRecencyOverlayDisplayState = createMapRecencyOverlayDisplayState();
   evaderProjectionGroup.visible = false;
   idaePredictionDebugGroup.visible = false;
+  chaserActionPathDebugGroup.visible = false;
+  mapKnowledgeOverlayGroup.visible = false;
+  mapRecencyOverlayGroup.visible = false;
   const obstacles = simulationState.obstacles;
   const obstacleMeshes = obstacles.walls.map(createWall);
   scene.add(
+    mapKnowledgeOverlayGroup,
+    mapRecencyOverlayGroup,
     chaserFieldOfView,
     evaderFieldOfView,
     evaderProjectionGroup,
     idaePredictionDebugGroup,
+    chaserActionPathDebugGroup,
     chaser,
     evader,
     ...obstacleMeshes,
@@ -986,7 +1085,32 @@ export function createPlayGame({
       actorSnapshots[idaePredictionDebug.actorId] ?? null,
       { visible: idaePredictionDebug.visible },
     );
+    updateChaserActionPathDebugDisplay(
+      chaserActionPathDebugGroup,
+      chaserActionPathDebugDisplayState,
+      lastStep.chaserAction ?? null,
+      actionPathDebugSettings,
+    );
     const predictionDebugDisplayMs = performance.now() - predictionDebugDisplayStartMs;
+    const mapKnowledgeDisplayStartMs = performance.now();
+    updateMapKnowledgeOverlayDisplay(
+      mapKnowledgeOverlayGroup,
+      mapKnowledgeOverlayDisplayState,
+      chaserSnapshot?.memory?.abstracted?.mapShape ?? null,
+      {
+        visible: isMapKnowledgeOverlayVisible(mapKnowledgeDebugSettings),
+      },
+    );
+    updateMapRecencyOverlayDisplay(
+      mapRecencyOverlayGroup,
+      mapRecencyOverlayDisplayState,
+      chaserSnapshot?.memory?.abstracted?.mapShape ?? null,
+      {
+        visible: isMapRecencyOverlayVisible(mapKnowledgeDebugSettings),
+        currentFrame: simulationState.frameIndex,
+      },
+    );
+    const mapKnowledgeDisplayMs = performance.now() - mapKnowledgeDisplayStartMs;
     const idaeDebugStartMs = performance.now();
     idaeDebugFrame?.update({
       chaserSnapshot,
@@ -1057,12 +1181,15 @@ export function createPlayGame({
       visible: {
         idaeDebug: idaeDebugVisible,
         idaePredictionDebug: idaePredictionDebug.visible,
+        mapKnowledgeDebug: isMapKnowledgeOverlayVisible(mapKnowledgeDebugSettings),
+        mapRecencyDebug: isMapRecencyOverlayVisible(mapKnowledgeDebugSettings),
         chaserView: chaserViewVisible,
         evaderView: evaderViewVisible,
       },
       segments: {
         projectionDisplayMs,
         predictionDebugDisplayMs,
+        mapKnowledgeDisplayMs,
         idaeDebugMs,
         sidebarMs,
         sceneSyncMs,
@@ -1100,6 +1227,9 @@ export function createPlayGame({
       evader.material.dispose();
       syncProjectionFrames(evaderProjectionGroup, evaderProjectionFrames, 0);
       disposePredictionDebugDisplayState(idaePredictionDebugGroup, idaePredictionDebugDisplayState);
+      disposePredictionDebugDisplayState(chaserActionPathDebugGroup, chaserActionPathDebugDisplayState);
+      disposeMapKnowledgeOverlayDisplayState(mapKnowledgeOverlayGroup, mapKnowledgeOverlayDisplayState);
+      disposeMapRecencyOverlayDisplayState(mapRecencyOverlayGroup, mapRecencyOverlayDisplayState);
       obstacleMeshes.forEach((obstacle) => {
         obstacle.geometry.dispose();
         obstacle.material.dispose();

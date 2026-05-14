@@ -1,12 +1,33 @@
 import {
+  CHASER_ACTION_PATH_VIEW_MODES,
+  CHASER_MAP_OVERLAY_VIEW_MODES,
   CHASE_RUNTIME_SETTINGS_KEY,
   CHASE_SETTINGS_STORAGE_KEY,
+  DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES,
+  DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES,
   DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
   DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
+  MAX_CHASER_ACTION_PATH_HORIZON_FRAMES,
+  MAX_CHASER_ACTION_PATH_SPACING_FRAMES,
   MAX_EVADER_PROJECTION_HORIZON_FRAMES,
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
 } from "./constants.mjs";
 import { clampNumber } from "./math.mjs";
+
+function normalizeMapOverlayViewMode(settings = {}) {
+  if (Object.values(CHASER_MAP_OVERLAY_VIEW_MODES).includes(settings.viewMode)) {
+    return settings.viewMode;
+  }
+  if (settings.visible === true && settings.recencyVisible === true) {
+    return CHASER_MAP_OVERLAY_VIEW_MODES.ALL;
+  }
+  if (settings.recencyVisible === true) {
+    return CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY;
+  }
+  return settings.visible === true
+    ? CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
+    : CHASER_MAP_OVERLAY_VIEW_MODES.HIDDEN;
+}
 
 function getRuntimeChaseSettings() {
   if (!globalThis[CHASE_RUNTIME_SETTINGS_KEY] || typeof globalThis[CHASE_RUNTIME_SETTINGS_KEY] !== "object") {
@@ -83,6 +104,86 @@ export function writeStoredProjectionSettings(projectionSettings) {
       visible: projectionSettings.visible,
       horizonFrames: projectionSettings.horizonFrames,
       sampleSpacingFrames: projectionSettings.sampleSpacingFrames,
+    },
+  });
+}
+
+export function readStoredActionPathDebugSettings() {
+  const stored = readStoredChaseSettings();
+  const actionPaths = stored.actionPaths && typeof stored.actionPaths === "object"
+    ? stored.actionPaths
+    : {};
+  const viewMode = Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(actionPaths.viewMode)
+    ? actionPaths.viewMode
+    : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;
+  const horizonFrames = Number(actionPaths.horizonFrames);
+  const sampleSpacingFrames = Number(actionPaths.sampleSpacingFrames);
+  return {
+    viewMode,
+    horizonFrames: Number.isFinite(horizonFrames)
+      ? Math.round(clampNumber(horizonFrames, 1, MAX_CHASER_ACTION_PATH_HORIZON_FRAMES))
+      : DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES,
+    sampleSpacingFrames: Math.round(clampNumber(
+      Number.isFinite(sampleSpacingFrames)
+        ? sampleSpacingFrames
+        : DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES,
+      1,
+      MAX_CHASER_ACTION_PATH_SPACING_FRAMES,
+    )),
+  };
+}
+
+export function writeStoredActionPathDebugSettings(actionPathSettings) {
+  const stored = readStoredChaseSettings();
+  const viewMode = Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(actionPathSettings?.viewMode)
+    ? actionPathSettings.viewMode
+    : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;
+  const horizonFrames = Number(actionPathSettings?.horizonFrames);
+  const sampleSpacingFrames = Number(actionPathSettings?.sampleSpacingFrames);
+  writeStoredChaseSettings({
+    ...stored,
+    actionPaths: {
+      viewMode,
+      horizonFrames: Number.isFinite(horizonFrames)
+        ? Math.round(clampNumber(horizonFrames, 1, MAX_CHASER_ACTION_PATH_HORIZON_FRAMES))
+        : DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES,
+      sampleSpacingFrames: Math.round(clampNumber(
+        Number.isFinite(sampleSpacingFrames)
+          ? sampleSpacingFrames
+          : DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES,
+        1,
+        MAX_CHASER_ACTION_PATH_SPACING_FRAMES,
+      )),
+    },
+  });
+}
+
+export function readStoredMapKnowledgeDebugSettings() {
+  const stored = readStoredChaseSettings();
+  const mapKnowledge = stored.mapKnowledge && typeof stored.mapKnowledge === "object"
+    ? stored.mapKnowledge
+    : {};
+  const viewMode = normalizeMapOverlayViewMode(mapKnowledge);
+  return {
+    viewMode,
+    visible: viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
+      || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
+    recencyVisible: viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY
+      || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
+  };
+}
+
+export function writeStoredMapKnowledgeDebugSettings(mapKnowledgeSettings) {
+  const stored = readStoredChaseSettings();
+  const viewMode = normalizeMapOverlayViewMode(mapKnowledgeSettings);
+  writeStoredChaseSettings({
+    ...stored,
+    mapKnowledge: {
+      viewMode,
+      visible: viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
+        || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
+      recencyVisible: viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY
+        || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
     },
   });
 }
