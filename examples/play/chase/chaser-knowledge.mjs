@@ -6,6 +6,11 @@ import {
   updateActorLocationMemory,
 } from "./chaser.mjs";
 import {
+  createMapShapeMemory,
+  getMapShapePerception,
+  updateMapShapeMemory,
+} from "./chaser-map-memory.mjs";
+import {
   getPatternConfidence,
   getPatternPredictionUnit,
 } from "./patterns.mjs";
@@ -123,6 +128,7 @@ export function createChaserKnowledgeBase({
       },
       abstracted: {
         observedEvaderMotion: createObservedEvaderMotionMemory(evaderDirection),
+        mapShape: createMapShapeMemory(),
       },
     },
     patterns: {
@@ -154,6 +160,10 @@ function getEvaderMotionModel(knowledgeBase) {
   });
 }
 
+function getRememberedObstacles(knowledgeBase) {
+  return knowledgeBase?.memory?.abstracted?.mapShape?.obstacles ?? { walls: [] };
+}
+
 export function observeChaserEnvironment(
   knowledgeBase,
   {
@@ -162,21 +172,41 @@ export function observeChaserEnvironment(
     chaserLookDirection,
     fieldOfViewAngleRadians,
     obstacles,
+    columns,
+    rows,
   } = {},
 ) {
   if (!knowledgeBase) {
     return null;
   }
 
-  return knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.PERCEPTION]
-    ? getActorPerception(
+  if (!knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.PERCEPTION]) {
+    const disabledEvaderPerception = { visible: false, disabled: true };
+    return {
+      ...disabledEvaderPerception,
+      evader: disabledEvaderPerception,
+      map: { visibleWalls: [], disabled: true, observationCount: 0 },
+    };
+  }
+
+  const evaderPerception = getActorPerception(
+    chaserPosition,
+    evaderPosition,
+    chaserLookDirection,
+    fieldOfViewAngleRadians,
+    obstacles,
+  );
+  return {
+    ...evaderPerception,
+    evader: evaderPerception,
+    map: getMapShapePerception(
       chaserPosition,
-      evaderPosition,
       chaserLookDirection,
       fieldOfViewAngleRadians,
       obstacles,
-    )
-    : { visible: false, disabled: true };
+      { columns, rows },
+    ),
+  };
 }
 
 export function updateChaserMemoryStage(
@@ -185,17 +215,24 @@ export function updateChaserMemoryStage(
     perception,
     chaserPosition,
     chaserLookDirection,
+    frameIndex = null,
   } = {},
 ) {
   if (!knowledgeBase) {
     return null;
   }
 
+  const evaderPerception = perception?.evader ?? perception ?? { visible: false };
   updateActorLocationMemory(
     knowledgeBase.memory.directObservation.evaderLocation,
-    perception,
+    evaderPerception,
     chaserPosition,
     chaserLookDirection,
+  );
+  updateMapShapeMemory(
+    knowledgeBase.memory.abstracted.mapShape,
+    perception?.map,
+    frameIndex,
   );
 
   if (knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.EVADER_TRACKING]) {
@@ -214,7 +251,6 @@ export function updateChaserPatternStage(
     evaderExists = true,
     columns,
     rows,
-    obstacles,
     projectionSettings = {},
   } = {},
 ) {
@@ -231,6 +267,7 @@ export function updateChaserPatternStage(
     };
   }
 
+  const rememberedObstacles = getRememberedObstacles(knowledgeBase);
   if (knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.EVADER_TRACKING]) {
     updateContinuancePattern(
       knowledgeBase.patterns.continuance,
@@ -240,7 +277,7 @@ export function updateChaserPatternStage(
         worldContext: {
           columns,
           rows,
-          obstacles,
+          obstacles: rememberedObstacles,
         },
         horizonFrames: projectionSettings?.horizonFrames,
         sampleSpacingFrames: projectionSettings?.sampleSpacingFrames,
@@ -259,7 +296,7 @@ export function updateChaserPatternStage(
       evaderVisible: knowledgeBase.memory.directObservation.evaderLocation.visible,
       columns,
       rows,
-      obstacles,
+      obstacles: rememberedObstacles,
       speedUnitsPerFrame: evaderMotionModel?.speedEstimateUnitsPerFrame,
       horizonFrames: projectionSettings?.horizonFrames,
       sampleSpacingFrames: projectionSettings?.sampleSpacingFrames,
@@ -286,7 +323,6 @@ export function updateChaserStrategyStage(
     evaderExists = true,
     columns,
     rows,
-    obstacles,
     projectionSettings = {},
     evaderMotionModel = null,
     patternUnits = null,
@@ -310,6 +346,7 @@ export function updateChaserStrategyStage(
   const resolvedEvaderMotionModel = evaderMotionModel ?? getEvaderMotionModel(knowledgeBase);
 
   if (knowledgeBase.engines[CHASER_KNOWLEDGE_ENGINE_IDS.PREDICTION_PLANNING]) {
+    const rememberedObstacles = getRememberedObstacles(knowledgeBase);
     updateEvaderPredictionStrategy(knowledgeBase.strategies.evaderPrediction, {
       estimate: resolvedEvaderMotionModel,
       patternUnits: patternUnits ?? {
@@ -318,7 +355,7 @@ export function updateChaserStrategyStage(
       evaderVisible: knowledgeBase.memory.directObservation.evaderLocation.visible,
       columns,
       rows,
-      obstacles,
+      obstacles: rememberedObstacles,
       horizonFrames: projectionSettings?.horizonFrames,
       sampleSpacingFrames: projectionSettings?.sampleSpacingFrames,
     });
@@ -426,6 +463,7 @@ export function updateChaserKnowledgeBase(
     perception,
     chaserPosition: context.chaserPosition,
     chaserLookDirection: context.chaserLookDirection,
+    frameIndex: context.frameIndex,
   });
   const patternStage = updateChaserPatternStage(knowledgeBase, context);
   updateChaserStrategyStage(knowledgeBase, {

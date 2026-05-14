@@ -16,6 +16,8 @@ import {
   isLineOfSightBlockedByObstacles,
 } from "./world.mjs";
 
+const EMPTY_OBSTACLES = Object.freeze({ walls: Object.freeze([]) });
+
 export function createActorLocationMemory() {
   return {
     visible: false,
@@ -73,7 +75,11 @@ export function getActorPerception(
     distance <= FIELD_OF_VIEW_DISTANCE + CAR_BOUND_RADIUS
     && Math.abs(bearingRadians) <= fieldOfViewAngleRadians / 2 + subjectAngularRadius;
   const isOccluded = isVisible
-    && isLineOfSightBlockedByObstacles(actorPosition, subjectPosition, obstacles);
+    && isLineOfSightBlockedByObstacles(
+      actorPosition,
+      subjectPosition,
+      obstacles ?? EMPTY_OBSTACLES,
+    );
 
   return isVisible && !isOccluded
     ? { visible: true, bearingRadians, distance }
