@@ -1,6 +1,6 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { probeChaseStrategyComparisonConvergence } from "../examples/play/chase/chase-strategy-comparison.mjs";
+import { probeChaseStrategyComparisonConvergence } from "../examples/play/chase/simulation/chase-strategy-comparison.mjs";
 
 function parseFrameSets(value) {
   if (typeof value !== "string" || !value.trim()) {

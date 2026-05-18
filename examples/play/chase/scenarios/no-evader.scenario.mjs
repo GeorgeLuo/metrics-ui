@@ -4,11 +4,17 @@ const noEvaderScenarioDefinition = {
   ...defaultScenarioDefinition,
   id: "no-evader",
   label: "No Evader",
-  description: "Chaser-only setup for validating search and no-target reasoning without hiding an evader through runtime debug code.",
+  description: "Chaser-only setup for validating knowledge acquisition without hiding an evader through runtime debug code.",
   actors: {
     ...defaultScenarioDefinition.actors,
     chaser: {
       ...defaultScenarioDefinition.actors.chaser,
+      strategies: {
+        ...defaultScenarioDefinition.actors.chaser.strategies,
+        mapDiscovery: true,
+        mapRecencyRefresh: true,
+        search: true,
+      },
     },
     evader: {
       exists: false,
