@@ -1,6 +1,6 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { compareChaseStrategyCombinations } from "../examples/play/chase/chase-strategy-comparison.mjs";
+import { compareChaseStrategyCombinations } from "../examples/play/chase/simulation/chase-strategy-comparison.mjs";
 
 function parseArgs(argv) {
   const options = {

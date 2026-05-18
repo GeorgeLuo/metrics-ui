@@ -12,6 +12,8 @@ const defaultScenarioDefinition = {
       strategies: {
         evaderPredictionPursuit: true,
         lineOfSightPursuit: true,
+        mapDiscovery: true,
+        mapRecencyRefresh: true,
         search: true,
       },
     },
