@@ -26,6 +26,7 @@ import {
   EVADER_PROJECTION_RATE_ACTION_ID,
   EVADER_PROJECTION_VIEW_ACTION_ID,
   EVADER_PROJECTION_VIEW_MODES,
+  EVADER_EXISTS_ACTION_ID,
   EVADER_SPEED_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
   VEHICLE_TURN_RATE_ACTION_ID,
@@ -68,6 +69,8 @@ export function registerSidebarActions({
   mapKnowledgeDebugSettings,
   resetSimulation,
   loadScenario,
+  getEvaderExists,
+  setEvaderExists,
   getActorStrategyCollections,
   setActorStrategyEnabled,
   getPredictionDebugState,
@@ -138,6 +141,10 @@ export function registerSidebarActions({
     if (typeof value === "string" && value.trim()) {
       loadScenario?.(value.trim());
     }
+  });
+  setSidebarActionHandler(EVADER_EXISTS_ACTION_ID, (value) => {
+    const nextExists = typeof value === "boolean" ? value : !getEvaderExists?.();
+    setEvaderExists?.(nextExists);
   });
   setSidebarActionHandler(CHASER_SPEED_ACTION_ID, (value) => {
     const parsed = parseEditableNumber(value);
@@ -278,6 +285,7 @@ export function registerSidebarActions({
 export function clearSidebarActions(setSidebarActionHandler, actorStrategyCollections = {}) {
   setSidebarActionHandler?.(CHASER_AUTOPILOT_ACTION_ID, null);
   setSidebarActionHandler?.(SCENARIO_SELECT_ACTION_ID, null);
+  setSidebarActionHandler?.(EVADER_EXISTS_ACTION_ID, null);
   setSidebarActionHandler?.(CHASER_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(EVADER_VIEW_ACTION_ID, null);
   setSidebarActionHandler?.(IDAE_DEBUG_ACTION_ID, null);

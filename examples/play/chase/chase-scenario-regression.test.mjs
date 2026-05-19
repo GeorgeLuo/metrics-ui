@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CHASER_ACTION_PATH_VIEW_MODES,
+  EVADER_EXISTS_ACTION_ID,
   SCENARIO_SELECT_ACTION_ID,
 } from "./config/constants.mjs";
 import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
@@ -18,8 +19,13 @@ import {
 import { getWallBounds } from "./world/world.mjs";
 import { publishSidebarSections } from "./ui/sidebar.mjs";
 import { getChaserActionPathDebugEntries } from "./ui/rendering.mjs";
+import { createScenarioDefinitionWithEvaderOverride } from "./ui/runtime.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
+
+function roundNumber(value, digits = 4) {
+  return Number(Number(value).toFixed(digits));
+}
 
 function idleInput() {
   return { forward: false, steering: 0 };
@@ -78,7 +84,26 @@ test("scenario config can omit the evader without debug hardcoding", () => {
   assert.equal(state.lastStep.chaserAction?.forward, true);
 });
 
-test("chase sidebar exposes scenario selector from settings", () => {
+test("runtime evader existence override supersedes scenario config", () => {
+  const forcedAbsent = resolveChaseScenario(
+    createScenarioDefinitionWithEvaderOverride(defaultScenarioDefinition, false),
+    GRID,
+  );
+  assert.equal(forcedAbsent.actors.evader.exists, false);
+  assert.equal(forcedAbsent.actors.evader.position, null);
+  assert.equal(forcedAbsent.actors.evader.direction, null);
+
+  const forcedPresent = resolveChaseScenario(
+    createScenarioDefinitionWithEvaderOverride(getChaseScenarioDefinition("no-evader"), true),
+    GRID,
+  );
+  assert.equal(forcedPresent.actors.evader.exists, true);
+  assert.deepEqual(forcedPresent.actors.evader.position, { x: GRID.columns / 4, z: 0 });
+  assert.equal(roundNumber(forcedPresent.actors.evader.direction.x), -0.9285);
+  assert.equal(roundNumber(forcedPresent.actors.evader.direction.z), 0.3714);
+});
+
+test("chase sidebar exposes scenario selector and evader existence override", () => {
   const scenario = resolveChaseScenario(defaultScenarioDefinition, GRID);
   const state = createChaseSimulationState({ scenario, columns: GRID.columns, rows: GRID.rows });
   let sections = [];
@@ -103,6 +128,7 @@ test("chase sidebar exposes scenario selector from settings", () => {
   const settingsSection = sections.find((section) => section.id === "settings");
   const settingsRows = settingsSection?.rows ?? [];
   const scenarioSelect = settingsRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
+  const evaderExistsToggle = settingsRows.find((row) => row.id === EVADER_EXISTS_ACTION_ID);
   const scenarioHeaderIndex = settingsRows.findIndex(
     (row) => row.kind === "header" && row.label === "Scenario",
   );
@@ -123,6 +149,10 @@ test("chase sidebar exposes scenario selector from settings", () => {
   assert.equal(sections.at(-1)?.id, "settings");
   assert.equal(scenarioSelect?.kind, "select");
   assert.equal(scenarioSelect?.value, DEFAULT_CHASE_SCENARIO_ID);
+  assert.equal(evaderExistsToggle?.kind, "toggle");
+  assert.equal(evaderExistsToggle?.enabled, true);
+  assert.equal(evaderExistsToggle?.enabledLabel, "present");
+  assert.equal(evaderExistsToggle?.disabledLabel, "absent");
   assert.ok(
     scenarioSelect?.options?.some((option) => option.value === "no-evader"),
     "expected sidebar scenario selector to include the no-evader scenario",
