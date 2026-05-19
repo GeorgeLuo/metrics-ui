@@ -47,7 +47,7 @@
     "equations:validate": "node --import tsx scripts/equations-validate.ts",
     "lint:file-sizes": "node scripts/lint-file-sizes.mjs",
     "refactor:regress": "node scripts/refactor-regress.mjs",
-    "play:chase:regress": "node --test examples/play/chase/chase-regression.test.mjs",
+    "play:chase:regress": "node --test examples/play/chase/chase-regression.test.mjs examples/play/chase/chase-scenario-regression.test.mjs",
     "play:chase:compare": "node scripts/play-chase-compare.mjs",
     "play:chase:probe-asymptote": "node scripts/play-chase-probe-asymptote.mjs",
     "ws:single-frontend:regress": "node scripts/single-frontend-regress.mjs",

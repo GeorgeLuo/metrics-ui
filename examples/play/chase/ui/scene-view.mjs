@@ -67,7 +67,31 @@ export function createChaseSceneView({
   const mapKnowledgeOverlayDisplayState = createMapKnowledgeOverlayDisplayState();
   const mapRecencyOverlayGroup = new THREE.Group();
   const mapRecencyOverlayDisplayState = createMapRecencyOverlayDisplayState();
-  const obstacleMeshes = simulationState.obstacles.walls.map(createWall);
+  const obstacleGroup = new THREE.Group();
+  const obstacleMeshes = [];
+  let renderedObstacles = null;
+
+  const disposeObstacleMesh = (mesh) => {
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+  };
+
+  const syncObstacleMeshes = () => {
+    if (simulationState.obstacles === renderedObstacles) {
+      return;
+    }
+    renderedObstacles = simulationState.obstacles;
+    obstacleMeshes.splice(0).forEach((mesh) => {
+      obstacleGroup.remove(mesh);
+      disposeObstacleMesh(mesh);
+    });
+    (simulationState.obstacles?.walls ?? []).forEach((wall) => {
+      const mesh = createWall(wall);
+      obstacleMeshes.push(mesh);
+      obstacleGroup.add(mesh);
+    });
+  };
+  syncObstacleMeshes();
 
   evaderProjectionGroup.visible = false;
   idaePredictionDebugGroup.visible = false;
@@ -79,12 +103,12 @@ export function createChaseSceneView({
     mapRecencyOverlayGroup,
     chaserFieldOfView,
     evaderFieldOfView,
+    obstacleGroup,
     evaderProjectionGroup,
     idaePredictionDebugGroup,
     chaserActionPathDebugGroup,
     chaser,
     evader,
-    ...obstacleMeshes,
   );
 
   const updateFieldOfView = () => {
@@ -124,6 +148,7 @@ export function createChaseSceneView({
       evaderDirection,
       lastStep,
     } = simulationState;
+    syncObstacleMeshes();
     const chaserSnapshot = lastStep.chaserReasoning?.snapshot ?? null;
     const evaderLocationMemory = chaserSnapshot?.memory?.directObservation?.evaderLocation ?? null;
     const evaderPredictionPlan = chaserSnapshot?.strategies?.evaderPrediction ?? null;
@@ -267,10 +292,7 @@ export function createChaseSceneView({
     disposePredictionDebugDisplayState(chaserActionPathDebugGroup, chaserActionPathDebugDisplayState);
     disposeMapKnowledgeOverlayDisplayState(mapKnowledgeOverlayGroup, mapKnowledgeOverlayDisplayState);
     disposeMapRecencyOverlayDisplayState(mapRecencyOverlayGroup, mapRecencyOverlayDisplayState);
-    obstacleMeshes.forEach((obstacle) => {
-      obstacle.geometry.dispose();
-      obstacle.material.dispose();
-    });
+    obstacleMeshes.forEach(disposeObstacleMesh);
     renderer.dispose();
   };
 
