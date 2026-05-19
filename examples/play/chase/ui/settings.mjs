@@ -29,6 +29,18 @@ function normalizeMapOverlayViewMode(settings = {}) {
     : CHASER_MAP_OVERLAY_VIEW_MODES.HIDDEN;
 }
 
+export function isMapKnowledgeOverlayVisible(settings = {}) {
+  const viewMode = normalizeMapOverlayViewMode(settings);
+  return viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
+    || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL;
+}
+
+export function isMapRecencyOverlayVisible(settings = {}) {
+  const viewMode = normalizeMapOverlayViewMode(settings);
+  return viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY
+    || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL;
+}
+
 function getRuntimeChaseSettings() {
   if (!globalThis[CHASE_RUNTIME_SETTINGS_KEY] || typeof globalThis[CHASE_RUNTIME_SETTINGS_KEY] !== "object") {
     globalThis[CHASE_RUNTIME_SETTINGS_KEY] = {};
@@ -166,10 +178,8 @@ export function readStoredMapKnowledgeDebugSettings() {
   const viewMode = normalizeMapOverlayViewMode(mapKnowledge);
   return {
     viewMode,
-    visible: viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
-      || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
-    recencyVisible: viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY
-      || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
+    visible: isMapKnowledgeOverlayVisible({ viewMode }),
+    recencyVisible: isMapRecencyOverlayVisible({ viewMode }),
   };
 }
 
@@ -180,10 +190,8 @@ export function writeStoredMapKnowledgeDebugSettings(mapKnowledgeSettings) {
     ...stored,
     mapKnowledge: {
       viewMode,
-      visible: viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
-        || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
-      recencyVisible: viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.RECENCY
-        || viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.ALL,
+      visible: isMapKnowledgeOverlayVisible({ viewMode }),
+      recencyVisible: isMapRecencyOverlayVisible({ viewMode }),
     },
   });
 }
