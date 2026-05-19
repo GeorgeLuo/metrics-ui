@@ -1,14 +1,17 @@
-import { CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING } from "../../config/constants.mjs";
+import { CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING } from "../../config/constants.mjs";
 import {
   planProgrammaticChaserAction,
   selectPursuitPoint,
 } from "./chaser-action-strategies.mjs";
-import { CHASER_STRATEGY_IDS } from "../../config/strategy-ids.mjs";
+import {
+  CHASER_LEGACY_STRATEGY_IDS,
+  CHASER_STRATEGY_IDS,
+} from "../../config/strategy-ids.mjs";
 
 export function createChaserAutopilotState() {
   return {
-    searchSteering: CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING,
-    lastPursuitSource: "search",
+    spinSteering: CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING,
+    lastPursuitSource: "spin",
     wallFollowSign: 1,
     actionEngines: createChaserActionEngines(),
   };
@@ -38,18 +41,22 @@ export function createChaserActionEngines(overrides = {}) {
       overrides[CHASER_ACTION_ENGINE_IDS.MAP_RECENCY_REFRESH],
       true,
     ),
-    [CHASER_ACTION_ENGINE_IDS.SEARCH]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.SEARCH],
+    [CHASER_ACTION_ENGINE_IDS.SPIN]: asEnabled(
+      overrides[CHASER_ACTION_ENGINE_IDS.SPIN]
+        ?? overrides[CHASER_LEGACY_STRATEGY_IDS.SEARCH],
       true,
     ),
   };
 }
 
 export function setChaserActionEngineEnabled(autopilotState, engineId, enabled) {
-  if (!autopilotState?.actionEngines || !(engineId in autopilotState.actionEngines)) {
+  const normalizedEngineId = engineId === CHASER_LEGACY_STRATEGY_IDS.SEARCH
+    ? CHASER_ACTION_ENGINE_IDS.SPIN
+    : engineId;
+  if (!autopilotState?.actionEngines || !(normalizedEngineId in autopilotState.actionEngines)) {
     return;
   }
-  autopilotState.actionEngines[engineId] = Boolean(enabled);
+  autopilotState.actionEngines[normalizedEngineId] = Boolean(enabled);
 }
 
 export function getProgrammaticChaserInput({
@@ -71,7 +78,9 @@ export function getProgrammaticChaserInput({
     chaserPosition,
     chaserLookDirection,
     actionEngines,
-    searchSteering: autopilotState?.searchSteering ?? CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING,
+    spinSteering: autopilotState?.spinSteering
+      ?? autopilotState?.searchSteering
+      ?? CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING,
     previousWallFollowSign: autopilotState?.wallFollowSign ?? 1,
     chaserSpeedUnitsPerFrame,
     speedUnitsPerFrame,
@@ -85,8 +94,8 @@ export function getProgrammaticChaserInput({
   if (autopilotState) {
     autopilotState.lastPursuitSource = actionPlan.chosenStrategy;
     autopilotState.wallFollowSign = actionPlan.wallFollowSign;
-    if (actionPlan.searchSteeringHint !== null) {
-      autopilotState.searchSteering = actionPlan.searchSteeringHint;
+    if (actionPlan.spinSteeringHint !== null) {
+      autopilotState.spinSteering = actionPlan.spinSteeringHint;
     }
   }
 

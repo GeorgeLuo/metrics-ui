@@ -32,7 +32,7 @@ const CHASER_ACTION_PATH_DEBUG_SPECS = Object.freeze([
   { id: CHASER_ACTION_PATH_VIEW_MODES.LINE_OF_SIGHT_PURSUIT, label: "Line of sight", color: 0x22c55e },
   { id: CHASER_ACTION_PATH_VIEW_MODES.MAP_DISCOVERY, label: "Map discovery", color: 0xfb923c },
   { id: CHASER_ACTION_PATH_VIEW_MODES.MAP_RECENCY_REFRESH, label: "Map recency", color: 0xa78bfa },
-  { id: CHASER_ACTION_PATH_VIEW_MODES.SEARCH, label: "Search", color: 0xfacc15 },
+  { id: CHASER_ACTION_PATH_VIEW_MODES.SPIN, label: "Spin", color: 0xfacc15 },
 ]);
 
 function hashString(value) {

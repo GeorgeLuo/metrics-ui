@@ -19,6 +19,10 @@ import {
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
 } from "./config/constants.mjs";
+import {
+  CHASER_STRATEGY_IDS,
+  EVADER_STRATEGY_IDS,
+} from "./config/strategy-ids.mjs";
 import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
 import {
   DEFAULT_CHASE_SCENARIO_ID,
@@ -36,7 +40,10 @@ import { createChasePerformanceTracker } from "./debug/performance-debug.mjs";
 import { getPredictionPerformanceSnapshot } from "./prediction/prediction-performance.mjs";
 import { createNodeJsonlTraceRecorder } from "./simulation/trace-recorder-node.mjs";
 import { getFieldBounds, getWallBounds } from "./world/world.mjs";
-import { publishSidebarSections } from "./ui/sidebar.mjs";
+import {
+  createActorStrategyToggleActionId,
+  publishSidebarSections,
+} from "./ui/sidebar.mjs";
 import { getChaserActionPathDebugEntries } from "./ui/rendering.mjs";
 import {
   createMapShapeMemory,
@@ -571,7 +578,7 @@ test("scenario config can omit the evader without debug hardcoding", () => {
   assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.continuance, null);
   assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.wallAvoidance, null);
   assert.deepEqual(state.lastStep.chaserReasoning?.snapshot?.patternUnits, {});
-  assert.equal(state.lastStep.chaserAction?.chosenStrategy, "mapDiscovery+search");
+  assert.equal(state.lastStep.chaserAction?.chosenStrategy, "mapDiscovery+spin");
   assert.equal(
     state.lastStep.chaserAction?.actionStrategies?.motiveSignal?.id,
     "knowledgeAcquisition",
@@ -836,7 +843,7 @@ test("chase sidebar exposes reset in the score section", () => {
         CHASER_ACTION_PATH_VIEW_MODES.LINE_OF_SIGHT_PURSUIT,
         CHASER_ACTION_PATH_VIEW_MODES.MAP_DISCOVERY,
         CHASER_ACTION_PATH_VIEW_MODES.MAP_RECENCY_REFRESH,
-        CHASER_ACTION_PATH_VIEW_MODES.SEARCH,
+        CHASER_ACTION_PATH_VIEW_MODES.SPIN,
       ],
     },
   );
@@ -987,6 +994,68 @@ test("chase sidebar projection dropdown syncs prediction path debug mode", () =>
   assert.equal(chaserPathRate?.value, "3");
   assert.equal(mapOverlaySelect?.kind, "select");
   assert.equal(mapOverlaySelect?.value, CHASER_MAP_OVERLAY_VIEW_MODES.ALL);
+});
+
+test("chase sidebar groups strategy toggles by chaser motive", () => {
+  const state = createChaseSimulationState({
+    scenario: cloneScenario(),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  let sections = [];
+  publishSidebarSections(
+    (nextSections) => {
+      sections = nextSections;
+    },
+    state.programmaticChaserEnabled,
+    {
+      chaserViewVisible: false,
+      evaderViewVisible: false,
+      idaeDebugVisible: false,
+    },
+    state.simulationSettings,
+    state.vehicleSettings,
+    state.projectionSettings,
+    {
+      chaser: {
+        [CHASER_STRATEGY_IDS.EVADER_PREDICTION_PURSUIT]: true,
+        [CHASER_STRATEGY_IDS.LINE_OF_SIGHT_PURSUIT]: false,
+        [CHASER_STRATEGY_IDS.MAP_DISCOVERY]: true,
+        [CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH]: true,
+        [CHASER_STRATEGY_IDS.SPIN]: false,
+      },
+      evader: {
+        [EVADER_STRATEGY_IDS.DEFAULT_ROAM]: true,
+        [EVADER_STRATEGY_IDS.EVADE_ON_SIGHT]: false,
+      },
+    },
+    state.runMetrics,
+  );
+
+  const strategiesRows = sections.find((section) => section.id === "strategies")?.rows ?? [];
+  const rowSummary = strategiesRows.map((row) => {
+    if (row.kind === "header") {
+      return `header:${row.label}`;
+    }
+    if (row.kind === "toggle") {
+      return `toggle:${row.id}:${row.label}:${row.enabled}`;
+    }
+    return row.kind;
+  });
+
+  assert.deepEqual(rowSummary, [
+    `toggle:${CHASER_AUTOPILOT_ACTION_ID}:Programmatic chaser:true`,
+    "header:Chaser motive: Chase",
+    `toggle:${createActorStrategyToggleActionId("chaser", CHASER_STRATEGY_IDS.EVADER_PREDICTION_PURSUIT)}:Evader Prediction Pursuit:true`,
+    `toggle:${createActorStrategyToggleActionId("chaser", CHASER_STRATEGY_IDS.LINE_OF_SIGHT_PURSUIT)}:Line Of Sight Pursuit:false`,
+    "header:Chaser motive: Knowledge acquisition",
+    `toggle:${createActorStrategyToggleActionId("chaser", CHASER_STRATEGY_IDS.MAP_DISCOVERY)}:Map Discovery:true`,
+    `toggle:${createActorStrategyToggleActionId("chaser", CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH)}:Map Recency Refresh:true`,
+    `toggle:${createActorStrategyToggleActionId("chaser", CHASER_STRATEGY_IDS.SPIN)}:Spin:false`,
+    "header:Evader strategies",
+    `toggle:${createActorStrategyToggleActionId("evader", EVADER_STRATEGY_IDS.DEFAULT_ROAM)}:Default Roam:true`,
+    `toggle:${createActorStrategyToggleActionId("evader", EVADER_STRATEGY_IDS.EVADE_ON_SIGHT)}:Evade On Sight:false`,
+  ]);
 });
 
 test("chase regression predictions stay frame-indexed and ordered", () => {
@@ -1259,11 +1328,11 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
         predictionPursuitActive: Boolean(
           state.lastStep.chaserAction?.actionStrategies?.evaderPredictionPursuit?.active,
         ),
-        searchActive: Boolean(state.lastStep.chaserAction?.actionStrategies?.search?.active),
+        spinActive: Boolean(state.lastStep.chaserAction?.actionStrategies?.spin?.active),
         actionPathLen: state.lastStep.chaserAction?.actionPath?.length ?? 0,
-        searchPathLen: state.lastStep.chaserAction
+        spinPathLen: state.lastStep.chaserAction
           ?.actionStrategies
-          ?.search
+          ?.spin
           ?.actionPath
           ?.length ?? 0,
         localNavigationActive: Boolean(
@@ -1290,12 +1359,12 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
     persisted: false,
     pathLen: 6,
     firstAhead: 20,
-    chosenStrategy: "mapDiscovery+mapRecencyRefresh+search",
+    chosenStrategy: "mapDiscovery+mapRecencyRefresh+spin",
     motiveId: "knowledgeAcquisition",
     predictionPursuitActive: false,
-    searchActive: true,
+    spinActive: true,
     actionPathLen: 36,
-    searchPathLen: 36,
+    spinPathLen: 36,
     localNavigationActive: false,
     wallPressure: null,
     wallProbability: 0.9167,
@@ -1554,10 +1623,10 @@ test("strategy comparison runner is deterministic and respects scenario strategy
   });
 });
 
-test("programmatic chaser uses structured knowledge acquisition when sweep search is disabled", () => {
+test("programmatic chaser uses structured knowledge acquisition when sweep spin is disabled", () => {
   const scenario = buildScenario((draft) => {
     draft.runtime.programmaticChaserEnabled = true;
-    draft.actors.chaser.strategies.search = false;
+    draft.actors.chaser.strategies.spin = false;
   });
   const state = createChaseSimulationState({
     scenario,
@@ -1574,7 +1643,7 @@ test("programmatic chaser uses structured knowledge acquisition when sweep searc
 
   assert.equal(state.lastStep.chaserReasoning?.snapshot?.memory?.directObservation?.evaderLocation?.visible, false);
   assert.equal(state.lastStep.chaserAction?.chosenStrategy, "mapDiscovery");
-  assert.equal(state.lastStep.chaserAction?.actionStrategies?.search?.active, false);
+  assert.equal(state.lastStep.chaserAction?.actionStrategies?.spin?.active, false);
   assert.equal(state.lastStep.chaserAction?.actionStrategies?.mapDiscovery?.active, true);
   assert.equal(state.lastStep.chaserAction?.forward, true);
   assert.notDeepEqual(state.chaserPosition, startPosition);
@@ -1587,7 +1656,7 @@ test("map discovery remains active if visible-evader chase strategies are disabl
     draft.actors.chaser.strategies.lineOfSightPursuit = false;
     draft.actors.chaser.strategies.mapDiscovery = true;
     draft.actors.chaser.strategies.mapRecencyRefresh = false;
-    draft.actors.chaser.strategies.search = false;
+    draft.actors.chaser.strategies.spin = false;
   });
   const state = createChaseSimulationState({
     scenario,
@@ -1630,7 +1699,7 @@ test("map discovery-only chaser stops after remembered traversable map is covere
   scenarioDefinition.actors.chaser.strategies.lineOfSightPursuit = false;
   scenarioDefinition.actors.chaser.strategies.mapDiscovery = true;
   scenarioDefinition.actors.chaser.strategies.mapRecencyRefresh = false;
-  scenarioDefinition.actors.chaser.strategies.search = false;
+  scenarioDefinition.actors.chaser.strategies.spin = false;
   const scenario = resolveChaseScenario(scenarioDefinition, GRID);
   const state = createChaseSimulationState({
     scenario,
@@ -1711,7 +1780,7 @@ test("programmatic chaser holds position when all chaser peer strategies are dis
     draft.actors.chaser.strategies.lineOfSightPursuit = false;
     draft.actors.chaser.strategies.mapDiscovery = false;
     draft.actors.chaser.strategies.mapRecencyRefresh = false;
-    draft.actors.chaser.strategies.search = false;
+    draft.actors.chaser.strategies.spin = false;
   });
   const state = createChaseSimulationState({
     scenario,

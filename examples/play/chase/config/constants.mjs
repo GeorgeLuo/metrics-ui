@@ -64,7 +64,7 @@ export const CHASER_ACTION_PATH_VIEW_MODES = Object.freeze({
   LINE_OF_SIGHT_PURSUIT: "lineOfSightPursuit",
   MAP_DISCOVERY: "mapDiscovery",
   MAP_RECENCY_REFRESH: "mapRecencyRefresh",
-  SEARCH: "search",
+  SPIN: "spin",
 });
 export const CHASER_MAP_OVERLAY_VIEW_MODES = Object.freeze({
   HIDDEN: "hidden",
@@ -74,8 +74,8 @@ export const CHASER_MAP_OVERLAY_VIEW_MODES = Object.freeze({
 });
 
 export const CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS = 0.08;
-export const CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING = 1;
-export const CHASER_AUTOPILOT_SEARCH_LEAD_RADIANS = Math.PI / 4;
+export const CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING = 1;
+export const CHASER_AUTOPILOT_SPIN_LEAD_RADIANS = Math.PI / 4;
 export const CHASER_STRATEGY_CONSENSUS_COUPLING = 1.2;
 export const CHASER_STRATEGY_CONSENSUS_ITERATIONS = 12;
 export const DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES = 120;
