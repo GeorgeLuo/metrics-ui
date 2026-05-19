@@ -440,6 +440,8 @@ export function createKnowledgeAcquisitionSignal({
     motiveId: "knowledgeAcquisition",
     frameIndex: Number.isFinite(frameIndex) ? frameIndex : null,
     knownAreaCount: knownAreas.length,
+    discoveryCandidateCount: discoveryCandidates.length,
+    recencyCandidateCount: recencyCandidates.length,
     discoveryComplete: discoveryCandidates.length === 0,
     candidates,
     selected,
@@ -482,14 +484,23 @@ export function buildKnowledgeAcquisitionProposals({
       proposalContext,
     )
     : createInactiveKnowledgeProposal(CHASER_STRATEGY_IDS.MAP_DISCOVERY);
-  const mapRecencyRefresh = enabled
-    && actionEngines[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH] !== false
-    ? createKnowledgeProposal(
-      CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH,
-      signal.selected[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH],
-      proposalContext,
-    )
-    : createInactiveKnowledgeProposal(CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH);
+  const mapRecencyRefreshEnabled = enabled
+    && actionEngines[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH] !== false;
+  let mapRecencyRefresh = createInactiveKnowledgeProposal(
+    CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH,
+  );
+  if (mapRecencyRefreshEnabled) {
+    mapRecencyRefresh = mapDiscovery.active
+      ? createInactiveKnowledgeProposal(CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH, {
+        inactiveReason: "discovery-frontier-available",
+        targetCandidate: signal.selected[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH],
+      })
+      : createKnowledgeProposal(
+        CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH,
+        signal.selected[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH],
+        proposalContext,
+      );
+  }
 
   return {
     signal,

@@ -143,7 +143,7 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 180,
-      chaser: { x: -1.1062, z: -1.0994, dx: -0.9551, dz: 0.2962 },
+      chaser: { x: -1.5006, z: -1.0884, dx: -0.9141, dz: 0.4055 },
       evader: { x: 3.2705, z: 2.1467, dx: 0.9812, dz: -0.1929 },
       touches: 0,
       visible: false,
@@ -1325,9 +1325,26 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
         firstAhead: plan.path?.[0]?.framesAhead ?? null,
         chosenStrategy: state.lastStep.chaserAction?.chosenStrategy ?? null,
         motiveId: state.lastStep.chaserAction?.actionStrategies?.motiveSignal?.id ?? null,
+        discoveryComplete: Boolean(
+          state.lastStep.chaserAction?.actionStrategies?.knowledgeAcquisition?.discoveryComplete,
+        ),
+        hasDiscoveryCandidates:
+          (state.lastStep.chaserAction?.actionStrategies?.knowledgeAcquisition
+            ?.discoveryCandidateCount ?? 0) > 0,
+        hasRecencyCandidates:
+          (state.lastStep.chaserAction?.actionStrategies?.knowledgeAcquisition
+            ?.recencyCandidateCount ?? 0) > 0,
         predictionPursuitActive: Boolean(
           state.lastStep.chaserAction?.actionStrategies?.evaderPredictionPursuit?.active,
         ),
+        mapDiscoveryActive: Boolean(
+          state.lastStep.chaserAction?.actionStrategies?.mapDiscovery?.active,
+        ),
+        mapRecencyRefreshActive: Boolean(
+          state.lastStep.chaserAction?.actionStrategies?.mapRecencyRefresh?.active,
+        ),
+        mapRecencyRefreshInactiveReason:
+          state.lastStep.chaserAction?.actionStrategies?.mapRecencyRefresh?.inactiveReason ?? null,
         spinActive: Boolean(state.lastStep.chaserAction?.actionStrategies?.spin?.active),
         actionPathLen: state.lastStep.chaserAction?.actionPath?.length ?? 0,
         spinPathLen: state.lastStep.chaserAction
@@ -1359,9 +1376,15 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
     persisted: false,
     pathLen: 6,
     firstAhead: 20,
-    chosenStrategy: "mapDiscovery+mapRecencyRefresh+spin",
+    chosenStrategy: "mapDiscovery+spin",
     motiveId: "knowledgeAcquisition",
+    discoveryComplete: false,
+    hasDiscoveryCandidates: true,
+    hasRecencyCandidates: true,
     predictionPursuitActive: false,
+    mapDiscoveryActive: true,
+    mapRecencyRefreshActive: false,
+    mapRecencyRefreshInactiveReason: "discovery-frontier-available",
     spinActive: true,
     actionPathLen: 36,
     spinPathLen: 36,
