@@ -29,6 +29,15 @@ function normalizeMapOverlayViewMode(settings = {}) {
     : CHASER_MAP_OVERLAY_VIEW_MODES.HIDDEN;
 }
 
+export function normalizeActionPathViewMode(viewMode) {
+  if (viewMode === "search") {
+    return CHASER_ACTION_PATH_VIEW_MODES.SPIN;
+  }
+  return Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(viewMode)
+    ? viewMode
+    : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;
+}
+
 export function isMapKnowledgeOverlayVisible(settings = {}) {
   const viewMode = normalizeMapOverlayViewMode(settings);
   return viewMode === CHASER_MAP_OVERLAY_VIEW_MODES.KNOWLEDGE
@@ -125,9 +134,7 @@ export function readStoredActionPathDebugSettings() {
   const actionPaths = stored.actionPaths && typeof stored.actionPaths === "object"
     ? stored.actionPaths
     : {};
-  const viewMode = Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(actionPaths.viewMode)
-    ? actionPaths.viewMode
-    : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;
+  const viewMode = normalizeActionPathViewMode(actionPaths.viewMode);
   const horizonFrames = Number(actionPaths.horizonFrames);
   const sampleSpacingFrames = Number(actionPaths.sampleSpacingFrames);
   return {
@@ -147,9 +154,7 @@ export function readStoredActionPathDebugSettings() {
 
 export function writeStoredActionPathDebugSettings(actionPathSettings) {
   const stored = readStoredChaseSettings();
-  const viewMode = Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(actionPathSettings?.viewMode)
-    ? actionPathSettings.viewMode
-    : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;
+  const viewMode = normalizeActionPathViewMode(actionPathSettings?.viewMode);
   const horizonFrames = Number(actionPathSettings?.horizonFrames);
   const sampleSpacingFrames = Number(actionPathSettings?.sampleSpacingFrames);
   writeStoredChaseSettings({

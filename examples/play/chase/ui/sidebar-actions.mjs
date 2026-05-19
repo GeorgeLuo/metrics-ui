@@ -3,7 +3,6 @@ import {
   CHASER_ACTION_PATH_HORIZON_ACTION_ID,
   CHASER_ACTION_PATH_RATE_ACTION_ID,
   CHASER_ACTION_PATH_VIEW_ACTION_ID,
-  CHASER_ACTION_PATH_VIEW_MODES,
   CHASER_AUTOPILOT_ACTION_ID,
   CHASER_MAP_OVERLAY_ACTION_ID,
   CHASER_MAP_OVERLAY_VIEW_MODES,
@@ -40,6 +39,7 @@ import { createActorStrategyToggleActionId } from "./sidebar.mjs";
 import {
   isMapKnowledgeOverlayVisible,
   isMapRecencyOverlayVisible,
+  normalizeActionPathViewMode,
   writeStoredActionPathDebugSettings,
   writeStoredMapKnowledgeDebugSettings,
   writeStoredProjectionSettings,
@@ -227,9 +227,7 @@ export function registerSidebarActions({
     refreshSidebarSections();
   });
   setSidebarActionHandler(CHASER_ACTION_PATH_VIEW_ACTION_ID, (value) => {
-    actionPathDebugSettings.viewMode = Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(value)
-      ? value
-      : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;
+    actionPathDebugSettings.viewMode = normalizeActionPathViewMode(value);
     writeStoredActionPathDebugSettings(actionPathDebugSettings);
     refreshSidebarSections();
   });

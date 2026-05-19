@@ -146,8 +146,10 @@ function getChaserIdaeSnapshot(state) {
     strategyStatus: snapshot.strategyStatus,
     assumedBehavior: snapshot.assumedBehavior,
     controllerState: {
-      searchSteering: Number(state.controllerState?.searchSteering) || 0,
-      lastPursuitSource: state.controllerState?.lastPursuitSource ?? "search",
+      spinSteering: Number(
+        state.controllerState?.spinSteering ?? state.controllerState?.searchSteering,
+      ) || 0,
+      lastPursuitSource: state.controllerState?.lastPursuitSource ?? "spin",
       wallFollowSign: Number(state.controllerState?.wallFollowSign) || 0,
       actionEngines: { ...(state.controllerState?.actionEngines ?? {}) },
     },

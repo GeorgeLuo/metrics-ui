@@ -25,6 +25,7 @@ import {
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
 } from "../config/constants.mjs";
+import { CHASER_STRATEGY_MOTIVE_GROUPS } from "../config/strategy-ids.mjs";
 import { formatEditableNumber, radiansToDegrees } from "../decision-model/math.mjs";
 
 function formatRunMetric(value, digits = 0) {
@@ -58,17 +59,68 @@ export function createActorStrategyToggleActionId(actorId, strategyId) {
   return `actor-strategy:${String(actorId ?? "").trim()}:${String(strategyId ?? "").trim()}`;
 }
 
+function buildActorStrategyToggleRow(actorId, strategyId, enabled) {
+  return {
+    kind: "toggle",
+    id: createActorStrategyToggleActionId(actorId, strategyId),
+    label: formatStrategyLabel(strategyId),
+    enabled: Boolean(enabled),
+    enabledLabel: "on",
+    disabledLabel: "off",
+    hint: `Enable or disable ${formatActorLabel(actorId).toLowerCase()} peer strategy ${formatStrategyLabel(strategyId).toLowerCase()}.`,
+  };
+}
+
+function buildChaserStrategyRows(strategies = {}) {
+  const strategyEntries = strategies && typeof strategies === "object" ? strategies : {};
+  const knownStrategyIds = new Set();
+  const groupedRows = CHASER_STRATEGY_MOTIVE_GROUPS.flatMap((group) => {
+    const motiveRows = group.strategyIds
+      .filter((strategyId) => Object.prototype.hasOwnProperty.call(strategyEntries, strategyId))
+      .map((strategyId) => {
+        knownStrategyIds.add(strategyId);
+        return buildActorStrategyToggleRow("chaser", strategyId, strategyEntries[strategyId]);
+      });
+    return motiveRows.length > 0
+      ? [
+        { kind: "header", label: `Chaser motive: ${group.label}` },
+        ...motiveRows,
+      ]
+      : [];
+  });
+  const ungroupedRows = Object.entries(strategyEntries)
+    .filter(([strategyId]) => !knownStrategyIds.has(strategyId))
+    .map(([strategyId, enabled]) => buildActorStrategyToggleRow("chaser", strategyId, enabled));
+  return ungroupedRows.length > 0
+    ? [
+      ...groupedRows,
+      { kind: "header", label: "Chaser motive: Other" },
+      ...ungroupedRows,
+    ]
+    : groupedRows;
+}
+
+function buildUngroupedActorStrategyRows(actorId, strategies = {}) {
+  const strategyEntries = strategies && typeof strategies === "object" ? strategies : {};
+  const rows = Object.entries(strategyEntries)
+    .map(([strategyId, enabled]) => buildActorStrategyToggleRow(actorId, strategyId, enabled));
+  return rows.length > 0
+    ? [
+      { kind: "header", label: `${formatActorLabel(actorId)} strategies` },
+      ...rows,
+    ]
+    : [];
+}
+
 function buildActorStrategyRows(actorStrategyCollections = {}) {
-  return Object.entries(actorStrategyCollections).flatMap(([actorId, strategies]) =>
-    Object.entries(strategies ?? {}).map(([strategyId, enabled]) => ({
-      kind: "toggle",
-      id: createActorStrategyToggleActionId(actorId, strategyId),
-      label: `${formatActorLabel(actorId)}: ${formatStrategyLabel(strategyId)}`,
-      enabled: Boolean(enabled),
-      enabledLabel: "on",
-      disabledLabel: "off",
-      hint: `Enable or disable ${formatActorLabel(actorId).toLowerCase()} peer strategy ${formatStrategyLabel(strategyId).toLowerCase()}.`,
-    })));
+  const chaserRows = buildChaserStrategyRows(actorStrategyCollections.chaser);
+  const otherActorRows = Object.entries(actorStrategyCollections)
+    .filter(([actorId]) => actorId !== "chaser")
+    .flatMap(([actorId, strategies]) => buildUngroupedActorStrategyRows(actorId, strategies));
+  return [
+    ...chaserRows,
+    ...otherActorRows,
+  ];
 }
 
 function buildProgrammaticChaserRow(programmaticChaserEnabled) {
@@ -310,8 +362,8 @@ export function publishSidebarSections(
               label: "map recency",
             },
             {
-              value: CHASER_ACTION_PATH_VIEW_MODES.SEARCH,
-              label: "search",
+              value: CHASER_ACTION_PATH_VIEW_MODES.SPIN,
+              label: "spin",
             },
           ],
           hint: "Choose which feasible chaser proposal paths to draw in the main Chase view.",

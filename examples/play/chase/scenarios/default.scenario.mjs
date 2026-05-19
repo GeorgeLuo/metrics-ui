@@ -14,7 +14,7 @@ const defaultScenarioDefinition = {
         lineOfSightPursuit: true,
         mapDiscovery: true,
         mapRecencyRefresh: true,
-        search: true,
+        spin: true,
       },
     },
     evader: {

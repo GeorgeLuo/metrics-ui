@@ -1,6 +1,6 @@
 import {
-  CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING,
-  CHASER_AUTOPILOT_SEARCH_LEAD_RADIANS,
+  CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING,
+  CHASER_AUTOPILOT_SPIN_LEAD_RADIANS,
   CHASER_AUTOPILOT_STEERING_DEADZONE_RADIANS,
   CHASER_STRATEGY_CONSENSUS_COUPLING,
   CHASER_STRATEGY_CONSENSUS_ITERATIONS,
@@ -14,7 +14,13 @@ import {
   normalizeVector,
   vectorToAngle,
 } from "../../decision-model/math.mjs";
-import { CHASER_STRATEGY_IDS } from "../../config/strategy-ids.mjs";
+import {
+  CHASER_CHASE_MOTIVE_STRATEGY_IDS,
+  CHASER_KNOWLEDGE_MOTIVE_STRATEGY_IDS,
+  CHASER_LEGACY_STRATEGY_IDS,
+  CHASER_MOTIVE_IDS,
+  CHASER_STRATEGY_IDS,
+} from "../../config/strategy-ids.mjs";
 
 const DEFAULT_ACTION_PATH_HORIZON_FRAMES = 36;
 const MAX_ACTION_PATH_HORIZON_FRAMES = 120;
@@ -89,10 +95,10 @@ function getDirectionFromPerception(chaserLookDirection, evaderPerception) {
   );
 }
 
-function getSearchDirection(chaserLookDirection, searchSteering) {
+function getSpinDirection(chaserLookDirection, spinSteering) {
   return angleToVector(
     vectorToAngle(chaserLookDirection)
-      + searchSteering * CHASER_AUTOPILOT_SEARCH_LEAD_RADIANS,
+      + spinSteering * CHASER_AUTOPILOT_SPIN_LEAD_RADIANS,
   );
 }
 
@@ -255,15 +261,15 @@ function buildActionPathToDirection({
   });
 }
 
-function buildSearchActionPath({
+function buildSpinActionPath({
   chaserPosition,
   chaserLookDirection,
-  searchSteering,
+  spinSteering,
   speedUnitsPerFrame,
   turnRateRadiansPerFrame,
   horizonFrames,
 } = {}) {
-  const steering = clampUnit(searchSteering);
+  const steering = clampUnit(spinSteering);
   return buildFeasibleActionPath({
     chaserPosition,
     chaserLookDirection,
@@ -271,7 +277,7 @@ function buildSearchActionPath({
     turnRateRadiansPerFrame,
     horizonFrames,
     metadata: {
-      targetDirection: getSearchDirection(chaserLookDirection, steering),
+      targetDirection: getSpinDirection(chaserLookDirection, steering),
     },
     getFrameSteering: () => steering,
   });
@@ -288,24 +294,17 @@ function createInactiveActionProposal(id, extra = {}) {
   };
 }
 
-export const CHASER_MOTIVE_IDS = Object.freeze({
-  CHASE: "chase",
-  KNOWLEDGE_ACQUISITION: "knowledgeAcquisition",
-});
-
-const CHASE_MOTIVE_STRATEGY_IDS = Object.freeze([
-  CHASER_STRATEGY_IDS.EVADER_PREDICTION_PURSUIT,
-  CHASER_STRATEGY_IDS.LINE_OF_SIGHT_PURSUIT,
-]);
-
-const KNOWLEDGE_MOTIVE_STRATEGY_IDS = Object.freeze([
-  CHASER_STRATEGY_IDS.MAP_DISCOVERY,
-  CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH,
-  CHASER_STRATEGY_IDS.SEARCH,
-]);
+function getActionEngineEnabled(actionEngines, strategyId) {
+  if (strategyId === CHASER_STRATEGY_IDS.SPIN
+    && actionEngines?.[strategyId] === undefined
+    && actionEngines?.[CHASER_LEGACY_STRATEGY_IDS.SEARCH] !== undefined) {
+    return actionEngines[CHASER_LEGACY_STRATEGY_IDS.SEARCH] !== false;
+  }
+  return actionEngines?.[strategyId] !== false;
+}
 
 function hasEnabledStrategy(actionEngines, strategyIds) {
-  return strategyIds.some((strategyId) => actionEngines?.[strategyId] !== false);
+  return strategyIds.some((strategyId) => getActionEngineEnabled(actionEngines, strategyId));
 }
 
 export function buildChaserMotiveSignal({
@@ -313,8 +312,14 @@ export function buildChaserMotiveSignal({
   actionEngines = {},
 } = {}) {
   const evaderInLineOfSight = Boolean(evaderLocation?.visible);
-  const chaseStrategyEnabled = hasEnabledStrategy(actionEngines, CHASE_MOTIVE_STRATEGY_IDS);
-  const knowledgeStrategyEnabled = hasEnabledStrategy(actionEngines, KNOWLEDGE_MOTIVE_STRATEGY_IDS);
+  const chaseStrategyEnabled = hasEnabledStrategy(
+    actionEngines,
+    CHASER_CHASE_MOTIVE_STRATEGY_IDS,
+  );
+  const knowledgeStrategyEnabled = hasEnabledStrategy(
+    actionEngines,
+    CHASER_KNOWLEDGE_MOTIVE_STRATEGY_IDS,
+  );
   const shouldChase = evaderInLineOfSight && chaseStrategyEnabled;
   const reason = evaderInLineOfSight
     ? chaseStrategyEnabled
@@ -488,32 +493,32 @@ export function buildVisibleBearingFallbackProposal({
   };
 }
 
-export function buildSearchProposal({
+export function buildSpinProposal({
   enabled,
   chaserPosition,
   chaserLookDirection,
-  searchSteering = CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING,
+  spinSteering = CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING,
   speedUnitsPerFrame,
   turnRateRadiansPerFrame,
 } = {}) {
   if (!enabled || !chaserLookDirection) {
-    return createInactiveActionProposal("search");
+    return createInactiveActionProposal(CHASER_STRATEGY_IDS.SPIN);
   }
 
-  const actionPath = buildSearchActionPath({
+  const actionPath = buildSpinActionPath({
     chaserPosition,
     chaserLookDirection,
-    searchSteering,
+    spinSteering,
     speedUnitsPerFrame,
     turnRateRadiansPerFrame,
   });
 
   return {
-    id: "search",
+    id: CHASER_STRATEGY_IDS.SPIN,
     active: true,
     confidence: 0.35,
-    pursuitSource: "search",
-    goalDirection: getSearchDirection(chaserLookDirection, searchSteering),
+    pursuitSource: CHASER_STRATEGY_IDS.SPIN,
+    goalDirection: getSpinDirection(chaserLookDirection, spinSteering),
     actionPath,
     firstAction: actionPath[0] ?? null,
   };
@@ -563,7 +568,7 @@ function getActivePathProposals(proposals) {
     proposals.lineOfSightPursuit,
     proposals.mapDiscovery,
     proposals.mapRecencyRefresh,
-    proposals.search,
+    proposals.spin,
   ].filter((proposal) => proposal?.active && Array.isArray(proposal.actionPath)
     && proposal.actionPath.length > 0);
 }
@@ -683,7 +688,7 @@ export function planProgrammaticChaserAction({
   chaserPosition,
   chaserLookDirection,
   actionEngines = {},
-  searchSteering = CHASER_AUTOPILOT_DEFAULT_SEARCH_STEERING,
+  spinSteering = CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING,
   previousWallFollowSign = 1,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
@@ -729,14 +734,15 @@ export function planProgrammaticChaserAction({
     }),
     mapDiscovery: knowledgeProposals.mapDiscovery,
     mapRecencyRefresh: knowledgeProposals.mapRecencyRefresh,
-    search: createInactiveActionProposal("search"),
+    spin: createInactiveActionProposal(CHASER_STRATEGY_IDS.SPIN),
   };
 
-  proposals.search = buildSearchProposal({
-    enabled: shouldAcquireKnowledge && actionEngines.search !== false,
+  proposals.spin = buildSpinProposal({
+    enabled: shouldAcquireKnowledge
+      && getActionEngineEnabled(actionEngines, CHASER_STRATEGY_IDS.SPIN),
     chaserPosition,
     chaserLookDirection,
-    searchSteering,
+    spinSteering,
     speedUnitsPerFrame: actionSpeedUnitsPerFrame,
     turnRateRadiansPerFrame,
   });
@@ -746,7 +752,7 @@ export function planProgrammaticChaserAction({
     createPeerConsensusSignal(proposals.lineOfSightPursuit),
     createPeerConsensusSignal(proposals.mapDiscovery),
     createPeerConsensusSignal(proposals.mapRecencyRefresh),
-    createPeerConsensusSignal(proposals.search),
+    createPeerConsensusSignal(proposals.spin),
   ].filter(Boolean);
   const peerConsensus = runKuramotoConsensus(peerSignals, {
     coupling: CHASER_STRATEGY_CONSENSUS_COUPLING,
@@ -806,7 +812,7 @@ export function planProgrammaticChaserAction({
       desiredDirection,
       actionPath: actionPathConsensus.path,
       chosenStrategy: chosenPeerLabel,
-      searchSteeringHint: proposals.search.active && firstAction.steer !== 0
+      spinSteeringHint: proposals.spin.active && firstAction.steer !== 0
         ? firstAction.steer
         : null,
       wallFollowSign: movement.wallFollowSign,
@@ -815,14 +821,14 @@ export function planProgrammaticChaserAction({
   }
 
   if (!evaderLocation?.visible) {
-    if (!proposals.search.active) {
+    if (!proposals.spin.active) {
       return {
         forward: false,
         reverse: false,
         steering: 0,
         desiredDirection: null,
         chosenStrategy: "none",
-        searchSteeringHint: null,
+        spinSteeringHint: null,
         wallFollowSign: movement.wallFollowSign,
         proposals,
       };
@@ -830,10 +836,10 @@ export function planProgrammaticChaserAction({
     return {
       forward: true,
       reverse: false,
-      steering: searchSteering,
+      steering: spinSteering,
       desiredDirection: null,
-      chosenStrategy: "search",
-      searchSteeringHint: null,
+      chosenStrategy: CHASER_STRATEGY_IDS.SPIN,
+      spinSteeringHint: null,
       wallFollowSign: movement.wallFollowSign,
       proposals,
     };
@@ -847,7 +853,7 @@ export function planProgrammaticChaserAction({
       steering: 0,
       desiredDirection: null,
       chosenStrategy: "none",
-      searchSteeringHint: null,
+      spinSteeringHint: null,
       wallFollowSign: movement.wallFollowSign,
       proposals,
     };
@@ -858,7 +864,7 @@ export function planProgrammaticChaserAction({
     steering,
     desiredDirection: null,
     chosenStrategy: "lineOfSightPursuit",
-    searchSteeringHint: null,
+    spinSteeringHint: null,
     wallFollowSign: movement.wallFollowSign,
     proposals,
   };
