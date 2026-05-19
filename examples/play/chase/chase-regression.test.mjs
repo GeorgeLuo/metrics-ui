@@ -14,7 +14,6 @@ import {
   CHASER_MAP_OVERLAY_VIEW_MODES,
   EVADER_PROJECTION_VIEW_ACTION_ID,
   EVADER_PROJECTION_VIEW_MODES,
-  SCENARIO_SELECT_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
@@ -541,125 +540,6 @@ test("pause-before-actions freezes a synced actor reasoning frame", () => {
   assert.equal(state.lastStep.actionApplicationPending, false);
   assert.equal(state.pendingActionFrame, null);
   assert.ok(state.chaserPosition.x > startChaserPosition.x);
-});
-
-test("scenario config can omit the evader without debug hardcoding", () => {
-  const scenarioDefinition = getChaseScenarioDefinition("no-evader");
-  const scenario = resolveChaseScenario(scenarioDefinition, GRID);
-  assert.equal(scenario.actors.evader.exists, false);
-  assert.equal(scenario.actors.evader.position, null);
-  assert.equal(scenario.actors.evader.direction, null);
-
-  const state = createChaseSimulationState({
-    scenario,
-    columns: GRID.columns,
-    rows: GRID.rows,
-  });
-  assert.equal(state.evaderExists, false);
-  assert.equal(state.evaderPosition, null);
-  assert.equal(state.evaderDirection, null);
-  assert.equal(state.evaderIdae, null);
-
-  for (let frame = 0; frame < 20; frame += 1) {
-    stepChaseSimulation(state, {
-      humanInput: idleInput(),
-    });
-  }
-
-  const predictionPlan = state.lastStep.chaserReasoning?.snapshot?.strategies?.evaderPrediction;
-  assert.equal(state.frameIndex, 20);
-  assert.equal(state.lastStep.evaderReasoning, null);
-  assert.equal(state.lastStep.evaderMovementDecision, null);
-  assert.equal(state.runMetrics.touchCount, 0);
-  assert.equal(state.lastStep.chaserReasoning?.observation?.absent, true);
-  assert.equal(predictionPlan?.actionable, false);
-  assert.equal(predictionPlan?.invalidReason, "target-absent");
-  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.evaderMotionModel, null);
-  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.continuance, null);
-  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.wallAvoidance, null);
-  assert.deepEqual(state.lastStep.chaserReasoning?.snapshot?.patternUnits, {});
-  assert.equal(state.lastStep.chaserAction?.chosenStrategy, "mapDiscovery+spin");
-  assert.equal(
-    state.lastStep.chaserAction?.actionStrategies?.motiveSignal?.id,
-    "knowledgeAcquisition",
-  );
-  assert.equal(state.lastStep.chaserAction?.actionStrategies?.mapDiscovery?.active, true);
-  assert.equal(
-    state.lastStep.chaserAction?.actionStrategies?.knowledgeAcquisition?.selectedCandidateId
-      !== null,
-    true,
-  );
-  assert.ok(
-    (state.lastStep.chaserAction?.actionStrategies?.knowledgeAcquisition?.candidates?.length ?? 0) > 0,
-    "expected knowledge acquisition to expose scored map-memory candidates",
-  );
-  assert.deepEqual(
-    getChaserActionPathDebugEntries(
-      state.lastStep.chaserAction,
-      CHASER_ACTION_PATH_VIEW_MODES.MAP_DISCOVERY,
-      { horizonFrames: 18, sampleSpacingFrames: 6 },
-    ).map((entry) => entry.sourceId),
-    [CHASER_ACTION_PATH_VIEW_MODES.MAP_DISCOVERY],
-  );
-  assert.equal(state.lastStep.chaserAction?.forward, true);
-});
-
-test("chase sidebar exposes scenario selector from settings", () => {
-  const state = createChaseSimulationState({
-    scenario: cloneScenario(),
-    columns: GRID.columns,
-    rows: GRID.rows,
-  });
-  let sections = [];
-  publishSidebarSections(
-    (nextSections) => {
-      sections = nextSections;
-    },
-    state.programmaticChaserEnabled,
-    {
-      chaserViewVisible: false,
-      evaderViewVisible: false,
-      idaeDebugVisible: false,
-    },
-    state.simulationSettings,
-    state.vehicleSettings,
-    state.projectionSettings,
-    {},
-    state.runMetrics,
-    {
-      activeScenarioId: DEFAULT_CHASE_SCENARIO_ID,
-      options: getChaseScenarioOptions(),
-      evaderExists: true,
-    },
-  );
-
-  const settingsSection = sections.find((section) => section.id === "settings");
-  const settingsRows = settingsSection?.rows ?? [];
-  const scenarioSelect = settingsRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
-  const scenarioHeaderIndex = settingsRows.findIndex(
-    (row) => row.kind === "header" && row.label === "Scenario",
-  );
-  const simulationHeaderIndex = settingsRows.findIndex(
-    (row) => row.kind === "header" && row.label === "Simulation",
-  );
-  const controlsHeaderIndex = settingsRows.findIndex(
-    (row) => row.kind === "header" && row.label === "Controls",
-  );
-  assert.equal(scenarioHeaderIndex, 0);
-  assert.equal(simulationHeaderIndex > scenarioHeaderIndex, true);
-  assert.equal(controlsHeaderIndex, -1);
-  assert.equal(
-    settingsRows.filter((row) => row.kind === "header").at(-1)?.label,
-    "Simulation",
-  );
-  assert.equal(settingsSection?.defaultOpen, false);
-  assert.equal(sections[sections.length - 1]?.id, "settings");
-  assert.equal(scenarioSelect?.kind, "select");
-  assert.equal(scenarioSelect?.value, DEFAULT_CHASE_SCENARIO_ID);
-  assert.ok(
-    scenarioSelect?.options?.some((option) => option.value === "no-evader"),
-    "expected sidebar scenario selector to include the no-evader scenario",
-  );
 });
 
 test("manual reverse moves the chaser backward and reverse steering turns the heading opposite forward drive", () => {

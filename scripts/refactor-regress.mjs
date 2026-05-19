@@ -2,7 +2,11 @@ import { runCommand, withIsolatedServer, repoRoot } from "./lib/regress-harness.
 
 async function run() {
   console.log("[refactor-regress] running Play chase deterministic regression");
-  await runCommand("node", ["--test", "examples/play/chase/chase-regression.test.mjs"], {
+  await runCommand("node", [
+    "--test",
+    "examples/play/chase/chase-regression.test.mjs",
+    "examples/play/chase/chase-scenario-regression.test.mjs",
+  ], {
     cwd: repoRoot,
     label: "play-chase-regress",
   });
