@@ -108,8 +108,11 @@ function resolveMapScenario(mapConfig, columns, rows) {
   }
 
   if (Array.isArray(mapRecord.obstacles)) {
+    const layout = typeof mapRecord.layout === "string" && mapRecord.layout.trim()
+      ? mapRecord.layout.trim()
+      : "custom";
     return {
-      layout: "custom",
+      layout,
       obstacles: normalizeObstacles(mapRecord.obstacles, fallbackLayout),
     };
   }

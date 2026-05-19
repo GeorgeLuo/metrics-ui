@@ -49,6 +49,29 @@ function getActorStrategyCollections(simulationState) {
   };
 }
 
+function cloneActorStrategyCollections(collections = {}) {
+  return Object.fromEntries(
+    Object.entries(collections).map(([actorId, strategies]) => [
+      actorId,
+      { ...(strategies ?? {}) },
+    ]),
+  );
+}
+
+export function createScenarioDefinitionWithEvaderOverride(scenarioDefinition, evaderExists) {
+  const nextDefinition = structuredClone(scenarioDefinition);
+  nextDefinition.actors = {
+    ...(nextDefinition.actors ?? {}),
+    evader: {
+      ...(nextDefinition.actors?.evader ?? {}),
+      exists: Boolean(evaderExists),
+    },
+  };
+  return nextDefinition;
+}
+
+const PERIODIC_UI_PUBLISH_INTERVAL_MS = 250;
+
 function createControlInputTracker() {
   const pressedKeys = new Set();
   const handleKeyDown = (event) => {
@@ -94,11 +117,20 @@ export function createPlayGame({
 }) {
   const scenarioOptions = getChaseScenarioOptions();
   let activeScenarioId = DEFAULT_CHASE_SCENARIO_ID;
-  let scenario = resolveChaseScenario(
-    getChaseScenarioDefinition(activeScenarioId),
+  let activeScenarioDefinition = getChaseScenarioDefinition(activeScenarioId);
+  let evaderExistsOverride = resolveChaseScenario(
+    activeScenarioDefinition,
+    { columns, rows },
+  ).actors.evader.exists !== false;
+  const buildActiveScenario = () => resolveChaseScenario(
+    createScenarioDefinitionWithEvaderOverride(activeScenarioDefinition, evaderExistsOverride),
     { columns, rows },
   );
+  let scenario = buildActiveScenario();
   const simulationState = createChaseSimulationState({ scenario, columns, rows });
+  let actorStrategyOverrides = cloneActorStrategyCollections(
+    getActorStrategyCollections(simulationState),
+  );
   const performanceTracker = createChasePerformanceTracker();
   const inputTracker = createControlInputTracker();
   let chaserViewVisible = false;
@@ -108,8 +140,11 @@ export function createPlayGame({
     visible: true,
     actorId: "chaser",
   };
+  let lastSidebarPublishMs = 0;
+  let lastDebugSnapshotPublishMs = 0;
 
   const publishDebugSnapshot = () => {
+    lastDebugSnapshotPublishMs = performance.now();
     setDebugSnapshot?.(buildChaseDebugSnapshot(simulationState, {
       performance: performanceTracker.getSnapshot(),
       predictionDebug: idaePredictionDebug,
@@ -129,6 +164,7 @@ export function createPlayGame({
   simulationState.projectionSettings = projectionSettings;
 
   const refreshSidebarSections = () => {
+    lastSidebarPublishMs = performance.now();
     publishSidebarSections(
       setSidebarSections,
       simulationState.programmaticChaserEnabled,
@@ -212,27 +248,55 @@ export function createPlayGame({
   };
   updateGreentextDebugOverlay();
 
-  const replaceSimulationState = (nextScenario) => {
-    const greentextDebugVisible = Boolean(simulationSettings.greentextDebugVisible);
+  const applyActorStrategyOverrides = () => {
+    Object.entries(actorStrategyOverrides.chaser ?? {}).forEach(([strategyId, enabled]) => {
+      setChaserActionEngineEnabled(
+        simulationState.chaserIdae?.state?.controllerState,
+        strategyId,
+        enabled,
+      );
+    });
+    Object.entries(actorStrategyOverrides.evader ?? {}).forEach(([strategyId, enabled]) => {
+      setEvaderStrategyEngineEnabled(
+        simulationState.evaderIdae?.state,
+        strategyId,
+        enabled,
+      );
+    });
+  };
+
+  const replaceSimulationState = (nextScenario, { preserveSidebarSettings = false } = {}) => {
+    const preservedSettings = preserveSidebarSettings ? {
+      programmaticChaserEnabled: simulationState.programmaticChaserEnabled,
+      simulationSettings: { ...simulationSettings },
+      vehicleSettings: { ...vehicleSettings },
+      projectionSettings: { ...projectionSettings },
+    } : null;
     const freshState = createChaseSimulationState({ scenario: nextScenario, columns, rows });
-    const nextSimulationSettings = { ...freshState.simulationSettings };
-    const nextVehicleSettings = { ...freshState.vehicleSettings };
-    const nextProjectionSettings = {
-      ...freshState.projectionSettings,
-      ...readStoredProjectionSettings(),
-    };
+    const nextSimulationSettings = preservedSettings?.simulationSettings
+      ?? { ...freshState.simulationSettings };
+    const nextVehicleSettings = preservedSettings?.vehicleSettings
+      ?? { ...freshState.vehicleSettings };
+    const nextProjectionSettings = preservedSettings?.projectionSettings
+      ?? {
+        ...freshState.projectionSettings,
+        ...readStoredProjectionSettings(),
+      };
 
     Object.keys(simulationState).forEach((key) => {
       delete simulationState[key];
     });
     Object.assign(simulationState, freshState);
+    if (preservedSettings) {
+      simulationState.programmaticChaserEnabled = preservedSettings.programmaticChaserEnabled;
+    }
 
     Object.keys(simulationSettings).forEach((key) => {
       delete simulationSettings[key];
     });
     Object.assign(simulationSettings, nextSimulationSettings);
     simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
-    simulationSettings.greentextDebugVisible = greentextDebugVisible;
+    simulationSettings.greentextDebugVisible = Boolean(simulationSettings.greentextDebugVisible);
 
     Object.keys(vehicleSettings).forEach((key) => {
       delete vehicleSettings[key];
@@ -247,6 +311,7 @@ export function createPlayGame({
     simulationState.simulationSettings = simulationSettings;
     simulationState.vehicleSettings = vehicleSettings;
     simulationState.projectionSettings = projectionSettings;
+    applyActorStrategyOverrides();
 
     inputTracker.clear();
     previousTimestamp = null;
@@ -258,13 +323,23 @@ export function createPlayGame({
     publishDebugSnapshot();
   };
   const resetSimulation = () => {
-    replaceSimulationState(scenario);
+    scenario = buildActiveScenario();
+    replaceSimulationState(scenario, { preserveSidebarSettings: true });
   };
   const loadScenario = (scenarioId) => {
     const scenarioDefinition = getChaseScenarioDefinition(scenarioId);
     activeScenarioId = scenarioDefinition.id ?? DEFAULT_CHASE_SCENARIO_ID;
-    scenario = resolveChaseScenario(scenarioDefinition, { columns, rows });
-    replaceSimulationState(scenario);
+    activeScenarioDefinition = scenarioDefinition;
+    scenario = buildActiveScenario();
+    replaceSimulationState(scenario, { preserveSidebarSettings: true });
+    if (simulationState.evaderExists === false && evaderViewVisible) {
+      evaderView.close();
+    }
+  };
+  const setEvaderExists = (evaderExists) => {
+    evaderExistsOverride = Boolean(evaderExists);
+    scenario = buildActiveScenario();
+    replaceSimulationState(scenario, { preserveSidebarSettings: true });
     if (simulationState.evaderExists === false && evaderViewVisible) {
       evaderView.close();
     }
@@ -296,8 +371,17 @@ export function createPlayGame({
     mapKnowledgeDebugSettings,
     resetSimulation,
     loadScenario,
+    getEvaderExists: () => simulationState.evaderExists !== false,
+    setEvaderExists,
     getActorStrategyCollections: () => getActorStrategyCollections(simulationState),
     setActorStrategyEnabled: (actorId, strategyId, enabled) => {
+      actorStrategyOverrides = {
+        ...actorStrategyOverrides,
+        [actorId]: {
+          ...(actorStrategyOverrides[actorId] ?? {}),
+          [strategyId]: Boolean(enabled),
+        },
+      };
       if (actorId === "chaser") {
         setChaserActionEngineEnabled(
           simulationState.chaserIdae?.state?.controllerState,
@@ -322,6 +406,8 @@ export function createPlayGame({
   let previousTimestamp = null;
   let accumulatedMs = 0;
   const MAX_STEPS_PER_TICK = 8;
+  const shouldPublishPeriodicUi = (timestamp, lastPublishMs) =>
+    timestamp - lastPublishMs >= PERIODIC_UI_PUBLISH_INTERVAL_MS;
   const tick = (timestamp) => {
     const tickStartMs = performance.now();
     if (previousTimestamp === null) {
@@ -372,10 +458,13 @@ export function createPlayGame({
       performance: performanceTracker.getSnapshot(),
     });
     const idaeDebugMs = performance.now() - idaeDebugStartMs;
-    const sidebarStartMs = performance.now();
-    refreshSidebarSections();
-    const sidebarMs = performance.now() - sidebarStartMs;
-    updateGreentextDebugOverlay();
+    let sidebarMs = 0;
+    if (shouldPublishPeriodicUi(timestamp, lastSidebarPublishMs)) {
+      const sidebarStartMs = performance.now();
+      refreshSidebarSections();
+      sidebarMs = performance.now() - sidebarStartMs;
+      updateGreentextDebugOverlay();
+    }
 
     const totalTickMs = performance.now() - tickStartMs;
     performanceTracker.recordTick({
@@ -401,7 +490,9 @@ export function createPlayGame({
         sidebarMs,
       },
     });
-    publishDebugSnapshot();
+    if (shouldPublishPeriodicUi(timestamp, lastDebugSnapshotPublishMs)) {
+      publishDebugSnapshot();
+    }
     animationFrame = window.requestAnimationFrame(tick);
   };
   animationFrame = window.requestAnimationFrame(tick);

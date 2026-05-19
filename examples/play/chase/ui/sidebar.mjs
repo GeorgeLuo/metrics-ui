@@ -10,6 +10,7 @@ import {
   CHASER_SPEED_ACTION_ID,
   DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES,
   DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES,
+  EVADER_EXISTS_ACTION_ID,
   SCENARIO_SELECT_ACTION_ID,
   EVADER_VIEW_ACTION_ID,
   IDAE_DEBUG_ACTION_ID,
@@ -198,9 +199,13 @@ function buildScenarioRows(scenarioControls = {}) {
       hint: "Switch the scenario config used by the Chase simulation.",
     },
     {
-      kind: "value",
+      kind: "toggle",
+      id: EVADER_EXISTS_ACTION_ID,
       label: "Evader",
-      value: scenarioControls.evaderExists === false ? "absent" : "present",
+      enabled: scenarioControls.evaderExists !== false,
+      enabledLabel: "present",
+      disabledLabel: "absent",
+      hint: "Override whether the active scenario includes the evader.",
     },
   ];
 }
