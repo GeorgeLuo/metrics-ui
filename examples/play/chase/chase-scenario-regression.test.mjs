@@ -125,28 +125,34 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
     },
   );
 
-  const settingsSection = sections.find((section) => section.id === "settings");
-  const settingsRows = settingsSection?.rows ?? [];
-  const scenarioSelect = settingsRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
-  const evaderExistsToggle = settingsRows.find((row) => row.id === EVADER_EXISTS_ACTION_ID);
-  const scenarioHeaderIndex = settingsRows.findIndex(
+  const gameSection = sections.find((section) => section.id === "game");
+  const gameRows = gameSection?.rows ?? [];
+  const scenarioSelect = gameRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
+  const evaderExistsToggle = gameRows.find((row) => row.id === EVADER_EXISTS_ACTION_ID);
+  const scoreHeaderIndex = gameRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Score",
+  );
+  const scenarioHeaderIndex = gameRows.findIndex(
     (row) => row.kind === "header" && row.label === "Scenario",
   );
-  const simulationHeaderIndex = settingsRows.findIndex(
+  const simulationHeaderIndex = gameRows.findIndex(
     (row) => row.kind === "header" && row.label === "Simulation",
   );
-  const controlsHeaderIndex = settingsRows.findIndex(
+  const controlsHeaderIndex = gameRows.findIndex(
     (row) => row.kind === "header" && row.label === "Controls",
   );
-  assert.equal(scenarioHeaderIndex, 0);
+  assert.equal(scoreHeaderIndex, 0);
+  assert.equal(scenarioHeaderIndex > scoreHeaderIndex, true);
   assert.equal(simulationHeaderIndex > scenarioHeaderIndex, true);
   assert.equal(controlsHeaderIndex, -1);
   assert.equal(
-    settingsRows.filter((row) => row.kind === "header").at(-1)?.label,
+    gameRows.filter((row) => row.kind === "header").at(-1)?.label,
     "Simulation",
   );
-  assert.equal(settingsSection?.defaultOpen, false);
-  assert.equal(sections.at(-1)?.id, "settings");
+  assert.equal(gameSection?.title, "Game");
+  assert.equal(sections[0]?.id, "game");
+  assert.equal(sections.some((section) => section.id === "settings"), false);
+  assert.equal(sections.some((section) => section.id === "score"), false);
   assert.equal(scenarioSelect?.kind, "select");
   assert.equal(scenarioSelect?.value, DEFAULT_CHASE_SCENARIO_ID);
   assert.equal(evaderExistsToggle?.kind, "toggle");

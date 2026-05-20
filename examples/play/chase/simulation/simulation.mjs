@@ -1,5 +1,9 @@
 import { CAR_BOUND_RADIUS } from "../config/constants.mjs";
-import { createChaserIdae, stepChaserIdae } from "../actors/chaser/chaser-decision-model.mjs";
+import {
+  createChaserIdae,
+  recordChaserSuccessMetrics,
+  stepChaserIdae,
+} from "../actors/chaser/chaser-decision-model.mjs";
 import { createEvaderIdae, stepEvaderIdae } from "../actors/evader/evader-decision-model.mjs";
 import {
   angleToVector,
@@ -316,6 +320,12 @@ function commitReasonedActionFrame(state, actionFrame) {
       actualDirection: state.evaderDirection,
     });
   }
+  recordChaserSuccessMetrics(state.chaserIdae, {
+    chaserPosition: state.chaserPosition,
+    evaderPosition: state.evaderPosition,
+    evaderExists: state.evaderExists !== false,
+    frameIndex: state.frameIndex + 1,
+  });
   updateRunMetrics(state.runMetrics, state.chaserPosition, state.evaderPosition);
   state.lastStep = {
     ...actionFrame,
