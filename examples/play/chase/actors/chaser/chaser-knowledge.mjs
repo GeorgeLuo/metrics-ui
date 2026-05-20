@@ -11,6 +11,10 @@ import {
   updateMapShapeMemory,
 } from "./knowledge/chaser-map-memory.mjs";
 import {
+  createChaserSuccessMetricsMemory,
+  updateChaserSuccessMetricsMemory,
+} from "./knowledge/chaser-success-memory.mjs";
+import {
   getPatternConfidence,
   getPatternPredictionUnit,
 } from "../../decision-model/patterns.mjs";
@@ -129,6 +133,7 @@ export function createChaserKnowledgeBase({
       abstracted: {
         observedEvaderMotion: createObservedEvaderMotionMemory(evaderDirection),
         mapShape: createMapShapeMemory(),
+        successMetrics: createChaserSuccessMetricsMemory(),
       },
     },
     patterns: {
@@ -243,6 +248,34 @@ export function updateChaserMemoryStage(
   }
 
   return knowledgeBase.memory;
+}
+
+export function updateChaserSuccessMetricsStage(
+  knowledgeBase,
+  {
+    chaserPosition,
+    evaderPosition,
+    evaderExists = true,
+    frameIndex = null,
+  } = {},
+) {
+  if (!knowledgeBase) {
+    return null;
+  }
+
+  if (!knowledgeBase.memory.abstracted.successMetrics) {
+    knowledgeBase.memory.abstracted.successMetrics = createChaserSuccessMetricsMemory();
+  }
+
+  return updateChaserSuccessMetricsMemory(
+    knowledgeBase.memory.abstracted.successMetrics,
+    {
+      chaserPosition,
+      evaderPosition: evaderExists === false ? null : evaderPosition,
+      evaderExists,
+      frameIndex,
+    },
+  );
 }
 
 export function updateChaserPatternStage(

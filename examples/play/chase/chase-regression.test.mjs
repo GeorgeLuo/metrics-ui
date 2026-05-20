@@ -14,6 +14,7 @@ import {
   CHASER_MAP_OVERLAY_VIEW_MODES,
   EVADER_PROJECTION_VIEW_ACTION_ID,
   EVADER_PROJECTION_VIEW_MODES,
+  SIMULATION_FPS_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
@@ -234,6 +235,10 @@ function buildTraceSignature(state) {
     pathLen: snapshot?.strategies?.evaderPrediction?.path?.length ?? 0,
     invalidReason: snapshot?.strategies?.evaderPrediction?.invalidReason ?? null,
   };
+}
+
+function getChaserSuccessMetrics(state) {
+  return state.chaserIdae?.state?.memory?.abstracted?.successMetrics ?? null;
 }
 
 function isPositionInsideBounds(position, bounds, epsilon = 1e-6) {
@@ -571,7 +576,69 @@ test("manual reverse moves the chaser backward and reverse steering turns the he
   );
 });
 
-test("chase sidebar exposes reset in the score section", () => {
+test("chaser records success metrics in actor memory after committed frames", () => {
+  const state = createChaseSimulationState({
+    scenario: buildManualChaserScenario((scenario) => {
+      scenario.actors.chaser.position = { x: -3, z: 0 };
+      scenario.actors.chaser.direction = { x: 1, z: 0 };
+      scenario.actors.evader.position = { x: -2.9, z: 0 };
+      scenario.actors.evader.direction = { x: 0, z: 1 };
+      scenario.vehicleSettings.evaderSpeedUnitsPerFrame = 0;
+    }),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+
+  const initialMetrics = getChaserSuccessMetrics(state);
+  assert.equal(initialMetrics.elapsedFrames, 0);
+  assert.equal(initialMetrics.touchCount, 0);
+
+  stepChaseSimulation(state, { humanInput: idleInput() });
+
+  const metricsAfterFirstFrame = getChaserSuccessMetrics(state);
+  assert.equal(metricsAfterFirstFrame.elapsedFrames, 1);
+  assert.equal(metricsAfterFirstFrame.targetPresentFrames, 1);
+  assert.equal(metricsAfterFirstFrame.touchCount, 1);
+  assert.equal(metricsAfterFirstFrame.evaderTouchActive, true);
+  assert.equal(metricsAfterFirstFrame.framesSinceLastTouch, 0);
+  assert.equal(metricsAfterFirstFrame.lastTouchFrameIndex, 1);
+  assert.equal(metricsAfterFirstFrame.touchRatePerThousandFrames, 1000);
+  assert.equal(metricsAfterFirstFrame.rollingTouchCount, 1);
+  assert.equal(metricsAfterFirstFrame.rollingTouchRatePerThousandFrames, 1000);
+
+  stepChaseSimulation(state, { humanInput: idleInput() });
+
+  const metricsAfterSecondFrame = getChaserSuccessMetrics(state);
+  assert.equal(metricsAfterSecondFrame.elapsedFrames, 2);
+  assert.equal(metricsAfterSecondFrame.touchCount, 1);
+  assert.equal(metricsAfterSecondFrame.evaderTouchActive, true);
+  assert.equal(metricsAfterSecondFrame.touchRatePerThousandFrames, 500);
+  assert.equal(metricsAfterSecondFrame.rollingTouchCount, 1);
+  assert.equal(state.runMetrics.touchCount, metricsAfterSecondFrame.touchCount);
+});
+
+test("chaser success metrics record elapsed frames without an evader target", () => {
+  const state = createChaseSimulationState({
+    scenario: buildScenario((scenario) => {
+      scenario.actors.evader.exists = false;
+    }),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+
+  stepChaseSimulation(state, { humanInput: idleInput() });
+
+  const metrics = getChaserSuccessMetrics(state);
+  assert.equal(metrics.elapsedFrames, 1);
+  assert.equal(metrics.targetPresentFrames, 0);
+  assert.equal(metrics.touchCount, 0);
+  assert.equal(metrics.evaderTouchActive, false);
+  assert.equal(metrics.framesSinceLastTouch, null);
+  assert.equal(metrics.touchRatePerThousandFrames, 0);
+  assert.equal(state.runMetrics.touchCount, 0);
+});
+
+test("chase sidebar combines score and settings into the game section", () => {
   const state = createChaseSimulationState({
     scenario: cloneScenario(),
     columns: GRID.columns,
@@ -600,20 +667,35 @@ test("chase sidebar exposes reset in the score section", () => {
     },
   );
 
-  const settingsRows = sections.find((section) => section.id === "settings")?.rows ?? [];
-  const scoreRows = sections.find((section) => section.id === "score")?.rows ?? [];
-  const playbackIndex = settingsRows.findIndex(
+  const gameSection = sections.find((section) => section.id === "game");
+  const gameRows = gameSection?.rows ?? [];
+  const scoreHeaderIndex = gameRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Score",
+  );
+  const simulationHeaderIndex = gameRows.findIndex(
+    (row) => row.kind === "header" && row.label === "Simulation",
+  );
+  const touchCountIndex = gameRows.findIndex(
+    (row) => row.kind === "value" && row.label === "Touches",
+  );
+  const frameCountIndex = gameRows.findIndex(
+    (row) => row.kind === "value" && row.label === "Frames",
+  );
+  const touchRateIndex = gameRows.findIndex(
+    (row) => row.kind === "value" && row.label === "Touches / 1k frames",
+  );
+  const fpsIndex = gameRows.findIndex((row) => row.id === SIMULATION_FPS_ACTION_ID);
+  const playbackIndex = gameRows.findIndex(
     (row) => row.id === SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   );
-  const settingsResetIndex = settingsRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
-  const scoreResetIndex = scoreRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
-  const greentextIndex = settingsRows.findIndex(
+  const resetIndex = gameRows.findIndex((row) => row.id === SIMULATION_RESET_ACTION_ID);
+  const greentextIndex = gameRows.findIndex(
     (row) => row.id === SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   );
-  const settingsControlsHeaderIndex = settingsRows.findIndex(
+  const gameControlsHeaderIndex = gameRows.findIndex(
     (row) => row.kind === "header" && row.label === "Controls",
   );
-  const settingsChaserAutopilotIndex = settingsRows.findIndex(
+  const gameChaserAutopilotIndex = gameRows.findIndex(
     (row) => row.id === CHASER_AUTOPILOT_ACTION_ID,
   );
   const strategiesRows = sections.find((section) => section.id === "strategies")?.rows ?? [];
@@ -662,17 +744,26 @@ test("chase sidebar exposes reset in the score section", () => {
     (row) => row.id === SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   );
 
+  assert.equal(sections[0]?.id, "game");
+  assert.equal(gameSection?.title, "Game");
+  assert.equal(sections.some((section) => section.id === "score"), false);
+  assert.equal(sections.some((section) => section.id === "settings"), false);
   assert.equal(sections.some((section) => section.id === "scenario"), false);
   assert.equal(sections.some((section) => section.id === "simulation"), false);
   assert.equal(sections.some((section) => section.id === "controls"), false);
   assert.equal(sections.some((section) => section.id === "windows"), false);
   assert.equal(sections.some((section) => section.id === "projection"), false);
-  assert.notEqual(playbackIndex, -1);
-  assert.equal(settingsResetIndex, -1);
-  assert.equal(scoreResetIndex, 3);
+  assert.equal(scoreHeaderIndex, 0);
+  assert.equal(touchCountIndex, scoreHeaderIndex + 1);
+  assert.equal(frameCountIndex, touchCountIndex + 1);
+  assert.equal(touchRateIndex, frameCountIndex + 1);
+  assert.equal(simulationHeaderIndex, touchRateIndex + 1);
+  assert.equal(fpsIndex, simulationHeaderIndex + 1);
+  assert.equal(playbackIndex, fpsIndex + 1);
+  assert.equal(resetIndex, playbackIndex + 1);
   assert.equal(greentextIndex, -1);
-  assert.equal(settingsControlsHeaderIndex, -1);
-  assert.equal(settingsChaserAutopilotIndex, -1);
+  assert.equal(gameControlsHeaderIndex, -1);
+  assert.equal(gameChaserAutopilotIndex, -1);
   assert.equal(chaserAutopilotIndex, 0);
   assert.equal(strategiesRows[chaserAutopilotIndex]?.enabled, true);
   assert.equal(vehicleControlsHeaderIndex > -1, true);
@@ -782,8 +873,8 @@ test("chase sidebar exposes reset in the score section", () => {
   );
   assert.deepEqual(
     {
-      kind: scoreRows[scoreResetIndex]?.kind,
-      label: scoreRows[scoreResetIndex]?.label,
+      kind: gameRows[resetIndex]?.kind,
+      label: gameRows[resetIndex]?.label,
     },
     {
       kind: "action",

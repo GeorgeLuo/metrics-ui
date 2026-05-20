@@ -6,6 +6,7 @@ import {
   setChaserKnowledgeEngineEnabled,
   updateChaserMemoryStage,
   updateChaserPatternStage,
+  updateChaserSuccessMetricsStage,
   updateChaserStrategyStage,
 } from "./chaser-knowledge.mjs";
 import {
@@ -172,4 +173,8 @@ export function createChaserIdae({ scenario } = {}) {
 
 export function stepChaserIdae(chaserIdae, frameContext = {}) {
   return stepActorDecisionModel(chaserIdae, frameContext);
+}
+
+export function recordChaserSuccessMetrics(chaserIdae, outcomeContext = {}) {
+  return updateChaserSuccessMetricsStage(chaserIdae?.state, outcomeContext);
 }

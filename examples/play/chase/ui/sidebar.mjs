@@ -229,7 +229,23 @@ export function publishSidebarSections(
   }
 
   const evaderExists = scenarioControls.evaderExists !== false;
-  const settingsRows = [
+  const gameRows = [
+    { kind: "header", label: "Score" },
+    {
+      kind: "value",
+      label: "Touches",
+      value: formatRunMetric(runMetrics.touchCount, 0),
+    },
+    {
+      kind: "value",
+      label: "Frames",
+      value: formatRunMetric(runMetrics.elapsedFrames, 0),
+    },
+    {
+      kind: "value",
+      label: "Touches / 1k frames",
+      value: formatRunMetric(runMetrics.touchRatePerThousandFrames, 2),
+    },
     ...buildScenarioRows(scenarioControls),
     { kind: "header", label: "Simulation" },
     {
@@ -250,42 +266,19 @@ export function publishSidebarSections(
       tone: "playback",
       hint: "Freeze after all actor reasoning has run for the current frame, before actions update the world.",
     },
+    {
+      kind: "action",
+      id: SIMULATION_RESET_ACTION_ID,
+      label: "Reset",
+      hint: "Reset the Chase run to a fresh initial state.",
+    },
   ];
-  const settingsSection = {
-    id: "settings",
-    title: "Settings",
-    hint: "Scenario, playback, and control settings for the active Chase run.",
-    defaultOpen: false,
-    rows: settingsRows,
-  };
   const sections = [
     {
-      id: "score",
-      title: "Score",
-      hint: "Live run metrics for comparing chase setups.",
-      rows: [
-        {
-          kind: "value",
-          label: "Touches",
-          value: formatRunMetric(runMetrics.touchCount, 0),
-        },
-        {
-          kind: "value",
-          label: "Frames",
-          value: formatRunMetric(runMetrics.elapsedFrames, 0),
-        },
-        {
-          kind: "value",
-          label: "Touches / 1k frames",
-          value: formatRunMetric(runMetrics.touchRatePerThousandFrames, 2),
-        },
-        {
-          kind: "action",
-          id: SIMULATION_RESET_ACTION_ID,
-          label: "Reset",
-          hint: "Reset the Chase run to a fresh initial state.",
-        },
-      ],
+      id: "game",
+      title: "Game",
+      hint: "Score, scenario, and simulation settings for the active Chase run.",
+      rows: gameRows,
     },
     {
       id: "view",
@@ -524,8 +517,6 @@ export function publishSidebarSections(
       rows: strategyRows,
     });
   }
-
-  sections.push(settingsSection);
 
   setSidebarSections(sections);
 }
