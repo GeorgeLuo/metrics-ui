@@ -125,8 +125,14 @@ export function createChaseSceneView({
   const resize = () => {
     const width = Math.max(1, container.clientWidth);
     const height = Math.max(1, container.clientHeight);
+    const fieldColumns = Number.isFinite(simulationState.columns)
+      ? simulationState.columns
+      : columns;
+    const fieldRows = Number.isFinite(simulationState.rows)
+      ? simulationState.rows
+      : rows;
     renderer.setSize(width, height, false);
-    configureCamera(camera, columns, rows, width, height);
+    configureCamera(camera, fieldColumns, fieldRows, width, height);
     chaserView.resize();
     evaderView.resize();
   };
