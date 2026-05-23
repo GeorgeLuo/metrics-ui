@@ -164,9 +164,44 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
     "expected sidebar scenario selector to include the no-evader scenario",
   );
   assert.ok(
+    scenarioSelect?.options?.some((option) => option.value === "open-room"),
+    "expected sidebar scenario selector to include the open-room scenario",
+  );
+  assert.ok(
+    scenarioSelect?.options?.some((option) => option.value === "large-open-room"),
+    "expected sidebar scenario selector to include the large-open-room scenario",
+  );
+  assert.ok(
     scenarioSelect?.options?.some((option) => option.value === "two-rooms"),
     "expected sidebar scenario selector to include the two-rooms scenario",
   );
+});
+
+test("open-room scenario resolves to an empty obstacle list", () => {
+  const scenario = resolveChaseScenario(getChaseScenarioDefinition("open-room"), GRID);
+  assert.equal(scenario.id, "open-room");
+  assert.equal(scenario.map.layout, "open-room");
+  assert.deepEqual(scenario.map.obstacles, { walls: [] });
+  assert.deepEqual(scenario.actors.chaser.position, defaultScenarioDefinition.actors.chaser.position);
+  assert.deepEqual(scenario.actors.evader.position, defaultScenarioDefinition.actors.evader.position);
+});
+
+test("large-open-room scenario resolves to a larger empty obstacle list", () => {
+  const scenario = resolveChaseScenario(getChaseScenarioDefinition("large-open-room"), GRID);
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  assert.equal(scenario.id, "large-open-room");
+  assert.equal(scenario.map.layout, "large-open-room");
+  assert.equal(scenario.map.columns, 13.5);
+  assert.equal(scenario.map.rows, 9);
+  assert.deepEqual(scenario.map.obstacles, { walls: [] });
+  assert.equal(state.columns, 13.5);
+  assert.equal(state.rows, 9);
+  assert.equal(scenario.actors.chaser.position.x, -5.13);
+  assert.equal(scenario.actors.evader.position.x, 3.375);
 });
 
 test("two-rooms scenario resolves to a vertical divider with a doorway gap", () => {

@@ -92,17 +92,26 @@ function normalizeObstacles(value, fallback) {
   const walls = value
     .map((obstacle, index) => normalizeObstacle(obstacle, index))
     .filter(Boolean);
-  return walls.length > 0
-    ? { walls }
-    : { walls: fallback.walls.map((wall) => ({ ...wall })) };
+  return { walls };
+}
+
+function normalizeMapDimension(value, fallback) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? numericValue
+    : fallback;
 }
 
 function resolveMapScenario(mapConfig, columns, rows) {
-  const fallbackLayout = getFieldObstacleLayout(columns, rows);
   const mapRecord = asRecord(mapConfig);
+  const resolvedColumns = normalizeMapDimension(mapRecord?.columns, columns);
+  const resolvedRows = normalizeMapDimension(mapRecord?.rows, rows);
+  const fallbackLayout = getFieldObstacleLayout(resolvedColumns, resolvedRows);
   if (!mapRecord) {
     return {
       layout: "center-square-default",
+      columns: resolvedColumns,
+      rows: resolvedRows,
       obstacles: fallbackLayout,
     };
   }
@@ -113,6 +122,8 @@ function resolveMapScenario(mapConfig, columns, rows) {
       : "custom";
     return {
       layout,
+      columns: resolvedColumns,
+      rows: resolvedRows,
       obstacles: normalizeObstacles(mapRecord.obstacles, fallbackLayout),
     };
   }
@@ -122,6 +133,8 @@ function resolveMapScenario(mapConfig, columns, rows) {
     : "center-square-default";
   return {
     layout,
+    columns: resolvedColumns,
+    rows: resolvedRows,
     obstacles: fallbackLayout,
   };
 }
@@ -240,8 +253,9 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
   const actors = asRecord(root.actors) ?? {};
   const chaser = asRecord(actors.chaser) ?? {};
   const evader = asRecord(actors.evader) ?? {};
-  const fallbackChaserPosition = { x: -safeColumns * 0.38, z: 0 };
-  const fallbackEvaderPosition = { x: safeColumns / 4, z: 0 };
+  const map = resolveMapScenario(root.map, safeColumns, safeRows);
+  const fallbackChaserPosition = { x: -map.columns * 0.38, z: 0 };
+  const fallbackEvaderPosition = { x: map.columns / 4, z: 0 };
   const fallbackChaserDirection = { x: 1, z: 0 };
   const fallbackEvaderDirection = normalizeVector(-1, 0.4);
   const vehicleSettings = asRecord(root.vehicleSettings) ?? {};
@@ -258,7 +272,7 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
     description: typeof root.description === "string" && root.description.trim()
       ? root.description.trim()
       : "Baseline chase scenario.",
-    map: resolveMapScenario(root.map, safeColumns, safeRows),
+    map,
     actors: {
       chaser: {
         position: normalizePosition(chaser.position, fallbackChaserPosition),

@@ -345,6 +345,12 @@ export function createChaseSimulationState({
   rows,
   traceRecorder,
 } = {}) {
+  const resolvedColumns = Number.isFinite(scenario?.map?.columns)
+    ? scenario.map.columns
+    : columns;
+  const resolvedRows = Number.isFinite(scenario?.map?.rows)
+    ? scenario.map.rows
+    : rows;
   const evaderExists = scenario?.actors?.evader?.exists !== false;
   const chaserIdae = createChaserIdae({ scenario });
   const evaderIdae = evaderExists ? createEvaderIdae({ scenario }) : null;
@@ -352,8 +358,8 @@ export function createChaseSimulationState({
 
   return {
     scenario,
-    columns,
-    rows,
+    columns: resolvedColumns,
+    rows: resolvedRows,
     frameIndex: 0,
     evaderExists,
     simulationSettings: {

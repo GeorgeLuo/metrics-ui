@@ -318,6 +318,7 @@ export function createPlayGame({
     accumulatedMs = 0;
     performanceTracker.reset();
     sceneView.updateFieldOfView();
+    sceneView.resize();
     updateGreentextDebugOverlay();
     refreshSidebarSections();
     publishDebugSnapshot();
