@@ -9,36 +9,36 @@ import {
   createMapShapeMemory,
   getMapShapePerception,
   updateMapShapeMemory,
-} from "./knowledge/chaser-map-memory.mjs";
+} from "../../decision-model/memory/chaser/map-memory.mjs";
 import {
   createChaserSuccessMetricsMemory,
   updateChaserSuccessMetricsMemory,
-} from "./knowledge/chaser-success-memory.mjs";
+} from "../../decision-model/memory/chaser/success-memory.mjs";
 import {
   getPatternConfidence,
   getPatternPredictionUnit,
-} from "../../decision-model/patterns.mjs";
+} from "../../decision-model/patterns/stateful-pattern.mjs";
 import {
   getStrategyConfidence,
   getStrategyOutput,
   isStrategyActionable,
-} from "../../decision-model/strategies.mjs";
+} from "../../decision-model/strategies/stateful-strategy.mjs";
 import {
   buildEvaderMotionModel,
   createContinuancePattern,
   getContinuancePatternOutput,
   updateContinuancePattern,
-} from "../../prediction/patterns/continuance-pattern.mjs";
+} from "../../decision-model/patterns/evader-motion/continuance.mjs";
 import {
   createWallAvoidancePattern,
   getWallAvoidancePatternOutput,
   updateWallAvoidancePattern,
-} from "../../prediction/patterns/wall-avoidance-pattern.mjs";
+} from "../../decision-model/patterns/evader-motion/wall-avoidance.mjs";
 import {
   createDisabledEvaderPredictionPlan,
   createEvaderPredictionStrategy,
   updateEvaderPredictionStrategy,
-} from "../../prediction/evader-prediction-strategy.mjs";
+} from "../../decision-model/strategies/evader-prediction/strategy.mjs";
 import { CHASER_PATTERN_IDS } from "../../config/strategy-ids.mjs";
 
 export const CHASER_KNOWLEDGE_ENGINE_IDS = Object.freeze({

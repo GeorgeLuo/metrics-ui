@@ -2,16 +2,16 @@ import {
   EVADER_PREDICTION_CONSENSUS_THRESHOLD,
   EVADER_PREDICTION_KURAMOTO_COUPLING,
   EVADER_PREDICTION_KURAMOTO_ITERATIONS,
-} from "../config/constants.mjs";
+} from "../../../config/constants.mjs";
 import {
   blendDirectionTowardWallAvoidance,
   buildEvaderPredictionOscillators,
   getDefaultEvaderPrediction,
   getWallAvoidanceSignal,
-} from "./prediction-strategies.mjs";
-import { runKuramotoConsensus } from "../decision-model/kuramoto.mjs";
+} from "./signals.mjs";
+import { runKuramotoConsensus } from "../../core/kuramoto.mjs";
 
-export { getDefaultEvaderPrediction } from "./prediction-strategies.mjs";
+export { getDefaultEvaderPrediction } from "./signals.mjs";
 
 export function predictEvaderMotionFromWallAvoidance(estimate, options = {}) {
   const defaultPrediction = getDefaultEvaderPrediction(estimate);

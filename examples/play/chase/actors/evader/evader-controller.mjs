@@ -2,7 +2,7 @@ import {
   constrainDirectionToBounds,
   steerDirectionToward,
 } from "./evader.mjs";
-import { normalizeAngleDelta, vectorToAngle } from "../../decision-model/math.mjs";
+import { normalizeAngleDelta, vectorToAngle } from "../../decision-model/core/math.mjs";
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));

@@ -11,7 +11,7 @@ import {
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../decision-model/math.mjs";
+} from "../../decision-model/core/math.mjs";
 import {
   isLineOfSightBlockedByObstacles,
 } from "../../world/world.mjs";

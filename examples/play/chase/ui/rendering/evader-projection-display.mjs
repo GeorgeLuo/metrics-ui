@@ -1,4 +1,4 @@
-import { getEvaderProjectionSampleCount } from "../../prediction/evader-prediction-plan.mjs";
+import { getEvaderProjectionSampleCount } from "../../decision-model/strategies/evader-prediction/plan.mjs";
 import { setProjectionFrame, syncProjectionFrames } from "./projection-frames.mjs";
 
 export function updateEvaderProjectionDisplay(

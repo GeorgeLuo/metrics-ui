@@ -2,12 +2,12 @@ import {
   DEFAULT_EVADER_DRIFT_X_PHASE_PER_FRAME,
   DEFAULT_EVADER_DRIFT_Z_PHASE_PER_FRAME,
 } from "../../../config/constants.mjs";
-import { normalizeVector } from "../../../decision-model/math.mjs";
+import { normalizeVector } from "../../core/math.mjs";
 import {
   createStatefulStrategy,
   getStrategyOutput,
   updateStrategy,
-} from "../../../decision-model/strategies.mjs";
+} from "../stateful-strategy.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 
 export const EVADER_DRIFT_STRATEGY_ID = "driftMotion";

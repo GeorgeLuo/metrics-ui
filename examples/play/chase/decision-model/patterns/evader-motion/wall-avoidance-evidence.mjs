@@ -1,9 +1,67 @@
 import {
   WALL_APPROACH_RESOLUTION_FRAMES,
   WALL_HIT_DISTANCE,
-} from "../config/constants.mjs";
-import { getWorldWallPressure } from "../world/world.mjs";
+} from "../../../config/constants.mjs";
+import { getWorldWallPressure } from "../../../world/world.mjs";
 
+/**
+ * @typedef {Object} WallAvoidancePendingApproach
+ * @property {string} wall Wall id under observation.
+ * @property {number} frames Number of frames spent monitoring this approach.
+ */
+
+/**
+ * @typedef {Object} WallAvoidanceLatestEvidence
+ * @property {boolean} observed Whether the latest sample was observed.
+ * @property {string} nearestWall Nearest wall id or none.
+ * @property {number | null} nearestDistance Distance to nearest wall.
+ * @property {boolean} nearingWall Whether the target is approaching a wall.
+ * @property {boolean} hitWall Whether the target contacted the wall.
+ * @property {"idle" | "watching" | "hit" | "avoided"} episodeStatus Current episode state.
+ */
+
+/**
+ * @typedef {Object} WallAvoidanceEvidenceState
+ * @property {number} observedSampleCount Count of observed wall-pressure samples.
+ * @property {number} approachEpisodeCount Count of completed wall approach episodes.
+ * @property {number} avoidedApproachCount Count of approaches resolved as avoided.
+ * @property {number} hitApproachCount Count of approaches resolved as wall hits.
+ * @property {WallAvoidancePendingApproach | null} pendingApproach Approach currently being monitored.
+ * @property {string | null} cooldownWall Wall id temporarily ignored after a completed episode.
+ * @property {number} wallAvoidanceScore Avoided approaches divided by approach opportunities.
+ * @property {WallAvoidanceLatestEvidence} latest Latest evidence snapshot.
+ */
+
+/**
+ * @typedef {Object} WallPressure
+ * @property {boolean} active Whether the target is close enough to a wall to count as pressure.
+ * @property {string} nearestWall Nearest wall id or none.
+ * @property {number | null} nearestDistance Distance to nearest wall.
+ */
+
+export const WALL_AVOIDANCE_EVIDENCE_STATE_FIELDS = Object.freeze([
+  "observedSampleCount",
+  "approachEpisodeCount",
+  "avoidedApproachCount",
+  "hitApproachCount",
+  "pendingApproach",
+  "cooldownWall",
+  "wallAvoidanceScore",
+  "latest",
+]);
+
+export const WALL_AVOIDANCE_LATEST_EVIDENCE_FIELDS = Object.freeze([
+  "observed",
+  "nearestWall",
+  "nearestDistance",
+  "nearingWall",
+  "hitWall",
+  "episodeStatus",
+]);
+
+/**
+ * @returns {WallAvoidanceEvidenceState}
+ */
 function createBaseWallAvoidanceState() {
   return {
     observedSampleCount: 0,
@@ -24,20 +82,35 @@ function createBaseWallAvoidanceState() {
   };
 }
 
+/**
+ * @returns {WallAvoidanceEvidenceState}
+ */
 export function createWallAvoidanceEvidenceState() {
   return createBaseWallAvoidanceState();
 }
 
+/**
+ * @returns {WallAvoidanceEvidenceState}
+ */
 export function createEvaderWallAvoidanceTruthState() {
   return createBaseWallAvoidanceState();
 }
 
+/**
+ * @param {WallAvoidanceEvidenceState} state
+ * @returns {void}
+ */
 function updateWallAvoidanceMetric(state) {
   state.wallAvoidanceScore = state.approachEpisodeCount > 0
     ? state.avoidedApproachCount / state.approachEpisodeCount
     : 0;
 }
 
+/**
+ * @param {WallAvoidanceEvidenceState} state
+ * @param {WallPressure} wallPressure
+ * @returns {{nearingWall: boolean, hitWall: boolean, episodeStatus: WallAvoidanceLatestEvidence["episodeStatus"]}}
+ */
 function updateApproachEpisode(state, wallPressure) {
   const nearingWall = wallPressure.active;
   const hitWall = wallPressure.active
@@ -91,6 +164,12 @@ function updateApproachEpisode(state, wallPressure) {
   };
 }
 
+/**
+ * @param {WallAvoidanceEvidenceState} state
+ * @param {WallPressure} wallPressure
+ * @param {boolean} observed
+ * @returns {WallAvoidanceEvidenceState}
+ */
 function updateStateFromWallPressure(state, wallPressure, observed = true) {
   if (observed) {
     state.observedSampleCount += 1;
@@ -109,6 +188,11 @@ function updateStateFromWallPressure(state, wallPressure, observed = true) {
   return state;
 }
 
+/**
+ * @param {WallAvoidanceEvidenceState} state
+ * @param {{decisionDebug?: {wallAvoidanceActive?: boolean, nearestWall?: string, nearestDistance?: number | null}}} context
+ * @returns {WallAvoidanceEvidenceState}
+ */
 export function updateEvaderWallAvoidanceTruth(
   state,
   {
@@ -123,6 +207,17 @@ export function updateEvaderWallAvoidanceTruth(
   return updateStateFromWallPressure(state, wallPressure);
 }
 
+/**
+ * @param {WallAvoidanceEvidenceState} state
+ * @param {{
+ *   estimate?: {position?: {x: number, z: number} | null, observationCount?: number},
+ *   evaderVisible?: boolean,
+ *   columns?: number,
+ *   rows?: number,
+ *   obstacles?: import("../../observer-world/interfaces.mjs").ObstacleSet
+ * }} context
+ * @returns {WallAvoidanceEvidenceState}
+ */
 export function updateWallAvoidanceEvidence(
   state,
   {

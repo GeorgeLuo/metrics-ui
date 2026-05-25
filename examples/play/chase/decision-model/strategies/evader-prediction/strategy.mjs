@@ -1,13 +1,13 @@
 import {
   buildEvaderPredictionPlan,
   createEvaderPredictionPlanState,
-} from "./evader-prediction-plan.mjs";
+} from "./plan.mjs";
 import {
   createStatefulStrategy,
   getStrategyOutput,
   getStrategyState,
   updateStrategy,
-} from "../decision-model/strategies.mjs";
+} from "../stateful-strategy.mjs";
 
 export const EVADER_PREDICTION_STRATEGY_ID = "evaderPrediction";
 

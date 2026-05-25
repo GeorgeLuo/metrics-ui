@@ -2,20 +2,20 @@ import {
   EVADER_PREDICTION_WALL_AVOIDANCE_MAX_BLEND,
   EVADER_PREDICTION_WALL_AVOIDANCE_WEIGHT,
   WALL_AVOIDANCE_DETECTION_MIN_APPROACHES,
-} from "../config/constants.mjs";
+} from "../../../config/constants.mjs";
 import {
   angleToVector,
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../decision-model/math.mjs";
+} from "../../core/math.mjs";
 import {
   clampConfidence,
   createPredictionSignal,
   getSampleConfidence,
-} from "../decision-model/strategy-confidence.mjs";
-import { createPatternConfidence } from "../decision-model/pattern-predictions.mjs";
-import { getWorldWallPressure } from "../world/world.mjs";
+} from "../confidence.mjs";
+import { createPatternConfidence } from "../../patterns/prediction-units.mjs";
+import { getWorldWallPressure } from "../../../world/world.mjs";
 
 const CURRENT_DIRECTION_WEIGHT = 1.2;
 const LAST_OBSERVED_DIRECTION_WEIGHT = 0.8;

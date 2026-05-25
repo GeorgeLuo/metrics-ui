@@ -1,4 +1,4 @@
-import { clampConfidence } from "./strategy-confidence.mjs";
+import { clampConfidence } from "../strategies/confidence.mjs";
 
 const DEFAULT_BETA_PRIOR_ALPHA = 0.5;
 const DEFAULT_BETA_PRIOR_BETA = 0.5;
