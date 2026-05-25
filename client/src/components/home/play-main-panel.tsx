@@ -1,25 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { FrameGrid, type FrameGridDebugSnapshot, type FrameGridSpec } from "@/components/frame-grid";
-import { PlayGameHost } from "@/components/home/play-game-host";
+import { PlayGameHost, type PlayViewportSpec } from "@/components/home/play-game-host";
 import type { PlaySidebarSection } from "@/lib/play/sidebar-sections";
-
-type PlayPair = [number, number];
-
-type PlayGameCatalogEntry = {
-  id: string;
-  label: string;
-  description?: string;
-  moduleUrl: string;
-  frameAspect: PlayPair;
-  grid: PlayPair;
-};
-
-const FALLBACK_GRID: PlayPair = [9, 6];
+import {
+  DEFAULT_PLAY_GRID,
+  normalizePlayGameCatalog,
+  type PlayGameCatalogEntry,
+} from "@shared/play-catalog";
 
 export const PLAY_FRAME_GRID_SPEC: FrameGridSpec = {
-  frameAspect: FALLBACK_GRID,
+  frameAspect: DEFAULT_PLAY_GRID,
   frameBorderDiv: [0, 0],
-  grid: FALLBACK_GRID,
+  grid: DEFAULT_PLAY_GRID,
   cellBorderDiv: [0, 0],
   fitMode: "contain",
 };
@@ -31,57 +23,6 @@ type PlayMainPanelProps = {
   onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
   onDebugSnapshotChange?: (snapshot: unknown) => void;
 };
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function normalizePair(value: unknown, fallback: PlayPair): PlayPair {
-  if (!Array.isArray(value) || value.length < 2) {
-    return fallback;
-  }
-  const first = Number(value[0]);
-  const second = Number(value[1]);
-  return Number.isFinite(first) && Number.isFinite(second) && first > 0 && second > 0
-    ? [first, second]
-    : fallback;
-}
-
-function normalizeGameEntry(value: unknown): PlayGameCatalogEntry | null {
-  const record = asRecord(value);
-  if (!record) {
-    return null;
-  }
-
-  const id = typeof record.id === "string" && record.id.trim() ? record.id.trim() : null;
-  const label = typeof record.label === "string" && record.label.trim() ? record.label.trim() : id;
-  const moduleUrl = typeof record.moduleUrl === "string" && record.moduleUrl.trim()
-    ? record.moduleUrl.trim()
-    : null;
-  if (!id || !label || !moduleUrl) {
-    return null;
-  }
-
-  return {
-    id,
-    label,
-    description: typeof record.description === "string" ? record.description : undefined,
-    moduleUrl,
-    frameAspect: normalizePair(record.frameAspect, FALLBACK_GRID),
-    grid: normalizePair(record.grid, FALLBACK_GRID),
-  };
-}
-
-function normalizeGameCatalog(payload: unknown): PlayGameCatalogEntry[] {
-  const record = asRecord(payload);
-  const rawGames = Array.isArray(record?.games) ? record.games : [];
-  return rawGames.flatMap((game) => {
-    const entry = normalizeGameEntry(game);
-    return entry ? [entry] : [];
-  });
-}
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -96,6 +37,7 @@ export function PlayMainPanel({
 }: PlayMainPanelProps) {
   const [games, setGames] = useState<PlayGameCatalogEntry[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [viewportSpecOverride, setViewportSpecOverride] = useState<PlayViewportSpec | null>(null);
 
   useEffect(() => {
     let isDisposed = false;
@@ -111,7 +53,7 @@ export function PlayMainPanel({
         if (isDisposed) {
           return;
         }
-        setGames(normalizeGameCatalog(payload));
+        setGames(normalizePlayGameCatalog(payload, { moduleField: "moduleUrl" }));
         setCatalogError(null);
       })
       .catch((error: unknown) => {
@@ -127,12 +69,17 @@ export function PlayMainPanel({
   }, []);
 
   const selectedGame = games[0] ?? null;
-  const [columns, rows] = selectedGame?.grid ?? FALLBACK_GRID;
+  const [hostColumns, hostRows] = selectedGame?.grid ?? DEFAULT_PLAY_GRID;
+  const [columns, rows] = viewportSpecOverride?.grid ?? [hostColumns, hostRows];
   const frameGridSpec = useMemo<FrameGridSpec>(() => ({
     ...PLAY_FRAME_GRID_SPEC,
-    frameAspect: selectedGame?.frameAspect ?? FALLBACK_GRID,
+    frameAspect: viewportSpecOverride?.frameAspect ?? selectedGame?.frameAspect ?? DEFAULT_PLAY_GRID,
     grid: [columns, rows],
-  }), [columns, rows, selectedGame?.frameAspect]);
+  }), [columns, rows, selectedGame?.frameAspect, viewportSpecOverride?.frameAspect]);
+
+  useEffect(() => {
+    setViewportSpecOverride(null);
+  }, [selectedGame?.id]);
 
   return (
     <main
@@ -162,8 +109,9 @@ export function PlayMainPanel({
             <PlayGameHost
               gameLabel={selectedGame?.label}
               moduleUrl={selectedGame?.moduleUrl ?? null}
-              columns={columns}
-              rows={rows}
+              columns={hostColumns}
+              rows={hostRows}
+              onViewportSpecChange={setViewportSpecOverride}
               onSidebarSectionsChange={onSidebarSectionsChange}
               onSidebarActionHandlerChange={onSidebarActionHandlerChange}
               onDebugSnapshotChange={onDebugSnapshotChange}
