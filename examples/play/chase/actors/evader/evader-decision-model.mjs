@@ -11,27 +11,27 @@ import {
   buildActorSnapshot,
   createActorDecisionModel,
   stepActorDecisionModel,
-} from "../../decision-model/actor-decision-model.mjs";
-import { runKuramotoConsensus } from "../../decision-model/kuramoto.mjs";
+} from "../../decision-model/core/actor-decision-model.mjs";
+import { runKuramotoConsensus } from "../../decision-model/core/kuramoto.mjs";
 import { constrainDirectionToBounds } from "./evader.mjs";
 import {
   createEvaderBaselineMovementStrategy,
   updateEvaderBaselineMovementStrategy,
-} from "./strategies/baseline-movement.mjs";
+} from "../../decision-model/strategies/evader/baseline-movement.mjs";
 import {
   createEvaderDriftStrategy,
   updateEvaderDriftStrategy,
-} from "./strategies/drift.mjs";
+} from "../../decision-model/strategies/evader/drift.mjs";
 import {
   createEvaderVisibleChaserEvadeStrategy,
   getEvaderVisibleChaserEvadeStrategyState,
   recordEvaderVisibleChaserExecution,
   updateEvaderVisibleChaserEvadeStrategy,
-} from "./strategies/visible-chaser-evade.mjs";
+} from "../../decision-model/strategies/evader/visible-chaser-evade.mjs";
 import {
   createEvaderWallAvoidStrategy,
   updateEvaderWallAvoidStrategy,
-} from "./strategies/wall-avoid.mjs";
+} from "../../decision-model/strategies/evader/wall-avoid.mjs";
 import { EVADER_STRATEGY_IDS } from "../../config/strategy-ids.mjs";
 import { planEvaderVehicleAction } from "./evader-controller.mjs";
 

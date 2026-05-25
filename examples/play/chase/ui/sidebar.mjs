@@ -27,7 +27,7 @@ import {
   SIMULATION_RESET_ACTION_ID,
 } from "../config/constants.mjs";
 import { CHASER_STRATEGY_MOTIVE_GROUPS } from "../config/strategy-ids.mjs";
-import { formatEditableNumber, radiansToDegrees } from "../decision-model/math.mjs";
+import { formatEditableNumber, radiansToDegrees } from "../decision-model/core/math.mjs";
 
 function formatRunMetric(value, digits = 0) {
   const numericValue = Number(value);

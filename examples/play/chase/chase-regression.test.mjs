@@ -37,7 +37,7 @@ import {
   stepChaseSimulation,
 } from "./simulation/simulation.mjs";
 import { createChasePerformanceTracker } from "./debug/performance-debug.mjs";
-import { getPredictionPerformanceSnapshot } from "./prediction/prediction-performance.mjs";
+import { getPredictionPerformanceSnapshot } from "./debug/prediction-performance.mjs";
 import { createNodeJsonlTraceRecorder } from "./simulation/trace-recorder-node.mjs";
 import { getFieldBounds, getWallBounds } from "./world/world.mjs";
 import {
@@ -49,7 +49,7 @@ import {
   createMapShapeMemory,
   RECENT_VISITATION_MAX_AGE_FRAMES,
   updateMapShapeMemory,
-} from "./actors/chaser/knowledge/chaser-map-memory.mjs";
+} from "./decision-model/memory/chaser/map-memory.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 const BASE_SCENARIO = Object.freeze(resolveChaseScenario(defaultScenarioDefinition, GRID));
@@ -1223,6 +1223,27 @@ test("global prediction performance validates source-agnostic predictions", () =
   assert.ok(
     sourceRows.every((row) => Number.isFinite(row.meanPositionError)),
     "expected every tracked source to report mean position error",
+  );
+  assert.deepEqual(
+    snapshot?.thresholdSuccessRates?.map((row) => row.threshold),
+    [1],
+  );
+  assert.ok(
+    snapshot?.thresholdSuccessRates?.every((row) =>
+      Number.isFinite(row.successRate) && row.count === snapshot.validatedCount),
+    "expected prediction performance to expose the 1.0-unit debug success rate",
+  );
+  assert.ok(
+    snapshot?.thresholdSuccessRatesByFrameOffset?.length > 0,
+    "expected prediction performance to expose 1.0-unit success rates by horizon",
+  );
+  assert.ok(
+    snapshot?.thresholdSuccessRatesByFrameOffset?.every((row) =>
+      row.threshold === 1
+      && Number.isFinite(row.frameOffset)
+      && Number.isFinite(row.successRate)
+      && row.count > 0),
+    "expected every horizon success-rate row to identify a validated prediction horizon",
   );
 });
 

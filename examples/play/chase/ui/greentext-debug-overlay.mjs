@@ -1,3 +1,5 @@
+import { getPredictionPerformanceSnapshot } from "../debug/prediction-performance.mjs";
+
 export function createGreentextDebugOverlay(container) {
   const element = document.createElement("pre");
   Object.assign(element.style, {
@@ -31,13 +33,69 @@ export function createGreentextDebugOverlay(container) {
   };
 }
 
-export function buildGreentextDebugText(simulationState) {
-  const motiveId = simulationState?.lastStep?.chaserAction
+function formatConfidence(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue)
+    ? numericValue.toFixed(2)
+    : "n/a";
+}
+
+function formatThresholdLabel(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return "unknown";
+  }
+  return Number.isInteger(numericValue)
+    ? numericValue.toFixed(1)
+    : String(numericValue);
+}
+
+function getChaserPredictionConfidence(lastStep = {}) {
+  const predictionConsensus = lastStep.chaserReasoning
+    ?.snapshot
+    ?.strategies
+    ?.evaderPrediction
+    ?.prediction
+    ?.consensus;
+  if (Number.isFinite(predictionConsensus)) {
+    return predictionConsensus;
+  }
+  return lastStep.chaserAction
     ?.actionStrategies
-    ?.motiveSignal
-    ?.id ?? "none";
+    ?.evaderPredictionPursuit
+    ?.confidence;
+}
+
+function getPredictionSuccessRateLines(simulationState = {}) {
+  const snapshot = getPredictionPerformanceSnapshot(simulationState?.predictionPerformance);
+  const thresholdRows = Array.isArray(snapshot?.thresholdSuccessRates)
+    ? snapshot.thresholdSuccessRates
+    : [];
+  const oneUnitRow = thresholdRows.find((row) => row.threshold === 1);
+  if (!oneUnitRow) {
+    return [`prediction successRate: ${formatConfidence(snapshot?.summary?.successRate)}`];
+  }
+  const horizonRows = Array.isArray(snapshot?.thresholdSuccessRatesByFrameOffset)
+    ? snapshot.thresholdSuccessRatesByFrameOffset.filter((row) =>
+      row.threshold === 1 && Number.isFinite(row.frameOffset))
+    : [];
+
+  return [
+    `prediction successRate@${formatThresholdLabel(oneUnitRow.threshold)}: ${formatConfidence(oneUnitRow.successRate)}`,
+    ...horizonRows.map((row) =>
+      `prediction successRate@${formatThresholdLabel(row.threshold)}/+${row.frameOffset}: ${formatConfidence(row.successRate)}`),
+  ];
+}
+
+export function buildGreentextDebugText(simulationState) {
+  const lastStep = simulationState?.lastStep ?? {};
+  const actionStrategies = lastStep.chaserAction?.actionStrategies;
+  const motiveId = actionStrategies?.motiveSignal?.id ?? "none";
+  const predictionConfidence = getChaserPredictionConfidence(lastStep);
   return [
     `frame: ${Number(simulationState?.frameIndex) || 0}`,
     `chaser motive: ${motiveId}`,
+    `prediction confidence: ${formatConfidence(predictionConfidence)}`,
+    ...getPredictionSuccessRateLines(simulationState),
   ].join("\n");
 }

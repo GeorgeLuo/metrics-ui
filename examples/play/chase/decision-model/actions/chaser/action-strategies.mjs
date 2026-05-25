@@ -5,22 +5,22 @@ import {
   CHASER_STRATEGY_CONSENSUS_COUPLING,
   CHASER_STRATEGY_CONSENSUS_ITERATIONS,
   DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
-} from "../../config/constants.mjs";
-import { buildKnowledgeAcquisitionProposals } from "./knowledge/chaser-knowledge-acquisition.mjs";
-import { runKuramotoConsensus } from "../../decision-model/kuramoto.mjs";
+} from "../../../config/constants.mjs";
+import { buildKnowledgeAcquisitionProposals } from "./knowledge-acquisition.mjs";
+import { runKuramotoConsensus } from "../../core/kuramoto.mjs";
 import {
   angleToVector,
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../decision-model/math.mjs";
+} from "../../core/math.mjs";
 import {
   CHASER_CHASE_MOTIVE_STRATEGY_IDS,
   CHASER_KNOWLEDGE_MOTIVE_STRATEGY_IDS,
   CHASER_LEGACY_STRATEGY_IDS,
   CHASER_MOTIVE_IDS,
   CHASER_STRATEGY_IDS,
-} from "../../config/strategy-ids.mjs";
+} from "../../../config/strategy-ids.mjs";
 
 const DEFAULT_ACTION_PATH_HORIZON_FRAMES = 36;
 const MAX_ACTION_PATH_HORIZON_FRAMES = 120;

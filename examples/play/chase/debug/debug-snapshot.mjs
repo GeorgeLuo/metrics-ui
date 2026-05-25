@@ -1,4 +1,4 @@
-import { getPredictionPerformanceSnapshot } from "../prediction/prediction-performance.mjs";
+import { getPredictionPerformanceSnapshot } from "./prediction-performance.mjs";
 
 function cloneSerializable(value, seen = new WeakSet()) {
   if (value === null || value === undefined) {

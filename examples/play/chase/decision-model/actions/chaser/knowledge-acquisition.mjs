@@ -5,7 +5,7 @@ import {
 import {
   KNOWN_AREA_CELL_SIZE,
   RECENT_VISITATION_MAX_AGE_FRAMES,
-} from "./chaser-map-memory.mjs";
+} from "../../memory/chaser/map-memory.mjs";
 import {
   createKnownMapRouteIndex,
   getFieldBoundsOrMemoryBounds,
@@ -14,13 +14,13 @@ import {
   getMapCellId,
   isMapCellInsideRememberedWall,
   isPositionInsideBounds,
-} from "./chaser-map-navigation.mjs";
+} from "../../memory/chaser/map-navigation.mjs";
 import {
   angleToVector,
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../../decision-model/math.mjs";
+} from "../../core/math.mjs";
 import { CHASER_STRATEGY_IDS } from "../../../config/strategy-ids.mjs";
 
 const DEFAULT_ACTION_PATH_HORIZON_FRAMES = 36;

@@ -8,11 +8,11 @@ import { createEvaderIdae, stepEvaderIdae } from "../actors/evader/evader-decisi
 import {
   angleToVector,
   vectorToAngle,
-} from "../decision-model/math.mjs";
+} from "../decision-model/core/math.mjs";
 import {
   createEvaderWallAvoidanceTruthState,
   updateEvaderWallAvoidanceTruth,
-} from "../prediction/wall-avoidance-detection.mjs";
+} from "../decision-model/patterns/evader-motion/wall-avoidance-evidence.mjs";
 import {
   createChaseTraceRecorder,
   getChaseTraceRecorderSnapshot,
@@ -22,7 +22,7 @@ import {
   createPredictionPerformanceTracker,
   recordPredictionPerformanceSet,
   validatePredictionPerformance,
-} from "../prediction/prediction-performance.mjs";
+} from "../debug/prediction-performance.mjs";
 import { resolveObstacleCollisions } from "../world/world.mjs";
 
 function createRunMetrics() {

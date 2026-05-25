@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chaser Motives, Strategies, and Action Flow</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #162033;
+      --muted: #5f6b7a;
+      --line: #c8d1dd;
+      --panel: #ffffff;
+      --page: #f3f6fa;
+      --blue: #2563eb;
+      --cyan: #0891b2;
+      --green: #0f766e;
+      --orange: #c2410c;
+      --violet: #6d28d9;
+      --red: #be123c;
+      --shadow: 0 12px 30px rgba(22, 32, 51, 0.09);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1280px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 30px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    h3 {
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .summary {
+      max-width: 860px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #fff;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .flow-panel {
+      padding: 18px;
+      overflow-x: auto;
+    }
+
+    .flow {
+      min-width: 1140px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.15fr 1fr 1.15fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .flow-column {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      position: relative;
+    }
+
+    .flow-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfdff;
+      min-height: 104px;
+    }
+
+    .flow-card strong {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .flow-card ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .flow-card li + li {
+      margin-top: 3px;
+    }
+
+    .flow-card.input {
+      border-top: 4px solid var(--cyan);
+    }
+
+    .flow-card.motive {
+      border-top: 4px solid var(--violet);
+    }
+
+    .flow-card.chase {
+      border-top: 4px solid var(--red);
+    }
+
+    .flow-card.knowledge {
+      border-top: 4px solid var(--green);
+    }
+
+    .flow-card.weighting {
+      border-top: 4px solid var(--orange);
+    }
+
+    .flow-card.output {
+      border-top: 4px solid var(--blue);
+    }
+
+    .arrow {
+      align-self: center;
+      justify-self: center;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 22px;
+      margin-top: 42px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .wide {
+      grid-column: span 2;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card p {
+      color: var(--muted);
+    }
+
+    .table {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      gap: 12px;
+      padding: 8px 0;
+      border-top: 1px solid #e6ebf1;
+    }
+
+    .row:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .key {
+      font-weight: 700;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      background: #eef3f8;
+      border: 1px solid #dce4ee;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+
+    .formula {
+      padding: 12px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid #e1e8f0;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      color: #27364a;
+      white-space: pre-wrap;
+      margin-top: 10px;
+    }
+
+    .callout {
+      border-left: 4px solid var(--orange);
+      padding: 12px;
+      background: #fff7ed;
+      border-radius: 6px;
+      color: #7c2d12;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--line);
+    }
+
+    .dot.cyan { background: var(--cyan); }
+    .dot.violet { background: var(--violet); }
+    .dot.red { background: var(--red); }
+    .dot.green { background: var(--green); }
+    .dot.orange { background: var(--orange); }
+    .dot.blue { background: var(--blue); }
+
+    @media (max-width: 900px) {
+      main {
+        width: min(100vw - 24px, 1280px);
+        padding-top: 20px;
+      }
+
+      header {
+        grid-template-columns: 1fr;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .wide {
+        grid-column: span 1;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Chaser Decision Flow</h1>
+        <p class="summary">
+          Current implementation path from actor memory to motive gate, strategy proposals,
+          weighting, feasible action-path mixing, and final vehicle controls.
+        </p>
+      </div>
+      <div class="badge">Current code: single active motive per frame</div>
+    </header>
+
+    <section class="panel flow-panel" aria-label="Chaser decision flow diagram">
+      <div class="flow">
+        <div class="flow-column">
+          <div class="flow-card input">
+            <strong>Frame context + snapshot</strong>
+            <ul>
+              <li>chaser pose, speed, turn rate</li>
+              <li>frame index, rows, columns</li>
+              <li>remembered map and evader memory</li>
+              <li>enabled action engines</li>
+            </ul>
+          </div>
+          <div class="flow-card input">
+            <strong>Relevant memory</strong>
+            <ul>
+              <li><code>directObservation.evaderLocation.visible</code></li>
+              <li><code>abstracted.mapShape</code></li>
+              <li><code>strategies.evaderPrediction</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="flow-column">
+          <div class="arrow">&rarr;</div>
+          <div class="flow-card motive">
+            <strong>Motive signal</strong>
+            <ul>
+              <li><code>id</code>: chase or knowledge acquisition</li>
+              <li><code>reason</code>: visibility / enabled strategy state</li>
+              <li><code>confidence</code>: currently fixed at 1</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="flow-column">
+          <div class="arrow">&rarr;</div>
+          <div class="flow-card chase">
+            <strong>Chase strategies</strong>
+            <ul>
+              <li><code>evaderPredictionPursuit</code>: target reachable projection point</li>
+              <li><code>lineOfSightPursuit</code>: target visible bearing</li>
+              <li>only active when motive is <code>chase</code></li>
+            </ul>
+          </div>
+          <div class="flow-card knowledge">
+            <strong>Knowledge strategies</strong>
+            <ul>
+              <li><code>mapDiscovery</code>: target frontier cells</li>
+              <li><code>mapRecencyRefresh</code>: target stale known cells</li>
+              <li><code>spin</code>: fallback sweep path</li>
+              <li>only active when motive is <code>knowledgeAcquisition</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="flow-column">
+          <div class="arrow">&rarr;</div>
+          <div class="flow-card weighting">
+            <strong>Two weighting products</strong>
+            <ul>
+              <li>direction consensus is calculated with Kuramoto</li>
+              <li>vehicle action uses weighted path mixing</li>
+              <li>local navigation is currently disabled</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="flow-column">
+          <div class="arrow">&rarr;</div>
+          <div class="flow-card output">
+            <strong>Returned action</strong>
+            <ul>
+              <li><code>forward</code>, <code>reverse</code>, <code>steering</code></li>
+              <li><code>actionPath</code> for debug rendering</li>
+              <li><code>chosenStrategy</code> and full proposal payload</li>
+              <li>controller stores last pursuit source and spin hint</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="dot cyan"></i>inputs</span>
+        <span><i class="dot violet"></i>motive</span>
+        <span><i class="dot red"></i>chase</span>
+        <span><i class="dot green"></i>knowledge</span>
+        <span><i class="dot orange"></i>weighting</span>
+        <span><i class="dot blue"></i>action</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="panel card">
+        <h2>1. Motive</h2>
+        <p>
+          The motive is a frame-local gate, not a blended layer. If the evader is visible
+          and at least one chase strategy is enabled, the chaser chooses chase. Otherwise it
+          chooses knowledge acquisition.
+        </p>
+        <div class="formula">shouldChase =
+  evaderLocation.visible
+  &amp;&amp; anyEnabled(evaderPredictionPursuit, lineOfSightPursuit)
+
+motive =
+  shouldChase ? "chase" : "knowledgeAcquisition"</div>
+      </article>
+
+      <article class="panel card">
+        <h2>2. Strategy Proposal</h2>
+        <p>
+          Each active strategy proposes a common action payload. Inactive strategies still
+          exist in the proposal object, but do not enter weighting.
+        </p>
+        <div class="table">
+          <div class="row">
+            <div class="key">Identity</div>
+            <div><code>id</code>, <code>active</code>, <code>pursuitSource</code></div>
+          </div>
+          <div class="row">
+            <div class="key">Weight</div>
+            <div><code>confidence</code>, usually in the range 0..1</div>
+          </div>
+          <div class="row">
+            <div class="key">Intent</div>
+            <div><code>goalDirection</code>, target candidate or pursuit point</div>
+          </div>
+          <div class="row">
+            <div class="key">Feasible path</div>
+            <div><code>actionPath</code> and <code>firstAction</code></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel card">
+        <h2>3. Action</h2>
+        <p>
+          The final vehicle action is currently taken from action-path consensus. If there is
+          no consensus path, the code falls back to spin or visible-bearing steering.
+        </p>
+        <div class="formula">if actionPathConsensus.firstAction:
+  forward = firstAction.forward
+  reverse = firstAction.reverse
+  steering = firstAction.steer</div>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="panel card">
+        <h2>Chase Strategies</h2>
+        <div class="table">
+          <div class="row">
+            <div class="key">Evader prediction pursuit</div>
+            <div>
+              Selects a pursuit point from the evader prediction path. Confidence comes from
+              <code>evaderPrediction.prediction.consensus</code>. The feasible path steers toward
+              the selected projected position.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Line of sight pursuit</div>
+            <div>
+              Uses the currently visible evader bearing as a target direction. Confidence is
+              fixed at <code>1</code>. This is the direct visual fallback inside the chase motive.
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel card wide">
+        <h2>Knowledge Acquisition Strategies</h2>
+        <div class="table">
+          <div class="row">
+            <div class="key">Map discovery</div>
+            <div>
+              Scores known cells by frontier value, distance, and bearing. A frontier cell is
+              a known cell next to unknown traversable space.
+              <div class="formula">discoveryScore =
+  frontier * 0.70
+  + distanceScore * 0.20
+  + bearingScore * 0.10</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Map recency refresh</div>
+            <div>
+              Scores known cells by age debt, distance, and bearing. It is explicitly disabled
+              while map discovery has an active frontier target.
+              <div class="formula">recencyScore =
+  recencyDebt * 0.82
+  + distanceScore * 0.12
+  + bearingScore * 0.06</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Spin</div>
+            <div>
+              Generates a curved sweep path from the current heading. Confidence is fixed at
+              <code>0.35</code>. It is active only in the knowledge acquisition motive.
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="panel card wide">
+        <h2>How Weighting Is Implemented</h2>
+        <div class="table">
+          <div class="row">
+            <div class="key">Direction consensus</div>
+            <div>
+              Active proposals are converted to directional oscillator inputs using
+              <code>firstAction.predictedDirection</code> when available, otherwise
+              <code>goalDirection</code>. Kuramoto consensus produces <code>peerConsensus</code>
+              and <code>goalDirection</code>.
+              <div class="formula">peerSignal = {
+  id: proposal.id,
+  direction: firstAction.predictedDirection || goalDirection,
+  confidence: proposal.confidence,
+  weight: 1
+}</div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Important current detail</div>
+            <div>
+              The Kuramoto helper stores <code>confidence</code>, but its interaction and circular
+              mean use <code>weight</code>. The chaser currently passes <code>weight: 1</code>, so
+              proposal confidence does not weight the direction consensus.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Action-path consensus</div>
+            <div>
+              The final action path uses proposal confidence directly. For each future frame,
+              throttle and steering are averaged across active proposal paths, weighted by
+              clamped <code>proposal.confidence</code>.
+              <div class="formula">weight = clamp(proposal.confidence, 0, 1)
+
+mixedThrottle = sum(frame.throttle * weight) / sum(weight)
+mixedSteering = sum(frame.steer * weight) / sum(weight)</div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel card">
+        <h2>What Is Not Blended Yet</h2>
+        <div class="callout">
+          Motives do not currently compete in the same frame. The motive gate chooses chase
+          or knowledge acquisition first, and only strategies inside that selected motive can
+          contribute to proposal weighting.
+        </div>
+        <div class="formula">current:
+motive gate -> strategies inside motive -> action
+
+not current:
+all motives -> all strategies -> action</div>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="panel card">
+        <h2>Where To Read The Code</h2>
+        <div class="table">
+          <div class="row">
+            <div class="key">Motive and action planning</div>
+            <div><code>decision-model/actions/chaser/action-strategies.mjs</code></div>
+          </div>
+          <div class="row">
+            <div class="key">Controller output</div>
+            <div><code>actors/chaser/chaser-controller.mjs</code></div>
+          </div>
+          <div class="row">
+            <div class="key">Knowledge acquisition</div>
+            <div><code>decision-model/actions/chaser/knowledge-acquisition.mjs</code></div>
+          </div>
+          <div class="row">
+            <div class="key">Strategy IDs and motive groups</div>
+            <div><code>config/strategy-ids.mjs</code></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel card wide">
+        <h2>Debug Payload Mental Model</h2>
+        <p>
+          The returned chaser action includes both the selected controls and the explanation
+          payload. Debug views can inspect <code>actionStrategies</code> / <code>actionPlan.proposals</code>
+          to see the motive signal, peer consensus, action-path consensus, local navigation
+          placeholder, knowledge signal, and every strategy proposal.
+        </p>
+        <div class="formula">return {
+  forward, reverse, steering,
+  pursuitPoint,
+  movement,
+  actionPath,
+  chosenStrategy,
+  actionStrategies: actionPlan.proposals,
+  actionPlan
+}</div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

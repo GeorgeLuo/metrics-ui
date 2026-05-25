@@ -1,3 +1,23 @@
+/**
+ * @import {
+ *   PatternEvidence,
+ *   PatternPredictionSample,
+ *   PatternPredictionUnit,
+ *   PatternUpdateContext,
+ *   StatefulPattern,
+ *   StatefulPatternConfig,
+ * } from "./interfaces.mjs"
+ */
+
+/**
+ * @template TState
+ * @template TOutput
+ * @template TEvidence
+ * @template TPredictionUnit
+ * @template TUnit
+ * @param {StatefulPatternConfig<TState, TOutput, TEvidence, TPredictionUnit, TUnit>} config
+ * @returns {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit>}
+ */
 export function createStatefulPattern({
   id,
   unit,
@@ -9,6 +29,7 @@ export function createStatefulPattern({
   getPredictionUnit,
   getConfidence,
 } = {}) {
+  /** @type {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit>} */
   const pattern = {
     id,
     unit: unit ?? id,
@@ -56,6 +77,16 @@ export function createStatefulPattern({
   return pattern;
 }
 
+/**
+ * @template TState
+ * @template TOutput
+ * @template TEvidence
+ * @template TPredictionUnit
+ * @template TUnit
+ * @param {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit> | null | undefined} pattern
+ * @param {PatternUpdateContext} context
+ * @returns {TState | null}
+ */
 export function updatePattern(pattern, context) {
   if (!pattern || typeof pattern.update !== "function") {
     return null;
@@ -63,10 +94,28 @@ export function updatePattern(pattern, context) {
   return pattern.update(context);
 }
 
+/**
+ * @template TState
+ * @template TOutput
+ * @template TEvidence
+ * @template TPredictionUnit
+ * @template TUnit
+ * @param {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit> | null | undefined} pattern
+ * @returns {TState | null}
+ */
 export function getPatternState(pattern) {
   return pattern?.state ?? null;
 }
 
+/**
+ * @template TState
+ * @template TOutput
+ * @template TEvidence
+ * @template TPredictionUnit
+ * @template TUnit
+ * @param {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit> | null | undefined} pattern
+ * @returns {TOutput | TState | null}
+ */
 export function getPatternOutput(pattern) {
   if (!pattern) {
     return null;
@@ -77,6 +126,15 @@ export function getPatternOutput(pattern) {
   return getPatternState(pattern);
 }
 
+/**
+ * @template TState
+ * @template TOutput
+ * @template TEvidence
+ * @template TPredictionUnit
+ * @template TUnit
+ * @param {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit> | null | undefined} pattern
+ * @returns {TEvidence | PatternEvidence | null}
+ */
 export function getPatternEvidence(pattern) {
   if (!pattern) {
     return null;
@@ -87,6 +145,15 @@ export function getPatternEvidence(pattern) {
   return null;
 }
 
+/**
+ * @template TState
+ * @template TOutput
+ * @template TEvidence
+ * @template TPredictionUnit
+ * @template TUnit
+ * @param {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit> | null | undefined} pattern
+ * @returns {PatternPredictionSample[]}
+ */
 export function getPatternPredictions(pattern) {
   if (!pattern) {
     return [];
@@ -97,6 +164,15 @@ export function getPatternPredictions(pattern) {
   return [];
 }
 
+/**
+ * @template TState
+ * @template TOutput
+ * @template TEvidence
+ * @template TPredictionUnit
+ * @template TUnit
+ * @param {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit> | null | undefined} pattern
+ * @returns {TPredictionUnit | PatternPredictionUnit | null}
+ */
 export function getPatternPredictionUnit(pattern) {
   if (!pattern) {
     return null;
@@ -107,6 +183,15 @@ export function getPatternPredictionUnit(pattern) {
   return null;
 }
 
+/**
+ * @template TState
+ * @template TOutput
+ * @template TEvidence
+ * @template TPredictionUnit
+ * @template TUnit
+ * @param {StatefulPattern<TState, TOutput, TEvidence, TPredictionUnit, TUnit> | null | undefined} pattern
+ * @returns {number}
+ */
 export function getPatternConfidence(pattern) {
   if (!pattern) {
     return 0;

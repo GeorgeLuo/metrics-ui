@@ -2,7 +2,7 @@ import { CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING } from "../../config/constants.m
 import {
   planProgrammaticChaserAction,
   selectPursuitPoint,
-} from "./chaser-action-strategies.mjs";
+} from "../../decision-model/actions/chaser/action-strategies.mjs";
 import {
   CHASER_LEGACY_STRATEGY_IDS,
   CHASER_STRATEGY_IDS,

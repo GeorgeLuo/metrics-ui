@@ -12,7 +12,7 @@ import {
   MAX_EVADER_PROJECTION_HORIZON_FRAMES,
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
 } from "../config/constants.mjs";
-import { clampNumber } from "../decision-model/math.mjs";
+import { clampNumber } from "../decision-model/core/math.mjs";
 
 function normalizeMapOverlayViewMode(settings = {}) {
   if (Object.values(CHASER_MAP_OVERLAY_VIEW_MODES).includes(settings.viewMode)) {

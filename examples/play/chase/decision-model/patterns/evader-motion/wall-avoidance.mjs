@@ -2,23 +2,119 @@ import {
   DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
   DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
   DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME,
-} from "../../config/constants.mjs";
+} from "../../../config/constants.mjs";
 import {
   createFramePrediction,
   createPatternConfidence,
   createPatternPredictionUnit,
-} from "../../decision-model/pattern-predictions.mjs";
+} from "../prediction-units.mjs";
 import {
   createWallAvoidanceEvidenceState,
   updateWallAvoidanceEvidence,
-} from "../wall-avoidance-detection.mjs";
-import { createStatefulPattern, getPatternOutput, updatePattern } from "../../decision-model/patterns.mjs";
-import { predictEvaderMotionFromWallAvoidance } from "../prediction.mjs";
-import { buildEvaderProjectionPath } from "../projection-path.mjs";
+} from "./wall-avoidance-evidence.mjs";
+import { createStatefulPattern, getPatternOutput, updatePattern } from "../stateful-pattern.mjs";
+import { predictEvaderMotionFromWallAvoidance } from "../../strategies/evader-prediction/motion-prediction.mjs";
+import { buildEvaderProjectionPath } from "../../strategies/evader-prediction/projection-path.mjs";
+
+/**
+ * @import {
+ *   ObstacleSet,
+ *   VectorXZ,
+ * } from "../../observer-world/interfaces.mjs"
+ * @import {
+ *   PatternPredictionSample,
+ *   PatternPredictionUnit,
+ *   PatternUpdateContext,
+ *   StatefulPattern,
+ * } from "../interfaces.mjs"
+ * @import {
+ *   WallAvoidanceEvidenceState,
+ * } from "./wall-avoidance-evidence.mjs"
+ */
+
+/**
+ * @typedef {Object} PredictionOscillator
+ * @property {string} id Signal id.
+ * @property {VectorXZ | null} direction Signal direction.
+ * @property {number} confidence Signal confidence on a 0..1 scale.
+ * @property {number} [weight] Optional consensus weight.
+ */
+
+/**
+ * @typedef {Object} WallAvoidanceSignal
+ * @property {string} id Signal id.
+ * @property {VectorXZ} direction Suggested avoidance direction.
+ * @property {number} confidence Signal confidence on a 0..1 scale.
+ * @property {number} weight Consensus weight.
+ * @property {Object} metadata Wall signal metadata.
+ * @property {string | null} [metadata.nearestWall] Nearest wall id.
+ * @property {number | null} [metadata.nearestDistance] Distance to nearest wall.
+ */
+
+/**
+ * @typedef {Object} EvaderMotionPrediction
+ * @property {string} strategy Prediction strategy id.
+ * @property {VectorXZ} direction Predicted direction.
+ * @property {number} consensus Prediction confidence or consensus score.
+ * @property {PredictionOscillator[]} oscillators Signals used by the prediction.
+ * @property {WallAvoidanceSignal | null} [wallAvoidance] Wall-avoidance signal when active.
+ * @property {boolean} [actionable] Whether the prediction can be used by a strategy.
+ */
+
+/**
+ * @typedef {EvaderMotionPrediction & {
+ *   projectionPrediction: EvaderMotionPrediction | null
+ * }} WallAvoidancePatternPrediction
+ */
+
+/**
+ * @typedef {WallAvoidanceEvidenceState & {
+ *   predictions?: PatternPredictionSample<WallAvoidancePatternPrediction>[],
+ *   primaryPrediction?: EvaderMotionPrediction | null,
+ *   predictionUnit?: PatternPredictionUnit<string, WallAvoidanceEvidenceState, WallAvoidancePatternPrediction>
+ * }} WallAvoidancePatternState
+ */
+
+/**
+ * @typedef {PatternUpdateContext & {
+ *   estimate?: import("./continuance.mjs").EvaderMotionModel | null,
+ *   obstacles?: ObstacleSet,
+ *   speedUnitsPerFrame?: number
+ * }} WallAvoidancePatternContext
+ */
+
+/**
+ * @typedef {Object} WallAvoidancePatternPredictionSet
+ * @property {EvaderMotionPrediction | null} primaryPrediction Primary wall-avoidance prediction.
+ * @property {PatternPredictionSample<WallAvoidancePatternPrediction>[]} predictions Future-frame samples.
+ */
 
 export const WALL_AVOIDANCE_PATTERN_ID = "wallAvoidance";
 const WALL_AVOIDANCE_PATTERN_UNIT = "wall-avoidance-motion-deflection";
 const WALL_AVOIDANCE_PATTERN_STRATEGY = "wall-avoidance-intercept";
+
+export const WALL_AVOIDANCE_PATTERN_STATE_FIELDS = Object.freeze([
+  "observedSampleCount",
+  "approachEpisodeCount",
+  "avoidedApproachCount",
+  "hitApproachCount",
+  "pendingApproach",
+  "cooldownWall",
+  "wallAvoidanceScore",
+  "latest",
+  "predictions",
+  "primaryPrediction",
+  "predictionUnit",
+]);
+
+export const EVADER_MOTION_PREDICTION_FIELDS = Object.freeze([
+  "strategy",
+  "direction",
+  "consensus",
+  "oscillators",
+  "wallAvoidance",
+  "actionable",
+]);
 
 function getPositiveInteger(value, fallback) {
   const numericValue = Number(value);
@@ -27,6 +123,10 @@ function getPositiveInteger(value, fallback) {
     : fallback;
 }
 
+/**
+ * @param {WallAvoidancePatternState | null | undefined} state
+ * @returns {WallAvoidanceEvidenceState}
+ */
 function cloneWallAvoidanceEvidence(state) {
   return {
     observedSampleCount: Number(state?.observedSampleCount) || 0,
@@ -40,6 +140,12 @@ function cloneWallAvoidanceEvidence(state) {
   };
 }
 
+/**
+ * @param {{direction: VectorXZ, prediction?: EvaderMotionPrediction | null}} sample
+ * @param {import("../interfaces.mjs").PatternConfidenceParts} confidenceParts
+ * @param {EvaderMotionPrediction | null} initialPrediction
+ * @returns {WallAvoidancePatternPrediction}
+ */
 function createWallAvoidancePatternPrediction(sample, confidenceParts, initialPrediction) {
   const projectionPrediction = sample.prediction ?? null;
   const wallAvoidance = projectionPrediction?.wallAvoidance
@@ -59,6 +165,11 @@ function createWallAvoidancePatternPrediction(sample, confidenceParts, initialPr
   };
 }
 
+/**
+ * @param {WallAvoidancePatternState} state
+ * @param {WallAvoidancePatternContext} context
+ * @returns {WallAvoidancePatternPredictionSet}
+ */
 function buildWallAvoidancePatternPredictionSet(state, {
   estimate,
   columns,
@@ -140,6 +251,11 @@ function buildWallAvoidancePatternPredictionSet(state, {
   };
 }
 
+/**
+ * @param {WallAvoidancePatternState} state
+ * @param {WallAvoidancePatternContext} context
+ * @returns {void}
+ */
 function refreshWallAvoidancePredictionUnit(state, context = {}) {
   const predictionSet = buildWallAvoidancePatternPredictionSet(state, context);
   const predictions = predictionSet.predictions;
@@ -155,12 +271,24 @@ function refreshWallAvoidancePredictionUnit(state, context = {}) {
   });
 }
 
+/**
+ * @returns {WallAvoidancePatternState}
+ */
 function createWallAvoidancePatternState() {
   const state = createWallAvoidanceEvidenceState();
   refreshWallAvoidancePredictionUnit(state);
   return state;
 }
 
+/**
+ * @returns {StatefulPattern<
+ *   WallAvoidancePatternState,
+ *   WallAvoidancePatternState,
+ *   WallAvoidanceEvidenceState,
+ *   PatternPredictionUnit<string, WallAvoidanceEvidenceState, WallAvoidancePatternPrediction>,
+ *   string
+ * >}
+ */
 export function createWallAvoidancePattern() {
   return createStatefulPattern({
     id: WALL_AVOIDANCE_PATTERN_ID,

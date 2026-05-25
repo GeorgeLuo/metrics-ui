@@ -3,7 +3,7 @@ import {
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../../decision-model/math.mjs";
+} from "../../core/math.mjs";
 import {
   getFieldBounds,
   getGroundBounds,

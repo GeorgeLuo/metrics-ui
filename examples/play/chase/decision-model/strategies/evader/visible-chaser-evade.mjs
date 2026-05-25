@@ -1,13 +1,13 @@
-import { constrainDirectionToBounds } from "../evader.mjs";
+import { constrainDirectionToBounds } from "../../../actors/evader/evader.mjs";
 import {
   getEvaderPolicyBoolean,
 } from "./policy.mjs";
-import { normalizeVector } from "../../../decision-model/math.mjs";
+import { normalizeVector } from "../../core/math.mjs";
 import {
   createStatefulStrategy,
   getStrategyOutput,
   updateStrategy,
-} from "../../../decision-model/strategies.mjs";
+} from "../stateful-strategy.mjs";
 
 export const EVADER_VISIBLE_CHASER_EVADE_STRATEGY_ID = "visible-chaser-evade";
 

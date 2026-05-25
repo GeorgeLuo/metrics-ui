@@ -1,14 +1,18 @@
 # Chase Example Architecture
 
-The chase example is split between a generic decision model and the RC chase implementation.
+The chase example keeps decision logic grouped by IDAE stage, with the RC chase implementation supplying concrete modules inside those stage directories.
 
-- `decision-model/` contains reusable decision primitives: staged decision engines, actor decision models, stateful patterns, stateful strategies, confidence helpers, Kuramoto consensus, and vector math. These modules should not know about chasers, evaders, vehicles, walls, or rendering.
+- `decision-model/core/` contains reusable decision primitives: staged decision engines, actor decision models, Kuramoto consensus, and vector math.
+- `decision-model/observer-world/` contains observer-centric world model interfaces, including positions, obstacles, world context, and observed actor memory shapes.
+- `decision-model/memory/` contains actor memory models, including chaser map and success memory.
+- `decision-model/patterns/` contains stateful pattern contracts, flat shape/interface files, prediction-unit helpers, and concrete pattern implementations such as evader motion continuance and wall-avoidance inference.
+- `decision-model/strategies/` contains stateful strategy contracts, confidence helpers, evader movement strategies, and evader prediction planning.
+- `decision-model/actions/` contains action proposal and action selection modules, including chaser pursuit and knowledge-acquisition actions.
 - `simulation/` advances world state. It applies actor actions to positions, resolves collisions, updates metrics, records traces, and coordinates the chaser and evader decision models.
-- `actors/` contains RC chase actor implementations. Chaser and evader decision-model adapters live beside their actor-specific controllers, strategies, and memory code.
+- `actors/` contains RC chase actor shells, perception helpers, vehicle controllers, and IDAE adapters that wire the stage modules together.
 - `world/` contains chase field geometry, obstacle layout, bounds, and collision helpers.
-- `prediction/` contains chase-specific prediction and pattern implementations, including evader projection and wall-avoidance inference.
 - `ui/` contains browser runtime, rendering, sidebar controls, stored settings, and keyboard input.
-- `debug/` contains debug panel, performance snapshots, and derived debug payloads.
+- `debug/` contains debug panel, prediction performance snapshots, and derived debug payloads.
 - `config/` contains chase constants and strategy identifiers.
 
-The intended direction is that IDAE-style actor reasoning stays generic in `decision-model/`, while the RC chase game supplies concrete observation, memory, pattern, strategy, and action stages through the actor adapters.
+The intended direction is that IDAE-stage code is discoverable in `decision-model/`, while actor adapters stay thin and world/UI/debug code remains outside the decision model.

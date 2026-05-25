@@ -1,4 +1,10 @@
-import { normalizeAngleDelta, vectorToAngle } from "../decision-model/math.mjs";
+import { normalizeAngleDelta, vectorToAngle } from "../decision-model/core/math.mjs";
+import {
+  addThresholdSuccessValidation,
+  createThresholdSuccessStats,
+  normalizeSuccessRateThresholds,
+  summarizeThresholdSuccessStat,
+} from "./prediction-success-thresholds.mjs";
 
 const DEFAULT_MAX_PENDING_PREDICTIONS = 8192;
 const DEFAULT_RECENT_WINDOW_SIZE = 128;
@@ -265,6 +271,7 @@ export function createPredictionPerformanceTracker(options = {}) {
     pending: [],
     statsByKey: {},
     calibrationBuckets: {},
+    thresholdSuccessStats: createThresholdSuccessStats(options.successRateThresholds),
     recentValidations: [],
     validatedCount: 0,
     droppedPendingCount: 0,
@@ -284,6 +291,7 @@ export function createPredictionPerformanceTracker(options = {}) {
       positionErrorThreshold: Number.isFinite(options.positionErrorThreshold)
         ? Math.max(0, Number(options.positionErrorThreshold))
         : DEFAULT_POSITION_ERROR_THRESHOLD,
+      successRateThresholds: normalizeSuccessRateThresholds(options.successRateThresholds),
     },
   };
 }
@@ -397,6 +405,7 @@ export function validatePredictionPerformance(state, {
     addStatValidation(group, validation, state.options);
     addStatValidation(overall, validation, state.options);
     addCalibrationValidation(state, validation);
+    addThresholdSuccessValidation(state, validation);
     state.statsByKey[groupKey] = group;
     state.statsByKey[OVERALL_STAT_KEY] = overall;
     state.validatedCount += 1;
@@ -474,6 +483,19 @@ export function getPredictionPerformanceSnapshot(state) {
     calibration: Object.values(state.calibrationBuckets)
       .map(summarizeCalibrationBucket)
       .sort((first, second) => first.minConfidence - second.minConfidence),
+    thresholdSuccessRates: Object.values(
+      state.thresholdSuccessStats
+        ?? createThresholdSuccessStats(state.options?.successRateThresholds),
+    )
+      .map(summarizeThresholdSuccessStat)
+      .sort((first, second) => first.threshold - second.threshold),
+    thresholdSuccessRatesByFrameOffset: Object.values(
+      state.thresholdSuccessStatsByFrameOffset ?? {},
+    )
+      .map(summarizeThresholdSuccessStat)
+      .sort((first, second) =>
+        first.threshold - second.threshold
+        || first.frameOffset - second.frameOffset),
     recentValidations: state.recentValidations.map((validation) => ({
       ...validation,
       directionErrorRadians: Number.isFinite(validation.directionErrorRadians)

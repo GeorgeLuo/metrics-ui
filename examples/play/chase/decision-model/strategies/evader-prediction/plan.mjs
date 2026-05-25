@@ -7,10 +7,10 @@ import {
   EVADER_PREDICTION_PERSISTENCE_FRAMES,
   EVADER_PROJECTION_INVALIDATION_DISTANCE,
   EVADER_PROJECTION_VALIDATION_LOOKAHEAD_FRAMES,
-} from "../config/constants.mjs";
-import { runKuramotoConsensus } from "../decision-model/kuramoto.mjs";
-import { normalizeVector } from "../decision-model/math.mjs";
-import { resolveObstacleCollisions } from "../world/world.mjs";
+} from "../../../config/constants.mjs";
+import { runKuramotoConsensus } from "../../core/kuramoto.mjs";
+import { normalizeVector } from "../../core/math.mjs";
+import { resolveObstacleCollisions } from "../../../world/world.mjs";
 
 const MAX_PENDING_VALIDATIONS = 24;
 const RECTIFICATION_STRATEGY_ID = "rectified-evader-projection";

@@ -2,7 +2,7 @@ import {
   CAR_BOUND_RADIUS,
   FIELD_OF_VIEW_DISTANCE,
 } from "../../../config/constants.mjs";
-import { KNOWN_AREA_CELL_SIZE } from "./chaser-map-memory.mjs";
+import { KNOWN_AREA_CELL_SIZE } from "./map-memory.mjs";
 import { getFieldBounds, getGroundBounds, getWallBounds } from "../../../world/world.mjs";
 
 const CARDINAL_OFFSETS = Object.freeze([

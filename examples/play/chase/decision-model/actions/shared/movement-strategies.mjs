@@ -6,10 +6,10 @@ import {
   MOVEMENT_WALL_MIN_OUTWARD_DOT,
   MOVEMENT_WALL_UNSTICK_WEIGHT,
   WALL_AVOID_DISTANCE,
-} from "../../config/constants.mjs";
-import { normalizeVector } from "../../decision-model/math.mjs";
-import { clampConfidence } from "../../decision-model/strategy-confidence.mjs";
-import { getWorldWallPressure } from "../../world/world.mjs";
+} from "../../../config/constants.mjs";
+import { normalizeVector } from "../../core/math.mjs";
+import { clampConfidence } from "../../strategies/confidence.mjs";
+import { getWorldWallPressure } from "../../../world/world.mjs";
 
 const BOUNDARY_WALL_IDS = new Set(["left", "right", "top", "bottom"]);
 
