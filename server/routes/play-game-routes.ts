@@ -1,8 +1,10 @@
 import type { Express, Response } from "express";
 import * as fs from "fs";
 import * as path from "path";
-
-type PlayPair = [number, number];
+import {
+  normalizePlayGameCatalog,
+  type PlayPair,
+} from "@shared/play-catalog";
 
 type PlayGameRouteRecord = {
   id: string;
@@ -23,27 +25,6 @@ type RegisterPlayGameRoutesOptions = {
 
 const PLAY_GAME_CATALOG_ENV = "METRICS_UI_PLAY_GAME_CATALOG_FILE";
 const DEFAULT_PLAY_GAME_CATALOG_FILE = path.join("examples", "play", "play-game-catalog.json");
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function normalizeText(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizePair(value: unknown, fallback: PlayPair): PlayPair {
-  if (!Array.isArray(value) || value.length < 2) {
-    return fallback;
-  }
-  const first = Number(value[0]);
-  const second = Number(value[1]);
-  return Number.isFinite(first) && Number.isFinite(second) && first > 0 && second > 0
-    ? [first, second]
-    : fallback;
-}
 
 function isSafeGameId(id: string): boolean {
   return /^[a-zA-Z0-9._-]+$/.test(id);
@@ -103,15 +84,13 @@ function readPlayGames(projectRoot: string): { catalogFile: string; games: PlayG
   }
 
   const parsed = JSON.parse(fs.readFileSync(catalogFile, "utf-8")) as unknown;
-  const catalog = asRecord(parsed);
-  const rawGames = Array.isArray(catalog?.games) ? catalog.games : [];
+  const rawGames = normalizePlayGameCatalog(parsed, { moduleField: "moduleFile" });
   const seenIds = new Set<string>();
   const games: PlayGameRouteRecord[] = [];
 
   for (const rawGame of rawGames) {
-    const game = asRecord(rawGame);
-    const id = normalizeText(game?.id);
-    const moduleFile = normalizeText(game?.moduleFile);
+    const id = rawGame.id;
+    const moduleFile = rawGame.moduleFile;
     if (!id || !moduleFile || !isSafeGameId(id) || seenIds.has(id)) {
       continue;
     }
@@ -125,17 +104,15 @@ function readPlayGames(projectRoot: string): { catalogFile: string; games: PlayG
       continue;
     }
 
-    const frameAspect = normalizePair(game?.frameAspect, [9, 6]);
-    const grid = normalizePair(game?.grid, frameAspect);
     const stat = fs.statSync(modulePath);
     games.push({
       id,
-      label: normalizeText(game?.label) ?? id,
-      description: normalizeText(game?.description) ?? undefined,
+      label: rawGame.label,
+      description: rawGame.description,
       moduleFile,
       modulePath,
-      frameAspect,
-      grid,
+      frameAspect: rawGame.frameAspect,
+      grid: rawGame.grid,
       updatedAt: stat.mtime.toISOString(),
       moduleUrl: buildModuleUrl(id, catalogDir, modulePath),
     });
