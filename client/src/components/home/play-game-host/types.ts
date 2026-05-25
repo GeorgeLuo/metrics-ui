@@ -1,39 +1,12 @@
 import type { PlayPair } from "@shared/play-catalog";
+import type {
+  FloatingFrameRegistryFrameHandle,
+  FloatingFrameRegistryFrameOptions,
+} from "@/components/floating-frame-registry";
 import type { PlaySidebarSection } from "@/lib/play/sidebar-sections";
 
-export type PlayFloatingFrameSize = {
-  width: number;
-  height: number;
-};
-
-export type PlayFloatingFramePosition = {
-  x: number;
-  y: number;
-};
-
-export type PlayFloatingFrameOptions = {
-  id: string;
-  title: string;
-  bounds?: "subapp" | "viewport";
-  defaultPosition?: PlayFloatingFramePosition;
-  defaultSize?: PlayFloatingFrameSize;
-  minSize?: PlayFloatingFrameSize;
-  minimizable?: boolean;
-  resizable?: boolean;
-  popoutable?: boolean;
-  closeable?: boolean;
-  onClose?: () => void;
-};
-
-export type PlayFloatingFrameHandle = {
-  mount: HTMLDivElement;
-  close: () => void;
-  setTitle: (title: string) => void;
-};
-
-export type PlayFloatingFrameRecord = PlayFloatingFrameOptions & {
-  mount: HTMLDivElement;
-};
+export type PlayFloatingFrameOptions = FloatingFrameRegistryFrameOptions;
+export type PlayFloatingFrameHandle = FloatingFrameRegistryFrameHandle;
 
 export type PlayViewportSpec = {
   frameAspect?: PlayPair;

@@ -1,14 +1,14 @@
 import { useCallback, useState } from "react";
-import { normalizeFrameId } from "./ids";
-import { makeFrameMount } from "./floating-frame-mount";
+import { normalizeFloatingFrameRegistryId } from "./ids";
+import { makeFloatingFrameMount } from "./floating-frame-mount";
 import type {
-  PlayFloatingFrameHandle,
-  PlayFloatingFrameOptions,
-  PlayFloatingFrameRecord,
+  FloatingFrameRegistryFrameHandle,
+  FloatingFrameRegistryFrameOptions,
+  FloatingFrameRegistryFrameRecord,
 } from "./types";
 
-export function usePlayFloatingFrames() {
-  const [floatingFrames, setFloatingFrames] = useState<PlayFloatingFrameRecord[]>([]);
+export function useFloatingFrameRegistry() {
+  const [floatingFrames, setFloatingFrames] = useState<FloatingFrameRegistryFrameRecord[]>([]);
 
   const closeFloatingFrame = useCallback((frameId: string) => {
     setFloatingFrames((prev) => {
@@ -26,13 +26,15 @@ export function usePlayFloatingFrames() {
     });
   }, []);
 
-  const createFloatingFrame = useCallback((options: PlayFloatingFrameOptions): PlayFloatingFrameHandle => {
-    const id = normalizeFrameId(options.id);
-    const frame: PlayFloatingFrameRecord = {
+  const createFloatingFrame = useCallback((
+    options: FloatingFrameRegistryFrameOptions,
+  ): FloatingFrameRegistryFrameHandle => {
+    const id = normalizeFloatingFrameRegistryId(options.id, "frame");
+    const frame: FloatingFrameRegistryFrameRecord = {
       ...options,
       id,
       title: options.title.trim() || "Frame",
-      mount: makeFrameMount(),
+      mount: makeFloatingFrameMount(),
     };
 
     setFloatingFrames((prev) => {

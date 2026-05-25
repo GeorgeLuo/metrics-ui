@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export function makeFrameMount(): HTMLDivElement {
+export function makeFloatingFrameMount(): HTMLDivElement {
   const mount = document.createElement("div");
   Object.assign(mount.style, {
     position: "relative",
@@ -13,7 +13,7 @@ export function makeFrameMount(): HTMLDivElement {
   return mount;
 }
 
-export function PlayFloatingFrameMount({ mount }: { mount: HTMLDivElement }) {
+export function FloatingFrameMount({ mount }: { mount: HTMLDivElement }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
