@@ -1,4 +1,5 @@
 import type { Express, Response } from "express";
+import { transformSync } from "esbuild";
 import * as fs from "fs";
 import * as path from "path";
 import {
@@ -25,6 +26,7 @@ type RegisterPlayGameRoutesOptions = {
 
 const PLAY_GAME_CATALOG_ENV = "METRICS_UI_PLAY_GAME_CATALOG_FILE";
 const DEFAULT_PLAY_GAME_CATALOG_FILE = path.join("examples", "play", "play-game-catalog.json");
+const PLAY_GAME_RUNTIME_MODULE_EXTENSIONS = new Set([".mjs", ".ts"]);
 
 function isSafeGameId(id: string): boolean {
   return /^[a-zA-Z0-9._-]+$/.test(id);
@@ -59,7 +61,11 @@ function buildModuleUrl(gameId: string, catalogDir: string, modulePath: string):
   return `/api/play/games/${encodeURIComponent(gameId)}/files/${moduleFilePath}?v=${Math.floor(stat.mtimeMs)}`;
 }
 
-function collectMjsFiles(directoryPath: string, files: Set<string>) {
+function isPlayGameRuntimeModule(filePath: string): boolean {
+  return PLAY_GAME_RUNTIME_MODULE_EXTENSIONS.has(path.extname(filePath));
+}
+
+function collectPlayGameRuntimeModules(directoryPath: string, files: Set<string>) {
   if (!fs.existsSync(directoryPath) || !fs.statSync(directoryPath).isDirectory()) {
     return;
   }
@@ -67,10 +73,10 @@ function collectMjsFiles(directoryPath: string, files: Set<string>) {
   fs.readdirSync(directoryPath, { withFileTypes: true }).forEach((entry) => {
     const entryPath = path.join(directoryPath, entry.name);
     if (entry.isDirectory()) {
-      collectMjsFiles(entryPath, files);
+      collectPlayGameRuntimeModules(entryPath, files);
       return;
     }
-    if (entry.isFile() && path.extname(entryPath) === ".mjs") {
+    if (entry.isFile() && isPlayGameRuntimeModule(entryPath)) {
       files.add(entryPath);
     }
   });
@@ -128,6 +134,20 @@ function rewriteGameModuleImports(source: string): string {
     .replace(/from\s+(['"])three\1/g, "from '/api/visualization/libs/three'");
 }
 
+function buildServedGameModuleSource(filePath: string, source: string): string {
+  const rewrittenSource = rewriteGameModuleImports(source);
+  if (path.extname(filePath) !== ".ts") {
+    return rewrittenSource;
+  }
+
+  return transformSync(rewrittenSource, {
+    format: "esm",
+    loader: "ts",
+    sourcefile: filePath,
+    target: "es2020",
+  }).code;
+}
+
 function findPlayGame(projectRoot: string, gameId: string) {
   const { catalogFile, games } = readPlayGames(projectRoot);
   const game = games.find((candidate) => candidate.id === gameId);
@@ -154,7 +174,7 @@ function servePlayGameModuleFile({
   const filePath = path.resolve(catalogDir, requestedFile);
   if (
     !isInsideDirectory(catalogDir, filePath)
-    || path.extname(filePath) !== ".mjs"
+    || !isPlayGameRuntimeModule(filePath)
     || !fs.existsSync(filePath)
     || !fs.statSync(filePath).isFile()
   ) {
@@ -163,7 +183,7 @@ function servePlayGameModuleFile({
 
   const source = fs.readFileSync(filePath, "utf-8");
   res.setHeader("Cache-Control", "no-cache");
-  return res.type("application/javascript").send(rewriteGameModuleImports(source));
+  return res.type("application/javascript").send(buildServedGameModuleSource(filePath, source));
 }
 
 export function getPlayGameWatchFiles(projectRoot: string): string[] {
@@ -177,7 +197,7 @@ export function getPlayGameWatchFiles(projectRoot: string): string[] {
       files.add(game.modulePath);
       catalogDirs.add(path.dirname(game.modulePath));
     });
-    catalogDirs.forEach((catalogDir) => collectMjsFiles(catalogDir, files));
+    catalogDirs.forEach((catalogDir) => collectPlayGameRuntimeModules(catalogDir, files));
   } catch {
     // Keep watching the catalog file even while it is temporarily invalid during edits.
   }

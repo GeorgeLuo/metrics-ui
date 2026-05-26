@@ -214,7 +214,7 @@ export function updateEvaderWallAvoidanceTruth(
  *   evaderVisible?: boolean,
  *   columns?: number,
  *   rows?: number,
- *   obstacles?: import("../../observer-world/interfaces.mjs").ObstacleSet
+ *   obstacles?: import("../../observer-world/interfaces.ts").ObstacleSet
  * }} context
  * @returns {WallAvoidanceEvidenceState}
  */

@@ -5,7 +5,7 @@ import {
   DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES,
   DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES,
 } from "../../config/constants.mjs";
-import { normalizeVector } from "../../decision-model/core/math.mjs";
+import { normalizeVector } from "../../decision-model/core/math.ts";
 import { setProjectionFrame, syncProjectionFrames } from "./projection-frames.mjs";
 
 const PREDICTION_DEBUG_PATTERN_PALETTE = Object.freeze([

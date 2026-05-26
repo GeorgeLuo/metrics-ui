@@ -3,7 +3,7 @@ import {
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../core/math.mjs";
+} from "../../core/math.ts";
 import {
   getFieldBounds,
   getGroundBounds,

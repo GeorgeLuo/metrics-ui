@@ -8,8 +8,8 @@ import {
   EVADER_PROJECTION_INVALIDATION_DISTANCE,
   EVADER_PROJECTION_VALIDATION_LOOKAHEAD_FRAMES,
 } from "../../../config/constants.mjs";
-import { runKuramotoConsensus } from "../../core/kuramoto.mjs";
-import { normalizeVector } from "../../core/math.mjs";
+import { runKuramotoConsensus } from "../../core/kuramoto.ts";
+import { normalizeVector } from "../../core/math.ts";
 import { resolveObstacleCollisions } from "../../../world/world.mjs";
 
 const MAX_PENDING_VALIDATIONS = 24;

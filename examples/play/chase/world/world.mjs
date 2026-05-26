@@ -3,7 +3,7 @@ import {
   CENTER_OBSTACLE_SIZE_RATIO,
   WALL_AVOID_DISTANCE,
 } from "../config/constants.mjs";
-import { normalizeVector } from "../decision-model/core/math.mjs";
+import { normalizeVector } from "../decision-model/core/math.ts";
 
 export function getFieldObstacleLayout(columns, rows) {
   const centerObstacleSize = Math.min(columns, rows) * CENTER_OBSTACLE_SIZE_RATIO;

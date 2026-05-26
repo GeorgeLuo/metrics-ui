@@ -11,9 +11,9 @@ import {
 } from "./chaser-knowledge.mjs";
 import {
   buildActorSnapshot,
-  createActorDecisionModel,
-  stepActorDecisionModel,
-} from "../../decision-model/core/actor-decision-model.mjs";
+  createActorIdae,
+  stepActorIdae,
+} from "../../decision-model/core/actor-decision-model.ts";
 
 function applyScenarioEngineToggles(scenario, actorState) {
   Object.entries(scenario?.engines?.knowledge ?? {}).forEach(([engineId, enabled]) => {
@@ -158,7 +158,7 @@ function getChaserIdaeSnapshot(state) {
 }
 
 export function createChaserIdae({ scenario } = {}) {
-  return createActorDecisionModel({
+  return createActorIdae({
     id: "chaser-idae",
     createState: () => createChaserIdaeState({ scenario }),
     observe: observeChaserIdae,
@@ -172,7 +172,7 @@ export function createChaserIdae({ scenario } = {}) {
 }
 
 export function stepChaserIdae(chaserIdae, frameContext = {}) {
-  return stepActorDecisionModel(chaserIdae, frameContext);
+  return stepActorIdae(chaserIdae, frameContext);
 }
 
 export function recordChaserSuccessMetrics(chaserIdae, outcomeContext = {}) {

@@ -2,7 +2,7 @@ import { constrainDirectionToBounds } from "../../../actors/evader/evader.mjs";
 import {
   getEvaderPolicyBoolean,
 } from "./policy.mjs";
-import { normalizeVector } from "../../core/math.mjs";
+import { normalizeVector } from "../../core/math.ts";
 import {
   createStatefulStrategy,
   getStrategyOutput,

@@ -1,6 +1,6 @@
 # Chase Example Architecture
 
-The chase example keeps decision logic grouped by IDAE stage, with the RC chase implementation supplying concrete modules inside those stage directories.
+The chase example keeps decision logic grouped by IDAE stage, with the RC chase implementation supplying concrete modules inside those stage directories. Generic core primitives and flat interface files are TypeScript first; chase-specific implementation modules can remain `.mjs` while they migrate incrementally.
 
 - `decision-model/core/` contains reusable decision primitives: staged decision engines, actor decision models, Kuramoto consensus, and vector math.
 - `decision-model/observer-world/` contains observer-centric world model interfaces, including positions, obstacles, world context, and observed actor memory shapes.

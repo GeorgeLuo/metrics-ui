@@ -2,15 +2,51 @@ import {
   angleToVector,
   normalizeAngleDelta,
   normalizeVector,
+  type VectorXZ,
   vectorToAngle,
-} from "./math.mjs";
+} from "./math.ts";
 
-function normalizeOscillator(input, index) {
+export type KuramotoInput = {
+  id?: string;
+  phase?: number;
+  direction?: VectorXZ | null;
+  weight?: number;
+  confidence?: number;
+  naturalFrequency?: number;
+};
+
+export type KuramotoOscillator = {
+  id: string;
+  phase: number;
+  weight: number;
+  confidence: number | null;
+  naturalFrequency: number;
+};
+
+export type KuramotoMean = {
+  phase: number;
+  direction: VectorXZ;
+  order: number;
+};
+
+export type KuramotoOptions = {
+  coupling?: number;
+  timeStep?: number;
+  iterations?: number;
+  threshold?: number;
+};
+
+export type KuramotoConsensus = KuramotoMean & {
+  oscillators: KuramotoOscillator[];
+  converged: boolean;
+};
+
+function normalizeOscillator(input: KuramotoInput | null | undefined, index: number): KuramotoOscillator | null {
   if (!input || typeof input !== "object") {
     return null;
   }
 
-  let phase = null;
+  let phase = Number.NaN;
   if (Number.isFinite(input.phase)) {
     phase = Number(input.phase);
   } else if (input.direction) {
@@ -35,7 +71,11 @@ function normalizeOscillator(input, index) {
   };
 }
 
-export function calculateCircularMean(oscillators) {
+function isKuramotoOscillator(value: KuramotoOscillator | null): value is KuramotoOscillator {
+  return value !== null;
+}
+
+export function calculateCircularMean(oscillators: KuramotoOscillator[]): KuramotoMean {
   let x = 0;
   let z = 0;
   let totalWeight = 0;
@@ -65,10 +105,13 @@ export function calculateCircularMean(oscillators) {
   };
 }
 
-export function runKuramotoConsensus(inputs, options = {}) {
+export function runKuramotoConsensus(
+  inputs: KuramotoInput[],
+  options: KuramotoOptions = {},
+): KuramotoConsensus {
   const oscillators = inputs
     .map(normalizeOscillator)
-    .filter(Boolean);
+    .filter(isKuramotoOscillator);
   if (oscillators.length === 0) {
     return {
       direction: { x: 0, z: 0 },
@@ -81,8 +124,8 @@ export function runKuramotoConsensus(inputs, options = {}) {
 
   const coupling = Number.isFinite(options.coupling) ? Number(options.coupling) : 1.2;
   const timeStep = Number.isFinite(options.timeStep) ? Number(options.timeStep) : 0.12;
-  const iterations = Number.isInteger(options.iterations) && options.iterations >= 0
-    ? options.iterations
+  const iterations = Number.isInteger(options.iterations) && Number(options.iterations) >= 0
+    ? Number(options.iterations)
     : 12;
 
   for (let iteration = 0; iteration < iterations; iteration += 1) {
