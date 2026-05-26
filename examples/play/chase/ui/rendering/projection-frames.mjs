@@ -5,7 +5,7 @@ import {
   CAR_WIDTH,
   EVADER_PROJECTION_COLOR,
 } from "../../config/constants.mjs";
-import { vectorToAngle } from "../../decision-model/core/math.mjs";
+import { vectorToAngle } from "../../decision-model/core/math.ts";
 
 export function setProjectionFrame(frame, centerPosition, direction) {
   frame.position.set(centerPosition.x, CAR_HEIGHT / 2, centerPosition.z);

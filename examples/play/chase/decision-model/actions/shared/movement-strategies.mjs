@@ -7,7 +7,7 @@ import {
   MOVEMENT_WALL_UNSTICK_WEIGHT,
   WALL_AVOID_DISTANCE,
 } from "../../../config/constants.mjs";
-import { normalizeVector } from "../../core/math.mjs";
+import { normalizeVector } from "../../core/math.ts";
 import { clampConfidence } from "../../strategies/confidence.mjs";
 import { getWorldWallPressure } from "../../../world/world.mjs";
 

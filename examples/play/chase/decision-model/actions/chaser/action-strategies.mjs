@@ -7,13 +7,13 @@ import {
   DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
 } from "../../../config/constants.mjs";
 import { buildKnowledgeAcquisitionProposals } from "./knowledge-acquisition.mjs";
-import { runKuramotoConsensus } from "../../core/kuramoto.mjs";
+import { runKuramotoConsensus } from "../../core/kuramoto.ts";
 import {
   angleToVector,
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../core/math.mjs";
+} from "../../core/math.ts";
 import {
   CHASER_CHASE_MOTIVE_STRATEGY_IDS,
   CHASER_KNOWLEDGE_MOTIVE_STRATEGY_IDS,

@@ -13,7 +13,7 @@ import {
   buildActorSnapshot,
   createActorDecisionModel,
   stepActorDecisionModel,
-} from "../../decision-model/core/actor-decision-model.mjs";
+} from "../../decision-model/core/actor-decision-model.ts";
 
 function applyScenarioEngineToggles(scenario, actorState) {
   Object.entries(scenario?.engines?.knowledge ?? {}).forEach(([engineId, enabled]) => {

@@ -20,13 +20,13 @@ import { buildEvaderProjectionPath } from "../../strategies/evader-prediction/pr
  * @import {
  *   ObstacleSet,
  *   VectorXZ,
- * } from "../../observer-world/interfaces.mjs"
+ * } from "../../observer-world/interfaces.ts"
  * @import {
  *   PatternPredictionSample,
  *   PatternPredictionUnit,
  *   PatternUpdateContext,
  *   StatefulPattern,
- * } from "../interfaces.mjs"
+ * } from "../interfaces.ts"
  * @import {
  *   WallAvoidanceEvidenceState,
  * } from "./wall-avoidance-evidence.mjs"
@@ -142,7 +142,7 @@ function cloneWallAvoidanceEvidence(state) {
 
 /**
  * @param {{direction: VectorXZ, prediction?: EvaderMotionPrediction | null}} sample
- * @param {import("../interfaces.mjs").PatternConfidenceParts} confidenceParts
+ * @param {import("../interfaces.ts").PatternConfidenceParts} confidenceParts
  * @param {EvaderMotionPrediction | null} initialPrediction
  * @returns {WallAvoidancePatternPrediction}
  */

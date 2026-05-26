@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { CAR_HEIGHT } from "../config/constants.mjs";
-import { vectorToAngle } from "../decision-model/core/math.mjs";
+import { vectorToAngle } from "../decision-model/core/math.ts";
 import {
   configureCamera,
   createCar,

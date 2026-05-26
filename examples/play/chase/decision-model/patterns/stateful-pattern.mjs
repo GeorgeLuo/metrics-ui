@@ -6,7 +6,7 @@
  *   PatternUpdateContext,
  *   StatefulPattern,
  *   StatefulPatternConfig,
- * } from "./interfaces.mjs"
+ * } from "./interfaces.ts"
  */
 
 /**

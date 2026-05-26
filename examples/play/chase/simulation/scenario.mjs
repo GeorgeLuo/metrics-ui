@@ -19,7 +19,7 @@ import {
   clampNumber,
   degreesToRadians,
   normalizeVector,
-} from "../decision-model/core/math.mjs";
+} from "../decision-model/core/math.ts";
 import { CHASE_TRACE_SINKS } from "./trace-recorder.mjs";
 import { CHASER_PATTERN_IDS, CHASER_STRATEGY_IDS, EVADER_STRATEGY_IDS } from "../config/strategy-ids.mjs";
 import { getFieldObstacleLayout } from "../world/world.mjs";

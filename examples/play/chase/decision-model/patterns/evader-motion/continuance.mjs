@@ -18,13 +18,13 @@ import { resolveObstacleCollisions } from "../../../world/world.mjs";
  *   ObservedMotionMemory,
  *   VectorXZ,
  *   WorldContext,
- * } from "../../observer-world/interfaces.mjs"
+ * } from "../../observer-world/interfaces.ts"
  * @import {
  *   PatternPredictionSample,
  *   PatternPredictionUnit,
  *   PatternUpdateContext,
  *   StatefulPattern,
- * } from "../interfaces.mjs"
+ * } from "../interfaces.ts"
  */
 
 /**

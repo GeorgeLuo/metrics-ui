@@ -2,7 +2,7 @@ import {
   DEFAULT_EVADER_DRIFT_X_PHASE_PER_FRAME,
   DEFAULT_EVADER_DRIFT_Z_PHASE_PER_FRAME,
 } from "../../../config/constants.mjs";
-import { normalizeVector } from "../../core/math.mjs";
+import { normalizeVector } from "../../core/math.ts";
 import {
   createStatefulStrategy,
   getStrategyOutput,

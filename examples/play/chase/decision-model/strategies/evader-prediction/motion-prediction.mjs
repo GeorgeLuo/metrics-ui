@@ -9,7 +9,7 @@ import {
   getDefaultEvaderPrediction,
   getWallAvoidanceSignal,
 } from "./signals.mjs";
-import { runKuramotoConsensus } from "../../core/kuramoto.mjs";
+import { runKuramotoConsensus } from "../../core/kuramoto.ts";
 
 export { getDefaultEvaderPrediction } from "./signals.mjs";
 

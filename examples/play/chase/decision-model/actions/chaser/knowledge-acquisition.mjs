@@ -20,7 +20,7 @@ import {
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../core/math.mjs";
+} from "../../core/math.ts";
 import { CHASER_STRATEGY_IDS } from "../../../config/strategy-ids.mjs";
 
 const DEFAULT_ACTION_PATH_HORIZON_FRAMES = 36;
