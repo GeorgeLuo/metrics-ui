@@ -1,4 +1,4 @@
-import { normalizeVector } from "../../core/math.mjs";
+import { normalizeVector } from "../../core/math.ts";
 import { predictEvaderMotionWithKuramoto } from "./motion-prediction.mjs";
 import { getWallAvoidanceSignal } from "./signals.mjs";
 import { constrainDirectionToBounds } from "../../../actors/evader/evader.mjs";

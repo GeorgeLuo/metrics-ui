@@ -11,8 +11,8 @@ import {
   buildActorSnapshot,
   createActorDecisionModel,
   stepActorDecisionModel,
-} from "../../decision-model/core/actor-decision-model.mjs";
-import { runKuramotoConsensus } from "../../decision-model/core/kuramoto.mjs";
+} from "../../decision-model/core/actor-decision-model.ts";
+import { runKuramotoConsensus } from "../../decision-model/core/kuramoto.ts";
 import { constrainDirectionToBounds } from "./evader.mjs";
 import {
   createEvaderBaselineMovementStrategy,

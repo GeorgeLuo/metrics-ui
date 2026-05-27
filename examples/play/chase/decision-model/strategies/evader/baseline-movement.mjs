@@ -1,7 +1,7 @@
 import { DEFAULT_EVADER_DRIFT_WEIGHT } from "../../../config/constants.mjs";
 import { constrainDirectionToBounds } from "../../../actors/evader/evader.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
-import { normalizeVector } from "../../core/math.mjs";
+import { normalizeVector } from "../../core/math.ts";
 import {
   createStatefulStrategy,
   getStrategyOutput,

@@ -8,7 +8,7 @@ import { createEvaderIdae, stepEvaderIdae } from "../actors/evader/evader-decisi
 import {
   angleToVector,
   vectorToAngle,
-} from "../decision-model/core/math.mjs";
+} from "../decision-model/core/math.ts";
 import {
   createEvaderWallAvoidanceTruthState,
   updateEvaderWallAvoidanceTruth,

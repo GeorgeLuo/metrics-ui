@@ -4,7 +4,7 @@ import {
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../decision-model/core/math.mjs";
+} from "../../decision-model/core/math.ts";
 import { getGroundBounds } from "../../world/world.mjs";
 
 export function steerDirectionToward(currentDirection, desiredDirection, maxDelta) {

@@ -1,4 +1,4 @@
-import { normalizeAngleDelta, vectorToAngle } from "../decision-model/core/math.mjs";
+import { normalizeAngleDelta, vectorToAngle } from "../decision-model/core/math.ts";
 import {
   addThresholdSuccessValidation,
   createThresholdSuccessStats,

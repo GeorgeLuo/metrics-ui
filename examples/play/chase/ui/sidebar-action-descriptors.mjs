@@ -34,7 +34,7 @@ import {
   clampNumber,
   degreesToRadians,
   parseEditableNumber,
-} from "../decision-model/core/math.mjs";
+} from "../decision-model/core/math.ts";
 import { createActorStrategyToggleActionId } from "./sidebar.mjs";
 import {
   isMapKnowledgeOverlayVisible,
