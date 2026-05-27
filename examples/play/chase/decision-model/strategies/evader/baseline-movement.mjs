@@ -6,7 +6,7 @@ import {
   createStatefulStrategy,
   getStrategyOutput,
   updateStrategy,
-} from "../stateful-strategy.mjs";
+} from "../core/stateful-strategy.mjs";
 
 export const EVADER_BASELINE_MOVEMENT_STRATEGY_ID = "baseline-drift-wall-avoid";
 

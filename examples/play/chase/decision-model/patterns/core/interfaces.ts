@@ -1,38 +1,36 @@
-import type {
-  ActorLocationMemory,
-  ObservedMotionMemory,
-  ObstacleSet,
-  VectorXZ,
-  WorldContext,
-} from "../observer-world/interfaces.ts";
-
-export type PatternUpdateContext = {
+/**
+ * Generic context passed to a pattern update.
+ *
+ * The core reserves only frame and sampling fields. Domain-specific pattern
+ * implementations extend this with their own perception, memory, or world
+ * values through `TContext`.
+ */
+export type PatternUpdateContext<
+  TContext extends object = Record<string, unknown>,
+> = {
   frameIndex?: number;
-  columns?: number;
-  rows?: number;
-  obstacles?: ObstacleSet;
-  worldContext?: WorldContext;
-  observedEvaderMotion?: ObservedMotionMemory;
-  evaderLocationMemory?: ActorLocationMemory;
-  evaderVisible?: boolean;
-  speedUnitsPerFrame?: number;
   horizonFrames?: number;
   sampleSpacingFrames?: number;
-};
+} & TContext;
 
-export type PatternMetadata = {
-  role?: string;
-  strategy?: string;
-  projectionStrategy?: string;
-  projectionActionable?: boolean | null;
-  speedEstimateUnitsPerFrame?: number;
-  framesSinceObservation?: number;
-  nearestWall?: string | null;
-  nearestDistance?: number | null;
-};
+/**
+ * Free-form metadata attached to prediction samples.
+ */
+export type PatternMetadata = Record<string, unknown>;
 
+/**
+ * Free-form evidence payload exposed by a pattern.
+ */
 export type PatternEvidence = Record<string, unknown>;
 
+/**
+ * Domain-neutral values predicted for a future frame.
+ */
+export type PatternPredictionValues = Record<string, unknown>;
+
+/**
+ * Normalized confidence fields emitted by the pattern confidence helpers.
+ */
 export type PatternConfidenceParts = {
   model?: string;
   probability?: number;
@@ -45,31 +43,46 @@ export type PatternConfidenceParts = {
   confirmedCount?: number;
   contradictedCount?: number;
   opportunityCount?: number;
+  eventPosterior?: unknown;
+  priorDistribution?: unknown;
 };
 
-export type PatternPredictionSample<TPredictionPayload = object> = {
+/**
+ * One prediction for a future frame.
+ *
+ * `values` contains domain-specific predicted values and is also spread onto
+ * the sample for existing spatial call sites that read fields like `position`
+ * or `direction` directly.
+ */
+export type PatternPredictionSample<
+  TPredictionPayload = object,
+  TValues extends PatternPredictionValues = PatternPredictionValues,
+  TMetadata extends PatternMetadata = PatternMetadata,
+> = {
   sourcePatternId?: string;
   frameOffset: number;
   framesAhead: number;
-  predictedPosition: VectorXZ | null;
-  predictedDirection: VectorXZ | null;
-  position: VectorXZ | null;
-  direction: VectorXZ | null;
+  values: TValues;
   confidence: number;
   confidenceParts: PatternConfidenceParts;
-  metadata: PatternMetadata;
+  metadata: TMetadata;
   prediction: TPredictionPayload | null;
-};
+} & TValues;
 
+/**
+ * Common container that patterns expose to downstream strategies.
+ */
 export type PatternPredictionUnit<
   TUnit = object,
   TEvidence = PatternEvidence,
   TPredictionPayload = object,
+  TValues extends PatternPredictionValues = PatternPredictionValues,
+  TMetadata extends PatternMetadata = PatternMetadata,
 > = {
   id: string;
-  unit: TUnit;
+  unit: TUnit | null;
   evidence: TEvidence;
-  predictions: PatternPredictionSample<TPredictionPayload>[];
+  predictions: PatternPredictionSample<TPredictionPayload, TValues, TMetadata>[];
   primaryPrediction: TPredictionPayload | null;
   confidence: number;
   predictionCount: number;
@@ -78,35 +91,43 @@ export type PatternPredictionUnit<
   status: string;
 };
 
+/**
+ * Callback configuration for building a stateful pattern wrapper.
+ */
 export type StatefulPatternConfig<
   TState = object,
   TOutput = object,
   TEvidence = PatternEvidence,
   TPredictionUnit = PatternPredictionUnit,
   TUnit = object,
+  TContext extends object = Record<string, unknown>,
 > = {
-  id: string;
-  unit?: TUnit;
+  id?: string;
+  unit?: TUnit | null;
   createState?: () => TState;
-  updateState?: (state: TState, context: PatternUpdateContext) => TState | null;
-  getOutput?: (state: TState) => TOutput;
-  getEvidence?: (state: TState) => TEvidence | null;
-  getPredictions?: (state: TState) => PatternPredictionSample[];
-  getPredictionUnit?: (state: TState) => TPredictionUnit | null;
-  getConfidence?: (state: TState) => number;
+  updateState?: (state: TState | null, context: PatternUpdateContext<TContext>) => TState | null;
+  getOutput?: (state: TState | null) => TOutput;
+  getEvidence?: (state: TState | null) => TEvidence | null;
+  getPredictions?: (state: TState | null) => PatternPredictionSample[];
+  getPredictionUnit?: (state: TState | null) => TPredictionUnit | null;
+  getConfidence?: (state: TState | null) => number;
 };
 
+/**
+ * Runtime wrapper for a pattern with persistent state.
+ */
 export type StatefulPattern<
   TState = object,
   TOutput = object,
   TEvidence = PatternEvidence,
   TPredictionUnit = PatternPredictionUnit,
   TUnit = object,
+  TContext extends object = Record<string, unknown>,
 > = {
   id: string;
   unit: TUnit | null;
   state: TState | null;
-  update: (context: PatternUpdateContext) => TState | null;
+  update: (context: PatternUpdateContext<TContext>) => TState | null;
   getOutput: () => TOutput | null;
   getEvidence: () => TEvidence | null;
   getPredictions: () => PatternPredictionSample[];
@@ -114,6 +135,9 @@ export type StatefulPattern<
   getConfidence: () => number;
 };
 
+/**
+ * Small status projection used by debug views and selectors.
+ */
 export type PatternStatus = {
   id: string;
   enabled: boolean;
@@ -135,14 +159,6 @@ export const STATEFUL_PATTERN_CONFIG_FIELDS = Object.freeze([
 
 export const PATTERN_UPDATE_CONTEXT_FIELDS = Object.freeze([
   "frameIndex",
-  "columns",
-  "rows",
-  "obstacles",
-  "worldContext",
-  "observedEvaderMotion",
-  "evaderLocationMemory",
-  "evaderVisible",
-  "speedUnitsPerFrame",
   "horizonFrames",
   "sampleSpacingFrames",
 ]);
@@ -163,10 +179,7 @@ export const PATTERN_PREDICTION_SAMPLE_FIELDS = Object.freeze([
   "sourcePatternId",
   "frameOffset",
   "framesAhead",
-  "predictedPosition",
-  "predictedDirection",
-  "position",
-  "direction",
+  "values",
   "confidence",
   "confidenceParts",
   "metadata",

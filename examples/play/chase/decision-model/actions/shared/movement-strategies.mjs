@@ -8,7 +8,7 @@ import {
   WALL_AVOID_DISTANCE,
 } from "../../../config/constants.mjs";
 import { normalizeVector } from "../../core/math.ts";
-import { clampConfidence } from "../../strategies/confidence.mjs";
+import { clampConfidence } from "../../strategies/core/confidence.mjs";
 import { getWorldWallPressure } from "../../../world/world.mjs";
 
 const BOUNDARY_WALL_IDS = new Set(["left", "right", "top", "bottom"]);

@@ -17,28 +17,28 @@ import {
 import {
   getPatternConfidence,
   getPatternPredictionUnit,
-} from "../../decision-model/patterns/stateful-pattern.mjs";
+} from "../../decision-model/patterns/core/stateful-pattern.ts";
 import {
   getStrategyConfidence,
   getStrategyOutput,
   isStrategyActionable,
-} from "../../decision-model/strategies/stateful-strategy.mjs";
+} from "../../decision-model/strategies/core/stateful-strategy.mjs";
 import {
   buildEvaderMotionModel,
   createContinuancePattern,
   getContinuancePatternOutput,
   updateContinuancePattern,
-} from "../../decision-model/patterns/evader-motion/continuance.mjs";
+} from "../../decision-model/patterns/chaser/evader-motion/continuance/pattern.ts";
 import {
   createWallAvoidancePattern,
   getWallAvoidancePatternOutput,
   updateWallAvoidancePattern,
-} from "../../decision-model/patterns/evader-motion/wall-avoidance.mjs";
+} from "../../decision-model/patterns/chaser/evader-motion/wall-avoidance/pattern.ts";
 import {
   createDisabledEvaderPredictionPlan,
   createEvaderPredictionStrategy,
   updateEvaderPredictionStrategy,
-} from "../../decision-model/strategies/evader-prediction/strategy.mjs";
+} from "../../decision-model/strategies/chaser/evader-prediction/strategy.mjs";
 import { CHASER_PATTERN_IDS } from "../../config/strategy-ids.mjs";
 
 export const CHASER_KNOWLEDGE_ENGINE_IDS = Object.freeze({

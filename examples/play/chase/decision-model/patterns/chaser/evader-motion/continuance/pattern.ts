@@ -3,95 +3,121 @@ import {
   DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
   DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME,
   EVADER_PREDICTION_MAX_UNOBSERVED_FRAMES,
-} from "../../../config/constants.mjs";
+} from "../../../../../config/constants.mjs";
 import {
   createFramePrediction,
   createPatternConfidence,
   createPatternPredictionUnit,
-} from "../prediction-units.mjs";
-import { createStatefulPattern, getPatternOutput, updatePattern } from "../stateful-pattern.mjs";
-import { resolveObstacleCollisions } from "../../../world/world.mjs";
+} from "../../../core/prediction-units.ts";
+import { createStatefulPattern, getPatternOutput, updatePattern } from "../../../core/stateful-pattern.ts";
+import { resolveObstacleCollisions } from "../../../../../world/world.mjs";
+import type {
+  ActorLocationMemory,
+  ObservedMotionMemory,
+  VectorXZ,
+  WorldContext,
+} from "../../../../observer-world/interfaces.ts";
+import type {
+  PatternConfidenceParts,
+  PatternPredictionSample,
+  PatternPredictionUnit,
+  PatternUpdateContext,
+  StatefulPattern,
+} from "../../../core/interfaces.ts";
 
 /**
- * @import {
- *   ActorLocationMemory,
- *   ObservedMotionMemory,
- *   VectorXZ,
- *   WorldContext,
- * } from "../../observer-world/interfaces.ts"
- * @import {
- *   PatternPredictionSample,
- *   PatternPredictionUnit,
- *   PatternUpdateContext,
- *   StatefulPattern,
- * } from "../interfaces.ts"
+ * Component-level statement for the continuance pattern unit.
  */
+export type ContinuancePatternUnitComponent = {
+  quantity: "velocity";
+  axis: "x" | "z";
+  relation: "continues";
+};
 
 /**
- * @typedef {Object} ContinuancePatternUnitComponent
- * @property {"velocity"} quantity Modeled quantity.
- * @property {"x" | "z"} axis World axis.
- * @property {"continues"} relation Assumed relation through time.
+ * Pattern unit declaring that observed x/z velocity components continue.
  */
+export type ContinuancePatternUnit = {
+  id: "linear-motion-continuation";
+  type: "component-velocity-continuance";
+  role: "default-prediction";
+  assumption: string;
+  coordinatePlane: "x/z";
+  components: {
+    x: ContinuancePatternUnitComponent;
+    z: ContinuancePatternUnitComponent;
+  };
+};
 
 /**
- * @typedef {Object} ContinuancePatternUnit
- * @property {"linear-motion-continuation"} id Unit id.
- * @property {"component-velocity-continuance"} type Unit type.
- * @property {"default-prediction"} role Prediction role.
- * @property {string} assumption Human-readable motion assumption.
- * @property {"x/z"} coordinatePlane Modeled coordinate plane.
- * @property {{x: ContinuancePatternUnitComponent, z: ContinuancePatternUnitComponent}} components Modeled velocity components.
+ * Evidence exposed by the continuance pattern.
  */
+export type ContinuanceMotionEvidence = {
+  position: VectorXZ | null;
+  direction: VectorXZ | null;
+  framesSinceObservation: number;
+  observationCount: number;
+  motionObservationCount: number;
+  speedEstimateUnitsPerFrame: number;
+};
 
 /**
- * @typedef {Object} ContinuanceMotionEvidence
- * @property {VectorXZ | null} position Last believed target position.
- * @property {VectorXZ | null} direction Last believed target direction.
- * @property {number} framesSinceObservation Frames since the target was directly observed.
- * @property {number} observationCount Number of direct observations.
- * @property {number} motionObservationCount Number of motion observations.
- * @property {number} speedEstimateUnitsPerFrame Speed estimate used by projections.
+ * Persistent state for the observed-motion continuance pattern.
  */
+export type ContinuancePatternState = {
+  position: VectorXZ | null;
+  direction: VectorXZ;
+  framesSinceObservation: number;
+  observationCount: number;
+  motionObservationCount: number;
+  speedEstimateUnitsPerFrame: number;
+  predictionUnit: PatternPredictionUnit<ContinuancePatternUnit, ContinuanceMotionEvidence, object>;
+  predictions: PatternPredictionSample<object>[];
+};
 
 /**
- * @typedef {Object} ContinuancePatternState
- * @property {VectorXZ | null} position Last believed target position.
- * @property {VectorXZ} direction Last believed target direction.
- * @property {number} framesSinceObservation Frames since direct observation.
- * @property {number} observationCount Number of direct observations.
- * @property {number} motionObservationCount Number of motion observations.
- * @property {number} speedEstimateUnitsPerFrame Speed estimate used by projections.
- * @property {PatternPredictionUnit<ContinuancePatternUnit, ContinuanceMotionEvidence, object>} predictionUnit Current prediction unit.
- * @property {PatternPredictionSample<object>[]} predictions Current future-frame samples.
+ * Update context consumed by the continuance pattern.
  */
+export type ContinuancePatternContext = PatternUpdateContext<{
+  observedEvaderMotion?: ObservedMotionMemory;
+  evaderLocationMemory?: ActorLocationMemory;
+  worldContext?: WorldContext;
+}>;
 
 /**
- * @typedef {PatternUpdateContext & {
- *   observedEvaderMotion?: ObservedMotionMemory,
- *   evaderLocationMemory?: ActorLocationMemory,
- *   worldContext?: WorldContext
- * }} ContinuancePatternContext
+ * Motion model consumed by chaser evader-prediction strategies.
  */
+export type EvaderMotionModel = {
+  position: VectorXZ | null;
+  direction: VectorXZ;
+  framesSinceObservation: number;
+  speedEstimateUnitsPerFrame: number;
+  speedObservationCount: number;
+  lastObservedDirection: VectorXZ | null;
+  previousObservedDirection: VectorXZ | null;
+  observedTurnRadiansPerFrame: number;
+  lastObservedPosition: VectorXZ | null;
+  observationCount: number;
+  motionObservationCount: number;
+};
 
-/**
- * @typedef {Object} EvaderMotionModel
- * @property {VectorXZ | null} position Current believed target position.
- * @property {VectorXZ} direction Current believed target direction.
- * @property {number} framesSinceObservation Frames since direct observation.
- * @property {number} speedEstimateUnitsPerFrame Estimated speed in world units per frame.
- * @property {number} speedObservationCount Number of speed observations.
- * @property {VectorXZ | null} lastObservedDirection Most recent observed direction.
- * @property {VectorXZ | null} previousObservedDirection Previous observed direction.
- * @property {number} observedTurnRadiansPerFrame Estimated turn rate.
- * @property {VectorXZ | null} lastObservedPosition Most recent observed position.
- * @property {number} observationCount Number of target observations.
- * @property {number} motionObservationCount Number of motion observations.
- */
+export type ContinuanceStatefulPattern = StatefulPattern<
+  ContinuancePatternState,
+  ContinuancePatternState,
+  ContinuanceMotionEvidence,
+  PatternPredictionUnit<ContinuancePatternUnit, ContinuanceMotionEvidence, object>,
+  ContinuancePatternUnit,
+  ContinuancePatternContext
+>;
+
+export type BuildEvaderMotionModelOptions = {
+  observedEvaderMotion?: ObservedMotionMemory;
+  continuancePattern?: ContinuanceStatefulPattern | null;
+  continuance?: ContinuanceStatefulPattern | null;
+};
 
 export const CONTINUANCE_PATTERN_ID = "continuance";
-/** @type {Readonly<ContinuancePatternUnit>} */
-export const CONTINUANCE_PATTERN_UNIT = Object.freeze({
+export const CONTINUANCE_PATTERN_UNIT: Readonly<ContinuancePatternUnit> = Object.freeze({
   id: "linear-motion-continuation",
   type: "component-velocity-continuance",
   role: "default-prediction",
@@ -146,12 +172,11 @@ export const EVADER_MOTION_MODEL_FIELDS = Object.freeze([
 ]);
 
 /**
- * @param {VectorXZ | null} evaderDirection
- * @returns {ContinuancePatternState}
+ * Creates the initial continuance state from the last known evader direction.
  */
 export function createContinuancePatternState(
-  evaderDirection = { x: 0, z: 0 },
-) {
+  evaderDirection: VectorXZ | null = { x: 0, z: 0 },
+): ContinuancePatternState {
   const safeEvaderDirection = evaderDirection
     ? { ...evaderDirection }
     : { x: 0, z: 0 };
@@ -171,7 +196,7 @@ export function createContinuancePatternState(
   };
 }
 
-function getPositiveInteger(value, fallback) {
+function getPositiveInteger(value: unknown, fallback: number): number {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) && numericValue > 0
     ? Math.max(1, Math.floor(numericValue))
@@ -181,7 +206,10 @@ function getPositiveInteger(value, fallback) {
 function createContinuancePredictionConfidence({
   staleFrames = 0,
   frameOffset = 1,
-} = {}) {
+}: {
+  staleFrames?: number;
+  frameOffset?: number;
+} = {}): PatternConfidenceParts {
   const priorConfidence = createPatternConfidence({
     confirmedCount: 0,
     opportunityCount: 0,
@@ -194,9 +222,9 @@ function createContinuancePredictionConfidence({
     0,
     Math.min(
       1,
-      priorConfidence.probability
-        * priorConfidence.recencyConfidence
-        * priorConfidence.horizonConfidence,
+      (priorConfidence.probability ?? 0)
+        * (priorConfidence.recencyConfidence ?? 1)
+        * (priorConfidence.horizonConfidence ?? 1),
     ),
   );
 
@@ -216,33 +244,31 @@ function createContinuancePredictionConfidence({
   };
 }
 
-/**
- * @param {ContinuancePatternState | null | undefined} state
- * @returns {ContinuanceMotionEvidence}
- */
-function cloneMotionEvidence(state) {
+function cloneMotionEvidence(state: ContinuancePatternState | null | undefined): ContinuanceMotionEvidence {
+  const speedEstimate = state?.speedEstimateUnitsPerFrame;
   return {
     position: state?.position ? { ...state.position } : null,
     direction: state?.direction ? { ...state.direction } : null,
     framesSinceObservation: Number(state?.framesSinceObservation) || 0,
     observationCount: Number(state?.observationCount) || 0,
     motionObservationCount: Number(state?.motionObservationCount) || 0,
-    speedEstimateUnitsPerFrame: Number.isFinite(state?.speedEstimateUnitsPerFrame)
-      ? state.speedEstimateUnitsPerFrame
+    speedEstimateUnitsPerFrame: Number.isFinite(speedEstimate)
+      ? speedEstimate as number
       : DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME,
   };
 }
 
 /**
- * @param {ContinuancePatternState} state
- * @param {ContinuancePatternContext} context
- * @returns {PatternPredictionSample<object>[]}
+ * Projects the current continuance estimate into future prediction samples.
  */
-function projectLinearMotionPredictions(state, {
-  worldContext = {},
-  horizonFrames = DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
-  sampleSpacingFrames = DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
-} = {}) {
+function projectLinearMotionPredictions(
+  state: ContinuancePatternState,
+  {
+    worldContext = {},
+    horizonFrames = DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
+    sampleSpacingFrames = DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
+  }: ContinuancePatternContext = {},
+): PatternPredictionSample<object>[] {
   if (!state?.position || !state?.direction) {
     return [];
   }
@@ -261,7 +287,7 @@ function projectLinearMotionPredictions(state, {
   const canResolveWorldCollision = worldContext.obstacles
     && Number.isFinite(worldContext.columns)
     && Number.isFinite(worldContext.rows);
-  const predictions = [];
+  const predictions: PatternPredictionSample<object>[] = [];
   let position = { ...state.position };
 
   for (let frameOffset = 1; frameOffset <= normalizedHorizonFrames; frameOffset += 1) {
@@ -273,8 +299,8 @@ function projectLinearMotionPredictions(state, {
       ? resolveObstacleCollisions(
         intendedPosition,
         position,
-        worldContext.columns,
-        worldContext.rows,
+        worldContext.columns as number,
+        worldContext.rows as number,
         worldContext.obstacles,
       )
       : intendedPosition;
@@ -291,8 +317,12 @@ function projectLinearMotionPredictions(state, {
     predictions.push(createFramePrediction({
       sourcePatternId: CONTINUANCE_PATTERN_ID,
       frameOffset,
-      position,
-      direction: state.direction,
+      values: {
+        position,
+        direction: state.direction,
+        predictedPosition: position,
+        predictedDirection: state.direction,
+      },
       confidenceParts,
       metadata: {
         role: CONTINUANCE_PATTERN_UNIT.role,
@@ -305,12 +335,10 @@ function projectLinearMotionPredictions(state, {
   return predictions;
 }
 
-/**
- * @param {ContinuancePatternState} state
- * @param {ContinuancePatternContext} context
- * @returns {void}
- */
-function refreshContinuancePredictionUnit(state, context = {}) {
+function refreshContinuancePredictionUnit(
+  state: ContinuancePatternState,
+  context: ContinuancePatternContext = {},
+): void {
   const predictions = projectLinearMotionPredictions(state, context);
   state.predictions = predictions;
   state.predictionUnit = createPatternPredictionUnit({
@@ -323,20 +351,18 @@ function refreshContinuancePredictionUnit(state, context = {}) {
 }
 
 /**
- * @param {ContinuancePatternState | null} continuance
- * @param {ContinuancePatternContext} context
- * @returns {ContinuancePatternState | null}
+ * Updates the continuance state from direct observation or passive projection.
  */
 export function updateContinuancePatternState(
-  continuance,
+  continuance: ContinuancePatternState | null,
   {
     observedEvaderMotion,
     evaderLocationMemory,
     worldContext = {},
     horizonFrames = DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
     sampleSpacingFrames = DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
-  } = {},
-) {
+  }: ContinuancePatternContext = {},
+): ContinuancePatternState | null {
   if (!continuance) {
     return null;
   }
@@ -346,10 +372,9 @@ export function updateContinuancePatternState(
     continuance.framesSinceObservation = 0;
     continuance.observationCount = Number(observedEvaderMotion?.observationCount) || 0;
     continuance.motionObservationCount = Number(observedEvaderMotion?.motionObservationCount) || 0;
-    continuance.speedEstimateUnitsPerFrame = Number.isFinite(
-      observedEvaderMotion?.speedEstimateUnitsPerFrame,
-    )
-      ? observedEvaderMotion.speedEstimateUnitsPerFrame
+    const observedSpeed = observedEvaderMotion?.speedEstimateUnitsPerFrame;
+    continuance.speedEstimateUnitsPerFrame = Number.isFinite(observedSpeed)
+      ? observedSpeed as number
       : DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME;
     if (observedEvaderMotion?.lastObservedDirection) {
       continuance.direction = { ...observedEvaderMotion.lastObservedDirection };
@@ -364,8 +389,9 @@ export function updateContinuancePatternState(
 
   if (continuance.position && continuance.direction) {
     continuance.framesSinceObservation += 1;
-    const speedEstimate = Number.isFinite(observedEvaderMotion?.speedEstimateUnitsPerFrame)
-      ? observedEvaderMotion.speedEstimateUnitsPerFrame
+    const observedSpeed = observedEvaderMotion?.speedEstimateUnitsPerFrame;
+    const speedEstimate = Number.isFinite(observedSpeed)
+      ? observedSpeed as number
       : DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME;
     const nextPosition = {
       x: continuance.position.x
@@ -380,8 +406,8 @@ export function updateContinuancePatternState(
       ? resolveObstacleCollisions(
         nextPosition,
         continuance.position,
-        worldContext.columns,
-        worldContext.rows,
+        worldContext.columns as number,
+        worldContext.rows as number,
         worldContext.obstacles,
       )
       : nextPosition;
@@ -396,16 +422,11 @@ export function updateContinuancePatternState(
 }
 
 /**
- * @param {VectorXZ | null} evaderDirection
- * @returns {StatefulPattern<
- *   ContinuancePatternState,
- *   ContinuancePatternState,
- *   ContinuanceMotionEvidence,
- *   PatternPredictionUnit<ContinuancePatternUnit, ContinuanceMotionEvidence, object>,
- *   ContinuancePatternUnit
- * >}
+ * Creates the stateful continuance pattern wrapper.
  */
-export function createContinuancePattern(evaderDirection = { x: 0, z: 0 }) {
+export function createContinuancePattern(
+  evaderDirection: VectorXZ | null = { x: 0, z: 0 },
+): ContinuanceStatefulPattern {
   return createStatefulPattern({
     id: CONTINUANCE_PATTERN_ID,
     unit: CONTINUANCE_PATTERN_UNIT,
@@ -418,48 +439,43 @@ export function createContinuancePattern(evaderDirection = { x: 0, z: 0 }) {
   });
 }
 
-export function updateContinuancePattern(pattern, context) {
+/**
+ * Advances a continuance pattern wrapper by one context update.
+ */
+export function updateContinuancePattern(
+  pattern: ContinuanceStatefulPattern | null | undefined,
+  context: ContinuancePatternContext,
+): ContinuancePatternState | null {
   return updatePattern(pattern, context);
 }
 
-export function getContinuancePatternOutput(pattern) {
-  return getPatternOutput(pattern);
+/**
+ * Returns the current public continuance output.
+ */
+export function getContinuancePatternOutput(
+  pattern: ContinuanceStatefulPattern | null | undefined,
+): ContinuancePatternState | null {
+  return getPatternOutput(pattern) as ContinuancePatternState | null;
 }
 
 /**
- * @param {{
- *   observedEvaderMotion?: ObservedMotionMemory,
- *   continuancePattern?: StatefulPattern<
- *     ContinuancePatternState,
- *     ContinuancePatternState,
- *     ContinuanceMotionEvidence,
- *     PatternPredictionUnit<ContinuancePatternUnit, ContinuanceMotionEvidence, object>,
- *     ContinuancePatternUnit
- *   >,
- *   continuance?: StatefulPattern<
- *     ContinuancePatternState,
- *     ContinuancePatternState,
- *     ContinuanceMotionEvidence,
- *     PatternPredictionUnit<ContinuancePatternUnit, ContinuanceMotionEvidence, object>,
- *     ContinuancePatternUnit
- *   >
- * }} context
- * @returns {EvaderMotionModel}
+ * Builds the evader motion model exposed to prediction strategies.
  */
 export function buildEvaderMotionModel({
   observedEvaderMotion,
   continuancePattern,
   continuance,
-} = {}) {
+}: BuildEvaderMotionModelOptions = {}): EvaderMotionModel {
   const resolvedContinuance = getContinuancePatternOutput(
     continuancePattern ?? continuance,
   );
+  const observedSpeed = observedEvaderMotion?.speedEstimateUnitsPerFrame;
   return {
     position: resolvedContinuance?.position ?? null,
     direction: resolvedContinuance?.direction ?? { x: 0, z: 0 },
     framesSinceObservation: Number(resolvedContinuance?.framesSinceObservation) || 0,
-    speedEstimateUnitsPerFrame: Number.isFinite(observedEvaderMotion?.speedEstimateUnitsPerFrame)
-      ? observedEvaderMotion.speedEstimateUnitsPerFrame
+    speedEstimateUnitsPerFrame: Number.isFinite(observedSpeed)
+      ? observedSpeed as number
       : DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME,
     speedObservationCount: Number(observedEvaderMotion?.speedObservationCount) || 0,
     lastObservedDirection: observedEvaderMotion?.lastObservedDirection ?? { x: 0, z: 0 },
