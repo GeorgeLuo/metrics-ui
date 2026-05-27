@@ -12,7 +12,7 @@ import {
 import {
   createEvaderWallAvoidanceTruthState,
   updateEvaderWallAvoidanceTruth,
-} from "../decision-model/patterns/chaser/evader-motion/wall-avoidance/evidence.mjs";
+} from "../decision-model/patterns/chaser/evader-motion/wall-avoidance/evidence.ts";
 import {
   createChaseTraceRecorder,
   getChaseTraceRecorderSnapshot,

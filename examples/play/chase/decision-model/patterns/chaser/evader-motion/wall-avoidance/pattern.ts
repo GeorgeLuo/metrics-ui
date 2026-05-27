@@ -11,7 +11,7 @@ import {
 import {
   createWallAvoidanceEvidenceState,
   updateWallAvoidanceEvidence,
-} from "./evidence.mjs";
+} from "./evidence.ts";
 import { createStatefulPattern, getPatternOutput, updatePattern } from "../../../core/stateful-pattern.ts";
 import { predictEvaderMotionFromWallAvoidance } from "../../../../strategies/chaser/evader-prediction/motion-prediction.mjs";
 import { buildEvaderProjectionPath } from "../../../../strategies/chaser/evader-prediction/projection-path.mjs";
@@ -27,6 +27,7 @@ import type {
   StatefulPattern,
 } from "../../../core/interfaces.ts";
 import type { EvaderMotionModel } from "../continuance/pattern.ts";
+import type { WallAvoidanceEvidenceState } from "./evidence.ts";
 
 /**
  * Consensus input used by evader-motion prediction.
@@ -71,34 +72,6 @@ export type EvaderMotionPrediction = {
  */
 export type WallAvoidancePatternPrediction = EvaderMotionPrediction & {
   projectionPrediction: EvaderMotionPrediction | null;
-};
-
-export type WallAvoidancePendingApproach = {
-  wall: string;
-  frames: number;
-};
-
-export type WallAvoidanceLatestEvidence = {
-  observed: boolean;
-  nearestWall: string;
-  nearestDistance: number | null;
-  nearingWall: boolean;
-  hitWall: boolean;
-  episodeStatus: "idle" | "watching" | "hit" | "avoided";
-};
-
-/**
- * Evidence state tracked for wall-avoidance behavior.
- */
-export type WallAvoidanceEvidenceState = {
-  observedSampleCount: number;
-  approachEpisodeCount: number;
-  avoidedApproachCount: number;
-  hitApproachCount: number;
-  pendingApproach: WallAvoidancePendingApproach | null;
-  cooldownWall: string | null;
-  wallAvoidanceScore: number;
-  latest: WallAvoidanceLatestEvidence;
 };
 
 /**
