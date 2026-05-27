@@ -9,8 +9,8 @@ import {
 } from "../chaser/chaser.mjs";
 import {
   buildActorSnapshot,
-  createActorDecisionModel,
-  stepActorDecisionModel,
+  createActorIdae,
+  stepActorIdae,
 } from "../../decision-model/core/actor-decision-model.ts";
 import { runKuramotoConsensus } from "../../decision-model/core/kuramoto.ts";
 import { constrainDirectionToBounds } from "./evader.mjs";
@@ -369,7 +369,7 @@ function getEvaderIdaeSnapshot(state) {
 }
 
 export function createEvaderIdae({ scenario } = {}) {
-  return createActorDecisionModel({
+  return createActorIdae({
     id: "evader-idae",
     createState: () => createEvaderIdaeState({ scenario }),
     observe: observeEvaderEnvironment,
@@ -383,5 +383,5 @@ export function createEvaderIdae({ scenario } = {}) {
 }
 
 export function stepEvaderIdae(evaderIdae, frameContext = {}) {
-  return stepActorDecisionModel(evaderIdae, frameContext);
+  return stepActorIdae(evaderIdae, frameContext);
 }
