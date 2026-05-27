@@ -1,8 +1,8 @@
-import { normalizeVector } from "../../core/math.ts";
+import { normalizeVector } from "../../../core/math.ts";
 import { predictEvaderMotionWithKuramoto } from "./motion-prediction.mjs";
 import { getWallAvoidanceSignal } from "./signals.mjs";
-import { constrainDirectionToBounds } from "../../../actors/evader/evader.mjs";
-import { resolveObstacleCollisions } from "../../../world/world.mjs";
+import { constrainDirectionToBounds } from "../../../../actors/evader/evader.mjs";
+import { resolveObstacleCollisions } from "../../../../world/world.mjs";
 
 function createProjectedEstimate(sourceEstimate, position, direction, framesSinceObservation) {
   return {

@@ -7,7 +7,7 @@ import {
   createStatefulStrategy,
   getStrategyOutput,
   updateStrategy,
-} from "../stateful-strategy.mjs";
+} from "../core/stateful-strategy.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 
 export const EVADER_DRIFT_STRATEGY_ID = "driftMotion";

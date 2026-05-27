@@ -22,7 +22,7 @@ import {
   getStrategyConfidence,
   getStrategyOutput,
   isStrategyActionable,
-} from "../../decision-model/strategies/stateful-strategy.mjs";
+} from "../../decision-model/strategies/core/stateful-strategy.mjs";
 import {
   buildEvaderMotionModel,
   createContinuancePattern,
@@ -38,7 +38,7 @@ import {
   createDisabledEvaderPredictionPlan,
   createEvaderPredictionStrategy,
   updateEvaderPredictionStrategy,
-} from "../../decision-model/strategies/evader-prediction/strategy.mjs";
+} from "../../decision-model/strategies/chaser/evader-prediction/strategy.mjs";
 import { CHASER_PATTERN_IDS } from "../../config/strategy-ids.mjs";
 
 export const CHASER_KNOWLEDGE_ENGINE_IDS = Object.freeze({

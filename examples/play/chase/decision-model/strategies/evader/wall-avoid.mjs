@@ -3,7 +3,7 @@ import {
   createStatefulStrategy,
   getStrategyOutput,
   updateStrategy,
-} from "../stateful-strategy.mjs";
+} from "../core/stateful-strategy.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 import { getWorldWallPressure } from "../../../world/world.mjs";
 

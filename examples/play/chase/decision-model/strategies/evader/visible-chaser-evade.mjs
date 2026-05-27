@@ -7,7 +7,7 @@ import {
   createStatefulStrategy,
   getStrategyOutput,
   updateStrategy,
-} from "../stateful-strategy.mjs";
+} from "../core/stateful-strategy.mjs";
 
 export const EVADER_VISIBLE_CHASER_EVADE_STRATEGY_ID = "visible-chaser-evade";
 

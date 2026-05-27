@@ -7,7 +7,7 @@ import {
   getStrategyOutput,
   getStrategyState,
   updateStrategy,
-} from "../stateful-strategy.mjs";
+} from "../../core/stateful-strategy.mjs";
 
 export const EVADER_PREDICTION_STRATEGY_ID = "evaderPrediction";
 

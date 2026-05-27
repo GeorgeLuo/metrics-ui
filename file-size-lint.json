@@ -133,7 +133,7 @@
         "examples/play/chase/chase-regression.test.mjs",
         "examples/play/chase/decision-model/actions/chaser/action-strategies.mjs",
         "examples/play/chase/debug/decision-debug.mjs",
-        "examples/play/chase/decision-model/strategies/evader-prediction/plan.mjs"
+        "examples/play/chase/decision-model/strategies/chaser/evader-prediction/plan.mjs"
       ],
       "extensions": [
         ".mjs"
@@ -171,9 +171,9 @@
       "maxLines": 900
     },
     {
-      "name": "play-chase-evader-prediction-plan",
+      "name": "play-chase-chaser-evader-prediction-plan",
       "include": [
-        "examples/play/chase/decision-model/strategies/evader-prediction/plan.mjs"
+        "examples/play/chase/decision-model/strategies/chaser/evader-prediction/plan.mjs"
       ],
       "extensions": [
         ".mjs"

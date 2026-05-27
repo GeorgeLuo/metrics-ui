@@ -2,14 +2,14 @@ import {
   EVADER_PREDICTION_CONSENSUS_THRESHOLD,
   EVADER_PREDICTION_KURAMOTO_COUPLING,
   EVADER_PREDICTION_KURAMOTO_ITERATIONS,
-} from "../../../config/constants.mjs";
+} from "../../../../config/constants.mjs";
 import {
   blendDirectionTowardWallAvoidance,
   buildEvaderPredictionOscillators,
   getDefaultEvaderPrediction,
   getWallAvoidanceSignal,
 } from "./signals.mjs";
-import { runKuramotoConsensus } from "../../core/kuramoto.ts";
+import { runKuramotoConsensus } from "../../../core/kuramoto.ts";
 
 export { getDefaultEvaderPrediction } from "./signals.mjs";
 

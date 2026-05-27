@@ -13,8 +13,8 @@ import {
   updateWallAvoidanceEvidence,
 } from "./wall-avoidance-evidence.mjs";
 import { createStatefulPattern, getPatternOutput, updatePattern } from "../stateful-pattern.mjs";
-import { predictEvaderMotionFromWallAvoidance } from "../../strategies/evader-prediction/motion-prediction.mjs";
-import { buildEvaderProjectionPath } from "../../strategies/evader-prediction/projection-path.mjs";
+import { predictEvaderMotionFromWallAvoidance } from "../../strategies/chaser/evader-prediction/motion-prediction.mjs";
+import { buildEvaderProjectionPath } from "../../strategies/chaser/evader-prediction/projection-path.mjs";
 
 /**
  * @import {
