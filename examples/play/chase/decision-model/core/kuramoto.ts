@@ -6,6 +6,14 @@ import {
   vectorToAngle,
 } from "./math.ts";
 
+/**
+ * Raw direction proposal accepted by the consensus helper.
+ *
+ * Callers can provide either a phase in radians or a 2D direction vector. Weight
+ * affects the consensus dynamics directly. Confidence is carried through on the
+ * normalized oscillator for consumers that need to inspect how trusted a source
+ * was, but the current Kuramoto coupling calculation does not use confidence.
+ */
 export type KuramotoInput = {
   id?: string;
   phase?: number;
@@ -15,6 +23,13 @@ export type KuramotoInput = {
   naturalFrequency?: number;
 };
 
+/**
+ * Valid oscillator used internally by the consensus loop.
+ *
+ * `phase` is the current angle in radians. `naturalFrequency` lets a proposal
+ * drift independently during iteration, while peer coupling pulls phases toward
+ * the other weighted oscillators.
+ */
 export type KuramotoOscillator = {
   id: string;
   phase: number;
@@ -23,12 +38,26 @@ export type KuramotoOscillator = {
   naturalFrequency: number;
 };
 
+/**
+ * Weighted circular average of oscillator phases.
+ *
+ * `order` is the normalized agreement strength. It approaches 1 when proposals
+ * point in the same direction and approaches 0 when they cancel each other out.
+ */
 export type KuramotoMean = {
   phase: number;
   direction: VectorXZ;
   order: number;
 };
 
+/**
+ * Parameters for the discrete Kuramoto update.
+ *
+ * `coupling` controls how strongly oscillators pull toward peers, `timeStep`
+ * controls each integration step, `iterations` controls how long the consensus
+ * is allowed to settle, and `threshold` is only used to set the returned
+ * `converged` flag.
+ */
 export type KuramotoOptions = {
   coupling?: number;
   timeStep?: number;
@@ -36,11 +65,23 @@ export type KuramotoOptions = {
   threshold?: number;
 };
 
+/**
+ * Result of running the consensus loop.
+ *
+ * The returned `oscillators` include their final phases after iteration, which
+ * is useful for diagnostics when consensus order is low or convergence fails.
+ */
 export type KuramotoConsensus = KuramotoMean & {
   oscillators: KuramotoOscillator[];
   converged: boolean;
 };
 
+/**
+ * Converts loose caller input into a valid oscillator or drops invalid input.
+ *
+ * Invalid proposals are ignored instead of throwing so strategy collections can
+ * include optional or inactive entries without pre-filtering every call site.
+ */
 function normalizeOscillator(input: KuramotoInput | null | undefined, index: number): KuramotoOscillator | null {
   if (!input || typeof input !== "object") {
     return null;
@@ -71,10 +112,19 @@ function normalizeOscillator(input: KuramotoInput | null | undefined, index: num
   };
 }
 
+/**
+ * Type guard used after normalization to remove dropped oscillator inputs.
+ */
 function isKuramotoOscillator(value: KuramotoOscillator | null): value is KuramotoOscillator {
   return value !== null;
 }
 
+/**
+ * Calculates the weighted circular mean for a set of oscillator phases.
+ *
+ * Direction vectors are averaged instead of raw angles so wraparound at
+ * `-pi`/`pi` is handled correctly.
+ */
 export function calculateCircularMean(oscillators: KuramotoOscillator[]): KuramotoMean {
   let x = 0;
   let z = 0;
@@ -105,6 +155,14 @@ export function calculateCircularMean(oscillators: KuramotoOscillator[]): Kuramo
   };
 }
 
+/**
+ * Runs a small discrete Kuramoto consensus over directional proposals.
+ *
+ * This is used when multiple strategies or prediction signals propose competing
+ * directions. Each iteration updates every oscillator phase from the weighted
+ * sine of peer phase differences, then the final circular mean becomes the
+ * selected consensus direction.
+ */
 export function runKuramotoConsensus(
   inputs: KuramotoInput[],
   options: KuramotoOptions = {},
