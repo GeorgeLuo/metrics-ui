@@ -14,7 +14,7 @@ import {
   createPredictionSignal,
   getSampleConfidence,
 } from "../../core/confidence.mjs";
-import { createPatternConfidence } from "../../../patterns/prediction-units.mjs";
+import { createPatternConfidence } from "../../../patterns/core/prediction-units.ts";
 import { getWorldWallPressure } from "../../../../world/world.mjs";
 
 const CURRENT_DIRECTION_WEIGHT = 1.2;

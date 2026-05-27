@@ -1,8 +1,8 @@
 import {
   WALL_APPROACH_RESOLUTION_FRAMES,
   WALL_HIT_DISTANCE,
-} from "../../../config/constants.mjs";
-import { getWorldWallPressure } from "../../../world/world.mjs";
+} from "../../../../../config/constants.mjs";
+import { getWorldWallPressure } from "../../../../../world/world.mjs";
 
 /**
  * @typedef {Object} WallAvoidancePendingApproach
@@ -214,7 +214,7 @@ export function updateEvaderWallAvoidanceTruth(
  *   evaderVisible?: boolean,
  *   columns?: number,
  *   rows?: number,
- *   obstacles?: import("../../observer-world/interfaces.ts").ObstacleSet
+ *   obstacles?: import("../../../../observer-world/interfaces.ts").ObstacleSet
  * }} context
  * @returns {WallAvoidanceEvidenceState}
  */
