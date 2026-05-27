@@ -136,7 +136,8 @@
         "examples/play/chase/decision-model/strategies/chaser/evader-prediction/plan.mjs"
       ],
       "extensions": [
-        ".mjs"
+        ".mjs",
+        ".ts"
       ],
       "maxLines": 550
     },

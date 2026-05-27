@@ -17,7 +17,7 @@ import {
 import {
   getPatternConfidence,
   getPatternPredictionUnit,
-} from "../../decision-model/patterns/stateful-pattern.mjs";
+} from "../../decision-model/patterns/core/stateful-pattern.ts";
 import {
   getStrategyConfidence,
   getStrategyOutput,
@@ -28,12 +28,12 @@ import {
   createContinuancePattern,
   getContinuancePatternOutput,
   updateContinuancePattern,
-} from "../../decision-model/patterns/evader-motion/continuance.mjs";
+} from "../../decision-model/patterns/chaser/evader-motion/continuance/pattern.ts";
 import {
   createWallAvoidancePattern,
   getWallAvoidancePatternOutput,
   updateWallAvoidancePattern,
-} from "../../decision-model/patterns/evader-motion/wall-avoidance.mjs";
+} from "../../decision-model/patterns/chaser/evader-motion/wall-avoidance/pattern.ts";
 import {
   createDisabledEvaderPredictionPlan,
   createEvaderPredictionStrategy,
