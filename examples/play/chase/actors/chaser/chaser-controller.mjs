@@ -2,11 +2,15 @@ import { CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING } from "../../config/constants.m
 import {
   planProgrammaticChaserAction,
   selectPursuitPoint,
-} from "../../decision-model/actions/chaser/action-strategies.mjs";
+} from "../../decision-model/actions/chaser/action-strategies.ts";
 import {
   CHASER_LEGACY_STRATEGY_IDS,
   CHASER_STRATEGY_IDS,
 } from "../../config/strategy-ids.mjs";
+
+/**
+ * @typedef {import("../../decision-model/actions/chaser/interfaces.ts").ProgrammaticChaserAction} ProgrammaticChaserAction
+ */
 
 export function createChaserAutopilotState() {
   return {
@@ -59,6 +63,9 @@ export function setChaserActionEngineEnabled(autopilotState, engineId, enabled) 
   autopilotState.actionEngines[normalizedEngineId] = Boolean(enabled);
 }
 
+/**
+ * @returns {ProgrammaticChaserAction}
+ */
 export function getProgrammaticChaserInput({
   snapshot,
   chaserPosition,

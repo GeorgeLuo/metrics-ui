@@ -1,7 +1,4 @@
-import {
-  DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
-  FIELD_OF_VIEW_DISTANCE,
-} from "../../../config/constants.mjs";
+import { FIELD_OF_VIEW_DISTANCE } from "../../../config/constants.mjs";
 import {
   KNOWN_AREA_CELL_SIZE,
   RECENT_VISITATION_MAX_AGE_FRAMES,
@@ -16,14 +13,33 @@ import {
   isPositionInsideBounds,
 } from "../../memory/chaser/map-navigation.mjs";
 import {
-  angleToVector,
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
 } from "../../core/math.ts";
 import { CHASER_STRATEGY_IDS } from "../../../config/strategy-ids.mjs";
+import { buildActionPathAlongRoute } from "../vehicle/route-paths.ts";
+import type { ActionSelectionSignal } from "../core/interfaces.ts";
+import type { VehicleActionProposal } from "../vehicle/interfaces.ts";
+import type { VectorXZ } from "../../observer-world/interfaces.ts";
 
-const DEFAULT_ACTION_PATH_HORIZON_FRAMES = 36;
+type AnyRecord = Record<string, any>;
+
+/**
+ * Ranked map-memory target considered by knowledge-acquisition strategies.
+ */
+type KnowledgeCandidate = AnyRecord & {
+  id: string;
+  score: number;
+};
+
+/**
+ * Selection payload shared by map discovery and recency refresh proposals.
+ */
+type KnowledgeAcquisitionSignal = ActionSelectionSignal<KnowledgeCandidate> & AnyRecord & {
+  selected: Record<string, KnowledgeCandidate | null>;
+};
+
 const MIN_RECENCY_REFRESH_SCORE = 0.12;
 const NEIGHBOR_OFFSETS = Object.freeze([
   { x: -1, z: -1 },
@@ -36,7 +52,10 @@ const NEIGHBOR_OFFSETS = Object.freeze([
   { x: 1, z: 1 },
 ]);
 
-function clamp01(value) {
+/**
+ * Clamps numeric confidence and score values to the normalized range.
+ */
+function clamp01(value: unknown): number {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
     return 0;
@@ -44,15 +63,13 @@ function clamp01(value) {
   return Math.max(0, Math.min(1, numericValue));
 }
 
-function clampUnit(value) {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return 0;
-  }
-  return Math.max(-1, Math.min(1, numericValue));
-}
-
-function clonePosition(position, fallback = { x: 0, z: 0 }) {
+/**
+ * Normalizes a possibly partial position object into an x/z vector.
+ */
+function clonePosition(
+  position: Partial<VectorXZ> | null | undefined,
+  fallback: VectorXZ = { x: 0, z: 0 },
+): VectorXZ {
   const x = Number(position?.x);
   const z = Number(position?.z);
   return {
@@ -61,17 +78,12 @@ function clonePosition(position, fallback = { x: 0, z: 0 }) {
   };
 }
 
-function cloneDirection(direction, fallback = { x: 1, z: 0 }) {
-  const normalized = normalizeVector(
-    Number(direction?.x ?? fallback.x),
-    Number(direction?.z ?? fallback.z),
-  );
-  return normalized.x === 0 && normalized.z === 0 ? { ...fallback } : normalized;
-}
-
-function normalizeKnownAreas(mapShapeMemory) {
+/**
+ * Converts persisted map memory cells into complete candidate source records.
+ */
+function normalizeKnownAreas(mapShapeMemory: AnyRecord | null | undefined): AnyRecord[] {
   return (Array.isArray(mapShapeMemory?.knownAreas) ? mapShapeMemory.knownAreas : [])
-    .map((area) => {
+    .map((area: AnyRecord) => {
       const cellX = Number(area?.cellX);
       const cellZ = Number(area?.cellZ);
       if (!Number.isFinite(cellX) || !Number.isFinite(cellZ)) {
@@ -93,20 +105,34 @@ function normalizeKnownAreas(mapShapeMemory) {
             : null,
       };
     })
-    .filter(Boolean);
+    .filter(Boolean) as AnyRecord[];
 }
 
-function getRememberedWalls(mapShapeMemory) {
+/**
+ * Reads remembered obstacles from chaser map memory.
+ */
+function getRememberedWalls(mapShapeMemory: AnyRecord | null | undefined): AnyRecord[] {
   return Array.isArray(mapShapeMemory?.obstacles?.walls)
     ? mapShapeMemory.obstacles.walls
     : [];
 }
 
-function isCellCenterWithinBounds(cellX, cellZ, bounds) {
+/**
+ * Tests whether a remembered cell center is within the current map bounds.
+ */
+function isCellCenterWithinBounds(cellX: number, cellZ: number, bounds: AnyRecord): boolean {
   return isPositionInsideBounds(getMapCellCenter(cellX, cellZ), bounds);
 }
 
-function getUnknownNeighborCount(area, knownAreaIds, bounds, obstacles) {
+/**
+ * Counts adjacent traversable cells that remain unknown to map memory.
+ */
+function getUnknownNeighborCount(
+  area: AnyRecord,
+  knownAreaIds: Set<string>,
+  bounds: AnyRecord,
+  obstacles: AnyRecord,
+): number {
   return NEIGHBOR_OFFSETS.reduce((count, offset) => {
     const cellX = area.cellX + offset.x;
     const cellZ = area.cellZ + offset.z;
@@ -123,7 +149,14 @@ function getUnknownNeighborCount(area, knownAreaIds, bounds, obstacles) {
   }, 0);
 }
 
-function getBearingScore(chaserPosition, chaserLookDirection, targetPosition) {
+/**
+ * Scores how well a target aligns with the chaser's current heading.
+ */
+function getBearingScore(
+  chaserPosition: VectorXZ | null | undefined,
+  chaserLookDirection: VectorXZ | null | undefined,
+  targetPosition: VectorXZ | null | undefined,
+): number {
   if (!chaserPosition || !chaserLookDirection || !targetPosition) {
     return 0;
   }
@@ -140,7 +173,13 @@ function getBearingScore(chaserPosition, chaserLookDirection, targetPosition) {
   return (Math.cos(bearing) + 1) / 2;
 }
 
-function getDistanceScore(chaserPosition, targetPosition) {
+/**
+ * Scores target distance so already-immediate cells do not dominate selection.
+ */
+function getDistanceScore(
+  chaserPosition: VectorXZ | null | undefined,
+  targetPosition: VectorXZ | null | undefined,
+): number {
   if (!chaserPosition || !targetPosition) {
     return 0;
   }
@@ -154,156 +193,24 @@ function getDistanceScore(chaserPosition, targetPosition) {
   return clamp01(distance / Math.max(1, FIELD_OF_VIEW_DISTANCE * 0.45));
 }
 
-function getAreaAgeFrames(area, frameIndex) {
-  if (!Number.isFinite(frameIndex) || !Number.isFinite(area?.lastObservedFrame)) {
+/**
+ * Computes how long it has been since a known area was last visible.
+ */
+function getAreaAgeFrames(area: AnyRecord, frameIndex: unknown): number {
+  const numericFrameIndex = Number(frameIndex);
+  if (!Number.isFinite(numericFrameIndex) || !Number.isFinite(area?.lastObservedFrame)) {
     return 0;
   }
-  return Math.max(0, frameIndex - area.lastObservedFrame);
+  return Math.max(0, numericFrameIndex - area.lastObservedFrame);
 }
 
-function getSteeringFromBearing(bearingRadians) {
-  return bearingRadians > 0.08 ? 1 : bearingRadians < -0.08 ? -1 : 0;
-}
-
-function stepActionPathFrame({
-  position,
-  direction,
-  throttle,
-  steering,
-  speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
-} = {}) {
-  const currentPosition = clonePosition(position);
-  const currentDirection = cloneDirection(direction);
-  const resolvedThrottle = clampUnit(throttle);
-  const resolvedSteering = clampUnit(steering);
-  const speed = Math.max(0, Number(speedUnitsPerFrame) || 0);
-  const turnRate = Math.max(
-    0,
-    Number(turnRateRadiansPerFrame) || DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
-  );
-  const nextDirection = Math.abs(resolvedThrottle) > 0.001 && resolvedSteering !== 0
-    ? angleToVector(
-      vectorToAngle(currentDirection)
-        + resolvedSteering * turnRate * (resolvedThrottle < 0 ? -1 : 1),
-    )
-    : currentDirection;
-  return {
-    throttle: resolvedThrottle,
-    steering: resolvedSteering,
-    position: {
-      x: currentPosition.x + nextDirection.x * speed * resolvedThrottle,
-      z: currentPosition.z + nextDirection.z * speed * resolvedThrottle,
-    },
-    direction: nextDirection,
-  };
-}
-
-function createActionFrame({
-  frameOffset,
-  throttle,
-  steering,
-  position,
-  direction,
-  metadata = {},
-}) {
-  const resolvedThrottle = clampUnit(throttle);
-  const resolvedSteering = clampUnit(steering);
-  return {
-    frameOffset,
-    framesAhead: frameOffset,
-    throttle: resolvedThrottle,
-    steer: resolvedSteering,
-    steering: resolvedSteering,
-    forward: resolvedThrottle > 0.001,
-    reverse: resolvedThrottle < -0.001,
-    predictedPosition: clonePosition(position),
-    predictedDirection: cloneDirection(direction),
-    ...metadata,
-  };
-}
-
-function getNextWaypointIndex(waypoints, position, currentIndex) {
-  let nextIndex = Math.max(0, currentIndex);
-  while (
-    nextIndex < waypoints.length - 1
-    && Math.hypot(
-      waypoints[nextIndex].x - position.x,
-      waypoints[nextIndex].z - position.z,
-    ) <= KNOWN_AREA_CELL_SIZE * 0.75
-  ) {
-    nextIndex += 1;
-  }
-  return nextIndex;
-}
-
-function buildActionPathAlongRoute({
-  chaserPosition,
-  chaserLookDirection,
-  route,
-  fallbackTargetPosition,
-  speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
-  horizonFrames = DEFAULT_ACTION_PATH_HORIZON_FRAMES,
-  metadata = {},
-} = {}) {
-  const waypoints = Array.isArray(route?.waypoints) && route.waypoints.length > 0
-    ? route.waypoints
-    : fallbackTargetPosition ? [fallbackTargetPosition] : [];
-  if (!chaserPosition || !chaserLookDirection || waypoints.length === 0) {
-    return [];
-  }
-
-  let position = clonePosition(chaserPosition);
-  let direction = cloneDirection(chaserLookDirection);
-  let waypointIndex = getNextWaypointIndex(waypoints, position, 0);
-  const path = [];
-  const frameCount = Math.max(1, Math.floor(Number(horizonFrames) || DEFAULT_ACTION_PATH_HORIZON_FRAMES));
-
-  for (let frameOffset = 1; frameOffset <= frameCount; frameOffset += 1) {
-    waypointIndex = getNextWaypointIndex(waypoints, position, waypointIndex);
-    const targetPosition = waypoints[waypointIndex] ?? waypoints.at(-1);
-    if (!targetPosition) {
-      break;
-    }
-    const targetDirection = normalizeVector(
-      targetPosition.x - position.x,
-      targetPosition.z - position.z,
-    );
-    if (targetDirection.x === 0 && targetDirection.z === 0) {
-      break;
-    }
-    const bearing = normalizeAngleDelta(
-      vectorToAngle(targetDirection) - vectorToAngle(direction),
-    );
-    const nextFrame = stepActionPathFrame({
-      position,
-      direction,
-      throttle: 1,
-      steering: getSteeringFromBearing(bearing),
-      speedUnitsPerFrame,
-      turnRateRadiansPerFrame,
-    });
-    position = nextFrame.position;
-    direction = nextFrame.direction;
-    path.push(createActionFrame({
-      frameOffset,
-      throttle: nextFrame.throttle,
-      steering: nextFrame.steering,
-      position,
-      direction,
-      metadata: {
-        ...metadata,
-        waypointIndex,
-        routeTargetPosition: { ...targetPosition },
-      },
-    }));
-  }
-
-  return path;
-}
-
-function createInactiveKnowledgeProposal(id, extra = {}) {
+/**
+ * Builds an inactive knowledge-acquisition proposal with optional diagnostics.
+ */
+function createInactiveKnowledgeProposal(
+  id: string,
+  extra: Record<string, unknown> = {},
+): VehicleActionProposal {
   return {
     id,
     active: false,
@@ -315,22 +222,26 @@ function createInactiveKnowledgeProposal(id, extra = {}) {
   };
 }
 
-function createKnowledgeProposal(id, candidate, {
+/**
+ * Converts a selected knowledge candidate into a feasible vehicle proposal.
+ */
+function createKnowledgeProposal(id: string, candidate: KnowledgeCandidate | null | undefined, {
   chaserPosition,
   chaserLookDirection,
   speedUnitsPerFrame,
   turnRateRadiansPerFrame,
-} = {}) {
+}: AnyRecord = {}): VehicleActionProposal {
   if (!candidate?.position) {
     return createInactiveKnowledgeProposal(id);
   }
   const actionPath = buildActionPathAlongRoute({
-    chaserPosition,
-    chaserLookDirection,
+    vehiclePosition: chaserPosition,
+    vehicleDirection: chaserLookDirection,
     route: candidate.route,
     fallbackTargetPosition: candidate.position,
     speedUnitsPerFrame,
     turnRateRadiansPerFrame,
+    waypointReachDistance: KNOWN_AREA_CELL_SIZE * 0.75,
     metadata: {
       proposalId: id,
       targetCandidateId: candidate.id,
@@ -357,11 +268,20 @@ function createKnowledgeProposal(id, candidate, {
   };
 }
 
-function rankCandidates(candidates) {
+/**
+ * Sorts candidates by score with deterministic id tie-breaking.
+ */
+function rankCandidates(candidates: KnowledgeCandidate[]): KnowledgeCandidate[] {
   return [...candidates].sort((first, second) =>
-    second.score - first.score || first.id.localeCompare(second.id));
+    Number(second.score) - Number(first.score) || String(first.id).localeCompare(String(second.id)));
 }
 
+/**
+ * Produces knowledge-acquisition candidates from the chaser's remembered map.
+ *
+ * Map discovery targets known cells adjacent to unknown traversable space.
+ * Recency refresh targets known cells whose latest observation is aging out.
+ */
 export function createKnowledgeAcquisitionSignal({
   mapShapeMemory,
   chaserPosition,
@@ -369,13 +289,13 @@ export function createKnowledgeAcquisitionSignal({
   frameIndex,
   columns,
   rows,
-} = {}) {
+}: AnyRecord = {}): KnowledgeAcquisitionSignal {
   const knownAreas = normalizeKnownAreas(mapShapeMemory);
   const knownAreaIds = new Set(knownAreas.map((area) => area.id));
   const obstacles = { walls: getRememberedWalls(mapShapeMemory) };
   const mapBounds = getFieldBoundsOrMemoryBounds(columns, rows, knownAreas);
   const movementBounds = getGroundBoundsOrMemoryBounds(columns, rows, knownAreas);
-  const routeIndex = createKnownMapRouteIndex({
+  const routeIndex = (createKnownMapRouteIndex as any)({
     knownAreas,
     obstacles,
     startPosition: chaserPosition,
@@ -385,7 +305,7 @@ export function createKnowledgeAcquisitionSignal({
     1,
     Number(mapShapeMemory?.recentVisitationMaxAgeFrames) || RECENT_VISITATION_MAX_AGE_FRAMES,
   );
-  const candidates = knownAreas.map((area) => {
+  const candidates: KnowledgeCandidate[] = knownAreas.map((area: AnyRecord) => {
     const unknownNeighborCount = getUnknownNeighborCount(area, knownAreaIds, mapBounds, obstacles);
     const route = routeIndex.getRouteToArea(area);
     const reachable = Boolean(route?.reachable);
@@ -426,9 +346,9 @@ export function createKnowledgeAcquisitionSignal({
     };
   });
   const discoveryCandidates = rankCandidates(candidates
-    .filter((candidate) => candidate.reachable && candidate.components.discovery > 0));
+    .filter((candidate: AnyRecord) => candidate.reachable && candidate.components.discovery > 0));
   const recencyCandidates = rankCandidates(candidates
-    .filter((candidate) =>
+    .filter((candidate: AnyRecord) =>
       candidate.reachable && candidate.components.recencyDebt >= MIN_RECENCY_REFRESH_SCORE));
   const selected = {
     [CHASER_STRATEGY_IDS.MAP_DISCOVERY]: discoveryCandidates[0] ?? null,
@@ -437,6 +357,7 @@ export function createKnowledgeAcquisitionSignal({
 
   return {
     id: "knowledgeAcquisition",
+    confidence: 1,
     motiveId: "knowledgeAcquisition",
     frameIndex: Number.isFinite(frameIndex) ? frameIndex : null,
     knownAreaCount: knownAreas.length,
@@ -451,6 +372,12 @@ export function createKnowledgeAcquisitionSignal({
   };
 }
 
+/**
+ * Builds map discovery and recency refresh proposals for the action stage.
+ *
+ * Discovery has primacy over recency refresh: when a frontier candidate is
+ * active, refresh reports why it was inactive instead of competing.
+ */
 export function buildKnowledgeAcquisitionProposals({
   enabled,
   actionEngines = {},
@@ -462,7 +389,7 @@ export function buildKnowledgeAcquisitionProposals({
   turnRateRadiansPerFrame,
   columns,
   rows,
-} = {}) {
+}: AnyRecord = {}) {
   const signal = createKnowledgeAcquisitionSignal({
     mapShapeMemory: snapshot?.memory?.abstracted?.mapShape,
     chaserPosition,
