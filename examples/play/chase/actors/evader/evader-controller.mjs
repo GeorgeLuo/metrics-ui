@@ -4,6 +4,10 @@ import {
 } from "./evader.mjs";
 import { normalizeAngleDelta, vectorToAngle } from "../../decision-model/core/math.ts";
 
+/**
+ * @typedef {import("../../decision-model/actions/vehicle/interfaces.ts").VehicleSteeringAction} VehicleSteeringAction
+ */
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -20,6 +24,9 @@ function getSteeringInputToward(currentDirection, resolvedDirection, turnRateRad
   return clamp(delta / safeTurnRate, -1, 1);
 }
 
+/**
+ * @returns {VehicleSteeringAction}
+ */
 export function planEvaderVehicleAction({
   position,
   currentDirection,
