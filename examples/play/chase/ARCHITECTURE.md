@@ -7,7 +7,7 @@ The chase example keeps decision logic grouped by IDAE stage, with the RC chase 
 - `decision-model/memory/` contains actor memory models, including chaser map and success memory.
 - `decision-model/patterns/` groups concrete pattern implementations by actor owner. Generic pattern lifecycle, confidence, and prediction-unit helpers live in `core/`; chaser-owned evader motion pattern models live under `patterns/chaser/`, with each sub-pattern in its own directory.
 - `decision-model/strategies/` groups concrete strategy implementations by actor owner, with core strategy contracts and confidence helpers in `core/`. Chaser-owned evader prediction planning lives under `strategies/chaser/`, and evader movement strategies live under `strategies/evader/`.
-- `decision-model/actions/` contains action proposal and action selection modules, including chaser pursuit and knowledge-acquisition actions.
+- `decision-model/actions/` contains action proposal and action selection modules. Generic action envelopes, proposal metadata, and motive signal contracts live in `core/`; shared vehicle capability shapes live in `vehicle/`; actor-specific plans, motives, mutable mixing policies, and debug payloads live with the actor-owned action modules.
 - `simulation/` advances world state. It applies actor actions to positions, resolves collisions, updates metrics, records traces, and coordinates the chaser and evader decision models.
 - `actors/` contains RC chase actor shells, perception helpers, vehicle controllers, and IDAE adapters that wire the stage modules together.
 - `world/` contains chase field geometry, obstacle layout, bounds, and collision helpers.
