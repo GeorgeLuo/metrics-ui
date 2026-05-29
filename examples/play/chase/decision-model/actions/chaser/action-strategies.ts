@@ -6,6 +6,7 @@
  */
 export { planProgrammaticChaserAction } from "./plan.ts";
 export { buildChaserMotiveSignal } from "./motives.ts";
+export { buildVisibilityPriorityMotiveSignal } from "./mixing/motive/visibility-priority.ts";
 export {
   buildEvaderPredictionPursuitProposal,
   buildVisibleBearingFallbackProposal,
