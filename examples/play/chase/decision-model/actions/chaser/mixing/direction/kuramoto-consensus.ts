@@ -1,13 +1,13 @@
 import {
   CHASER_STRATEGY_CONSENSUS_COUPLING,
   CHASER_STRATEGY_CONSENSUS_ITERATIONS,
-} from "../../../../config/constants.mjs";
-import { runKuramotoConsensus } from "../../../core/kuramoto.ts";
-import { normalizeVector } from "../../../core/math.ts";
+} from "../../../../../config/constants.mjs";
+import { runKuramotoConsensus } from "../../../../core/kuramoto.ts";
+import { normalizeVector } from "../../../../core/math.ts";
 import type {
   VehicleActionProposal,
   VehiclePeerConsensus,
-} from "../../vehicle/interfaces.ts";
+} from "../../../vehicle/interfaces.ts";
 
 /**
  * Converts one active proposal into the directional signal consumed by
