@@ -4,12 +4,12 @@ import {
   clonePosition,
   clampUnit,
   stepActionPathFrame,
-} from "../../vehicle/action-paths.ts";
+} from "../../../vehicle/action-paths.ts";
 import type {
   VehicleActionFrame,
   VehicleActionPathConsensus,
   VehicleActionProposal,
-} from "../../vehicle/interfaces.ts";
+} from "../../../vehicle/interfaces.ts";
 
 /**
  * Reads the requested future frame from a proposal path.
