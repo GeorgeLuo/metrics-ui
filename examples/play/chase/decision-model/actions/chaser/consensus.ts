@@ -2,8 +2,8 @@ import {
   buildDirectionConsensus as buildChaserDirectionConsensus,
   createPeerConsensusSignal,
   getHighestConfidenceProposal,
-} from "./mixing/direction-consensus.ts";
-import { buildWeightedPathConsensus } from "./mixing/weighted-path-consensus.ts";
+} from "./mixing/direction/kuramoto-consensus.ts";
+import { buildWeightedPathConsensus } from "./mixing/action-path/weighted-consensus.ts";
 import type {
   VehicleActionPathConsensus,
   VehicleActionProposal,
