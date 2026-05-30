@@ -6,7 +6,7 @@ import {
   createActorLocationMemory,
   getActorPerception,
   updateActorLocationMemory,
-} from "../chaser/chaser.mjs";
+} from "../../decision-model/memory/actors/perceived-actor-location.ts";
 import {
   buildActorSnapshot,
   createActorIdae,

@@ -49,7 +49,7 @@ import {
   createMapShapeMemory,
   RECENT_VISITATION_MAX_AGE_FRAMES,
   updateMapShapeMemory,
-} from "./decision-model/memory/chaser/map-memory.mjs";
+} from "./decision-model/memory/chaser/map/memory.ts";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 const BASE_SCENARIO = Object.freeze(resolveChaseScenario(defaultScenarioDefinition, GRID));

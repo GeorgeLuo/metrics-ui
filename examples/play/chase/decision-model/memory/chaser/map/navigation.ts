@@ -1,9 +1,21 @@
+/**
+ * Route and geometry queries over chaser map memory.
+ *
+ * This file does not own map facts; it interprets remembered cells and walls
+ * for knowledge-acquisition actions.
+ */
 import {
   CAR_BOUND_RADIUS,
   FIELD_OF_VIEW_DISTANCE,
-} from "../../../config/constants.mjs";
-import { KNOWN_AREA_CELL_SIZE } from "./map-memory.mjs";
-import { getFieldBounds, getGroundBounds, getWallBounds } from "../../../world/world.mjs";
+} from "../../../../config/constants.mjs";
+import {
+  KNOWN_AREA_CELL_SIZE,
+  type BoundsXZ,
+  type MapAreaMemory,
+  type MapObstacleMemory,
+} from "./memory.ts";
+import { getFieldBounds, getGroundBounds, getWallBounds } from "../../../../world/world.mjs";
+import type { VectorXZ } from "../../../core/math.ts";
 
 const CARDINAL_OFFSETS = Object.freeze([
   { x: 0, z: -1 },
@@ -12,18 +24,37 @@ const CARDINAL_OFFSETS = Object.freeze([
   { x: 0, z: 1 },
 ]);
 
-export function getMapCellId(cellX, cellZ) {
+type MapCell = {
+  cellX: number;
+  cellZ: number;
+};
+
+/** Route through remembered traversable cells. */
+type KnownMapRoute = {
+  reachable: true;
+  areaIds: string[];
+  waypoints: VectorXZ[];
+  cost: number;
+};
+
+/** Lookup keyed by `MapAreaMemory.id` for remembered map cells. */
+type KnownAreaLookup = Map<string, MapAreaMemory>;
+
+/** Builds the stable id used for remembered map cells. */
+export function getMapCellId(cellX: number, cellZ: number): string {
   return `${cellX}:${cellZ}`;
 }
 
-export function getMapCellCenter(cellX, cellZ) {
+/** Converts integer cell coordinates into the cell center in world space. */
+export function getMapCellCenter(cellX: number, cellZ: number): VectorXZ {
   return {
     x: (cellX + 0.5) * KNOWN_AREA_CELL_SIZE,
     z: (cellZ + 0.5) * KNOWN_AREA_CELL_SIZE,
   };
 }
 
-export function getMapCellForPosition(position) {
+/** Converts a world position into the containing remembered map cell. */
+export function getMapCellForPosition(position: Partial<VectorXZ> | null | undefined): MapCell | null {
   if (!position) {
     return null;
   }
@@ -38,25 +69,46 @@ export function getMapCellForPosition(position) {
   };
 }
 
-export function isPositionInsideBounds(position, bounds) {
+/** Tests whether a world position is inside x/z bounds. */
+export function isPositionInsideBounds(position: VectorXZ, bounds: BoundsXZ): boolean {
   return position.x >= bounds.minX
     && position.x <= bounds.maxX
     && position.z >= bounds.minZ
     && position.z <= bounds.maxZ;
 }
 
-export function getRememberedWallBounds(obstacles, padding = 0) {
+/** Returns remembered wall bounds inflated by optional padding. */
+export function getRememberedWallBounds(
+  obstacles: Partial<MapObstacleMemory> | null | undefined,
+  padding = 0,
+): BoundsXZ[] {
   return (Array.isArray(obstacles?.walls) ? obstacles.walls : []).map((wall) =>
     getWallBounds(wall, padding));
 }
 
-export function isMapCellInsideRememberedWall(cellX, cellZ, obstacles, padding = CAR_BOUND_RADIUS) {
+/** Tests whether a remembered map cell is blocked by remembered walls. */
+export function isMapCellInsideRememberedWall(
+  cellX: number,
+  cellZ: number,
+  obstacles: Partial<MapObstacleMemory> | null | undefined,
+  padding = CAR_BOUND_RADIUS,
+): boolean {
   const center = getMapCellCenter(cellX, cellZ);
   return getRememberedWallBounds(obstacles, padding).some((bounds) =>
     isPositionInsideBounds(center, bounds));
 }
 
-export function getGroundBoundsOrMemoryBounds(columns, rows, knownAreas = []) {
+/** Resolves a remembered area's world center, deriving it if needed. */
+function getAreaCenter(area: MapAreaMemory): VectorXZ {
+  return area.center ?? getMapCellCenter(area.cellX, area.cellZ);
+}
+
+/** Returns traversable bounds from the configured world or remembered cells. */
+export function getGroundBoundsOrMemoryBounds(
+  columns?: number,
+  rows?: number,
+  knownAreas: MapAreaMemory[] = [],
+): BoundsXZ {
   if (Number.isFinite(columns) && Number.isFinite(rows)) {
     return getGroundBounds(columns, rows);
   }
@@ -69,10 +121,10 @@ export function getGroundBoundsOrMemoryBounds(columns, rows, knownAreas = []) {
     };
   }
   return knownAreas.reduce((bounds, area) => ({
-    minX: Math.min(bounds.minX, area.center.x),
-    maxX: Math.max(bounds.maxX, area.center.x),
-    minZ: Math.min(bounds.minZ, area.center.z),
-    maxZ: Math.max(bounds.maxZ, area.center.z),
+    minX: Math.min(bounds.minX, getAreaCenter(area).x),
+    maxX: Math.max(bounds.maxX, getAreaCenter(area).x),
+    minZ: Math.min(bounds.minZ, getAreaCenter(area).z),
+    maxZ: Math.max(bounds.maxZ, getAreaCenter(area).z),
   }), {
     minX: Number.POSITIVE_INFINITY,
     maxX: Number.NEGATIVE_INFINITY,
@@ -81,7 +133,12 @@ export function getGroundBoundsOrMemoryBounds(columns, rows, knownAreas = []) {
   });
 }
 
-export function getFieldBoundsOrMemoryBounds(columns, rows, knownAreas = []) {
+/** Returns full field bounds from the configured world or remembered cells. */
+export function getFieldBoundsOrMemoryBounds(
+  columns?: number,
+  rows?: number,
+  knownAreas: MapAreaMemory[] = [],
+): BoundsXZ {
   if (Number.isFinite(columns) && Number.isFinite(rows)) {
     return getFieldBounds(columns, rows);
   }
@@ -94,10 +151,10 @@ export function getFieldBoundsOrMemoryBounds(columns, rows, knownAreas = []) {
     };
   }
   return knownAreas.reduce((bounds, area) => ({
-    minX: Math.min(bounds.minX, area.center.x),
-    maxX: Math.max(bounds.maxX, area.center.x),
-    minZ: Math.min(bounds.minZ, area.center.z),
-    maxZ: Math.max(bounds.maxZ, area.center.z),
+    minX: Math.min(bounds.minX, getAreaCenter(area).x),
+    maxX: Math.max(bounds.maxX, getAreaCenter(area).x),
+    minZ: Math.min(bounds.minZ, getAreaCenter(area).z),
+    maxZ: Math.max(bounds.maxZ, getAreaCenter(area).z),
   }), {
     minX: Number.POSITIVE_INFINITY,
     maxX: Number.NEGATIVE_INFINITY,
@@ -106,21 +163,32 @@ export function getFieldBoundsOrMemoryBounds(columns, rows, knownAreas = []) {
   });
 }
 
-function getCellDistance(first, second) {
+function getCellDistance(first: MapCell, second: MapCell): number {
   return Math.abs(first.cellX - second.cellX) + Math.abs(first.cellZ - second.cellZ);
 }
 
-function getPositionDistance(first, second) {
+function getPositionDistance(first: VectorXZ, second: VectorXZ): number {
   return Math.hypot(first.x - second.x, first.z - second.z);
 }
 
-function isMapCellTraversable(cellX, cellZ, obstacles, bounds = null) {
+function isMapCellTraversable(
+  cellX: number,
+  cellZ: number,
+  obstacles: Partial<MapObstacleMemory> | null | undefined,
+  bounds: BoundsXZ | null = null,
+): boolean {
   const center = getMapCellCenter(cellX, cellZ);
   return (!bounds || isPositionInsideBounds(center, bounds))
     && !isMapCellInsideRememberedWall(cellX, cellZ, obstacles);
 }
 
-function getNearestKnownArea(knownAreasById, position, obstacles, bounds = null) {
+/** Finds the nearest traversable remembered cell for an arbitrary position. */
+function getNearestKnownArea(
+  knownAreasById: KnownAreaLookup,
+  position: Partial<VectorXZ> | null | undefined,
+  obstacles: Partial<MapObstacleMemory> | null | undefined,
+  bounds: BoundsXZ | null = null,
+): MapAreaMemory | null {
   const positionCell = getMapCellForPosition(position);
   if (!positionCell) {
     return null;
@@ -135,18 +203,26 @@ function getNearestKnownArea(knownAreasById, position, obstacles, bounds = null)
   return [...knownAreasById.values()]
     .filter((area) => isMapCellTraversable(area.cellX, area.cellZ, obstacles, bounds))
     .sort((first, second) =>
-      getPositionDistance(first.center, position) - getPositionDistance(second.center, position)
+      getPositionDistance(getAreaCenter(first), position as VectorXZ)
+        - getPositionDistance(getAreaCenter(second), position as VectorXZ)
       || first.id.localeCompare(second.id))
     [0] ?? null;
 }
 
-function createKnownAreaLookup(knownAreas) {
+/** Creates a stable lookup from remembered area records. */
+function createKnownAreaLookup(knownAreas: MapAreaMemory[] | null | undefined): KnownAreaLookup {
   return new Map((Array.isArray(knownAreas) ? knownAreas : [])
     .filter((area) => area?.id)
     .map((area) => [area.id, area]));
 }
 
-function getTraversableKnownNeighbors(area, knownAreasById, obstacles, bounds = null) {
+/** Returns cardinal neighbors that are both remembered and traversable. */
+function getTraversableKnownNeighbors(
+  area: MapAreaMemory,
+  knownAreasById: KnownAreaLookup,
+  obstacles: Partial<MapObstacleMemory> | null | undefined,
+  bounds: BoundsXZ | null = null,
+): MapAreaMemory[] {
   return CARDINAL_OFFSETS
     .map((offset) => {
       const cellX = area.cellX + offset.x;
@@ -156,12 +232,17 @@ function getTraversableKnownNeighbors(area, knownAreasById, obstacles, bounds = 
       }
       return knownAreasById.get(getMapCellId(cellX, cellZ)) ?? null;
     })
-    .filter(Boolean);
+    .filter((neighbor): neighbor is MapAreaMemory => Boolean(neighbor));
 }
 
-function reconstructRoute(cameFrom, knownAreasById, targetId) {
-  const route = [];
-  let currentId = targetId;
+/** Reconstructs a route from a predecessor map produced by graph search. */
+function reconstructRoute(
+  cameFrom: Map<string, string>,
+  knownAreasById: KnownAreaLookup,
+  targetId: string,
+): MapAreaMemory[] {
+  const route: MapAreaMemory[] = [];
+  let currentId: string | null = targetId;
   while (currentId) {
     const area = knownAreasById.get(currentId);
     if (!area) {
@@ -173,12 +254,20 @@ function reconstructRoute(cameFrom, knownAreasById, targetId) {
   return route.reverse();
 }
 
+/** Precomputes reachable routes through remembered traversable cells. */
 export function createKnownMapRouteIndex({
   knownAreas,
   obstacles,
   startPosition,
   bounds = null,
-} = {}) {
+}: {
+  knownAreas?: MapAreaMemory[];
+  obstacles?: Partial<MapObstacleMemory> | null;
+  startPosition?: Partial<VectorXZ> | null;
+  bounds?: BoundsXZ | null;
+} = {}): {
+  getRouteToArea: (targetArea?: MapAreaMemory | null) => KnownMapRoute | null;
+} {
   const knownAreasById = createKnownAreaLookup(knownAreas);
   const startArea = getNearestKnownArea(knownAreasById, startPosition, obstacles, bounds);
   if (
@@ -192,7 +281,7 @@ export function createKnownMapRouteIndex({
 
   const queue = [startArea.id];
   const visitedIds = new Set([startArea.id]);
-  const cameFrom = new Map();
+  const cameFrom = new Map<string, string>();
   const costById = new Map([[startArea.id, 0]]);
 
   for (let queueIndex = 0; queueIndex < queue.length; queueIndex += 1) {
@@ -226,20 +315,27 @@ export function createKnownMapRouteIndex({
       return {
         reachable: true,
         areaIds: areas.map((area) => area.id),
-        waypoints: areas.map((area) => ({ ...area.center })),
+        waypoints: areas.map((area) => ({ ...getAreaCenter(area) })),
         cost: costById.get(targetArea.id) ?? 0,
       };
     },
   };
 }
 
+/** Finds one route through remembered traversable cells to a target area. */
 export function findKnownMapRoute({
   knownAreas,
   obstacles,
   startPosition,
   targetArea,
   bounds = null,
-} = {}) {
+}: {
+  knownAreas?: MapAreaMemory[];
+  obstacles?: Partial<MapObstacleMemory> | null;
+  startPosition?: Partial<VectorXZ> | null;
+  targetArea?: MapAreaMemory | null;
+  bounds?: BoundsXZ | null;
+} = {}): KnownMapRoute | null {
   if (!startPosition || !targetArea?.id) {
     return null;
   }
@@ -258,7 +354,7 @@ export function findKnownMapRoute({
 
   const openIds = new Set([startArea.id]);
   const closedIds = new Set();
-  const cameFrom = new Map();
+  const cameFrom = new Map<string, string>();
   const gScore = new Map([[startArea.id, 0]]);
   const fScore = new Map([[startArea.id, getCellDistance(startArea, target)]]);
 
@@ -277,7 +373,7 @@ export function findKnownMapRoute({
       return {
         reachable: true,
         areaIds: areas.map((area) => area.id),
-        waypoints: areas.map((area) => ({ ...area.center })),
+        waypoints: areas.map((area) => ({ ...getAreaCenter(area) })),
         cost: gScore.get(currentId) ?? 0,
       };
     }
