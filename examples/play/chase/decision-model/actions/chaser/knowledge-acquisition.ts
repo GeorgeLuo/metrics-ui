@@ -2,7 +2,10 @@ import { FIELD_OF_VIEW_DISTANCE } from "../../../config/constants.mjs";
 import {
   KNOWN_AREA_CELL_SIZE,
   RECENT_VISITATION_MAX_AGE_FRAMES,
-} from "../../memory/chaser/map-memory.mjs";
+  type BoundsXZ,
+  type MapAreaMemory,
+  type MapObstacleMemory,
+} from "../../memory/chaser/map/memory.ts";
 import {
   createKnownMapRouteIndex,
   getFieldBoundsOrMemoryBounds,
@@ -11,7 +14,7 @@ import {
   getMapCellId,
   isMapCellInsideRememberedWall,
   isPositionInsideBounds,
-} from "../../memory/chaser/map-navigation.mjs";
+} from "../../memory/chaser/map/navigation.ts";
 import {
   normalizeAngleDelta,
   normalizeVector,
@@ -81,20 +84,23 @@ function clonePosition(
 /**
  * Converts persisted map memory cells into complete candidate source records.
  */
-function normalizeKnownAreas(mapShapeMemory: AnyRecord | null | undefined): AnyRecord[] {
+function normalizeKnownAreas(mapShapeMemory: AnyRecord | null | undefined): MapAreaMemory[] {
   return (Array.isArray(mapShapeMemory?.knownAreas) ? mapShapeMemory.knownAreas : [])
-    .map((area: AnyRecord) => {
+    .flatMap((area: AnyRecord): MapAreaMemory[] => {
       const cellX = Number(area?.cellX);
       const cellZ = Number(area?.cellZ);
       if (!Number.isFinite(cellX) || !Number.isFinite(cellZ)) {
-        return null;
+        return [];
       }
       const center = area?.center ? clonePosition(area.center) : getMapCellCenter(cellX, cellZ);
-      return {
+      return [{
         id: String(area?.id ?? getMapCellId(cellX, cellZ)),
         cellX,
         cellZ,
         center,
+        vertices: Array.isArray(area?.vertices)
+          ? area.vertices.map((vertex: Partial<VectorXZ>) => clonePosition(vertex))
+          : [],
         firstObservedFrame: Number.isFinite(area?.firstObservedFrame)
           ? area.firstObservedFrame
           : null,
@@ -103,15 +109,16 @@ function normalizeKnownAreas(mapShapeMemory: AnyRecord | null | undefined): AnyR
           : Number.isFinite(area?.firstObservedFrame)
             ? area.firstObservedFrame
             : null,
-      };
-    })
-    .filter(Boolean) as AnyRecord[];
+      }];
+    });
 }
 
 /**
  * Reads remembered obstacles from chaser map memory.
  */
-function getRememberedWalls(mapShapeMemory: AnyRecord | null | undefined): AnyRecord[] {
+function getRememberedWalls(
+  mapShapeMemory: AnyRecord | null | undefined,
+): MapObstacleMemory["walls"] {
   return Array.isArray(mapShapeMemory?.obstacles?.walls)
     ? mapShapeMemory.obstacles.walls
     : [];
@@ -120,7 +127,7 @@ function getRememberedWalls(mapShapeMemory: AnyRecord | null | undefined): AnyRe
 /**
  * Tests whether a remembered cell center is within the current map bounds.
  */
-function isCellCenterWithinBounds(cellX: number, cellZ: number, bounds: AnyRecord): boolean {
+function isCellCenterWithinBounds(cellX: number, cellZ: number, bounds: BoundsXZ): boolean {
   return isPositionInsideBounds(getMapCellCenter(cellX, cellZ), bounds);
 }
 
@@ -128,10 +135,10 @@ function isCellCenterWithinBounds(cellX: number, cellZ: number, bounds: AnyRecor
  * Counts adjacent traversable cells that remain unknown to map memory.
  */
 function getUnknownNeighborCount(
-  area: AnyRecord,
+  area: MapAreaMemory,
   knownAreaIds: Set<string>,
-  bounds: AnyRecord,
-  obstacles: AnyRecord,
+  bounds: BoundsXZ,
+  obstacles: MapObstacleMemory,
 ): number {
   return NEIGHBOR_OFFSETS.reduce((count, offset) => {
     const cellX = area.cellX + offset.x;
@@ -196,12 +203,13 @@ function getDistanceScore(
 /**
  * Computes how long it has been since a known area was last visible.
  */
-function getAreaAgeFrames(area: AnyRecord, frameIndex: unknown): number {
+function getAreaAgeFrames(area: MapAreaMemory, frameIndex: unknown): number {
   const numericFrameIndex = Number(frameIndex);
-  if (!Number.isFinite(numericFrameIndex) || !Number.isFinite(area?.lastObservedFrame)) {
+  const lastObservedFrame = Number(area.lastObservedFrame);
+  if (!Number.isFinite(numericFrameIndex) || !Number.isFinite(lastObservedFrame)) {
     return 0;
   }
-  return Math.max(0, numericFrameIndex - area.lastObservedFrame);
+  return Math.max(0, numericFrameIndex - lastObservedFrame);
 }
 
 /**
@@ -292,10 +300,10 @@ export function createKnowledgeAcquisitionSignal({
 }: AnyRecord = {}): KnowledgeAcquisitionSignal {
   const knownAreas = normalizeKnownAreas(mapShapeMemory);
   const knownAreaIds = new Set(knownAreas.map((area) => area.id));
-  const obstacles = { walls: getRememberedWalls(mapShapeMemory) };
+  const obstacles: MapObstacleMemory = { walls: getRememberedWalls(mapShapeMemory) };
   const mapBounds = getFieldBoundsOrMemoryBounds(columns, rows, knownAreas);
   const movementBounds = getGroundBoundsOrMemoryBounds(columns, rows, knownAreas);
-  const routeIndex = (createKnownMapRouteIndex as any)({
+  const routeIndex = createKnownMapRouteIndex({
     knownAreas,
     obstacles,
     startPosition: chaserPosition,
@@ -305,7 +313,7 @@ export function createKnowledgeAcquisitionSignal({
     1,
     Number(mapShapeMemory?.recentVisitationMaxAgeFrames) || RECENT_VISITATION_MAX_AGE_FRAMES,
   );
-  const candidates: KnowledgeCandidate[] = knownAreas.map((area: AnyRecord) => {
+  const candidates: KnowledgeCandidate[] = knownAreas.map((area) => {
     const unknownNeighborCount = getUnknownNeighborCount(area, knownAreaIds, mapBounds, obstacles);
     const route = routeIndex.getRouteToArea(area);
     const reachable = Boolean(route?.reachable);

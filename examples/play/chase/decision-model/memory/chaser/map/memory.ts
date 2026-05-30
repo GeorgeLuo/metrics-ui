@@ -1,20 +1,124 @@
-import { FIELD_OF_VIEW_DISTANCE } from "../../../config/constants.mjs";
+/**
+ * Chaser map memory construction from field-of-view observations.
+ *
+ * Persistent knowledge and recency are deliberately separate: `knownAreas`
+ * retains map facts, while `recentlyObservedAreas` ages by frame.
+ */
+import { FIELD_OF_VIEW_DISTANCE } from "../../../../config/constants.mjs";
 import {
   normalizeAngleDelta,
   normalizeVector,
   vectorToAngle,
-} from "../../core/math.ts";
+  type VectorXZ,
+} from "../../../core/math.ts";
+import type {
+  MemoryFrameIndex,
+  TemporalRecordBase,
+} from "../../core/interfaces.ts";
+import {
+  createTemporalRecord,
+  normalizeMemoryFrameIndex,
+  upsertTemporalRecords,
+} from "../../core/temporal-record.ts";
+import { pruneEntriesByFrameAge } from "../../core/temporal-window.ts";
 import {
   getFieldBounds,
-  getGroundBounds,
   getWallBounds,
   isLineOfSightBlockedByObstacles,
-} from "../../../world/world.mjs";
+} from "../../../../world/world.mjs";
 
+/** Side length for remembered map-area cells in world units. */
 export const KNOWN_AREA_CELL_SIZE = 0.3;
+/** Default frame age before an area is no longer considered recently seen. */
 export const RECENT_VISITATION_MAX_AGE_FRAMES = 600;
 
-export function createMapShapeMemory() {
+/** Axis-aligned x/z bounds for remembered or configured map space. */
+export type BoundsXZ = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
+
+/** Remembered obstacle wall observed through the actor's field of view. */
+export type MapWallMemory = {
+  id: string;
+  x: number;
+  z: number;
+  width: number;
+  depth: number;
+};
+
+/** Remembered obstacle collection available to map-memory consumers. */
+export type MapObstacleMemory = {
+  walls: MapWallMemory[];
+};
+
+/** Visible map cell produced by the current frame's map perception. */
+export type MapAreaCell = {
+  id: string;
+  cellX: number;
+  cellZ: number;
+  center: VectorXZ;
+  vertices: VectorXZ[];
+};
+
+/** Durable remembered map cell with first/last observation metadata. */
+export type MapAreaMemory = TemporalRecordBase & {
+  cellX: number;
+  cellZ: number;
+  center?: VectorXZ;
+  vertices: VectorXZ[];
+};
+
+/** Chaser map model split into persistent knowledge and recency memory. */
+export type MapShapeMemory = {
+  obstacles: MapObstacleMemory;
+  observedWallIds: string[];
+  knownAreas: MapAreaMemory[];
+  knownAreaIds: string[];
+  knownAreaObservationCount: number;
+  recentlyObservedAreas: MapAreaMemory[];
+  recentlyObservedAreaIds: string[];
+  recentVisitationMaxAgeFrames: number;
+  observationCount: number;
+  lastObservationFrame: MemoryFrameIndex;
+};
+
+type WorldContext = {
+  columns?: number;
+  rows?: number;
+};
+
+/** Current-frame map facts visible from the actor's pose. */
+type MapPerception = {
+  visibleWalls: Array<{
+    wall: MapWallMemory;
+    sample: {
+      point: VectorXZ;
+      bearingRadians: number;
+      distance: number;
+    };
+  }>;
+  visibleArea: {
+    cells: MapAreaCell[];
+    observationCount: number;
+  };
+  observationCount: number;
+};
+
+/** Visibility result for a sampled point on a wall or area cell. */
+type PointPerception =
+  | { visible: false }
+  | { visible: true; bearingRadians: number; distance: number };
+
+/** Partial obstacle input from the world or remembered obstacle memory. */
+type ObstacleLike = {
+  walls?: Array<Partial<MapWallMemory>>;
+};
+
+/** Creates empty chaser map memory. */
+export function createMapShapeMemory(): MapShapeMemory {
   return {
     obstacles: { walls: [] },
     observedWallIds: [],
@@ -29,15 +133,15 @@ export function createMapShapeMemory() {
   };
 }
 
-function getObstacleWalls(obstacles) {
+function getObstacleWalls(obstacles: ObstacleLike | null | undefined): Array<Partial<MapWallMemory>> {
   return Array.isArray(obstacles?.walls) ? obstacles.walls : [];
 }
 
-function getWallId(wall, index) {
+function getWallId(wall: Partial<MapWallMemory> | null | undefined, index: number): string {
   return wall?.id ?? `obstacle-${index + 1}`;
 }
 
-function cloneObservedWall(wall, index) {
+function cloneObservedWall(wall: Partial<MapWallMemory>, index: number): MapWallMemory {
   return {
     id: getWallId(wall, index),
     x: Number(wall?.x) || 0,
@@ -47,27 +151,27 @@ function cloneObservedWall(wall, index) {
   };
 }
 
-function getWallSamplePoints(wall) {
+function getWallSamplePoints(wall: Partial<MapWallMemory>): VectorXZ[] {
   const bounds = getWallBounds(wall);
   return [
-    { x: wall.x, z: wall.z },
+    { x: Number(wall.x) || 0, z: Number(wall.z) || 0 },
     { x: bounds.minX, z: bounds.minZ },
     { x: bounds.minX, z: bounds.maxZ },
     { x: bounds.maxX, z: bounds.minZ },
     { x: bounds.maxX, z: bounds.maxZ },
-    { x: wall.x, z: bounds.minZ },
-    { x: wall.x, z: bounds.maxZ },
-    { x: bounds.minX, z: wall.z },
-    { x: bounds.maxX, z: wall.z },
+    { x: Number(wall.x) || 0, z: bounds.minZ },
+    { x: Number(wall.x) || 0, z: bounds.maxZ },
+    { x: bounds.minX, z: Number(wall.z) || 0 },
+    { x: bounds.maxX, z: Number(wall.z) || 0 },
   ];
 }
 
 function getPointPerception(
-  actorPosition,
-  point,
-  actorLookDirection,
-  fieldOfViewAngleRadians,
-) {
+  actorPosition: VectorXZ | null | undefined,
+  point: VectorXZ | null | undefined,
+  actorLookDirection: VectorXZ | null | undefined,
+  fieldOfViewAngleRadians: number,
+): PointPerception {
   if (!actorPosition || !point || !actorLookDirection) {
     return { visible: false };
   }
@@ -92,11 +196,11 @@ function getPointPerception(
 }
 
 function isSampleOccludedByOtherWalls(
-  actorPosition,
-  samplePoint,
-  obstacles,
-  observedWallId,
-) {
+  actorPosition: VectorXZ,
+  samplePoint: VectorXZ,
+  obstacles: ObstacleLike | null | undefined,
+  observedWallId: string,
+): boolean {
   const blockingWalls = getObstacleWalls(obstacles).filter((wall, index) =>
     getWallId(wall, index) !== observedWallId,
   );
@@ -109,14 +213,14 @@ function isSampleOccludedByOtherWalls(
 }
 
 function getVisibleWallSample(
-  actorPosition,
-  wall,
-  wallId,
-  actorLookDirection,
-  fieldOfViewAngleRadians,
-  obstacles,
-) {
-  let nearestVisibleSample = null;
+  actorPosition: VectorXZ,
+  wall: Partial<MapWallMemory>,
+  wallId: string,
+  actorLookDirection: VectorXZ,
+  fieldOfViewAngleRadians: number,
+  obstacles: ObstacleLike | null | undefined,
+): MapPerception["visibleWalls"][number]["sample"] | null {
+  let nearestVisibleSample: MapPerception["visibleWalls"][number]["sample"] | null = null;
 
   for (const samplePoint of getWallSamplePoints(wall)) {
     const samplePerception = getPointPerception(
@@ -146,7 +250,11 @@ function getVisibleWallSample(
   return nearestVisibleSample;
 }
 
-function getCoverageBounds(actorPosition, columns, rows) {
+function getCoverageBounds(
+  actorPosition: VectorXZ,
+  columns?: number,
+  rows?: number,
+): BoundsXZ {
   if (Number.isFinite(columns) && Number.isFinite(rows)) {
     return getFieldBounds(columns, rows);
   }
@@ -158,7 +266,7 @@ function getCoverageBounds(actorPosition, columns, rows) {
   };
 }
 
-function getCellVertices(cellX, cellZ) {
+function getCellVertices(cellX: number, cellZ: number): VectorXZ[] {
   const minX = cellX * KNOWN_AREA_CELL_SIZE;
   const minZ = cellZ * KNOWN_AREA_CELL_SIZE;
   const maxX = minX + KNOWN_AREA_CELL_SIZE;
@@ -171,7 +279,7 @@ function getCellVertices(cellX, cellZ) {
   ];
 }
 
-function createKnownAreaCell(cellX, cellZ) {
+function createKnownAreaCell(cellX: number, cellZ: number): MapAreaCell {
   return {
     id: `${cellX}:${cellZ}`,
     cellX,
@@ -185,12 +293,12 @@ function createKnownAreaCell(cellX, cellZ) {
 }
 
 function isPointVisibleThroughMap(
-  actorPosition,
-  point,
-  actorLookDirection,
-  fieldOfViewAngleRadians,
-  obstacles,
-) {
+  actorPosition: VectorXZ,
+  point: VectorXZ,
+  actorLookDirection: VectorXZ,
+  fieldOfViewAngleRadians: number,
+  obstacles: ObstacleLike | null | undefined,
+): boolean {
   return getPointPerception(
     actorPosition,
     point,
@@ -200,16 +308,19 @@ function isPointVisibleThroughMap(
     && !isLineOfSightBlockedByObstacles(actorPosition, point, obstacles);
 }
 
+/**
+ * Samples the field into visible remembered-area cells for this frame.
+ */
 function getVisibleKnownAreaCells(
-  actorPosition,
-  actorLookDirection,
-  fieldOfViewAngleRadians,
-  obstacles,
+  actorPosition: VectorXZ | null | undefined,
+  actorLookDirection: VectorXZ | null | undefined,
+  fieldOfViewAngleRadians: number,
+  obstacles: ObstacleLike | null | undefined,
   {
     columns,
     rows,
-  } = {},
-) {
+  }: WorldContext = {},
+): MapAreaCell[] {
   if (!actorPosition || !actorLookDirection || !Number.isFinite(fieldOfViewAngleRadians)) {
     return [];
   }
@@ -231,7 +342,7 @@ function getVisibleKnownAreaCells(
     bounds.maxZ,
     actorPosition.z + FIELD_OF_VIEW_DISTANCE,
   ) / KNOWN_AREA_CELL_SIZE);
-  const cells = [];
+  const cells: MapAreaCell[] = [];
 
   for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
     for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ += 1) {
@@ -261,13 +372,14 @@ function getVisibleKnownAreaCells(
   return cells;
 }
 
+/** Builds the current frame's visible map facts from FOV and occlusion. */
 export function getMapShapePerception(
-  actorPosition,
-  actorLookDirection,
-  fieldOfViewAngleRadians,
-  obstacles,
-  worldContext = {},
-) {
+  actorPosition: VectorXZ | null | undefined,
+  actorLookDirection: VectorXZ | null | undefined,
+  fieldOfViewAngleRadians: number,
+  obstacles: ObstacleLike | null | undefined,
+  worldContext: WorldContext = {},
+): MapPerception {
   if (!actorPosition || !actorLookDirection) {
     return {
       visibleWalls: [],
@@ -311,36 +423,54 @@ export function getMapShapePerception(
   };
 }
 
-function getRecentVisitationMaxAgeFrames(mapShapeMemory) {
+function getRecentVisitationMaxAgeFrames(
+  mapShapeMemory: Pick<MapShapeMemory, "recentVisitationMaxAgeFrames"> | null | undefined,
+): number {
   const maxAgeFrames = Number(mapShapeMemory?.recentVisitationMaxAgeFrames);
   return Number.isFinite(maxAgeFrames) && maxAgeFrames >= 0
     ? maxAgeFrames
     : RECENT_VISITATION_MAX_AGE_FRAMES;
 }
 
-function getCurrentFrame(frameIndex) {
-  return Number.isFinite(frameIndex) ? frameIndex : null;
+/** Converts a visible cell into a durable temporal memory record. */
+function createMapAreaMemory(cell: MapAreaCell, frameIndex: MemoryFrameIndex): MapAreaMemory {
+  return createTemporalRecord(
+    cell.id,
+    {
+      cellX: cell.cellX,
+      cellZ: cell.cellZ,
+      center: { ...cell.center },
+      vertices: cell.vertices.map((vertex) => ({ ...vertex })),
+    },
+    frameIndex,
+  );
 }
 
-function pruneRecentlyObservedAreas(mapShapeMemory, frameIndex) {
-  const currentFrame = getCurrentFrame(frameIndex);
+/** Applies the recency window without deleting persistent map knowledge. */
+function pruneRecentlyObservedAreas(mapShapeMemory: MapShapeMemory, frameIndex: unknown): void {
+  const currentFrame = normalizeMemoryFrameIndex(frameIndex);
   if (currentFrame === null) {
     return;
   }
   const maxAgeFrames = getRecentVisitationMaxAgeFrames(mapShapeMemory);
-  mapShapeMemory.recentlyObservedAreas = (mapShapeMemory.recentlyObservedAreas ?? [])
-    .filter((area) =>
-      Number.isFinite(area?.lastObservedFrame)
-      && currentFrame - area.lastObservedFrame <= maxAgeFrames);
+  mapShapeMemory.recentlyObservedAreas = pruneEntriesByFrameAge(
+    mapShapeMemory.recentlyObservedAreas ?? [],
+    {
+      currentFrameIndex: currentFrame,
+      getFrameIndex: (area) => area.lastObservedFrame,
+      maxAgeFrames,
+    },
+  );
   mapShapeMemory.recentlyObservedAreaIds = mapShapeMemory.recentlyObservedAreas
     .map((area) => area.id);
 }
 
+/** Merges a map perception frame into persistent and recent map memory. */
 export function updateMapShapeMemory(
-  mapShapeMemory,
-  mapPerception,
-  frameIndex = null,
-) {
+  mapShapeMemory: MapShapeMemory | null | undefined,
+  mapPerception: Partial<MapPerception> | null | undefined,
+  frameIndex: unknown = null,
+): MapShapeMemory | null {
   if (!mapShapeMemory) {
     return null;
   }
@@ -370,39 +500,23 @@ export function updateMapShapeMemory(
   mapShapeMemory.observedWallIds = mapShapeMemory.obstacles.walls.map((wall) => wall.id);
 
   if (visibleAreaCells.length > 0) {
-    const currentFrame = getCurrentFrame(frameIndex);
-    const knownAreasById = new Map((mapShapeMemory.knownAreas ?? []).map((area) => [
-      area.id,
-      area,
-    ]));
-    const recentlyObservedAreasById = new Map(
-      (mapShapeMemory.recentlyObservedAreas ?? []).map((area) => [area.id, area]),
-    );
+    const currentFrame = normalizeMemoryFrameIndex(frameIndex);
+    const observedAreas = visibleAreaCells.map((cell) =>
+      createMapAreaMemory(cell, currentFrame));
 
-    for (const cell of visibleAreaCells) {
-      const vertices = cell.vertices.map((vertex) => ({ ...vertex }));
-      const existingKnownArea = knownAreasById.get(cell.id);
-      knownAreasById.set(cell.id, {
-        id: cell.id,
-        cellX: cell.cellX,
-        cellZ: cell.cellZ,
-        firstObservedFrame: existingKnownArea?.firstObservedFrame ?? currentFrame,
-        lastObservedFrame: currentFrame,
-        vertices,
-      });
-      recentlyObservedAreasById.set(cell.id, {
-        id: cell.id,
-        cellX: cell.cellX,
-        cellZ: cell.cellZ,
-        lastObservedFrame: currentFrame,
-        vertices,
-      });
-    }
-
-    mapShapeMemory.knownAreas = [...knownAreasById.values()].sort((first, second) =>
+    mapShapeMemory.knownAreas = upsertTemporalRecords(
+      mapShapeMemory.knownAreas ?? [],
+      observedAreas,
+      { frameIndex: currentFrame },
+    ).sort((first, second) =>
       first.id.localeCompare(second.id));
     mapShapeMemory.knownAreaIds = mapShapeMemory.knownAreas.map((area) => area.id);
-    mapShapeMemory.recentlyObservedAreas = [...recentlyObservedAreasById.values()].sort(
+
+    mapShapeMemory.recentlyObservedAreas = upsertTemporalRecords(
+      mapShapeMemory.recentlyObservedAreas ?? [],
+      observedAreas,
+      { frameIndex: currentFrame },
+    ).sort(
       (first, second) => first.id.localeCompare(second.id),
     );
     mapShapeMemory.recentlyObservedAreaIds = mapShapeMemory.recentlyObservedAreas.map((area) =>
@@ -414,6 +528,6 @@ export function updateMapShapeMemory(
   pruneRecentlyObservedAreas(mapShapeMemory, frameIndex);
   mapShapeMemory.observationCount =
     (Number(mapShapeMemory.observationCount) || 0) + visibleWalls.length + visibleAreaCells.length;
-  mapShapeMemory.lastObservationFrame = Number.isFinite(frameIndex) ? frameIndex : null;
+  mapShapeMemory.lastObservationFrame = normalizeMemoryFrameIndex(frameIndex);
   return mapShapeMemory;
 }

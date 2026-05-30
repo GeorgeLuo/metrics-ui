@@ -1,19 +1,21 @@
 import {
   createObservedEvaderMotionMemory,
+  updateObservedEvaderMotionMemory,
+} from "../../decision-model/memory/chaser/observed-evader-motion.ts";
+import {
   createActorLocationMemory,
   getActorPerception,
-  updateObservedEvaderMotionMemory,
   updateActorLocationMemory,
-} from "./chaser.mjs";
+} from "../../decision-model/memory/actors/perceived-actor-location.ts";
 import {
   createMapShapeMemory,
   getMapShapePerception,
   updateMapShapeMemory,
-} from "../../decision-model/memory/chaser/map-memory.mjs";
+} from "../../decision-model/memory/chaser/map/memory.ts";
 import {
   createChaserSuccessMetricsMemory,
   updateChaserSuccessMetricsMemory,
-} from "../../decision-model/memory/chaser/success-memory.mjs";
+} from "../../decision-model/memory/chaser/success-memory.ts";
 import {
   getPatternConfidence,
   getPatternPredictionUnit,
