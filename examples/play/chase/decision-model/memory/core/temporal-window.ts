@@ -1,4 +1,8 @@
-import type { MemoryFrameIndex } from "./interfaces.ts";
+import type {
+  MemoryFrameIndex,
+  RetentionPolicy,
+} from "./interfaces.ts";
+import { normalizeRetentionPolicy } from "./retention-policy.ts";
 
 export { normalizeRetentionPolicy } from "./retention-policy.ts";
 
@@ -44,12 +48,14 @@ export function pruneEntriesByFrameAge<TEntry>(
     maxAgeFrames?: number | null;
   },
 ): TEntry[] {
-  if (!Number.isFinite(currentFrameIndex) || !Number.isFinite(maxAgeFrames)) {
+  const retentionPolicy = normalizeRetentionPolicy({ maxAgeFrames });
+  const normalizedMaxAgeFrames = retentionPolicy.maxAgeFrames;
+  if (!Number.isFinite(currentFrameIndex) || normalizedMaxAgeFrames === null) {
     return [...entries];
   }
   return entries.filter((entry) => {
     const ageFrames = getFrameAge(currentFrameIndex, getFrameIndex(entry));
-    return ageFrames !== null && ageFrames <= Number(maxAgeFrames);
+    return ageFrames !== null && ageFrames <= normalizedMaxAgeFrames;
   });
 }
 
@@ -60,8 +66,35 @@ export function limitEntries<TEntry>(
   entries: TEntry[] = [],
   maxEntries: number | null = null,
 ): TEntry[] {
-  if (!Number.isFinite(maxEntries) || Number(maxEntries) <= 0) {
+  const retentionPolicy = normalizeRetentionPolicy({ maxEntries });
+  if (retentionPolicy.maxEntries === null || retentionPolicy.maxEntries <= 0) {
     return [...entries];
   }
-  return entries.slice(-Math.floor(Number(maxEntries)));
+  return entries.slice(-retentionPolicy.maxEntries);
+}
+
+/**
+ * Applies age and entry-count retention to a temporal memory collection.
+ */
+export function applyRetentionPolicy<TEntry>(
+  entries: TEntry[] = [],
+  {
+    currentFrameIndex = null,
+    getFrameIndex,
+    retentionPolicy = {},
+  }: {
+    currentFrameIndex?: MemoryFrameIndex;
+    getFrameIndex?: (entry: TEntry) => unknown;
+    retentionPolicy?: RetentionPolicy;
+  } = {},
+): TEntry[] {
+  const normalizedPolicy = normalizeRetentionPolicy(retentionPolicy);
+  const agePrunedEntries = getFrameIndex
+    ? pruneEntriesByFrameAge(entries, {
+      currentFrameIndex,
+      getFrameIndex,
+      maxAgeFrames: normalizedPolicy.maxAgeFrames,
+    })
+    : [...entries];
+  return limitEntries(agePrunedEntries, normalizedPolicy.maxEntries);
 }
