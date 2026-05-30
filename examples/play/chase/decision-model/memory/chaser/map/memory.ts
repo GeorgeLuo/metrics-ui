@@ -16,11 +16,11 @@ import type {
   TemporalRecordBase,
 } from "../../core/interfaces.ts";
 import {
-  createTemporalRecord,
   normalizeMemoryFrameIndex,
+  createTemporalRecord,
   upsertTemporalRecords,
 } from "../../core/temporal-record.ts";
-import { pruneEntriesByFrameAge } from "../../core/temporal-window.ts";
+import { applyRetentionPolicy } from "../../core/temporal-window.ts";
 import {
   getFieldBounds,
   getWallBounds,
@@ -453,12 +453,12 @@ function pruneRecentlyObservedAreas(mapShapeMemory: MapShapeMemory, frameIndex: 
     return;
   }
   const maxAgeFrames = getRecentVisitationMaxAgeFrames(mapShapeMemory);
-  mapShapeMemory.recentlyObservedAreas = pruneEntriesByFrameAge(
+  mapShapeMemory.recentlyObservedAreas = applyRetentionPolicy(
     mapShapeMemory.recentlyObservedAreas ?? [],
     {
       currentFrameIndex: currentFrame,
       getFrameIndex: (area) => area.lastObservedFrame,
-      maxAgeFrames,
+      retentionPolicy: { maxAgeFrames },
     },
   );
   mapShapeMemory.recentlyObservedAreaIds = mapShapeMemory.recentlyObservedAreas

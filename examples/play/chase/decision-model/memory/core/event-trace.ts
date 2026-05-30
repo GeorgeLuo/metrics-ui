@@ -1,5 +1,5 @@
 import {
-  pruneEntriesByFrameAge,
+  applyRetentionPolicy,
   resolveFrameIndex,
 } from "./temporal-window.ts";
 
@@ -52,10 +52,13 @@ function pruneRecentEvents(memory: EventTraceMemory, frameIndex: number): void {
     Math.floor(Number(memory.rollingWindowFrames) || DEFAULT_EVENT_TRACE_ROLLING_WINDOW_FRAMES),
   );
   memory.rollingWindowFrames = rollingWindowFrames;
-  memory.recentEventFrameIndices = pruneEntriesByFrameAge(memory.recentEventFrameIndices, {
+  memory.recentEventFrameIndices = applyRetentionPolicy(memory.recentEventFrameIndices, {
     currentFrameIndex: frameIndex,
     getFrameIndex: (eventFrameIndex) => eventFrameIndex,
-    maxAgeFrames: rollingWindowFrames - 1,
+    retentionPolicy: {
+      maxAgeFrames: rollingWindowFrames - 1,
+      maxEntries: rollingWindowFrames,
+    },
   });
 }
 
