@@ -3,15 +3,15 @@ import { constrainDirectionToBounds } from "../../../actors/evader/evader.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 import { normalizeVector } from "../../core/math.ts";
 import {
-  createStatefulStrategy,
-  getStrategyOutput,
-  updateStrategy,
-} from "../core/stateful-strategy.mjs";
+  createStatefulActionStrategy,
+  getActionStrategyOutput,
+  updateActionStrategy,
+} from "../core/stateful-action-strategy.mjs";
 
 export const EVADER_BASELINE_MOVEMENT_STRATEGY_ID = "baseline-drift-wall-avoid";
 
 export function createEvaderBaselineMovementStrategy() {
-  return createStatefulStrategy({
+  return createStatefulActionStrategy({
     id: EVADER_BASELINE_MOVEMENT_STRATEGY_ID,
     createState: () => null,
     createOutput: () => ({
@@ -65,9 +65,9 @@ export function createEvaderBaselineMovementStrategy() {
 }
 
 export function updateEvaderBaselineMovementStrategy(strategy, context) {
-  return updateStrategy(strategy, context);
+  return updateActionStrategy(strategy, context);
 }
 
 export function getEvaderBaselineMovementStrategyOutput(strategy) {
-  return getStrategyOutput(strategy);
+  return getActionStrategyOutput(strategy);
 }

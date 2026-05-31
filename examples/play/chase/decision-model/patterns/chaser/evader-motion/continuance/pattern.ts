@@ -85,7 +85,7 @@ export type ContinuancePatternContext = PatternUpdateContext<{
 }>;
 
 /**
- * Motion model consumed by chaser evader-prediction strategies.
+ * Motion model consumed by chaser evader-motion projections.
  */
 export type EvaderMotionModel = {
   position: VectorXZ | null;

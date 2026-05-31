@@ -1,16 +1,16 @@
 import { DEFAULT_EVADER_WALL_AVOID_WEIGHT } from "../../../config/constants.mjs";
 import {
-  createStatefulStrategy,
-  getStrategyOutput,
-  updateStrategy,
-} from "../core/stateful-strategy.mjs";
+  createStatefulActionStrategy,
+  getActionStrategyOutput,
+  updateActionStrategy,
+} from "../core/stateful-action-strategy.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 import { getWorldWallPressure } from "../../../world/world.mjs";
 
 export const EVADER_WALL_AVOID_STRATEGY_ID = "wallAvoidance";
 
 export function createEvaderWallAvoidStrategy() {
-  return createStatefulStrategy({
+  return createStatefulActionStrategy({
     id: EVADER_WALL_AVOID_STRATEGY_ID,
     createState: () => null,
     createOutput: () => ({
@@ -49,9 +49,9 @@ export function createEvaderWallAvoidStrategy() {
 }
 
 export function updateEvaderWallAvoidStrategy(strategy, context) {
-  return updateStrategy(strategy, context);
+  return updateActionStrategy(strategy, context);
 }
 
 export function getEvaderWallAvoidStrategyOutput(strategy) {
-  return getStrategyOutput(strategy);
+  return getActionStrategyOutput(strategy);
 }

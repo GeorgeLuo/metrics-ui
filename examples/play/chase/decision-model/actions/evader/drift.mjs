@@ -4,10 +4,10 @@ import {
 } from "../../../config/constants.mjs";
 import { normalizeVector } from "../../core/math.ts";
 import {
-  createStatefulStrategy,
-  getStrategyOutput,
-  updateStrategy,
-} from "../core/stateful-strategy.mjs";
+  createStatefulActionStrategy,
+  getActionStrategyOutput,
+  updateActionStrategy,
+} from "../core/stateful-action-strategy.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 
 export const EVADER_DRIFT_STRATEGY_ID = "driftMotion";
@@ -33,7 +33,7 @@ export function getEvaderDriftDirection(frameIndex, policy = {}) {
 }
 
 export function createEvaderDriftStrategy() {
-  return createStatefulStrategy({
+  return createStatefulActionStrategy({
     id: EVADER_DRIFT_STRATEGY_ID,
     createState: () => null,
     createOutput: () => ({
@@ -48,9 +48,9 @@ export function createEvaderDriftStrategy() {
 }
 
 export function updateEvaderDriftStrategy(strategy, context) {
-  return updateStrategy(strategy, context);
+  return updateActionStrategy(strategy, context);
 }
 
 export function getEvaderDriftStrategyOutput(strategy) {
-  return getStrategyOutput(strategy);
+  return getActionStrategyOutput(strategy);
 }

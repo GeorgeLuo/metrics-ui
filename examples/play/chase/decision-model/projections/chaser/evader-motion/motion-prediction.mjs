@@ -5,18 +5,18 @@ import {
 } from "../../../../config/constants.mjs";
 import {
   blendDirectionTowardWallAvoidance,
-  buildEvaderPredictionOscillators,
-  getDefaultEvaderPrediction,
+  buildEvaderMotionProjectionOscillators,
+  getDefaultEvaderMotionPrediction,
   getWallAvoidanceSignal,
 } from "./signals.mjs";
 import { runKuramotoConsensus } from "../../../core/kuramoto.ts";
 
-export { getDefaultEvaderPrediction } from "./signals.mjs";
+export { getDefaultEvaderMotionPrediction } from "./signals.mjs";
 
 export function predictEvaderMotionFromWallAvoidance(estimate, options = {}) {
-  const defaultPrediction = getDefaultEvaderPrediction(estimate);
+  const defaultPrediction = getDefaultEvaderMotionPrediction(estimate);
   const wallAvoidanceSignal = getWallAvoidanceSignal(
-    buildEvaderPredictionOscillators(estimate, options),
+    buildEvaderMotionProjectionOscillators(estimate, options),
   );
   if (!wallAvoidanceSignal) {
     return {
@@ -42,8 +42,8 @@ export function predictEvaderMotionFromWallAvoidance(estimate, options = {}) {
 }
 
 export function predictEvaderMotionWithKuramoto(estimate, options = {}) {
-  const defaultPrediction = getDefaultEvaderPrediction(estimate);
-  const oscillators = buildEvaderPredictionOscillators(estimate, options);
+  const defaultPrediction = getDefaultEvaderMotionPrediction(estimate);
+  const oscillators = buildEvaderMotionProjectionOscillators(estimate, options);
   const wallAvoidanceSignal = getWallAvoidanceSignal(oscillators);
   if (oscillators.length < 2) {
     return {

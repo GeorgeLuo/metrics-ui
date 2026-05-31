@@ -26,7 +26,7 @@ const LAST_DIRECTION_FULL_CONFIDENCE_OBSERVATIONS = 2;
 const TURN_BIAS_FULL_CONFIDENCE_OBSERVATIONS = 4;
 const MEANINGFUL_TURN_RATE_RADIANS = Math.PI / 5;
 
-export function getDefaultEvaderPrediction(estimate) {
+export function getDefaultEvaderMotionPrediction(estimate) {
   return {
     strategy: "continue-current-direction",
     direction: normalizeVector(estimate?.direction?.x ?? 0, estimate?.direction?.z ?? 0),
@@ -82,8 +82,8 @@ export function getWallAvoidancePredictionSignal(
   });
 }
 
-export function buildEvaderPredictionOscillators(estimate, context = {}) {
-  const defaultPrediction = getDefaultEvaderPrediction(estimate);
+export function buildEvaderMotionProjectionOscillators(estimate, context = {}) {
+  const defaultPrediction = getDefaultEvaderMotionPrediction(estimate);
   const currentDirection = defaultPrediction.direction;
   if (currentDirection.x === 0 && currentDirection.z === 0) {
     return [];

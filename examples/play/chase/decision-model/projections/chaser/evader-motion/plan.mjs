@@ -37,7 +37,7 @@ export function getEvaderProjectionSampleCount({
   return Math.max(1, Math.ceil(normalizedHorizonFrames / normalizedSampleSpacingFrames));
 }
 
-export function createEvaderPredictionPlanState() {
+export function createEvaderMotionProjectionState() {
   return {
     elapsedFrames: 0,
     lastValidationErrorDistance: 0,
@@ -524,11 +524,11 @@ function buildPersistedPredictionPlan(state) {
   };
 }
 
-export function buildEvaderPredictionPlan({
+export function buildEvaderMotionProjectionPlan({
   estimate,
   patternUnits,
   evaderVisible = false,
-  planState = null,
+  projectionState = null,
   columns,
   rows,
   obstacles,
@@ -536,7 +536,7 @@ export function buildEvaderPredictionPlan({
   sampleSpacingFrames = DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
 } = {}) {
   updatePredictionPlanState({
-    state: planState,
+    state: projectionState,
     evaderVisible,
     estimate,
   });
@@ -576,11 +576,11 @@ export function buildEvaderPredictionPlan({
   const actionable = !invalidReason;
 
   if (isEstimateStale) {
-    clearPersistedPlan(planState);
+    clearPersistedPlan(projectionState);
   }
 
   if (!actionable && !evaderVisible && !isEstimateStale) {
-    const persistedPlan = buildPersistedPredictionPlan(planState);
+    const persistedPlan = buildPersistedPredictionPlan(projectionState);
     if (persistedPlan) {
       return persistedPlan;
     }
@@ -589,11 +589,11 @@ export function buildEvaderPredictionPlan({
   const actionablePath = actionable ? path : [];
 
   if (actionable && evaderVisible) {
-    queuePredictionValidation(planState, actionablePath);
+    queuePredictionValidation(projectionState, actionablePath);
   }
 
   if (actionable) {
-    persistActionablePlan(planState, {
+    persistActionablePlan(projectionState, {
       prediction,
       path: actionablePath,
       sampleCount: resolvedSampleCount,
@@ -610,6 +610,6 @@ export function buildEvaderPredictionPlan({
     sampleCount: resolvedSampleCount,
     sampleSpacingFrames: normalizedSampleSpacingFrames,
     horizonFrames: normalizedHorizonFrames,
-    validationErrorDistance: planState?.lastValidationErrorDistance ?? 0,
+    validationErrorDistance: projectionState?.lastValidationErrorDistance ?? 0,
   };
 }

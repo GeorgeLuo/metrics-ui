@@ -59,8 +59,8 @@ function cloneChaserSnapshot(snapshot) {
   const continuance = snapshot?.patterns?.continuance ?? null;
   const wallAvoidancePattern = snapshot?.patterns?.wallAvoidance ?? null;
   const evaderMotionModel = snapshot?.patterns?.evaderMotionModel ?? null;
-  const evaderPredictionPlan = snapshot?.strategies?.evaderPrediction ?? null;
-  const prediction = evaderPredictionPlan?.prediction ?? null;
+  const evaderMotionProjection = snapshot?.projections?.evaderMotion ?? null;
+  const prediction = evaderMotionProjection?.prediction ?? null;
 
   return {
     selfState: cloneValue(snapshot?.selfState ?? null),
@@ -68,7 +68,7 @@ function cloneChaserSnapshot(snapshot) {
     engines: cloneValue(snapshot?.engines ?? null),
     memory: cloneValue(snapshot?.memory ?? {}),
     patternStatus: cloneValue(snapshot?.patternStatus ?? null),
-    strategyStatus: cloneValue(snapshot?.strategyStatus ?? null),
+    projectionStatus: cloneValue(snapshot?.projectionStatus ?? null),
     patterns: {
       evaderMotionModel: cloneValue(evaderMotionModel),
       continuance: continuance
@@ -91,15 +91,15 @@ function cloneChaserSnapshot(snapshot) {
         }
         : null,
     },
-    strategies: {
-      evaderPrediction: evaderPredictionPlan
+    projections: {
+      evaderMotion: evaderMotionProjection
         ? {
-          actionable: Boolean(evaderPredictionPlan.actionable),
-          invalidReason: evaderPredictionPlan.invalidReason ?? null,
-          sampleCount: Number(evaderPredictionPlan.sampleCount) || 0,
-          sampleSpacingFrames: Number(evaderPredictionPlan.sampleSpacingFrames) || 0,
-          horizonFrames: Number(evaderPredictionPlan.horizonFrames) || 0,
-          validationErrorDistance: Number(evaderPredictionPlan.validationErrorDistance) || 0,
+          actionable: Boolean(evaderMotionProjection.actionable),
+          invalidReason: evaderMotionProjection.invalidReason ?? null,
+          sampleCount: Number(evaderMotionProjection.sampleCount) || 0,
+          sampleSpacingFrames: Number(evaderMotionProjection.sampleSpacingFrames) || 0,
+          horizonFrames: Number(evaderMotionProjection.horizonFrames) || 0,
+          validationErrorDistance: Number(evaderMotionProjection.validationErrorDistance) || 0,
           prediction: prediction
             ? {
               strategy: prediction.strategy ?? null,
@@ -108,7 +108,7 @@ function cloneChaserSnapshot(snapshot) {
               oscillators: cloneValue(prediction.oscillators ?? []),
             }
             : null,
-          path: clonePredictionPath(evaderPredictionPlan.path),
+          path: clonePredictionPath(evaderMotionProjection.path),
         }
         : null,
     },

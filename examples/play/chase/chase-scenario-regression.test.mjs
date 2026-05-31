@@ -47,18 +47,20 @@ test("scenario config can omit the evader without debug hardcoding", () => {
     stepChaseSimulation(state, { humanInput: idleInput() });
   }
 
-  const predictionPlan = state.lastStep.chaserReasoning?.snapshot?.strategies?.evaderPrediction;
+  const chaserSnapshot = state.lastStep.chaserReasoning?.snapshot;
+  const evaderMotionProjection = chaserSnapshot?.projections?.evaderMotion;
   assert.equal(state.frameIndex, 20);
   assert.equal(state.lastStep.evaderReasoning, null);
   assert.equal(state.lastStep.evaderMovementDecision, null);
   assert.equal(state.runMetrics.touchCount, 0);
   assert.equal(state.lastStep.chaserReasoning?.observation?.absent, true);
-  assert.equal(predictionPlan?.actionable, false);
-  assert.equal(predictionPlan?.invalidReason, "target-absent");
-  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.evaderMotionModel, null);
-  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.continuance, null);
-  assert.equal(state.lastStep.chaserReasoning?.snapshot?.patterns?.wallAvoidance, null);
-  assert.deepEqual(state.lastStep.chaserReasoning?.snapshot?.patternUnits, {});
+  assert.equal(evaderMotionProjection?.actionable, false);
+  assert.equal(evaderMotionProjection?.invalidReason, "target-absent");
+  assert.equal(chaserSnapshot?.projectionStatus?.evaderMotion?.actionable, false);
+  assert.equal(chaserSnapshot?.patterns?.evaderMotionModel, null);
+  assert.equal(chaserSnapshot?.patterns?.continuance, null);
+  assert.equal(chaserSnapshot?.patterns?.wallAvoidance, null);
+  assert.deepEqual(chaserSnapshot?.patternUnits, {});
   assert.equal(state.lastStep.chaserAction?.chosenStrategy, "mapDiscovery+spin");
   assert.equal(
     state.lastStep.chaserAction?.actionStrategies?.motiveSignal?.id,

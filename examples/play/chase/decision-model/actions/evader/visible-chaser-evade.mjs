@@ -4,10 +4,10 @@ import {
 } from "./policy.mjs";
 import { normalizeVector } from "../../core/math.ts";
 import {
-  createStatefulStrategy,
-  getStrategyOutput,
-  updateStrategy,
-} from "../core/stateful-strategy.mjs";
+  createStatefulActionStrategy,
+  getActionStrategyOutput,
+  updateActionStrategy,
+} from "../core/stateful-action-strategy.mjs";
 
 export const EVADER_VISIBLE_CHASER_EVADE_STRATEGY_ID = "visible-chaser-evade";
 
@@ -30,7 +30,7 @@ function createEvadeVisibleChaserState() {
 }
 
 export function createEvaderVisibleChaserEvadeStrategy() {
-  return createStatefulStrategy({
+  return createStatefulActionStrategy({
     id: EVADER_VISIBLE_CHASER_EVADE_STRATEGY_ID,
     createState: createEvadeVisibleChaserState,
     createOutput: () => null,
@@ -126,11 +126,11 @@ export function recordEvaderVisibleChaserExecution(
 }
 
 export function updateEvaderVisibleChaserEvadeStrategy(strategy, context) {
-  return updateStrategy(strategy, context);
+  return updateActionStrategy(strategy, context);
 }
 
 export function getEvaderVisibleChaserEvadeStrategyOutput(strategy) {
-  return getStrategyOutput(strategy);
+  return getActionStrategyOutput(strategy);
 }
 
 export function getEvaderVisibleChaserEvadeStrategyState(strategy) {

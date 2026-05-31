@@ -20,14 +20,14 @@ export default {
     },
     {
       id: "chaser-no-evader-prediction-pursuit",
-      label: "Chaser evader-prediction pursuit disabled",
+      label: "Chaser evader projection pursuit disabled",
       chaserStrategies: {
         evaderPredictionPursuit: false,
       },
     },
     {
       id: "prediction-pursuit-off_evade-off",
-      label: "Chaser evader-prediction pursuit off and evader evade-on-sight off",
+      label: "Chaser evader projection pursuit off and evader evade-on-sight off",
       chaserStrategies: {
         evaderPredictionPursuit: false,
       },

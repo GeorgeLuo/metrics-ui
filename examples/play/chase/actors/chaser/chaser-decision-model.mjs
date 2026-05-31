@@ -6,8 +6,8 @@ import {
   setChaserKnowledgeEngineEnabled,
   updateChaserMemoryStage,
   updateChaserPatternStage,
+  updateChaserProjectionStage,
   updateChaserSuccessMetricsStage,
-  updateChaserStrategyStage,
 } from "./chaser-knowledge.mjs";
 import {
   buildActorSnapshot,
@@ -99,10 +99,10 @@ const CHASER_PATTERN_MODULES = [
   },
 ];
 
-const CHASER_STRATEGY_MODULES = [
+const CHASER_PROJECTION_MODULES = [
   {
-    id: "evaderPrediction",
-    update: ({ state, frameContext, cycle }) => updateChaserStrategyStage(state, {
+    id: "evaderMotion",
+    update: ({ state, frameContext, cycle }) => updateChaserProjectionStage(state, {
       evaderExists: frameContext.evaderExists !== false,
       columns: frameContext.columns,
       rows: frameContext.rows,
@@ -141,10 +141,10 @@ function getChaserIdaeSnapshot(state) {
   return buildActorSnapshot(state, {
     memory: snapshot.memory,
     patterns: snapshot.patterns,
-    strategies: snapshot.strategies,
+    projections: snapshot.projections,
     patternUnits: snapshot.patternUnits,
     patternStatus: snapshot.patternStatus,
-    strategyStatus: snapshot.strategyStatus,
+    projectionStatus: snapshot.projectionStatus,
     assumedBehavior: snapshot.assumedBehavior,
     controllerState: {
       spinSteering: Number(
@@ -165,7 +165,7 @@ export function createChaserIdae({ scenario } = {}) {
     deriveSelfState: deriveChaserSelfState,
     memoryModules: CHASER_MEMORY_MODULES,
     patternModules: CHASER_PATTERN_MODULES,
-    strategyModules: CHASER_STRATEGY_MODULES,
+    projectionModules: CHASER_PROJECTION_MODULES,
     chooseAction: chooseChaserIdaeAction,
     getSnapshot: getChaserIdaeSnapshot,
   });

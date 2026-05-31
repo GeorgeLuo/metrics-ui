@@ -53,8 +53,8 @@ function formatThresholdLabel(value) {
 function getChaserPredictionConfidence(lastStep = {}) {
   const predictionConsensus = lastStep.chaserReasoning
     ?.snapshot
-    ?.strategies
-    ?.evaderPrediction
+    ?.projections
+    ?.evaderMotion
     ?.prediction
     ?.consensus;
   if (Number.isFinite(predictionConsensus)) {

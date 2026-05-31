@@ -157,7 +157,7 @@ export function createChaseSceneView({
     syncObstacleMeshes();
     const chaserSnapshot = lastStep.chaserReasoning?.snapshot ?? null;
     const evaderLocationMemory = chaserSnapshot?.memory?.directObservation?.evaderLocation ?? null;
-    const evaderPredictionPlan = chaserSnapshot?.strategies?.evaderPrediction ?? null;
+    const evaderMotionProjection = chaserSnapshot?.projections?.evaderMotion ?? null;
     const evaderMotionModel = chaserSnapshot?.patterns?.evaderMotionModel ?? null;
     const evaderSnapshot = lastStep.evaderReasoning?.snapshot ?? null;
     const chaserVisibleFromEvader = Boolean(
@@ -171,10 +171,10 @@ export function createChaseSceneView({
       evaderProjectionGroup,
       evaderProjectionFrames,
       evaderMotionModel,
-      evaderPredictionPlan?.prediction ?? null,
+      evaderMotionProjection?.prediction ?? null,
       projectionSettings,
       evaderMotionModel?.speedEstimateUnitsPerFrame,
-      evaderPredictionPlan?.path ?? null,
+      evaderMotionProjection?.path ?? null,
     );
     const projectionDisplayMs = performance.now() - projectionDisplayStartMs;
 
