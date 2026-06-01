@@ -5,18 +5,32 @@ import {
 } from "../../../../config/constants.mjs";
 import {
   blendDirectionTowardWallAvoidance,
-  buildEvaderPredictionOscillators,
-  getDefaultEvaderPrediction,
+  buildEvaderMotionProjectionOscillators,
+  getDefaultEvaderMotionPrediction,
   getWallAvoidanceSignal,
-} from "./signals.mjs";
+} from "./signals.ts";
 import { runKuramotoConsensus } from "../../../core/kuramoto.ts";
+import type {
+  EvaderMotionEstimate,
+  EvaderMotionPrediction,
+  EvaderMotionPredictionContext,
+} from "./interfaces.ts";
 
-export { getDefaultEvaderPrediction } from "./signals.mjs";
+export { getDefaultEvaderMotionPrediction } from "./signals.ts";
 
-export function predictEvaderMotionFromWallAvoidance(estimate, options = {}) {
-  const defaultPrediction = getDefaultEvaderPrediction(estimate);
+/**
+ * Predicts evader motion using only the wall-avoidance pattern.
+ *
+ * Pattern tests use this as a single-source predictor so wall-avoidance
+ * evidence can be evaluated without current-direction or turn-bias consensus.
+ */
+export function predictEvaderMotionFromWallAvoidance(
+  estimate: EvaderMotionEstimate,
+  options: EvaderMotionPredictionContext = {},
+): EvaderMotionPrediction {
+  const defaultPrediction = getDefaultEvaderMotionPrediction(estimate);
   const wallAvoidanceSignal = getWallAvoidanceSignal(
-    buildEvaderPredictionOscillators(estimate, options),
+    buildEvaderMotionProjectionOscillators(estimate, options),
   );
   if (!wallAvoidanceSignal) {
     return {
@@ -41,9 +55,19 @@ export function predictEvaderMotionFromWallAvoidance(estimate, options = {}) {
   };
 }
 
-export function predictEvaderMotionWithKuramoto(estimate, options = {}) {
-  const defaultPrediction = getDefaultEvaderPrediction(estimate);
-  const oscillators = buildEvaderPredictionOscillators(estimate, options);
+/**
+ * Mixes motion-prediction signals into one evader direction.
+ *
+ * The projection stage uses Kuramoto consensus as a directional mixer. If the
+ * oscillators fail to agree, wall avoidance can still bias the default
+ * continuation direction when that learned pattern is active.
+ */
+export function predictEvaderMotionWithKuramoto(
+  estimate: EvaderMotionEstimate,
+  options: EvaderMotionPredictionContext = {},
+): EvaderMotionPrediction {
+  const defaultPrediction = getDefaultEvaderMotionPrediction(estimate);
+  const oscillators = buildEvaderMotionProjectionOscillators(estimate, options);
   const wallAvoidanceSignal = getWallAvoidanceSignal(oscillators);
   if (oscillators.length < 2) {
     return {

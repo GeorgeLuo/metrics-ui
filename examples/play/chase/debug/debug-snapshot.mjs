@@ -54,28 +54,30 @@ function buildActorDebug(reasoning) {
       observation: cloneReasoningStage(reasoning, "observation"),
       memory: cloneReasoningStage(reasoning, "memory"),
       patterns: cloneReasoningStage(reasoning, "patterns"),
-      strategies: cloneReasoningStage(reasoning, "strategies"),
+      projections: cloneReasoningStage(reasoning, "projections"),
     },
     snapshot: cloneSerializable(snapshot),
     memory: cloneSerializable(snapshot?.memory ?? null),
     patternUnits: cloneSerializable(snapshot?.patternUnits ?? {}),
     patternStatus: cloneSerializable(snapshot?.patternStatus ?? {}),
-    strategies: cloneSerializable(snapshot?.strategies ?? {}),
-    strategyStatus: cloneSerializable(snapshot?.strategyStatus ?? {}),
+    projections: cloneSerializable(snapshot?.projections ?? {}),
+    projectionStatus: cloneSerializable(snapshot?.projectionStatus ?? {}),
+    actionStrategies: cloneSerializable(snapshot?.actionStrategies ?? {}),
+    actionStatus: cloneSerializable(snapshot?.actionStatus ?? {}),
   };
 }
 
 function buildPredictionConsensusDebug(chaserSnapshot) {
-  const predictionPlan = chaserSnapshot?.strategies?.evaderPrediction ?? null;
+  const evaderMotionProjection = chaserSnapshot?.projections?.evaderMotion ?? null;
   const patternUnits = chaserSnapshot?.patternUnits ?? {};
-  const prediction = predictionPlan?.prediction ?? null;
-  const path = Array.isArray(predictionPlan?.path) ? predictionPlan.path : [];
+  const prediction = evaderMotionProjection?.prediction ?? null;
+  const path = Array.isArray(evaderMotionProjection?.path) ? evaderMotionProjection.path : [];
 
   return {
     actorId: "chaser",
-    strategyId: "evaderPrediction",
-    actionable: predictionPlan?.actionable ?? false,
-    invalidReason: predictionPlan?.invalidReason ?? null,
+    projectionId: "evaderMotion",
+    actionable: evaderMotionProjection?.actionable ?? false,
+    invalidReason: evaderMotionProjection?.invalidReason ?? null,
     prediction: cloneSerializable(prediction),
     path: cloneSerializable(path),
     firstConsensusFrame: cloneSerializable(path[0] ?? null),

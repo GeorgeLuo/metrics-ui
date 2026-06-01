@@ -18,7 +18,7 @@ const PREDICTION_DEBUG_PATTERN_PALETTE = Object.freeze([
   0x84cc16,
   0xec4899,
 ]);
-const PREDICTION_DEBUG_STRATEGY_PALETTE = Object.freeze([
+const PREDICTION_DEBUG_PROJECTION_PALETTE = Object.freeze([
   0xffffff,
   0xf43f5e,
   0x60a5fa,
@@ -186,18 +186,18 @@ export function getPredictionDebugPathEntries(snapshot) {
       samples: normalizePredictionSamples(patternUnit?.predictions),
     }))
     .filter((entry) => entry.samples.length > 0);
-  const strategyEntries = Object.entries(snapshot?.strategies ?? {})
-    .map(([id, strategy]) => ({
-      id: `strategy:${id}`,
+  const projectionEntries = Object.entries(snapshot?.projections ?? {})
+    .map(([id, projection]) => ({
+      id: `projection:${id}`,
       sourceId: id,
       label: `${id} consensus`,
-      kind: "strategy",
-      color: getPaletteColor(`strategy:${id}`, PREDICTION_DEBUG_STRATEGY_PALETTE),
-      samples: normalizePredictionSamples(strategy?.path),
+      kind: "projection",
+      color: getPaletteColor(`projection:${id}`, PREDICTION_DEBUG_PROJECTION_PALETTE),
+      samples: normalizePredictionSamples(projection?.path),
     }))
     .filter((entry) => entry.samples.length > 0);
 
-  return [...patternEntries, ...strategyEntries];
+  return [...patternEntries, ...projectionEntries];
 }
 
 function createPredictionPathDisplay(color) {

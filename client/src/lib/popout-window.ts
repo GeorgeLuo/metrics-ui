@@ -1,3 +1,5 @@
+import { isBrowserExtensionErrorEvent } from "./browser-extension-noise";
+
 export const DEFAULT_POPOUT_WIDTH = 720;
 export const DEFAULT_POPOUT_HEIGHT = 420;
 const POPOUT_ERROR_DIAGNOSTIC_MS = 5000;
@@ -93,6 +95,9 @@ function installPopoutErrorDiagnostics() {
         return;
       }
       if (isResizeObserverDeliveryWarning(event)) {
+        return;
+      }
+      if (isBrowserExtensionErrorEvent(event)) {
         return;
       }
       const entry = createPopoutErrorEntry(event);

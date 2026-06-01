@@ -8,8 +8,8 @@ test("greentext debug overlay shows prediction confidence and threshold success 
     lastStep: {
       chaserReasoning: {
         snapshot: {
-          strategies: {
-            evaderPrediction: {
+          projections: {
+            evaderMotion: {
               prediction: {
                 consensus: 0.625,
               },

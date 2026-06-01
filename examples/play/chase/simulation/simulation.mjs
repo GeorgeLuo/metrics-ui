@@ -275,8 +275,8 @@ function buildReasonedActionFrame(state, { humanInput } = {}) {
     recordPredictionPerformanceSet(state.predictionPerformance, {
       frameIndex: state.frameIndex,
       targetId: "evader",
-      producerId: "chaser.evaderPrediction",
-      path: chaserReasoning?.snapshot?.strategies?.evaderPrediction?.path ?? [],
+      producerId: "chaser.evaderMotionProjection",
+      path: chaserReasoning?.snapshot?.projections?.evaderMotion?.path ?? [],
     });
   }
 

@@ -9,7 +9,7 @@ import {
  * Opaque value boundary for actor-specific payloads.
  *
  * The actor wrapper understands the framework slots an actor exposes, such as
- * memory, patterns, strategies, controller state, and engines. It does not
+ * memory, patterns, projections, controller state, and engines. It does not
  * interpret the concrete payloads stored inside those slots; the chaser, evader,
  * or another actor implementation owns those shapes.
  */
@@ -29,9 +29,9 @@ export type ActorStageResult = ActorOpaqueValue;
 /**
  * Decision cycle specialization used by actor models.
  *
- * Actor memory, pattern, and strategy stages all return module-output maps keyed
- * by module id. Observation, action, and self/controller payloads stay opaque to
- * this generic wrapper.
+ * Actor memory, pattern, and projection stages all return module-output maps
+ * keyed by module id. Observation, action, and self/controller payloads stay
+ * opaque to this generic wrapper.
  */
 export type ActorDecisionCycle = DecisionCycle<
   ActorFrameContext,
@@ -81,7 +81,7 @@ export type ActorFrameworkState = {
   selfState: ActorSelfState | null;
   memory: ActorMemory;
   patterns: ActorStageMap;
-  strategies: ActorStageMap;
+  projections: ActorStageMap;
   controllerState: ActorControllerState | null;
   engines: ActorStageMap;
   [key: string]: ActorOpaqueValue;
@@ -103,7 +103,7 @@ export type ActorModuleContext<TState extends ActorFrameworkState = ActorFramewo
 };
 
 /**
- * Module contract for memory, pattern, and strategy stages.
+ * Module contract for memory, pattern, and projection stages.
  *
  * A module returns one stage result and is stored in the stage output map under
  * its `id`.
@@ -127,7 +127,7 @@ export type ActorDecisionModelConfig<TState extends ActorFrameworkState = ActorF
   deriveSelfState?: (state: TState, frameContext: ActorFrameContext, cycle: ActorDecisionCycle) => ActorSelfState;
   memoryModules?: ActorModule<TState>[];
   patternModules?: ActorModule<TState>[];
-  strategyModules?: ActorModule<TState>[];
+  projectionModules?: ActorModule<TState>[];
   chooseAction?: (state: TState, frameContext: ActorFrameContext, cycle: ActorDecisionCycle) => ActorAction;
   getSnapshot?: (state: TState, frameContext: ActorFrameContext, cycle: ActorDecisionCycle) => ActorSnapshot;
 };
@@ -168,7 +168,7 @@ function normalizeActorState<TState extends ActorFrameworkState>(state: Partial<
   normalized.selfState = normalized.selfState ?? null;
   normalized.memory = normalizeActorMemory(normalized.memory);
   normalized.patterns = ensureRecord(normalized.patterns);
-  normalized.strategies = ensureRecord(normalized.strategies);
+  normalized.projections = ensureRecord(normalized.projections);
   normalized.controllerState = normalized.controllerState ?? null;
   normalized.engines = ensureRecord(normalized.engines);
   return normalized as TState;
@@ -183,7 +183,7 @@ function assertActorStateShape(state: ActorFrameworkState, actorId: string): voi
     "selfState",
     "memory",
     "patterns",
-    "strategies",
+    "projections",
     "controllerState",
     "engines",
   ];
@@ -232,7 +232,7 @@ export function buildActorSnapshot<TState extends ActorFrameworkState>(
     selfState: snapshot.selfState ?? state.selfState ?? null,
     memory: snapshot.memory ?? state.memory ?? {},
     patterns: snapshot.patterns ?? state.patterns ?? {},
-    strategies: snapshot.strategies ?? state.strategies ?? {},
+    projections: snapshot.projections ?? state.projections ?? {},
     controllerState: snapshot.controllerState ?? state.controllerState ?? null,
     engines: snapshot.engines ?? state.engines ?? {},
     ...snapshot,
@@ -244,8 +244,8 @@ export function buildActorSnapshot<TState extends ActorFrameworkState>(
  *
  * The generic engine sees only stage functions. This adapter adds actor-specific
  * behavior: state normalization, self-state derivation during memory update,
- * ordered module execution for memory/pattern/strategy stages, and framework
- * snapshot defaults.
+ * ordered module execution for memory/pattern/projection stages, and
+ * framework snapshot defaults.
  */
 export function createActorDecisionModel<TState extends ActorFrameworkState = ActorFrameworkState>({
   id,
@@ -254,7 +254,7 @@ export function createActorDecisionModel<TState extends ActorFrameworkState = Ac
   deriveSelfState,
   memoryModules = [],
   patternModules = [],
-  strategyModules = [],
+  projectionModules = [],
   chooseAction,
   getSnapshot,
 }: ActorDecisionModelConfig<TState> = {}): ActorDecisionEngine<TState> {
@@ -303,9 +303,9 @@ export function createActorDecisionModel<TState extends ActorFrameworkState = Ac
         cycle,
       });
     },
-    updateStrategies: (state, frameContext, cycle) => {
+    updateProjections: (state, frameContext, cycle) => {
       assertActorStateShape(state, id ?? "actor-decision-model");
-      return runActorModules(strategyModules, {
+      return runActorModules(projectionModules, {
         actorId: id ?? "actor-decision-model",
         state,
         frameContext,

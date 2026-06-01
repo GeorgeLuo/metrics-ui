@@ -5,7 +5,12 @@ import {
   getDirectionFromPerception,
   getDirectionToPosition,
 } from "../../vehicle/action-paths.ts";
+import type { ProjectionPlan } from "../../../projections/core/interfaces.ts";
 import type { VehicleActionProposal } from "../../vehicle/interfaces.ts";
+
+function getEvaderMotionProjection(snapshot: Record<string, any> | null | undefined): ProjectionPlan | null {
+  return snapshot?.projections?.evaderMotion ?? null;
+}
 
 /**
  * Selects the evader prediction sample the chaser can plausibly intercept.
@@ -23,14 +28,14 @@ export function selectPursuitPoint({
     return null;
   }
 
-  const evaderPredictionPlan = snapshot?.strategies?.evaderPrediction ?? null;
+  const evaderMotionProjection = getEvaderMotionProjection(snapshot);
   const continuance = snapshot?.patterns?.continuance ?? null;
 
-  if (evaderPredictionPlan?.actionable === false) {
+  if (evaderMotionProjection?.actionable === false) {
     return null;
   }
 
-  const path = Array.isArray(evaderPredictionPlan?.path) ? evaderPredictionPlan.path : [];
+  const path = Array.isArray(evaderMotionProjection?.path) ? evaderMotionProjection.path : [];
   const safeSpeed = Math.max(
     0.001,
     Number(chaserSpeedUnitsPerFrame ?? speedUnitsPerFrame) || 0,
@@ -124,7 +129,7 @@ export function buildEvaderPredictionPursuitProposal({
   return {
     id: "evaderPredictionPursuit",
     active: true,
-    confidence: Number(snapshot?.strategies?.evaderPrediction?.prediction?.consensus) || 1,
+    confidence: Number(getEvaderMotionProjection(snapshot)?.prediction?.consensus) || 1,
     pursuitPoint,
     pursuitSource: pursuitPoint.source,
     goalDirection,

@@ -24,7 +24,7 @@ const ACTOR_LABELS = Object.freeze({
 const STAGE_IDS = Object.freeze({
   MEMORY: "memory",
   PATTERNS: "patterns",
-  STRATEGIES: "strategies",
+  PROJECTIONS: "projections",
   ACTION: "action",
   PERFORMANCE: "performance",
 });
@@ -32,7 +32,7 @@ const STAGE_IDS = Object.freeze({
 const STAGE_LABELS = Object.freeze({
   [STAGE_IDS.MEMORY]: "Memory",
   [STAGE_IDS.PATTERNS]: "Patterns",
-  [STAGE_IDS.STRATEGIES]: "Strategies",
+  [STAGE_IDS.PROJECTIONS]: "Projections",
   [STAGE_IDS.ACTION]: "Action",
   [STAGE_IDS.PERFORMANCE]: "Performance",
 });
@@ -369,8 +369,8 @@ function renderWallAvoidanceStrategy(parent, { chaserSnapshot, evaderWallTruth }
 function renderEvasionOnSightStrategy(parent, { evaderReasoning } = {}) {
   const evaderSnapshot = evaderReasoning?.snapshot ?? null;
   const chaserLocation = evaderSnapshot?.memory?.directObservation?.chaserLocation ?? null;
-  const evadeOnSight = evaderSnapshot?.strategyStatus?.evadeOnSight ?? null;
-  const defaultRoam = evaderSnapshot?.strategyStatus?.defaultRoam ?? null;
+  const evadeOnSight = evaderSnapshot?.actionStatus?.evadeOnSight ?? null;
+  const defaultRoam = evaderSnapshot?.actionStatus?.defaultRoam ?? null;
   const evadeOnSightState = evadeOnSight?.state ?? null;
   const evaderActionDebug = evaderReasoning?.action?.debug ?? null;
   const summaryBody = createSection(parent, "Evasion on sight strategy");
@@ -409,7 +409,7 @@ function renderEvasionOnSightStrategy(parent, { evaderReasoning } = {}) {
   appendDebugRow(detailBody, "Evade active").textContent = evaderActionDebug?.evadeActive ? "yes" : "no";
   appendDebugRow(detailBody, "Default roam actionable").textContent = defaultRoam?.actionable ? "yes" : "no";
   appendDebugRow(detailBody, "Current policy").textContent = evaderActionDebug?.policyId ?? "n/a";
-  appendDebugRow(detailBody, "Active strategies").textContent = Array.isArray(evaderActionDebug?.activeStrategyIds)
+  appendDebugRow(detailBody, "Active action strategies").textContent = Array.isArray(evaderActionDebug?.activeStrategyIds)
     && evaderActionDebug.activeStrategyIds.length > 0
     ? evaderActionDebug.activeStrategyIds.join(", ")
     : "none";
@@ -598,18 +598,15 @@ function renderPatternStage(parent, snapshot, {
   renderCollection(statusBody, status ?? {});
 }
 
-function renderStrategyStage(parent, payload, actorId) {
+function renderProjectionStage(parent, payload, actorId) {
   const snapshot = getActorSnapshot(payload, actorId);
-  const strategyBody = createSection(parent, "Strategies");
-  renderCollection(strategyBody, snapshot?.strategies ?? {});
-  const statusBody = createSection(parent, "Strategy status");
-  renderCollection(statusBody, snapshot?.strategyStatus ?? {});
+  const projectionBody = createSection(parent, "Projections");
+  renderCollection(projectionBody, snapshot?.projections ?? {});
+  const statusBody = createSection(parent, "Projection status");
+  renderCollection(statusBody, snapshot?.projectionStatus ?? {});
 
   if (actorId === ACTOR_IDS.CHASER) {
     renderWallAvoidanceStrategy(parent, payload);
-  }
-  if (actorId === ACTOR_IDS.EVADER) {
-    renderEvasionOnSightStrategy(parent, payload);
   }
 }
 
@@ -617,6 +614,12 @@ function renderActionStage(parent, payload, actorId) {
   const actionBody = createSection(parent, "IDAE action");
   renderCollection(actionBody, getActorAction(payload, actorId) ?? {});
   if (actorId === ACTOR_IDS.EVADER) {
+    const snapshot = getActorSnapshot(payload, actorId);
+    const actionStrategiesBody = createSection(parent, "Action strategies");
+    renderCollection(actionStrategiesBody, snapshot?.actionStrategies ?? {});
+    const actionStatusBody = createSection(parent, "Action status");
+    renderCollection(actionStatusBody, snapshot?.actionStatus ?? {});
+    renderEvasionOnSightStrategy(parent, payload);
     const appliedBody = createSection(parent, "Applied movement");
     renderCollection(appliedBody, payload.evaderMovementDecision ?? {});
   }
@@ -854,8 +857,8 @@ export function mountIdaeDebugFrame(createFloatingFrame, {
           activePatternIds[activeActorId] = patternId;
         },
       });
-    } else if (activeStageId === STAGE_IDS.STRATEGIES) {
-      renderStrategyStage(content, latestPayload, activeActorId);
+    } else if (activeStageId === STAGE_IDS.PROJECTIONS) {
+      renderProjectionStage(content, latestPayload, activeActorId);
     } else if (activeStageId === STAGE_IDS.ACTION) {
       renderActionStage(content, latestPayload, activeActorId);
     } else if (activeStageId === STAGE_IDS.PERFORMANCE) {

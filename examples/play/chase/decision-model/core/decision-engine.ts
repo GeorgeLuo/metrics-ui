@@ -3,8 +3,9 @@
  *
  * The base engine is responsible for ordering IDAE stages, preserving state, and
  * storing each stage's output in a cycle. It intentionally does not inspect the
- * meaning of observations, memory updates, pattern outputs, strategies, actions,
- * or snapshots. Actor-specific adapters should specialize these defaults.
+ * meaning of observations, memory updates, pattern outputs, projections,
+ * actions, or snapshots. Actor-specific adapters should specialize these
+ * defaults.
  */
 export type DecisionOpaqueValue = unknown;
 export type DecisionRuntimeRecord = Record<string, DecisionOpaqueValue>;
@@ -13,7 +14,7 @@ export type DecisionDefaultFrameContext = DecisionRuntimeRecord;
 export type DecisionDefaultObservation = DecisionOpaqueValue;
 export type DecisionDefaultMemory = DecisionOpaqueValue;
 export type DecisionDefaultPatterns = DecisionOpaqueValue;
-export type DecisionDefaultStrategies = DecisionOpaqueValue;
+export type DecisionDefaultProjections = DecisionOpaqueValue;
 export type DecisionDefaultAction = DecisionOpaqueValue;
 export type DecisionDefaultSnapshot = DecisionOpaqueValue;
 
@@ -28,7 +29,7 @@ export type DecisionCycle<
   TObservation = DecisionDefaultObservation,
   TMemory = DecisionDefaultMemory,
   TPatterns = DecisionDefaultPatterns,
-  TStrategies = DecisionDefaultStrategies,
+  TProjections = DecisionDefaultProjections,
   TAction = DecisionDefaultAction,
   TSnapshot = DecisionDefaultSnapshot,
 > = {
@@ -36,7 +37,7 @@ export type DecisionCycle<
   observation: TObservation | null;
   memory: TMemory | null;
   patterns: TPatterns | null;
-  strategies: TStrategies | null;
+  projections: TProjections | null;
   action: TAction | null;
   snapshot: TSnapshot | null;
 };
@@ -65,7 +66,7 @@ export type DecisionStageCycle<
   TObservation = DecisionDefaultObservation,
   TMemory = DecisionDefaultMemory,
   TPatterns = DecisionDefaultPatterns,
-  TStrategies = DecisionDefaultStrategies,
+  TProjections = DecisionDefaultProjections,
   TAction = DecisionDefaultAction,
   TSnapshot = DecisionDefaultSnapshot,
 > = DecisionCycle<
@@ -73,7 +74,7 @@ export type DecisionStageCycle<
   TObservation,
   TMemory,
   TPatterns,
-  TStrategies,
+  TProjections,
   TAction,
   TSnapshot
 >;
@@ -90,14 +91,14 @@ export type DecisionStageFor<
   TObservation = DecisionDefaultObservation,
   TMemory = DecisionDefaultMemory,
   TPatterns = DecisionDefaultPatterns,
-  TStrategies = DecisionDefaultStrategies,
+  TProjections = DecisionDefaultProjections,
   TAction = DecisionDefaultAction,
   TSnapshot = DecisionDefaultSnapshot,
   TResult = DecisionOpaqueValue,
 > = DecisionStage<
   TState,
   TFrameContext,
-  DecisionStageCycle<TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot>,
+  DecisionStageCycle<TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot>,
   TResult
 >;
 
@@ -105,7 +106,7 @@ export type DecisionStageFor<
  * Optional IDAE stage handlers.
  *
  * The engine executes these in declaration order:
- * observe -> updateMemory -> updatePatterns -> updateStrategies ->
+ * observe -> updateMemory -> updatePatterns -> updateProjections ->
  * chooseAction -> getSnapshot.
  */
 export type DecisionStages<
@@ -114,33 +115,33 @@ export type DecisionStages<
   TObservation = DecisionDefaultObservation,
   TMemory = DecisionDefaultMemory,
   TPatterns = DecisionDefaultPatterns,
-  TStrategies = DecisionDefaultStrategies,
+  TProjections = DecisionDefaultProjections,
   TAction = DecisionDefaultAction,
   TSnapshot = DecisionDefaultSnapshot,
 > = {
   observe?: DecisionStageFor<
     TState, TFrameContext, TObservation, TMemory, TPatterns,
-    TStrategies, TAction, TSnapshot, TObservation
+    TProjections, TAction, TSnapshot, TObservation
   >;
   updateMemory?: DecisionStageFor<
     TState, TFrameContext, TObservation, TMemory, TPatterns,
-    TStrategies, TAction, TSnapshot, TMemory
+    TProjections, TAction, TSnapshot, TMemory
   >;
   updatePatterns?: DecisionStageFor<
     TState, TFrameContext, TObservation, TMemory, TPatterns,
-    TStrategies, TAction, TSnapshot, TPatterns
+    TProjections, TAction, TSnapshot, TPatterns
   >;
-  updateStrategies?: DecisionStageFor<
+  updateProjections?: DecisionStageFor<
     TState, TFrameContext, TObservation, TMemory, TPatterns,
-    TStrategies, TAction, TSnapshot, TStrategies
+    TProjections, TAction, TSnapshot, TProjections
   >;
   chooseAction?: DecisionStageFor<
     TState, TFrameContext, TObservation, TMemory, TPatterns,
-    TStrategies, TAction, TSnapshot, TAction
+    TProjections, TAction, TSnapshot, TAction
   >;
   getSnapshot?: DecisionStageFor<
     TState, TFrameContext, TObservation, TMemory, TPatterns,
-    TStrategies, TAction, TSnapshot, TSnapshot
+    TProjections, TAction, TSnapshot, TSnapshot
   >;
 };
 
@@ -157,10 +158,10 @@ export type DecisionEngineConfig<
   TObservation = DecisionDefaultObservation,
   TMemory = DecisionDefaultMemory,
   TPatterns = DecisionDefaultPatterns,
-  TStrategies = DecisionDefaultStrategies,
+  TProjections = DecisionDefaultProjections,
   TAction = DecisionDefaultAction,
   TSnapshot = DecisionDefaultSnapshot,
-> = DecisionStages<TState, TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot> & {
+> = DecisionStages<TState, TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot> & {
   id?: string;
   createState?: () => TState;
 };
@@ -178,14 +179,14 @@ export type DecisionEngine<
   TObservation = DecisionDefaultObservation,
   TMemory = DecisionDefaultMemory,
   TPatterns = DecisionDefaultPatterns,
-  TStrategies = DecisionDefaultStrategies,
+  TProjections = DecisionDefaultProjections,
   TAction = DecisionDefaultAction,
   TSnapshot = DecisionDefaultSnapshot,
 > = {
   id: string;
   state: TState;
-  stages: DecisionStages<TState, TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot>;
-  lastCycle: DecisionCycle<TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot> | null;
+  stages: DecisionStages<TState, TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot>;
+  lastCycle: DecisionCycle<TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot> | null;
 };
 
 /**
@@ -201,7 +202,7 @@ export function createDecisionEngine<
   TObservation = DecisionDefaultObservation,
   TMemory = DecisionDefaultMemory,
   TPatterns = DecisionDefaultPatterns,
-  TStrategies = DecisionDefaultStrategies,
+  TProjections = DecisionDefaultProjections,
   TAction = DecisionDefaultAction,
   TSnapshot = DecisionDefaultSnapshot,
 >({
@@ -210,10 +211,10 @@ export function createDecisionEngine<
   observe,
   updateMemory,
   updatePatterns,
-  updateStrategies,
+  updateProjections,
   chooseAction,
   getSnapshot,
-}: DecisionEngineConfig<TState, TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot> = {}): DecisionEngine<TState, TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot> {
+}: DecisionEngineConfig<TState, TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot> = {}): DecisionEngine<TState, TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot> {
   return {
     id: id ?? "decision-engine",
     state: typeof createState === "function" ? createState() : ({} as TState),
@@ -221,7 +222,7 @@ export function createDecisionEngine<
       observe,
       updateMemory,
       updatePatterns,
-      updateStrategies,
+      updateProjections,
       chooseAction,
       getSnapshot,
     },
@@ -243,23 +244,23 @@ export function stepDecisionEngine<
   TObservation,
   TMemory,
   TPatterns,
-  TStrategies,
+  TProjections,
   TAction,
   TSnapshot,
 >(
-  engine: DecisionEngine<TState, TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot> | null | undefined,
+  engine: DecisionEngine<TState, TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot> | null | undefined,
   frameContext = {} as TFrameContext,
-): DecisionCycle<TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot> | null {
+): DecisionCycle<TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot> | null {
   if (!engine?.stages) {
     return null;
   }
 
-  const cycle: DecisionCycle<TFrameContext, TObservation, TMemory, TPatterns, TStrategies, TAction, TSnapshot> = {
+  const cycle: DecisionCycle<TFrameContext, TObservation, TMemory, TPatterns, TProjections, TAction, TSnapshot> = {
     frameContext,
     observation: null,
     memory: null,
     patterns: null,
-    strategies: null,
+    projections: null,
     action: null,
     snapshot: null,
   };
@@ -273,8 +274,8 @@ export function stepDecisionEngine<
   if (typeof engine.stages.updatePatterns === "function") {
     cycle.patterns = engine.stages.updatePatterns(engine.state, frameContext, cycle);
   }
-  if (typeof engine.stages.updateStrategies === "function") {
-    cycle.strategies = engine.stages.updateStrategies(engine.state, frameContext, cycle);
+  if (typeof engine.stages.updateProjections === "function") {
+    cycle.projections = engine.stages.updateProjections(engine.state, frameContext, cycle);
   }
   if (typeof engine.stages.chooseAction === "function") {
     cycle.action = engine.stages.chooseAction(engine.state, frameContext, cycle);

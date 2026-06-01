@@ -190,7 +190,7 @@ const REGRESSION_CASES = [
 
 function summarizeState(state) {
   const snapshot = state.lastStep.chaserReasoning?.snapshot;
-  const evaderPredictionPlan = snapshot?.strategies?.evaderPrediction;
+  const evaderMotionProjection = snapshot?.projections?.evaderMotion;
   return {
     frame: state.frameIndex,
     chaser: {
@@ -208,12 +208,12 @@ function summarizeState(state) {
     touches: state.runMetrics.touchCount,
     visible: Boolean(snapshot?.memory?.directObservation?.evaderLocation?.visible),
     prediction: {
-      actionable: Boolean(evaderPredictionPlan?.actionable),
-      invalidReason: evaderPredictionPlan?.invalidReason ?? null,
-      strategy: evaderPredictionPlan?.prediction?.strategy ?? null,
-      pathLen: evaderPredictionPlan?.path?.length ?? 0,
-      firstAhead: evaderPredictionPlan?.path?.[0]?.framesAhead ?? null,
-      sourcePatternIds: evaderPredictionPlan?.prediction?.sourcePatternIds ?? [],
+      actionable: Boolean(evaderMotionProjection?.actionable),
+      invalidReason: evaderMotionProjection?.invalidReason ?? null,
+      strategy: evaderMotionProjection?.prediction?.strategy ?? null,
+      pathLen: evaderMotionProjection?.path?.length ?? 0,
+      firstAhead: evaderMotionProjection?.path?.[0]?.framesAhead ?? null,
+      sourcePatternIds: evaderMotionProjection?.prediction?.sourcePatternIds ?? [],
     },
     inference: {
       speed: roundNumber(snapshot?.patterns?.evaderMotionModel?.speedEstimateUnitsPerFrame ?? 0),
@@ -232,8 +232,8 @@ function buildTraceSignature(state) {
     evaderZ: roundNumber(state.evaderPosition.z, 3),
     touches: state.runMetrics.touchCount,
     visible: Boolean(snapshot?.memory?.directObservation?.evaderLocation?.visible),
-    pathLen: snapshot?.strategies?.evaderPrediction?.path?.length ?? 0,
-    invalidReason: snapshot?.strategies?.evaderPrediction?.invalidReason ?? null,
+    pathLen: snapshot?.projections?.evaderMotion?.path?.length ?? 0,
+    invalidReason: snapshot?.projections?.evaderMotion?.invalidReason ?? null,
   };
 }
 
@@ -294,7 +294,7 @@ function runRegressionCase(regressionCase) {
       `${regressionCase.name} evader penetrated obstacle padding on frame ${state.frameIndex}`,
     );
     assertProjectionSamplesOutsideObstaclePadding(
-      state.lastStep.chaserReasoning?.snapshot?.strategies?.evaderPrediction?.path,
+      state.lastStep.chaserReasoning?.snapshot?.projections?.evaderMotion?.path,
       state.obstacles,
       `${regressionCase.name} projection penetrated obstacle padding on frame ${state.frameIndex}`,
     );
@@ -419,8 +419,8 @@ test("chaser projections do not use obstacle meta knowledge before the map is ob
   const mapShapeMemory = getChaserMapShapeMemory(state);
   const predictionPath = state.lastStep.chaserReasoning
     ?.snapshot
-    ?.strategies
-    ?.evaderPrediction
+    ?.projections
+    ?.evaderMotion
     ?.path ?? [];
   const centerWallBounds = getWallBounds(state.obstacles.walls[0]);
 
@@ -466,7 +466,7 @@ test("chaser and evader IDAE snapshots follow the shared actor framework shape",
     "selfState",
     "memory",
     "patterns",
-    "strategies",
+    "projections",
     "controllerState",
     "engines",
   ];
@@ -1023,7 +1023,7 @@ test("chase sidebar groups strategy toggles by chaser motive", () => {
     `toggle:${createActorStrategyToggleActionId("chaser", CHASER_STRATEGY_IDS.MAP_DISCOVERY)}:Map Discovery:true`,
     `toggle:${createActorStrategyToggleActionId("chaser", CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH)}:Map Recency Refresh:true`,
     `toggle:${createActorStrategyToggleActionId("chaser", CHASER_STRATEGY_IDS.SPIN)}:Spin:false`,
-    "header:Evader strategies",
+    "header:Evader action strategies",
     `toggle:${createActorStrategyToggleActionId("evader", EVADER_STRATEGY_IDS.DEFAULT_ROAM)}:Default Roam:true`,
     `toggle:${createActorStrategyToggleActionId("evader", EVADER_STRATEGY_IDS.EVADE_ON_SIGHT)}:Evade On Sight:false`,
   ]);
@@ -1033,7 +1033,7 @@ test("chase regression predictions stay frame-indexed and ordered", () => {
   const regressionCase = REGRESSION_CASES.find((entry) => entry.name === "action_path_projection_158");
   assert.ok(regressionCase, "action_path_projection_158 regression case is missing");
   const { state } = runRegressionCase(regressionCase);
-  const path = state.lastStep.chaserReasoning?.snapshot?.strategies?.evaderPrediction?.path ?? [];
+  const path = state.lastStep.chaserReasoning?.snapshot?.projections?.evaderMotion?.path ?? [];
   assert.ok(path.length > 0, "expected a non-empty prediction path");
   let previousFramesAhead = 0;
   for (const sample of path) {
@@ -1177,7 +1177,7 @@ test("chaser pattern config filters prediction sources without disabling support
   for (let frame = 0; frame < 500; frame += 1) {
     stepChaseSimulation(state, { humanInput: idleInput() });
     const snapshot = state.lastStep.chaserReasoning?.snapshot;
-    const sourcePatternIds = snapshot?.strategies?.evaderPrediction?.prediction?.sourcePatternIds ?? [];
+    const sourcePatternIds = snapshot?.projections?.evaderMotion?.prediction?.sourcePatternIds ?? [];
     if (sourcePatternIds.includes("wallAvoidance")) {
       wallOnlySnapshot = snapshot;
       break;
@@ -1192,7 +1192,7 @@ test("chaser pattern config filters prediction sources without disabling support
     "continuance should still update as support state for the motion estimate",
   );
   assert.deepEqual(
-    wallOnlySnapshot?.strategies?.evaderPrediction?.prediction?.sourcePatternIds,
+    wallOnlySnapshot?.projections?.evaderMotion?.prediction?.sourcePatternIds,
     ["wallAvoidance"],
   );
 });
@@ -1306,7 +1306,7 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
       humanInput: idleInput(),
     });
     const snapshot = state.lastStep.chaserReasoning?.snapshot;
-    const plan = snapshot?.strategies?.evaderPrediction;
+    const plan = snapshot?.projections?.evaderMotion;
     if (!snapshot?.memory?.directObservation?.evaderLocation?.visible && plan?.actionable) {
       const wallPrediction = snapshot?.patternUnits?.wallAvoidance?.predictions?.[0] ?? null;
       lostSightPursuitFrame = {
@@ -1413,10 +1413,10 @@ test("evader IDAE evades when the chaser is in evader FOV", () => {
         state.lastStep.evaderReasoning?.snapshot?.memory?.directObservation?.chaserLocation?.visible,
       ),
       evadeActionable: Boolean(
-        state.lastStep.evaderReasoning?.snapshot?.strategyStatus?.evadeOnSight?.actionable,
+        state.lastStep.evaderReasoning?.snapshot?.actionStatus?.evadeOnSight?.actionable,
       ),
       baselineActionable: Boolean(
-        state.lastStep.evaderReasoning?.snapshot?.strategyStatus?.defaultRoam?.actionable,
+        state.lastStep.evaderReasoning?.snapshot?.actionStatus?.defaultRoam?.actionable,
       ),
     });
   }
@@ -1503,7 +1503,7 @@ test("evader IDAE evades when the chaser is in evader FOV", () => {
     },
   );
   assert.deepEqual(
-    state.lastStep.evaderReasoning?.snapshot?.strategyStatus?.evadeOnSight?.state,
+    state.lastStep.evaderReasoning?.snapshot?.actionStatus?.evadeOnSight?.state,
     {
       visibleFrameCount: 14,
       actionableFrameCount: 14,
@@ -1558,7 +1558,7 @@ test("scenario strategy toggles can disable evader evade-on-sight", () => {
         state.lastStep.evaderReasoning?.snapshot?.memory?.directObservation?.chaserLocation?.visible,
       ),
       evadeActionable: Boolean(
-        state.lastStep.evaderReasoning?.snapshot?.strategyStatus?.evadeOnSight?.actionable,
+        state.lastStep.evaderReasoning?.snapshot?.actionStatus?.evadeOnSight?.actionable,
       ),
       activeStrategyIds: [
         ...(state.lastStep.evaderReasoning?.action?.debug?.activeStrategyIds ?? []),
@@ -1583,7 +1583,7 @@ test("scenario strategy toggles can disable evader evade-on-sight", () => {
     "evade strategy should never participate in consensus when disabled",
   );
   assert.deepEqual(
-    state.lastStep.evaderReasoning?.snapshot?.strategyStatus?.evadeOnSight?.state,
+    state.lastStep.evaderReasoning?.snapshot?.actionStatus?.evadeOnSight?.state,
     {
       visibleFrameCount: 0,
       actionableFrameCount: 0,
@@ -1846,7 +1846,7 @@ test("chase trace recorder stores deterministic memory snapshots", () => {
     [15, 30, 45],
   );
   assert.equal(
-    trace.frames.at(-1)?.chaserReasoning?.snapshot?.strategies?.evaderPrediction?.sampleSpacingFrames,
+    trace.frames.at(-1)?.chaserReasoning?.snapshot?.projections?.evaderMotion?.sampleSpacingFrames,
     20,
   );
   assert.ok(

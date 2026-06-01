@@ -68,7 +68,7 @@ function buildActorStrategyToggleRow(actorId, strategyId, enabled) {
     enabled: Boolean(enabled),
     enabledLabel: "on",
     disabledLabel: "off",
-    hint: `Enable or disable ${formatActorLabel(actorId).toLowerCase()} peer strategy ${formatStrategyLabel(strategyId).toLowerCase()}.`,
+    hint: `Enable or disable ${formatActorLabel(actorId).toLowerCase()} action strategy ${formatStrategyLabel(strategyId).toLowerCase()}.`,
   };
 }
 
@@ -107,7 +107,7 @@ function buildUngroupedActorStrategyRows(actorId, strategies = {}) {
     .map(([strategyId, enabled]) => buildActorStrategyToggleRow(actorId, strategyId, enabled));
   return rows.length > 0
     ? [
-      { kind: "header", label: `${formatActorLabel(actorId)} strategies` },
+      { kind: "header", label: `${formatActorLabel(actorId)} action strategies` },
       ...rows,
     ]
     : [];
@@ -512,8 +512,8 @@ export function publishSidebarSections(
     const vehicleSectionIndex = sections.findIndex((section) => section.id === "vehicle");
     sections.splice(vehicleSectionIndex === -1 ? sections.length : vehicleSectionIndex, 0, {
       id: "strategies",
-      title: "Strategies",
-      hint: "Programmatic control and live actor peer-strategy toggles generated from the current actor engine collections.",
+      title: "Action Strategies",
+      hint: "Programmatic control and live actor action-strategy toggles generated from the current actor engine collections.",
       rows: strategyRows,
     });
   }
