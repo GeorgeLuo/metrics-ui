@@ -13,8 +13,8 @@ import {
   updateWallAvoidanceEvidence,
 } from "./evidence.ts";
 import { createStatefulPattern, getPatternOutput, updatePattern } from "../../../core/stateful-pattern.ts";
-import { predictEvaderMotionFromWallAvoidance } from "../../../../projections/chaser/evader-motion/motion-prediction.mjs";
-import { buildEvaderProjectionPath } from "../../../../projections/chaser/evader-motion/projection-path.mjs";
+import { predictEvaderMotionFromWallAvoidance } from "../../../../projections/chaser/evader-motion/motion-prediction.ts";
+import { buildEvaderProjectionPath } from "../../../../projections/chaser/evader-motion/projection-path.ts";
 import type {
   ObstacleSet,
   VectorXZ,

@@ -1,4 +1,4 @@
-import { getEvaderProjectionSampleCount } from "../../decision-model/projections/chaser/evader-motion/plan.mjs";
+import { getEvaderProjectionSampleCount } from "../../decision-model/projections/chaser/evader-motion/plan.ts";
 import { setProjectionFrame, syncProjectionFrames } from "./projection-frames.mjs";
 
 export function updateEvaderProjectionDisplay(
