@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaptureRecord, CaptureSession, VisualizationFrameState } from "@shared/schema";
+import { isKnownBrowserExtensionNoiseMessage } from "@/lib/browser-extension-noise";
 
 interface InjectedVisualizationProps {
   frame: VisualizationFrameState;
@@ -1057,6 +1058,12 @@ export function InjectedVisualization({
         return;
       }
       const record = payload as Record<string, unknown>;
+      if (
+        typeof record.error === "string"
+        && isKnownBrowserExtensionNoiseMessage(record.error)
+      ) {
+        return;
+      }
       const boundsRaw =
         record.bounds && typeof record.bounds === "object"
           ? (record.bounds as Record<string, unknown>)
