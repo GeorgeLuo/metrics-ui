@@ -6,7 +6,8 @@ import type {
 import {
   buildEvaderMotionProjectionPlan,
   createEvaderMotionProjectionState,
-} from "./plan.mjs";
+  type EvaderMotionProjectionPlanOptions,
+} from "./plan.ts";
 import {
   createStatefulProjection,
   getProjectionConfidence,
@@ -14,11 +15,15 @@ import {
   isProjectionActionable,
   updateProjection,
 } from "../../core/stateful-projection.ts";
+import type { EvaderMotionProjectionState } from "./interfaces.ts";
 
 export const CHASER_EVADER_MOTION_PROJECTION_ID = "evaderMotion";
 
 /**
  * Creates an inactive evader-motion projection plan.
+ *
+ * Disabled plans keep the output shape stable for debug views and actions while
+ * explaining why no future path is currently actionable.
  */
 export function createDisabledEvaderMotionProjection(
   invalidReason = "projection-disabled",
@@ -42,18 +47,19 @@ export function createDisabledEvaderMotionProjection(
 
 /**
  * Creates the chaser projection that estimates future evader motion.
+ *
+ * This is the stateful module installed in the chaser IDAE projection stage.
+ * It keeps validation/persistence state private and exposes only plan output,
+ * confidence, and actionable status to callers.
  */
 export function createEvaderMotionProjection(): StatefulProjection<ProjectionPlan> {
-  return createStatefulProjection<unknown, ProjectionPlan>({
+  return createStatefulProjection<EvaderMotionProjectionState, ProjectionPlan>({
     id: CHASER_EVADER_MOTION_PROJECTION_ID,
     createState: () => createEvaderMotionProjectionState(),
     createOutput: () => createDisabledEvaderMotionProjection("projection-not-yet-built"),
     deriveOutput: (projectionState, context = {}) => {
-      const projectionContext = context as Record<string, any>;
-      const buildProjectionPlan = buildEvaderMotionProjectionPlan as (
-        options: Record<string, any>,
-      ) => ProjectionPlan;
-      return buildProjectionPlan({
+      const projectionContext = context as EvaderMotionProjectionPlanOptions;
+      return buildEvaderMotionProjectionPlan({
         estimate: projectionContext.estimate,
         patternUnits: projectionContext.patternUnits,
         evaderVisible: projectionContext.evaderVisible,
@@ -72,12 +78,16 @@ export function createEvaderMotionProjection(): StatefulProjection<ProjectionPla
 
 /**
  * Advances the evader-motion projection by one decision frame.
+ *
+ * The context is intentionally the planner option shape so upstream actor code
+ * can pass memory, pattern, world, and sampling settings without exposing the
+ * projection's private state.
  */
 export function updateEvaderMotionProjection(
   projection: StatefulProjection<ProjectionPlan>,
-  context: Record<string, unknown> = {},
+  context: EvaderMotionProjectionPlanOptions = {},
 ): ProjectionPlan | null {
-  return updateProjection(projection, context) as ProjectionPlan | null;
+  return updateProjection(projection, context as Record<string, unknown>) as ProjectionPlan | null;
 }
 
 /**
