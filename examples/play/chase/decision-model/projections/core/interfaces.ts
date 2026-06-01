@@ -1,6 +1,21 @@
 import type { VectorXZ } from "../../core/math.ts";
 
 /**
+ * Directional signal used by projection predictors before they are mixed.
+ *
+ * A projection signal is intentionally smaller than a full projection plan: it
+ * carries a candidate direction, confidence, and weighted influence for a
+ * consensus or selection method.
+ */
+export type ProjectionPredictionSignal = {
+  id: string;
+  direction: VectorXZ | null | undefined;
+  confidence: number;
+  weight: number;
+  [key: string]: unknown;
+};
+
+/**
  * One projected future sample for an observed entity or world state.
  *
  * Projection samples are intentionally generic: the projection stage owns how a
@@ -8,6 +23,7 @@ import type { VectorXZ } from "../../core/math.ts";
  * confidence, and metadata without understanding the underlying predictor.
  */
 export type ProjectionSample = {
+  index?: number;
   framesAhead: number;
   frameOffset?: number;
   position: VectorXZ | null;
