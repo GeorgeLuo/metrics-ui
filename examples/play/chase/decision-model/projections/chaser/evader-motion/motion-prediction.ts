@@ -25,7 +25,7 @@ export { getDefaultEvaderMotionPrediction } from "./signals.ts";
  * evidence can be evaluated without current-direction or turn-bias consensus.
  */
 export function predictEvaderMotionFromWallAvoidance(
-  estimate: EvaderMotionEstimate,
+  estimate: EvaderMotionEstimate | null | undefined,
   options: EvaderMotionPredictionContext = {},
 ): EvaderMotionPrediction {
   const defaultPrediction = getDefaultEvaderMotionPrediction(estimate);
@@ -63,7 +63,7 @@ export function predictEvaderMotionFromWallAvoidance(
  * continuation direction when that learned pattern is active.
  */
 export function predictEvaderMotionWithKuramoto(
-  estimate: EvaderMotionEstimate,
+  estimate: EvaderMotionEstimate | null | undefined,
   options: EvaderMotionPredictionContext = {},
 ): EvaderMotionPrediction {
   const defaultPrediction = getDefaultEvaderMotionPrediction(estimate);

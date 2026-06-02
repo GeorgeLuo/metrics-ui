@@ -6,7 +6,6 @@ import type {
 import {
   buildEvaderMotionProjectionPlan,
   createEvaderMotionProjectionState,
-  type EvaderMotionProjectionPlanOptions,
 } from "./plan.ts";
 import {
   createStatefulProjection,
@@ -15,7 +14,10 @@ import {
   isProjectionActionable,
   updateProjection,
 } from "../../core/stateful-projection.ts";
-import type { EvaderMotionProjectionState } from "./interfaces.ts";
+import type {
+  EvaderMotionProjectionPlanOptions,
+  EvaderMotionProjectionState,
+} from "./interfaces.ts";
 
 export const CHASER_EVADER_MOTION_PROJECTION_ID = "evaderMotion";
 
