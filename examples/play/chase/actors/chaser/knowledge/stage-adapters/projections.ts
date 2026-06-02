@@ -7,12 +7,12 @@ import {
 import {
   getWallAvoidancePatternOutput,
 } from "../../../../decision-model/patterns/chaser/evader-motion/wall-avoidance/pattern.ts";
-import { CHASER_KNOWLEDGE_ENGINE_IDS } from "../engines.ts";
+import { CHASER_KNOWLEDGE_ENGINE_IDS } from "../runtime-settings/index.ts";
 import { getRememberedObstacles } from "../memory-selectors.ts";
 import {
   getChaserPatternUnits,
   getEvaderMotionModel,
-} from "./pattern-stage.ts";
+} from "./patterns.ts";
 
 type ChaserProjectionStageContext = {
   evaderExists?: boolean;

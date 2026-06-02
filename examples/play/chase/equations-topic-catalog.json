@@ -1,0 +1,33 @@
+{
+  "id": "chase-docs",
+  "label": "Chase Documentation",
+  "description": "Reference documents for the chase simulation, chaser lifecycle, and IDAE decision flow.",
+  "topics": [
+    {
+      "id": "chaser-simulation-lifecycle",
+      "label": "Chaser Simulation Lifecycle",
+      "description": "Trace one chaser frame from simulator state through IDAE stages, action planning, world update, and feedback memory.",
+      "createdAt": "2026-06-02",
+      "updatedAt": "2026-06-02",
+      "sortKey": 10,
+      "group": "reference",
+      "tags": [
+        "chase",
+        "chaser",
+        "simulation",
+        "idae",
+        "lifecycle"
+      ],
+      "searchTerms": [
+        "chaser simulation lifecycle",
+        "stepChaseSimulation",
+        "stepChaserIdae",
+        "createChaserIdae",
+        "action proposals",
+        "recordChaserSuccessMetrics"
+      ],
+      "format": "reference_sections",
+      "path": "./equations-document.chaser-simulation-lifecycle.json"
+    }
+  ]
+}

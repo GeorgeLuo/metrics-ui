@@ -57,8 +57,10 @@ import {
   type LiveStreamStatus,
 } from "@/hooks/home/use-live-streams";
 import {
+  type EquationsTopicOption,
   EQUATIONS_TOPIC_CATALOGS,
   getDefaultEquationsTopicCatalogId,
+  getDefaultEquationsTopicOption,
   getEquationsTopicOptionById,
   getEquationsTopicPayloadSignature,
   identifyEquationsTopic,
@@ -285,6 +287,49 @@ function normalizeEquationsTopicCatalogSource(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function buildEquationsPaneStateForTopic(
+  topic: EquationsTopicOption,
+): VisualizationState["equationsPane"] {
+  const basePatch = {
+    viewMode: "topic" as const,
+    topicSourceId: topic.id,
+    topicSourceSignature: getEquationsTopicPayloadSignature(topic),
+    context: {
+      selectedHitBox: null,
+      selectedTextHighlights: [],
+      visualizationFrame: null,
+      referenceFrame: null,
+    },
+  };
+
+  return normalizeEquationsPaneState(topic.payload.kind === "semantic_layout"
+    ? {
+        ...basePatch,
+        content: topic.payload.content,
+      }
+    : {
+        ...basePatch,
+        document: topic.payload.document,
+      });
+}
+
+function buildInitialEquationsPaneState(): VisualizationState["equationsPane"] {
+  const storedPane = readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsPane);
+  const normalizedPane = normalizeEquationsPaneState(storedPane);
+  const selectedStoredTopic = normalizedPane.topicSourceId
+    ? getEquationsTopicOptionById(normalizedPane.topicSourceId)
+    : null;
+
+  if (selectedStoredTopic || identifyEquationsTopic(normalizedPane)) {
+    return normalizedPane;
+  }
+
+  const defaultTopic = getDefaultEquationsTopicOption();
+  return defaultTopic
+    ? buildEquationsPaneStateForTopic(defaultTopic)
+    : normalizedPane;
+}
+
 function isInlineFieldBlank(value: string): boolean {
   return value.trim().length === 0;
 }
@@ -461,12 +506,12 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       fallback: { mode: "builtin" },
     }) ?? { mode: "builtin" },
   );
-  const [equationsPane, setEquationsPane] = useState<VisualizationState["equationsPane"]>(() =>
-    normalizeEquationsPaneState(readStorageJson<unknown>(DASHBOARD_STORAGE_KEYS.equationsPane)),
+  const [equationsPane, setEquationsPane] = useState<VisualizationState["equationsPane"]>(
+    buildInitialEquationsPaneState,
   );
   const [sidebarApp, setSidebarApp] = useState<SidebarApp>(() => {
     const raw = readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp);
-    return normalizeSidebarAppState(raw);
+    return normalizeSidebarAppState(raw, "equations");
   });
   const [frameGridLayoutDebug, setFrameGridLayoutDebug] = useState(() => (
     readStorageString(DASHBOARD_STORAGE_KEYS.frameGridLayoutDebug) === "1"

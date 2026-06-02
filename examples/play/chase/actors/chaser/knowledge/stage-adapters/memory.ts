@@ -8,7 +8,7 @@ import {
   updateObservedEvaderMotionMemory,
 } from "../../../../decision-model/memory/chaser/observed-evader-motion.ts";
 import type { VectorXZ } from "../../../../decision-model/core/math.ts";
-import { CHASER_KNOWLEDGE_ENGINE_IDS } from "../engines.ts";
+import { CHASER_KNOWLEDGE_ENGINE_IDS } from "../runtime-settings/index.ts";
 
 type ChaserMemoryStageContext = {
   perception?: Record<string, any> | null;

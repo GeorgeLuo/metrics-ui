@@ -3,7 +3,7 @@ import {
   createChaserIdae,
   recordChaserSuccessMetrics,
   stepChaserIdae,
-} from "../actors/chaser/chaser-decision-model.mjs";
+} from "../actors/chaser/chaser-decision-model-adapter.ts";
 import { createEvaderIdae, stepEvaderIdae } from "../actors/evader/evader-decision-model.mjs";
 import {
   angleToVector,

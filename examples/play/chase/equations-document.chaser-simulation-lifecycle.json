@@ -1,0 +1,229 @@
+{
+  "pattern": "reference_sections",
+  "title": "Chaser Simulation Lifecycle",
+  "introTitle": "Canonical Reading",
+  "intro": [
+    {
+      "kind": "text",
+      "value": "Read this document top to bottom as the canonical frame lifecycle for the chaser. Each header names the next boundary crossed by the simulation or the decision model."
+    },
+    {
+      "kind": "text",
+      "value": "The simulator owns world truth, vehicle physics, collision resolution, frame advancement, trace recording, and run metrics. The chaser decision flow owns observed-world interpretation, memory, pattern evidence, projections, action proposal selection, and feedback memory."
+    }
+  ],
+  "sections": [
+    {
+      "title": "1. Simulation Creates The Chaser IDAE",
+      "anchorId": "create-chaser-idae",
+      "content": [
+        {
+          "kind": "text",
+          "value": "createChaseSimulationState creates the chaser decision model by calling createChaserIdae({ scenario }) in examples/play/chase/simulation/simulation.mjs."
+        },
+        {
+          "kind": "text",
+          "value": "createChaserIdae is implemented in examples/play/chase/actors/chaser/chaser-decision-model-adapter.ts. It creates the chaser knowledge base, controller state, framework state, and scenario-configured engine toggles."
+        },
+        {
+          "kind": "text",
+          "value": "The chaser adapter then passes chaser-specific callbacks and module lists into the generic createActorIdae wrapper from examples/play/chase/decision-model/core/actor-decision-model.ts."
+        }
+      ]
+    },
+    {
+      "title": "2. Simulation Builds A Synchronized Frame Context",
+      "anchorId": "build-frame-context",
+      "content": [
+        {
+          "kind": "text",
+          "value": "At each frame, stepChaseSimulation calls buildReasonedActionFrame before either actor moves. That function builds a synchronized frame context from the current world state."
+        },
+        {
+          "kind": "text",
+          "value": "The chaser frame context includes chaser position, evader position when the evader exists, chaser look direction, frame index, field of view, obstacles, map dimensions, projection settings, human input, programmatic mode, and vehicle speed."
+        },
+        {
+          "kind": "text",
+          "value": "This context is simulator truth at the boundary. The decision model should not treat all of it as chaser knowledge until the observation and memory stages have transformed it."
+        }
+      ]
+    },
+    {
+      "title": "3. Simulation Steps Chaser Reasoning",
+      "anchorId": "step-chaser-reasoning",
+      "content": [
+        {
+          "kind": "text",
+          "value": "updateChaserReasoningState calls stepChaserIdae(state.chaserIdae, frameContext). This is the main simulation-to-decision-model access point."
+        },
+        {
+          "kind": "text",
+          "value": "stepChaserIdae delegates to stepActorIdae, which runs the generic decision engine sequence: observe, derive self-state, update memory, update patterns, update projections, choose action, and build snapshot."
+        },
+        {
+          "kind": "text",
+          "value": "The returned cycle contains the selected chaser action and the decision snapshot used by traces and debug overlays."
+        }
+      ]
+    },
+    {
+      "title": "4. IDAE Observes The World",
+      "anchorId": "observe-world",
+      "content": [
+        {
+          "kind": "text",
+          "value": "observeChaserIdae calls observeChaserEnvironment, which delegates to the chase perception layer."
+        },
+        {
+          "kind": "text",
+          "value": "Perception is outside the generic decision model. Its job is to map simulator truth into a trusted observed-world payload before memory, patterns, or projections consume it."
+        },
+        {
+          "kind": "text",
+          "value": "The current observed-world payload includes visible evader facts and visible map facts, including visible walls and visible map-area cells."
+        }
+      ]
+    },
+    {
+      "title": "5. IDAE Updates Self-State",
+      "anchorId": "update-self-state",
+      "content": [
+        {
+          "kind": "text",
+          "value": "deriveChaserSelfState stores the chaser's own pose in the generic actor self-state slot."
+        },
+        {
+          "kind": "text",
+          "value": "The chaser is assumed to know its own position, direction, and frame index. This is computational self-awareness, not a map observation."
+        }
+      ]
+    },
+    {
+      "title": "6. IDAE Updates Memory",
+      "anchorId": "update-memory",
+      "content": [
+        {
+          "kind": "text",
+          "value": "CHASER_MEMORY_MODULES runs updateChaserMemoryStage. It consumes the observed-world payload, current chaser pose, look direction, and frame index."
+        },
+        {
+          "kind": "text",
+          "value": "Memory updates direct evader-location memory, persistent map-shape memory, map recency memory, observed evader motion, and chaser success metrics state."
+        },
+        {
+          "kind": "text",
+          "value": "Map knowledge should be populated only through field of vision. Recency is separate from persistent map knowledge so stale-but-known space can be distinguished from never-seen space."
+        }
+      ]
+    },
+    {
+      "title": "7. IDAE Updates Patterns",
+      "anchorId": "update-patterns",
+      "content": [
+        {
+          "kind": "text",
+          "value": "CHASER_PATTERN_MODULES runs updateChaserPatternStage. This stage updates evidence for repeated observed behavior."
+        },
+        {
+          "kind": "text",
+          "value": "The current chaser pattern layer tracks evader-motion continuance and wall-avoidance evidence using remembered observations and remembered map geometry."
+        },
+        {
+          "kind": "text",
+          "value": "Patterns produce confidence-bearing evidence. They do not directly move the actor."
+        }
+      ]
+    },
+    {
+      "title": "8. IDAE Updates Projections",
+      "anchorId": "update-projections",
+      "content": [
+        {
+          "kind": "text",
+          "value": "CHASER_PROJECTION_MODULES runs updateChaserProjectionStage. This stage infers future state from current memory and pattern evidence."
+        },
+        {
+          "kind": "text",
+          "value": "The evader-motion projection uses pattern units, current memory, and remembered map geometry to produce predicted paths and confidence signals."
+        },
+        {
+          "kind": "text",
+          "value": "Projections are inputs to action planning and debug rendering. They are not vehicle controls."
+        }
+      ]
+    },
+    {
+      "title": "9. IDAE Chooses An Action",
+      "anchorId": "choose-action",
+      "content": [
+        {
+          "kind": "text",
+          "value": "chooseChaserIdaeAction either normalizes human input or calls getProgrammaticChaserInput."
+        },
+        {
+          "kind": "text",
+          "value": "getProgrammaticChaserInput calls planProgrammaticChaserAction in examples/play/chase/decision-model/actions/chaser/plan.ts."
+        },
+        {
+          "kind": "text",
+          "value": "The programmatic action currently carries source, forward, reverse, steering, actionPath, selectedActionProposalId, actionProposals, and debug details. This output is specific to the chaser vehicle capability set."
+        }
+      ]
+    },
+    {
+      "title": "10. Simulation Applies The Action",
+      "anchorId": "apply-action",
+      "content": [
+        {
+          "kind": "text",
+          "value": "buildReasonedActionFrame returns the selected chaser action. commitReasonedActionFrame then applies it to the simulated world."
+        },
+        {
+          "kind": "text",
+          "value": "applyChaserAction passes the action into applyVehicleAction with the current chaser pose, speed, turn rate, map dimensions, and obstacles."
+        },
+        {
+          "kind": "text",
+          "value": "This is where requested action becomes physical movement after vehicle constraints and collision resolution. The decision model does not directly mutate position."
+        }
+      ]
+    },
+    {
+      "title": "11. Simulation Records Feedback",
+      "anchorId": "record-feedback",
+      "content": [
+        {
+          "kind": "text",
+          "value": "After movement, commitReasonedActionFrame validates prediction performance, records chaser success metrics, updates run metrics, stores lastStep, advances frameIndex, and records a trace frame."
+        },
+        {
+          "kind": "text",
+          "value": "recordChaserSuccessMetrics writes outcome memory after the world has changed, so the next IDAE cycle can use feedback from committed results."
+        },
+        {
+          "kind": "text",
+          "value": "This is the natural point for future confidence and weighting mechanisms to learn from what actually happened."
+        }
+      ]
+    },
+    {
+      "title": "12. Debug Views Read Snapshots",
+      "anchorId": "debug-snapshots",
+      "content": [
+        {
+          "kind": "text",
+          "value": "Latest action data comes from state.lastStep.chaserAction. Latest reasoning comes from state.lastStep.chaserReasoning."
+        },
+        {
+          "kind": "text",
+          "value": "Persistent decision state lives in state.chaserIdae.state. It holds memory, pattern modules, projections, engines, and controller state."
+        },
+        {
+          "kind": "text",
+          "value": "Renderers should consume snapshots and last-step debug payloads instead of reaching into unrelated stage internals. If a new debug overlay needs more signal, first decide which stage owns that signal and expose it through the stage snapshot."
+        }
+      ]
+    }
+  ]
+}

@@ -13,12 +13,12 @@ import {
   getEvaderMotionProjection as getEvaderMotionProjectionOutput,
   getEvaderMotionProjectionStatus,
 } from "../../../decision-model/projections/chaser/evader-motion/projection.ts";
-import { isPatternEnabled } from "./engines.ts";
+import { isPatternEnabled } from "./runtime-settings/index.ts";
 import {
   getChaserPatternUnits,
   getEvaderMotionModel,
-} from "./stages/pattern-stage.ts";
-import { getEvaderMotionProjectionModule } from "./stages/projection-stage.ts";
+} from "./stage-adapters/patterns.ts";
+import { getEvaderMotionProjectionModule } from "./stage-adapters/projections.ts";
 
 function getChaserPatternStatus(
   knowledgeBase: Record<string, any> | null | undefined,
