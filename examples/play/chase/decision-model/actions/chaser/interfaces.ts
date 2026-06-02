@@ -47,7 +47,7 @@ export type ChaserMotiveSignal = MotiveSignal & {
 export type ChaserActionSelectionSignal = ActionSelectionSignal<ChaserActionCandidate>;
 
 /**
- * One actor-owned action proposal produced by a chaser strategy.
+ * One actor-owned action proposal produced by the chaser action stage.
  */
 export type ChaserActionProposal = VehicleActionProposal<ChaserActionCandidate>;
 
@@ -69,7 +69,7 @@ export type ChaserActionProposalSet = VehicleActionProposalCollection<ChaserActi
 /**
  * Chaser action-stage plan before the controller stores autopilot side effects.
  *
- * The explicit `chosenStrategy` field is kept for the current debug/UI contract.
+ * The explicit `selectedActionProposalId` field is kept for the current debug/UI contract.
  * Generic action code should prefer `selectedProposalLabel` or proposal ids.
  */
 export type ChaserActionPlan = ChaserVehicleAction & VehicleActionPlan<
@@ -79,7 +79,7 @@ export type ChaserActionPlan = ChaserVehicleAction & VehicleActionPlan<
   pursuitPoint?: ChaserActionProposal["pursuitPoint"];
   movement?: ChaserLocalNavigationMovement;
   actionPath: ChaserActionPath;
-  chosenStrategy: string;
+  selectedActionProposalId: string;
   proposals: ChaserActionProposalSet;
 };
 
@@ -91,8 +91,8 @@ export type ProgrammaticChaserAction = ChaserVehicleAction & {
   pursuitPoint?: ChaserActionProposal["pursuitPoint"];
   movement?: ChaserLocalNavigationMovement | null;
   actionPath: ChaserActionPath;
-  chosenStrategy: string;
-  actionStrategies: ChaserActionProposalSet;
+  selectedActionProposalId: string;
+  actionProposals: ChaserActionProposalSet;
   actionPlan: ChaserActionPlan;
 };
 
@@ -107,7 +107,7 @@ export const CHASER_ACTION_PLAN_FIELDS = Object.freeze([
   "movement",
   "desiredDirection",
   "actionPath",
-  "chosenStrategy",
+  "selectedActionProposalId",
   "selectedProposalLabel",
   "spinSteeringHint",
   "wallFollowSign",

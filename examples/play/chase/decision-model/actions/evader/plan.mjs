@@ -2,37 +2,37 @@ import {
   MOVEMENT_CONSENSUS_COUPLING,
   MOVEMENT_CONSENSUS_ITERATIONS,
 } from "../../../config/constants.mjs";
-import { EVADER_STRATEGY_IDS } from "../../../config/strategy-ids.mjs";
+import { EVADER_ACTION_PROPOSAL_IDS } from "../../../config/decision-ids.mjs";
 import { constrainDirectionToBounds } from "../../../actors/evader/evader.mjs";
 import { planEvaderVehicleAction } from "../../../actors/evader/evader-controller.mjs";
 import { runKuramotoConsensus } from "../../core/kuramoto.ts";
 import {
-  createEvaderBaselineMovementStrategy,
-  updateEvaderBaselineMovementStrategy,
+  createEvaderBaselineMovementProposal,
+  updateEvaderBaselineMovementProposal,
 } from "./baseline-movement.mjs";
 import {
-  createEvaderDriftStrategy,
-  updateEvaderDriftStrategy,
+  createEvaderDriftProposal,
+  updateEvaderDriftProposal,
 } from "./drift.mjs";
 import {
-  createEvaderVisibleChaserEvadeStrategy,
-  getEvaderVisibleChaserEvadeStrategyState,
+  createEvaderVisibleChaserEvadeProposal,
+  getEvaderVisibleChaserEvadeProposalState,
   recordEvaderVisibleChaserExecution,
-  updateEvaderVisibleChaserEvadeStrategy,
+  updateEvaderVisibleChaserEvadeProposal,
 } from "./visible-chaser-evade.mjs";
 import {
-  createEvaderWallAvoidStrategy,
-  updateEvaderWallAvoidStrategy,
+  createEvaderWallAvoidProposal,
+  updateEvaderWallAvoidProposal,
 } from "./wall-avoid.mjs";
 
 export function createEvaderActionState() {
   return {
-    driftMotion: createEvaderDriftStrategy(),
-    wallAvoidance: createEvaderWallAvoidStrategy(),
+    driftMotion: createEvaderDriftProposal(),
+    wallAvoidance: createEvaderWallAvoidProposal(),
     defaultRoam: null,
-    defaultRoamStrategy: createEvaderBaselineMovementStrategy(),
+    defaultRoamProposal: createEvaderBaselineMovementProposal(),
     evadeOnSight: null,
-    evadeOnSightStrategy: createEvaderVisibleChaserEvadeStrategy(),
+    evadeOnSightProposal: createEvaderVisibleChaserEvadeProposal(),
   };
 }
 
@@ -49,7 +49,7 @@ function buildEvaderActionContext({
   };
 }
 
-function updateEvaderActionStrategies({
+function updateEvaderActionProposals({
   actionState,
   engines,
   policy,
@@ -61,37 +61,37 @@ function updateEvaderActionStrategies({
     policy,
     chaserLocation,
   });
-  const driftMotion = updateEvaderDriftStrategy(
+  const driftMotion = updateEvaderDriftProposal(
     actionState.driftMotion,
     actionContext,
   );
-  const wallAvoidance = updateEvaderWallAvoidStrategy(
+  const wallAvoidance = updateEvaderWallAvoidProposal(
     actionState.wallAvoidance,
     actionContext,
   );
-  const baselineDecision = engines?.[EVADER_STRATEGY_IDS.DEFAULT_ROAM]
-    ? updateEvaderBaselineMovementStrategy(
-      actionState.defaultRoamStrategy,
+  const baselineDecision = engines?.[EVADER_ACTION_PROPOSAL_IDS.DEFAULT_ROAM]
+    ? updateEvaderBaselineMovementProposal(
+      actionState.defaultRoamProposal,
       {
         ...actionContext,
-        driftStrategyOutput: driftMotion,
-        wallAvoidStrategyOutput: wallAvoidance,
+        driftProposalOutput: driftMotion,
+        wallAvoidProposalOutput: wallAvoidance,
       },
     )
     : null;
 
   actionState.defaultRoam = baselineDecision
     ? {
-      id: EVADER_STRATEGY_IDS.DEFAULT_ROAM,
+      id: EVADER_ACTION_PROPOSAL_IDS.DEFAULT_ROAM,
       actionable: true,
       confidence: chaserLocation?.visible ? 0.5 : 1,
       output: baselineDecision,
     }
     : null;
 
-  const evadeDecision = engines?.[EVADER_STRATEGY_IDS.EVADE_ON_SIGHT]
-    ? updateEvaderVisibleChaserEvadeStrategy(
-      actionState.evadeOnSightStrategy,
+  const evadeDecision = engines?.[EVADER_ACTION_PROPOSAL_IDS.EVADE_ON_SIGHT]
+    ? updateEvaderVisibleChaserEvadeProposal(
+      actionState.evadeOnSightProposal,
       {
         ...actionContext,
         baselineMovementOutput: actionState.defaultRoam?.output ?? null,
@@ -101,13 +101,13 @@ function updateEvaderActionStrategies({
 
   actionState.evadeOnSight = evadeDecision
     ? {
-      id: EVADER_STRATEGY_IDS.EVADE_ON_SIGHT,
+      id: EVADER_ACTION_PROPOSAL_IDS.EVADE_ON_SIGHT,
       actionable: true,
       confidence: 1,
       output: evadeDecision,
     }
     : {
-      id: EVADER_STRATEGY_IDS.EVADE_ON_SIGHT,
+      id: EVADER_ACTION_PROPOSAL_IDS.EVADE_ON_SIGHT,
       actionable: false,
       confidence: 0,
       output: null,
@@ -150,7 +150,7 @@ export function planEvaderIdaeAction({
   observation,
 } = {}) {
   const chaserLocation = memory?.directObservation?.chaserLocation ?? null;
-  updateEvaderActionStrategies({
+  updateEvaderActionProposals({
     actionState,
     engines,
     policy,
@@ -158,18 +158,18 @@ export function planEvaderIdaeAction({
     chaserLocation,
   });
 
-  const evadeActionStrategy = actionState.evadeOnSight;
-  const baselineActionStrategy = actionState.defaultRoam;
-  const selectedActionStrategy = evadeActionStrategy?.actionable
-    ? evadeActionStrategy
-    : baselineActionStrategy;
+  const evadeActionProposal = actionState.evadeOnSight;
+  const baselineActionProposal = actionState.defaultRoam;
+  const selectedActionProposal = evadeActionProposal?.actionable
+    ? evadeActionProposal
+    : baselineActionProposal;
   const consensusSignals = buildEvaderConsensusSignals(actionState);
   const consensus = runKuramotoConsensus(consensusSignals, {
     coupling: MOVEMENT_CONSENSUS_COUPLING,
     iterations: MOVEMENT_CONSENSUS_ITERATIONS,
   });
   const consensusDirection = consensus.direction.x === 0 && consensus.direction.z === 0
-    ? (selectedActionStrategy?.output?.direction ?? { x: 0, z: 0 })
+    ? (selectedActionProposal?.output?.direction ?? { x: 0, z: 0 })
     : consensus.direction;
   const boundedDirection = constrainDirectionToBounds(
     observation?.position,
@@ -185,9 +185,9 @@ export function planEvaderIdaeAction({
     columns: observation?.columns,
     rows: observation?.rows,
   });
-  const evadeExecuted = Boolean(evadeActionStrategy?.actionable);
+  const evadeExecuted = Boolean(evadeActionProposal?.actionable);
   recordEvaderVisibleChaserExecution(
-    actionState.evadeOnSightStrategy,
+    actionState.evadeOnSightProposal,
     {
       frameIndex: observation?.frameIndex ?? null,
       executed: evadeExecuted,
@@ -196,29 +196,29 @@ export function planEvaderIdaeAction({
 
   return {
     source: "idae",
-    strategyId: "evader-consensus",
+    actionProposalId: "evader-consensus",
     forward: vehicleAction.forward,
     steering: vehicleAction.steering,
     desiredDirection: vehicleAction.desiredDirection,
     nextDirection: vehicleAction.nextDirection,
     direction: vehicleAction.nextDirection,
     debug: {
-      ...(baselineActionStrategy?.output?.debug ?? selectedActionStrategy?.output?.debug ?? null),
+      ...(baselineActionProposal?.output?.debug ?? selectedActionProposal?.output?.debug ?? null),
       policyId: evadeExecuted ? "evader-consensus-evade" : "evader-consensus-baseline",
       chaserVisible: Boolean(chaserLocation?.visible),
       evadeActive: evadeExecuted,
-      activeStrategyIds: consensusSignals.map((signal) => signal.id),
+      activeActionProposalIds: consensusSignals.map((signal) => signal.id),
       consensusOrder: Number(consensus.order) || 0,
     },
   };
 }
 
 export function getEvaderActionSnapshot(actionState) {
-  const evadeVisibleChaserStrategyState = getEvaderVisibleChaserEvadeStrategyState(
-    actionState?.evadeOnSightStrategy,
+  const evadeVisibleChaserProposalState = getEvaderVisibleChaserEvadeProposalState(
+    actionState?.evadeOnSightProposal,
   );
   return {
-    actionStrategies: {
+    actionProposals: {
       driftMotion: actionState?.driftMotion?.output ?? null,
       wallAvoidance: actionState?.wallAvoidance?.output ?? null,
       defaultRoam: actionState?.defaultRoam?.output ?? null,
@@ -243,21 +243,21 @@ export function getEvaderActionSnapshot(actionState) {
           id: actionState.evadeOnSight.id,
           actionable: Boolean(actionState.evadeOnSight.actionable),
           confidence: Number(actionState.evadeOnSight.confidence) || 0,
-          state: evadeVisibleChaserStrategyState
+          state: evadeVisibleChaserProposalState
             ? {
-              visibleFrameCount: Number(evadeVisibleChaserStrategyState.visibleFrameCount) || 0,
-              actionableFrameCount: Number(evadeVisibleChaserStrategyState.actionableFrameCount) || 0,
-              executedFrameCount: Number(evadeVisibleChaserStrategyState.executedFrameCount) || 0,
-              visibilityEpisodeCount: Number(evadeVisibleChaserStrategyState.visibilityEpisodeCount) || 0,
-              actionableEpisodeCount: Number(evadeVisibleChaserStrategyState.actionableEpisodeCount) || 0,
-              executionEpisodeCount: Number(evadeVisibleChaserStrategyState.executionEpisodeCount) || 0,
-              lastSeenDistance: Number.isFinite(evadeVisibleChaserStrategyState.lastSeenDistance)
-                ? evadeVisibleChaserStrategyState.lastSeenDistance
+              visibleFrameCount: Number(evadeVisibleChaserProposalState.visibleFrameCount) || 0,
+              actionableFrameCount: Number(evadeVisibleChaserProposalState.actionableFrameCount) || 0,
+              executedFrameCount: Number(evadeVisibleChaserProposalState.executedFrameCount) || 0,
+              visibilityEpisodeCount: Number(evadeVisibleChaserProposalState.visibilityEpisodeCount) || 0,
+              actionableEpisodeCount: Number(evadeVisibleChaserProposalState.actionableEpisodeCount) || 0,
+              executionEpisodeCount: Number(evadeVisibleChaserProposalState.executionEpisodeCount) || 0,
+              lastSeenDistance: Number.isFinite(evadeVisibleChaserProposalState.lastSeenDistance)
+                ? evadeVisibleChaserProposalState.lastSeenDistance
                 : null,
               lastSeenBearingRadians: Number.isFinite(
-                evadeVisibleChaserStrategyState.lastSeenBearingRadians,
+                evadeVisibleChaserProposalState.lastSeenBearingRadians,
               )
-                ? evadeVisibleChaserStrategyState.lastSeenBearingRadians
+                ? evadeVisibleChaserProposalState.lastSeenBearingRadians
                 : null,
             }
             : null,

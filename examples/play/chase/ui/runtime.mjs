@@ -25,11 +25,11 @@ import { createChaseLoop } from "./chase-loop.mjs";
 import { createControlInputTracker } from "./input-tracker.mjs";
 import { createChaseScenarioSession } from "./scenario-session.mjs";
 import {
-  applyActorStrategyOverrides,
-  cloneActorStrategyCollections,
-  getActorStrategyCollections,
-  setActorStrategyOverride,
-} from "./strategy-overrides.mjs";
+  applyActorActionProposalOverrides,
+  cloneActorActionProposalCollections,
+  getActorActionProposalCollections,
+  setActorActionProposalOverride,
+} from "./action-proposal-overrides.mjs";
 
 function copyInto(target, source) {
   Object.keys(target).forEach((key) => {
@@ -62,8 +62,8 @@ export function createPlayGame({
   const scenarioSession = createChaseScenarioSession({ columns, rows });
   let scenario = scenarioSession.buildScenario();
   const simulationState = createChaseSimulationState({ scenario, columns, rows });
-  let actorStrategyOverrides = cloneActorStrategyCollections(
-    getActorStrategyCollections(simulationState),
+  let actorActionProposalOverrides = cloneActorActionProposalCollections(
+    getActorActionProposalCollections(simulationState),
   );
   const performanceTracker = createChasePerformanceTracker();
   const inputTracker = createControlInputTracker();
@@ -103,7 +103,7 @@ export function createPlayGame({
       simulationSettings,
       vehicleSettings,
       projectionSettings,
-      getActorStrategyCollections(simulationState),
+      getActorActionProposalCollections(simulationState),
       simulationState.runMetrics,
       scenarioSession.getSidebarControls(simulationState),
       idaePredictionDebug,
@@ -194,7 +194,7 @@ export function createPlayGame({
     simulationState.simulationSettings = simulationSettings;
     simulationState.vehicleSettings = vehicleSettings;
     simulationState.projectionSettings = projectionSettings;
-    applyActorStrategyOverrides(simulationState, actorStrategyOverrides);
+    applyActorActionProposalOverrides(simulationState, actorActionProposalOverrides);
 
     inputTracker.clear();
     runtimeLoop?.resetTiming();
@@ -255,13 +255,13 @@ export function createPlayGame({
     loadScenario,
     getEvaderExists: () => simulationState.evaderExists !== false,
     setEvaderExists,
-    getActorStrategyCollections: () => getActorStrategyCollections(simulationState),
-    setActorStrategyEnabled: (actorId, strategyId, enabled) => {
-      actorStrategyOverrides = setActorStrategyOverride({
+    getActorActionProposalCollections: () => getActorActionProposalCollections(simulationState),
+    setActorActionProposalEnabled: (actorId, actionProposalId, enabled) => {
+      actorActionProposalOverrides = setActorActionProposalOverride({
         simulationState,
-        actorStrategyOverrides,
+        actorActionProposalOverrides,
         actorId,
-        strategyId,
+        actionProposalId,
         enabled,
       });
     },
@@ -291,7 +291,7 @@ export function createPlayGame({
       runtimeLoop?.dispose();
       clearSidebarActions(
         setSidebarActionHandler,
-        getActorStrategyCollections(simulationState),
+        getActorActionProposalCollections(simulationState),
         registeredSidebarActionIds,
       );
       inputTracker.dispose();

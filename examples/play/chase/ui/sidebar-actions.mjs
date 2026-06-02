@@ -1,4 +1,4 @@
-import { createActorStrategyToggleActionId } from "./sidebar.mjs";
+import { createActorActionProposalToggleActionId } from "./sidebar.mjs";
 import { createSidebarActionDescriptors } from "./sidebar-action-descriptors.mjs";
 
 export function registerSidebarActions(context) {
@@ -14,27 +14,27 @@ export function registerSidebarActions(context) {
   return descriptors.map((descriptor) => descriptor.id);
 }
 
-export function getSidebarActionIds(actorStrategyCollections = {}) {
+export function getSidebarActionIds(actorActionProposalCollections = {}) {
   return createSidebarActionDescriptors({
-    getActorStrategyCollections: () => actorStrategyCollections,
+    getActorActionProposalCollections: () => actorActionProposalCollections,
   }).map((descriptor) => descriptor.id);
 }
 
 export function clearSidebarActions(
   setSidebarActionHandler,
-  actorStrategyCollections = {},
+  actorActionProposalCollections = {},
   actionIds = null,
 ) {
   const ids = Array.isArray(actionIds)
     ? actionIds
-    : getSidebarActionIds(actorStrategyCollections);
+    : getSidebarActionIds(actorActionProposalCollections);
   ids.forEach((actionId) => {
     setSidebarActionHandler?.(actionId, null);
   });
 
-  Object.entries(actorStrategyCollections).forEach(([actorId, strategies]) => {
-    Object.keys(strategies ?? {}).forEach((strategyId) => {
-      setSidebarActionHandler?.(createActorStrategyToggleActionId(actorId, strategyId), null);
+  Object.entries(actorActionProposalCollections).forEach(([actorId, actionProposals]) => {
+    Object.keys(actionProposals ?? {}).forEach((actionProposalId) => {
+      setSidebarActionHandler?.(createActorActionProposalToggleActionId(actorId, actionProposalId), null);
     });
   });
 }

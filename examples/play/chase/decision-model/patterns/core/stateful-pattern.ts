@@ -195,7 +195,7 @@ export function getPatternPredictions<
 }
 
 /**
- * Returns the pattern prediction unit consumed by strategies.
+ * Returns the pattern prediction unit consumed by downstream decision stages.
  */
 export function getPatternPredictionUnit<
   TState = object,

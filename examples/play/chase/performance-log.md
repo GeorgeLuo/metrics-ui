@@ -7,7 +7,7 @@ primary comparison metric is `Touches / 1k frames` measured after warmup.
 
 - Scenario: `examples/play/chase/scenarios/default.scenario.mjs`
 - Grid: `9 x 6`
-- Combination: baseline, all default configured strategies
+- Combination: baseline, all default configured action proposals
 - Warmup: `10%` of total frames
 - Metric: `measurementTouchCount / measurementFrames * 1000`
 - Runner: `measureChaseScenarioAsymptote`

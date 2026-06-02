@@ -192,7 +192,7 @@ export const VEHICLE_ACTION_FRAME_FIELDS = Object.freeze([
 ]);
 
 /**
- * Stable proposal field names shared by vehicle-capability strategies.
+ * Stable proposal field names shared by vehicle-capability proposals.
  */
 export const VEHICLE_ACTION_PROPOSAL_FIELDS = Object.freeze([
   "id",

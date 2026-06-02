@@ -26,7 +26,7 @@ import {
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
 } from "../config/constants.mjs";
-import { CHASER_STRATEGY_MOTIVE_GROUPS } from "../config/strategy-ids.mjs";
+import { CHASER_ACTION_PROPOSAL_MOTIVE_GROUPS } from "../config/decision-ids.mjs";
 import { formatEditableNumber, radiansToDegrees } from "../decision-model/core/math.ts";
 
 function formatRunMetric(value, digits = 0) {
@@ -45,10 +45,10 @@ function formatActorLabel(actorId) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function formatStrategyLabel(strategyId) {
-  const value = String(strategyId ?? "").trim();
+function formatActionProposalLabel(actionProposalId) {
+  const value = String(actionProposalId ?? "").trim();
   if (!value) {
-    return "Strategy";
+    return "Action Proposal";
   }
   return value
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -56,31 +56,31 @@ function formatStrategyLabel(strategyId) {
     .replace(/^./, (char) => char.toUpperCase());
 }
 
-export function createActorStrategyToggleActionId(actorId, strategyId) {
-  return `actor-strategy:${String(actorId ?? "").trim()}:${String(strategyId ?? "").trim()}`;
+export function createActorActionProposalToggleActionId(actorId, actionProposalId) {
+  return `actor-action-proposal:${String(actorId ?? "").trim()}:${String(actionProposalId ?? "").trim()}`;
 }
 
-function buildActorStrategyToggleRow(actorId, strategyId, enabled) {
+function buildActorActionProposalToggleRow(actorId, actionProposalId, enabled) {
   return {
     kind: "toggle",
-    id: createActorStrategyToggleActionId(actorId, strategyId),
-    label: formatStrategyLabel(strategyId),
+    id: createActorActionProposalToggleActionId(actorId, actionProposalId),
+    label: formatActionProposalLabel(actionProposalId),
     enabled: Boolean(enabled),
     enabledLabel: "on",
     disabledLabel: "off",
-    hint: `Enable or disable ${formatActorLabel(actorId).toLowerCase()} action strategy ${formatStrategyLabel(strategyId).toLowerCase()}.`,
+    hint: `Enable or disable ${formatActorLabel(actorId).toLowerCase()} action proposal ${formatActionProposalLabel(actionProposalId).toLowerCase()}.`,
   };
 }
 
-function buildChaserStrategyRows(strategies = {}) {
-  const strategyEntries = strategies && typeof strategies === "object" ? strategies : {};
-  const knownStrategyIds = new Set();
-  const groupedRows = CHASER_STRATEGY_MOTIVE_GROUPS.flatMap((group) => {
-    const motiveRows = group.strategyIds
-      .filter((strategyId) => Object.prototype.hasOwnProperty.call(strategyEntries, strategyId))
-      .map((strategyId) => {
-        knownStrategyIds.add(strategyId);
-        return buildActorStrategyToggleRow("chaser", strategyId, strategyEntries[strategyId]);
+function buildChaserActionProposalRows(actionProposals = {}) {
+  const actionProposalEntries = actionProposals && typeof actionProposals === "object" ? actionProposals : {};
+  const knownActionProposalIds = new Set();
+  const groupedRows = CHASER_ACTION_PROPOSAL_MOTIVE_GROUPS.flatMap((group) => {
+    const motiveRows = group.actionProposalIds
+      .filter((actionProposalId) => Object.prototype.hasOwnProperty.call(actionProposalEntries, actionProposalId))
+      .map((actionProposalId) => {
+        knownActionProposalIds.add(actionProposalId);
+        return buildActorActionProposalToggleRow("chaser", actionProposalId, actionProposalEntries[actionProposalId]);
       });
     return motiveRows.length > 0
       ? [
@@ -89,9 +89,9 @@ function buildChaserStrategyRows(strategies = {}) {
       ]
       : [];
   });
-  const ungroupedRows = Object.entries(strategyEntries)
-    .filter(([strategyId]) => !knownStrategyIds.has(strategyId))
-    .map(([strategyId, enabled]) => buildActorStrategyToggleRow("chaser", strategyId, enabled));
+  const ungroupedRows = Object.entries(actionProposalEntries)
+    .filter(([actionProposalId]) => !knownActionProposalIds.has(actionProposalId))
+    .map(([actionProposalId, enabled]) => buildActorActionProposalToggleRow("chaser", actionProposalId, enabled));
   return ungroupedRows.length > 0
     ? [
       ...groupedRows,
@@ -101,23 +101,23 @@ function buildChaserStrategyRows(strategies = {}) {
     : groupedRows;
 }
 
-function buildUngroupedActorStrategyRows(actorId, strategies = {}) {
-  const strategyEntries = strategies && typeof strategies === "object" ? strategies : {};
-  const rows = Object.entries(strategyEntries)
-    .map(([strategyId, enabled]) => buildActorStrategyToggleRow(actorId, strategyId, enabled));
+function buildUngroupedActorActionProposalRows(actorId, actionProposals = {}) {
+  const actionProposalEntries = actionProposals && typeof actionProposals === "object" ? actionProposals : {};
+  const rows = Object.entries(actionProposalEntries)
+    .map(([actionProposalId, enabled]) => buildActorActionProposalToggleRow(actorId, actionProposalId, enabled));
   return rows.length > 0
     ? [
-      { kind: "header", label: `${formatActorLabel(actorId)} action strategies` },
+      { kind: "header", label: `${formatActorLabel(actorId)} action proposals` },
       ...rows,
     ]
     : [];
 }
 
-function buildActorStrategyRows(actorStrategyCollections = {}) {
-  const chaserRows = buildChaserStrategyRows(actorStrategyCollections.chaser);
-  const otherActorRows = Object.entries(actorStrategyCollections)
+function buildActorActionProposalRows(actorActionProposalCollections = {}) {
+  const chaserRows = buildChaserActionProposalRows(actorActionProposalCollections.chaser);
+  const otherActorRows = Object.entries(actorActionProposalCollections)
     .filter(([actorId]) => actorId !== "chaser")
-    .flatMap(([actorId, strategies]) => buildUngroupedActorStrategyRows(actorId, strategies));
+    .flatMap(([actorId, actionProposals]) => buildUngroupedActorActionProposalRows(actorId, actionProposals));
   return [
     ...chaserRows,
     ...otherActorRows,
@@ -217,7 +217,7 @@ export function publishSidebarSections(
   simulationSettings,
   vehicleSettings,
   projectionSettings,
-  actorStrategyCollections = {},
+  actorActionProposalCollections = {},
   runMetrics = {},
   scenarioControls = {},
   predictionDebugState = {},
@@ -504,17 +504,17 @@ export function publishSidebarSections(
     },
   ];
 
-  const strategyRows = [
+  const actionProposalRows = [
     buildProgrammaticChaserRow(programmaticChaserEnabled),
-    ...buildActorStrategyRows(actorStrategyCollections),
+    ...buildActorActionProposalRows(actorActionProposalCollections),
   ];
-  if (strategyRows.length > 0) {
+  if (actionProposalRows.length > 0) {
     const vehicleSectionIndex = sections.findIndex((section) => section.id === "vehicle");
     sections.splice(vehicleSectionIndex === -1 ? sections.length : vehicleSectionIndex, 0, {
-      id: "strategies",
-      title: "Action Strategies",
-      hint: "Programmatic control and live actor action-strategy toggles generated from the current actor engine collections.",
-      rows: strategyRows,
+      id: "actionProposals",
+      title: "Action Proposals",
+      hint: "Programmatic control and live actor action-proposal toggles generated from the current actor engine collections.",
+      rows: actionProposalRows,
     });
   }
 

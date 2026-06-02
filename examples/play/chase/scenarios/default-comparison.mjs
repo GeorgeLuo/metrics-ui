@@ -9,29 +9,29 @@ export default {
   combinations: [
     {
       id: "baseline",
-      label: "All default strategies enabled",
+      label: "All default action proposals enabled",
     },
     {
       id: "evader-no-evade-on-sight",
       label: "Evader evade-on-sight disabled",
-      evaderStrategies: {
+      evaderActionProposals: {
         evadeOnSight: false,
       },
     },
     {
       id: "chaser-no-evader-prediction-pursuit",
       label: "Chaser evader projection pursuit disabled",
-      chaserStrategies: {
+      chaserActionProposals: {
         evaderPredictionPursuit: false,
       },
     },
     {
       id: "prediction-pursuit-off_evade-off",
       label: "Chaser evader projection pursuit off and evader evade-on-sight off",
-      chaserStrategies: {
+      chaserActionProposals: {
         evaderPredictionPursuit: false,
       },
-      evaderStrategies: {
+      evaderActionProposals: {
         evadeOnSight: false,
       },
     },

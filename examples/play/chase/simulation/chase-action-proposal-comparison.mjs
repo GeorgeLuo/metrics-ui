@@ -4,15 +4,15 @@ import {
   createChaseSimulationState,
   stepChaseSimulation,
 } from "./simulation.mjs";
-import { CHASER_STRATEGY_IDS, EVADER_STRATEGY_IDS } from "../config/strategy-ids.mjs";
+import { CHASER_ACTION_PROPOSAL_IDS, EVADER_ACTION_PROPOSAL_IDS } from "../config/decision-ids.mjs";
 
-function buildFullStrategyMap(baseMap, overrides = {}, knownIds = []) {
+function buildFullActionProposalMap(baseMap, overrides = {}, knownIds = []) {
   return Object.fromEntries(
-    knownIds.map((strategyId) => [
-      strategyId,
-      strategyId in overrides
-        ? Boolean(overrides[strategyId])
-        : Boolean(baseMap?.[strategyId]),
+    knownIds.map((actionProposalId) => [
+      actionProposalId,
+      actionProposalId in overrides
+        ? Boolean(overrides[actionProposalId])
+        : Boolean(baseMap?.[actionProposalId]),
     ]),
   );
 }
@@ -21,26 +21,26 @@ function cloneVector(vector) {
   return vector ? { ...vector } : null;
 }
 
-function createScenarioForStrategyCombination({
+function createScenarioForActionProposalCombination({
   baseScenarioDefinition = defaultScenarioDefinition,
   columns = 9,
   rows = 6,
-  chaserStrategies = {},
-  evaderStrategies = {},
+  chaserActionProposals = {},
+  evaderActionProposals = {},
   programmaticChaserEnabled = true,
 } = {}) {
   const scenarioDefinition = structuredClone(baseScenarioDefinition);
   const resolvedScenario = resolveChaseScenario(scenarioDefinition, { columns, rows });
   resolvedScenario.runtime.programmaticChaserEnabled = programmaticChaserEnabled;
-  resolvedScenario.actors.chaser.strategies = buildFullStrategyMap(
-    resolvedScenario.actors.chaser.strategies,
-    chaserStrategies,
-    Object.values(CHASER_STRATEGY_IDS),
+  resolvedScenario.actors.chaser.actionProposals = buildFullActionProposalMap(
+    resolvedScenario.actors.chaser.actionProposals,
+    chaserActionProposals,
+    Object.values(CHASER_ACTION_PROPOSAL_IDS),
   );
-  resolvedScenario.actors.evader.strategies = buildFullStrategyMap(
-    resolvedScenario.actors.evader.strategies,
-    evaderStrategies,
-    Object.values(EVADER_STRATEGY_IDS),
+  resolvedScenario.actors.evader.actionProposals = buildFullActionProposalMap(
+    resolvedScenario.actors.evader.actionProposals,
+    evaderActionProposals,
+    Object.values(EVADER_ACTION_PROPOSAL_IDS),
   );
   return resolvedScenario;
 }
@@ -51,17 +51,17 @@ export function measureChaseScenarioAsymptote({
   rows = 6,
   totalFrames = 20_000,
   warmupFrames = 2_000,
-  chaserStrategies = {},
-  evaderStrategies = {},
+  chaserActionProposals = {},
+  evaderActionProposals = {},
   programmaticChaserEnabled = true,
   inputProvider = null,
 } = {}) {
-  const scenario = createScenarioForStrategyCombination({
+  const scenario = createScenarioForActionProposalCombination({
     baseScenarioDefinition,
     columns,
     rows,
-    chaserStrategies,
-    evaderStrategies,
+    chaserActionProposals,
+    evaderActionProposals,
     programmaticChaserEnabled,
   });
   const state = createChaseSimulationState({
@@ -102,8 +102,8 @@ export function measureChaseScenarioAsymptote({
     touchesPerThousandFrames: measurementFrames > 0
       ? (measurementTouchCount / measurementFrames) * 1000
       : 0,
-    chaserStrategies: { ...scenario.actors.chaser.strategies },
-    evaderStrategies: { ...scenario.actors.evader.strategies },
+    chaserActionProposals: { ...scenario.actors.chaser.actionProposals },
+    evaderActionProposals: { ...scenario.actors.evader.actionProposals },
     finalState: {
       frameIndex: state.frameIndex,
       chaserPosition: { ...state.chaserPosition },
@@ -114,7 +114,7 @@ export function measureChaseScenarioAsymptote({
   };
 }
 
-export function compareChaseStrategyCombinations({
+export function compareChaseActionProposalCombinations({
   baseScenarioDefinition = defaultScenarioDefinition,
   columns = 9,
   rows = 6,
@@ -129,8 +129,8 @@ export function compareChaseStrategyCombinations({
       rows,
       totalFrames,
       warmupFrames,
-      chaserStrategies: combination?.chaserStrategies ?? {},
-      evaderStrategies: combination?.evaderStrategies ?? {},
+      chaserActionProposals: combination?.chaserActionProposals ?? {},
+      evaderActionProposals: combination?.evaderActionProposals ?? {},
       programmaticChaserEnabled: combination?.programmaticChaserEnabled ?? true,
       inputProvider: combination?.inputProvider ?? null,
     });
@@ -147,7 +147,7 @@ export function compareChaseStrategyCombinations({
   });
 }
 
-export function probeChaseStrategyComparisonConvergence({
+export function probeChaseActionProposalComparisonConvergence({
   baseScenarioDefinition = defaultScenarioDefinition,
   columns = 9,
   rows = 6,
@@ -171,7 +171,7 @@ export function probeChaseStrategyComparisonConvergence({
         Math.max(0, Math.floor(Number(warmupFrames) || 0)),
         totalFrames,
       );
-    const results = compareChaseStrategyCombinations({
+    const results = compareChaseActionProposalCombinations({
       baseScenarioDefinition,
       columns,
       rows,

@@ -35,7 +35,7 @@ import {
   degreesToRadians,
   parseEditableNumber,
 } from "../decision-model/core/math.ts";
-import { createActorStrategyToggleActionId } from "./sidebar.mjs";
+import { createActorActionProposalToggleActionId } from "./sidebar.mjs";
 import {
   isMapKnowledgeOverlayVisible,
   isMapRecencyOverlayVisible,
@@ -312,18 +312,18 @@ function createDebugActionDescriptors(context) {
   ];
 }
 
-function createStrategyActionDescriptors({
-  getActorStrategyCollections,
-  setActorStrategyEnabled,
+function createActionProposalActionDescriptors({
+  getActorActionProposalCollections,
+  setActorActionProposalEnabled,
   refreshSidebarSections,
 }) {
-  return Object.entries(getActorStrategyCollections?.() ?? {}).flatMap(([actorId, strategies]) =>
-    Object.keys(strategies ?? {}).map((strategyId) => ({
-      id: createActorStrategyToggleActionId(actorId, strategyId),
+  return Object.entries(getActorActionProposalCollections?.() ?? {}).flatMap(([actorId, actionProposals]) =>
+    Object.keys(actionProposals ?? {}).map((actionProposalId) => ({
+      id: createActorActionProposalToggleActionId(actorId, actionProposalId),
       handler(value) {
-        const currentEnabled = Boolean(getActorStrategyCollections?.()?.[actorId]?.[strategyId]);
+        const currentEnabled = Boolean(getActorActionProposalCollections?.()?.[actorId]?.[actionProposalId]);
         const nextEnabled = typeof value === "boolean" ? value : !currentEnabled;
-        setActorStrategyEnabled?.(actorId, strategyId, nextEnabled);
+        setActorActionProposalEnabled?.(actorId, actionProposalId, nextEnabled);
         refreshSidebarSections();
       },
     })));
@@ -344,6 +344,6 @@ export function createSidebarActionDescriptors(context) {
     ...createSimulationActionDescriptors(context),
     ...createVehicleActionDescriptors(context),
     ...createDebugActionDescriptors(context),
-    ...createStrategyActionDescriptors(context),
+    ...createActionProposalActionDescriptors(context),
   ];
 }

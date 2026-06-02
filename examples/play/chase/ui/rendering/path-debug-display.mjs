@@ -141,7 +141,7 @@ function applyActionPathDisplayWindow(samples, {
 }
 
 function getChaserActionPath(action, proposalId) {
-  const proposals = action?.actionStrategies ?? action?.actionPlan?.proposals ?? {};
+  const proposals = action?.actionProposals ?? action?.actionPlan?.proposals ?? {};
   if (proposalId === CHASER_ACTION_PATH_VIEW_MODES.ACTION_PATH_CONSENSUS) {
     return proposals.actionPathConsensus?.path ?? action?.actionPath ?? [];
   }
@@ -298,12 +298,12 @@ export function updatePredictionDebugDisplay(group, state, snapshot, {
 } = {}) {
   const entries = visible ? getPredictionDebugPathEntries(snapshot) : [];
   const renderedEntries = updatePathDebugDisplayEntries(group, state, entries, (entry) => {
-    const isStrategyPath = entry.kind === "strategy";
+    const isProposalPath = entry.kind === "proposal";
     return {
-      lineOpacity: isStrategyPath ? 0.82 : 0.48,
-      maxOpacity: isStrategyPath ? 0.82 : 0.36,
-      minOpacity: isStrategyPath ? 0.18 : 0.07,
-      scale: isStrategyPath ? 1.12 : 0.86,
+      lineOpacity: isProposalPath ? 0.82 : 0.48,
+      maxOpacity: isProposalPath ? 0.82 : 0.36,
+      minOpacity: isProposalPath ? 0.18 : 0.07,
+      scale: isProposalPath ? 1.12 : 0.86,
     };
   });
 

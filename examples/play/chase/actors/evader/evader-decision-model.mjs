@@ -1,6 +1,5 @@
 import {
   createActorLocationMemory,
-  getActorPerception,
   updateActorLocationMemory,
 } from "../../decision-model/memory/actors/perceived-actor-location.ts";
 import {
@@ -13,30 +12,31 @@ import {
   getEvaderActionSnapshot,
   planEvaderIdaeAction,
 } from "../../decision-model/actions/evader/plan.mjs";
-import { EVADER_STRATEGY_IDS } from "../../config/strategy-ids.mjs";
+import { EVADER_ACTION_PROPOSAL_IDS } from "../../config/decision-ids.mjs";
+import { observeEvaderWorld } from "../../perception/evader/observe.ts";
 
 function asEnabled(value, fallback = true) {
   return typeof value === "boolean" ? value : fallback;
 }
 
-function createEvaderStrategyEngines(overrides = {}) {
+function createEvaderActionProposalEngines(overrides = {}) {
   return {
-    [EVADER_STRATEGY_IDS.DEFAULT_ROAM]: asEnabled(
-      overrides[EVADER_STRATEGY_IDS.DEFAULT_ROAM],
+    [EVADER_ACTION_PROPOSAL_IDS.DEFAULT_ROAM]: asEnabled(
+      overrides[EVADER_ACTION_PROPOSAL_IDS.DEFAULT_ROAM],
       true,
     ),
-    [EVADER_STRATEGY_IDS.EVADE_ON_SIGHT]: asEnabled(
-      overrides[EVADER_STRATEGY_IDS.EVADE_ON_SIGHT],
+    [EVADER_ACTION_PROPOSAL_IDS.EVADE_ON_SIGHT]: asEnabled(
+      overrides[EVADER_ACTION_PROPOSAL_IDS.EVADE_ON_SIGHT],
       true,
     ),
   };
 }
 
-export function setEvaderStrategyEngineEnabled(evaderState, strategyId, enabled) {
-  if (!evaderState?.engines || !(strategyId in evaderState.engines)) {
+export function setEvaderActionProposalEngineEnabled(evaderState, actionProposalId, enabled) {
+  if (!evaderState?.engines || !(actionProposalId in evaderState.engines)) {
     return;
   }
-  evaderState.engines[strategyId] = Boolean(enabled);
+  evaderState.engines[actionProposalId] = Boolean(enabled);
 }
 
 function createEvaderIdaeState({ scenario } = {}) {
@@ -52,32 +52,24 @@ function createEvaderIdaeState({ scenario } = {}) {
     patterns: {},
     projections: {},
     controllerState: {},
-    engines: createEvaderStrategyEngines(scenario?.actors?.evader?.strategies),
+    engines: createEvaderActionProposalEngines(scenario?.actors?.evader?.actionProposals),
     actionState: createEvaderActionState(),
   };
 }
 
 function observeEvaderEnvironment(state, frameContext = {}) {
-  const chaserPerception = getActorPerception(
-    frameContext.evaderPosition,
-    frameContext.chaserPosition,
-    frameContext.evaderDirection,
-    frameContext.fieldOfViewAngleRadians,
-    frameContext.obstacles,
-  );
-
-  return {
-    position: frameContext.evaderPosition,
-    direction: frameContext.evaderDirection,
+  return observeEvaderWorld({
+    evaderPosition: frameContext.evaderPosition,
+    evaderDirection: frameContext.evaderDirection,
     chaserPosition: frameContext.chaserPosition,
-    chaserPerception,
+    fieldOfViewAngleRadians: frameContext.fieldOfViewAngleRadians,
+    obstacles: frameContext.obstacles,
     columns: frameContext.columns,
     rows: frameContext.rows,
     frameIndex: frameContext.frameIndex,
-    obstacles: frameContext.obstacles,
     turnRateRadiansPerFrame: frameContext.turnRateRadiansPerFrame,
     policy: state.policy,
-  };
+  });
 }
 
 function deriveEvaderSelfState(_state, _frameContext, cycle) {
@@ -134,7 +126,7 @@ function getEvaderIdaeSnapshot(state) {
     patterns: {},
     projections: {},
     controllerState: state.controllerState,
-    actionStrategies: actionSnapshot.actionStrategies,
+    actionProposals: actionSnapshot.actionProposals,
     actionStatus: actionSnapshot.actionStatus,
   });
 }

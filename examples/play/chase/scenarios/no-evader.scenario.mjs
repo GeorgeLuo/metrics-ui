@@ -9,8 +9,8 @@ const noEvaderScenarioDefinition = {
     ...defaultScenarioDefinition.actors,
     chaser: {
       ...defaultScenarioDefinition.actors.chaser,
-      strategies: {
-        ...defaultScenarioDefinition.actors.chaser.strategies,
+      actionProposals: {
+        ...defaultScenarioDefinition.actors.chaser.actionProposals,
         mapDiscovery: true,
         mapRecencyRefresh: true,
         spin: true,

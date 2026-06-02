@@ -76,7 +76,7 @@ export type FramePredictionOptions<
   confidence?: number | null;
   metadata?: TMetadata;
   prediction?: TPredictionPayload | null;
-} & PatternPredictionValues;
+};
 
 /**
  * Creation options for a pattern prediction unit.
@@ -176,7 +176,7 @@ export function createBetaBernoulliPosterior({
  *
  * The returned confidence is the lower credible probability bound multiplied by
  * optional recency and horizon decay terms. This keeps weakly observed or stale
- * patterns from dominating downstream strategy consensus.
+ * patterns from dominating downstream consensus.
  */
 export function createPatternConfidence({
   confirmedCount = 0,
@@ -243,9 +243,6 @@ function clonePredictionValues<TValues extends PatternPredictionValues>(
 
 /**
  * Creates one normalized prediction sample for a future frame.
- *
- * The sample keeps generic pattern metadata and spreads `values` onto the
- * top-level object for backward-compatible domain callers.
  */
 export function createFramePrediction<
   TPredictionPayload = object,
@@ -259,7 +256,6 @@ export function createFramePrediction<
   confidence = null,
   metadata = {} as TMetadata,
   prediction = null,
-  ...inlineValues
 }: FramePredictionOptions<TPredictionPayload, TValues, TMetadata> = {}): PatternPredictionSample<
   TPredictionPayload,
   TValues,
@@ -271,10 +267,7 @@ export function createFramePrediction<
       ? confidence
       : confidenceParts?.confidence,
   );
-  const predictionValues = clonePredictionValues<TValues>({
-    ...inlineValues,
-    ...values,
-  });
+  const predictionValues = clonePredictionValues<TValues>(values);
 
   return {
     sourcePatternId,
@@ -294,7 +287,7 @@ export function createFramePrediction<
 /**
  * Packages a pattern's frame predictions into the common prediction-unit shape.
  *
- * Prediction units are what strategies consume: they expose sorted future
+ * Prediction units are what downstream stages consume: they expose sorted future
  * samples, first-sample confidence, horizon length, evidence, and status.
  */
 export function createPatternPredictionUnit<

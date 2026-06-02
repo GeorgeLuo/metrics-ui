@@ -18,7 +18,7 @@ test("greentext debug overlay shows prediction confidence and threshold success 
         },
       },
       chaserAction: {
-        actionStrategies: {
+        actionProposals: {
           motiveSignal: { id: "knowledgeAcquisition" },
           evaderPredictionPursuit: {
             active: false,

@@ -4,13 +4,13 @@ import {
 } from "../../../config/constants.mjs";
 import { normalizeVector } from "../../core/math.ts";
 import {
-  createStatefulActionStrategy,
-  getActionStrategyOutput,
-  updateActionStrategy,
-} from "../core/stateful-action-strategy.mjs";
+  createStatefulActionProposal,
+  getActionProposalOutput,
+  updateActionProposal,
+} from "../core/stateful-action-proposal.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 
-export const EVADER_DRIFT_STRATEGY_ID = "driftMotion";
+export const EVADER_DRIFT_PROPOSAL_ID = "driftMotion";
 
 export function getEvaderDriftDirection(frameIndex, policy = {}) {
   const safeFrameIndex = Number.isFinite(frameIndex) ? frameIndex : 0;
@@ -32,9 +32,9 @@ export function getEvaderDriftDirection(frameIndex, policy = {}) {
   );
 }
 
-export function createEvaderDriftStrategy() {
-  return createStatefulActionStrategy({
-    id: EVADER_DRIFT_STRATEGY_ID,
+export function createEvaderDriftProposal() {
+  return createStatefulActionProposal({
+    id: EVADER_DRIFT_PROPOSAL_ID,
     createState: () => null,
     createOutput: () => ({
       direction: { x: 0, z: 0 },
@@ -47,10 +47,10 @@ export function createEvaderDriftStrategy() {
   });
 }
 
-export function updateEvaderDriftStrategy(strategy, context) {
-  return updateActionStrategy(strategy, context);
+export function updateEvaderDriftProposal(proposal, context) {
+  return updateActionProposal(proposal, context);
 }
 
-export function getEvaderDriftStrategyOutput(strategy) {
-  return getActionStrategyOutput(strategy);
+export function getEvaderDriftProposalOutput(proposal) {
+  return getActionProposalOutput(proposal);
 }

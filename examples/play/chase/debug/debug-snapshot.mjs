@@ -62,7 +62,7 @@ function buildActorDebug(reasoning) {
     patternStatus: cloneSerializable(snapshot?.patternStatus ?? {}),
     projections: cloneSerializable(snapshot?.projections ?? {}),
     projectionStatus: cloneSerializable(snapshot?.projectionStatus ?? {}),
-    actionStrategies: cloneSerializable(snapshot?.actionStrategies ?? {}),
+    actionProposals: cloneSerializable(snapshot?.actionProposals ?? {}),
     actionStatus: cloneSerializable(snapshot?.actionStatus ?? {}),
   };
 }

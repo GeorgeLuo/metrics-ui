@@ -79,7 +79,7 @@ export type KuramotoConsensus = KuramotoMean & {
 /**
  * Converts loose caller input into a valid oscillator or drops invalid input.
  *
- * Invalid proposals are ignored instead of throwing so strategy collections can
+ * Invalid proposals are ignored instead of throwing so proposal collections can
  * include optional or inactive entries without pre-filtering every call site.
  */
 function normalizeOscillator(input: KuramotoInput | null | undefined, index: number): KuramotoOscillator | null {
@@ -158,7 +158,7 @@ export function calculateCircularMean(oscillators: KuramotoOscillator[]): Kuramo
 /**
  * Runs a small discrete Kuramoto consensus over directional proposals.
  *
- * This is used when multiple strategies or prediction signals propose competing
+ * This is used when multiple action proposals or prediction signals propose competing
  * directions. Each iteration updates every oscillator phase from the weighted
  * sine of peer phase differences, then the final circular mean becomes the
  * selected consensus direction.

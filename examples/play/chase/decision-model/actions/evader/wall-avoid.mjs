@@ -1,17 +1,17 @@
 import { DEFAULT_EVADER_WALL_AVOID_WEIGHT } from "../../../config/constants.mjs";
 import {
-  createStatefulActionStrategy,
-  getActionStrategyOutput,
-  updateActionStrategy,
-} from "../core/stateful-action-strategy.mjs";
+  createStatefulActionProposal,
+  getActionProposalOutput,
+  updateActionProposal,
+} from "../core/stateful-action-proposal.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 import { getWorldWallPressure } from "../../../world/world.mjs";
 
-export const EVADER_WALL_AVOID_STRATEGY_ID = "wallAvoidance";
+export const EVADER_WALL_AVOID_PROPOSAL_ID = "wallAvoidance";
 
-export function createEvaderWallAvoidStrategy() {
-  return createStatefulActionStrategy({
-    id: EVADER_WALL_AVOID_STRATEGY_ID,
+export function createEvaderWallAvoidProposal() {
+  return createStatefulActionProposal({
+    id: EVADER_WALL_AVOID_PROPOSAL_ID,
     createState: () => null,
     createOutput: () => ({
       direction: { x: 0, z: 0 },
@@ -48,10 +48,10 @@ export function createEvaderWallAvoidStrategy() {
   });
 }
 
-export function updateEvaderWallAvoidStrategy(strategy, context) {
-  return updateActionStrategy(strategy, context);
+export function updateEvaderWallAvoidProposal(proposal, context) {
+  return updateActionProposal(proposal, context);
 }
 
-export function getEvaderWallAvoidStrategyOutput(strategy) {
-  return getActionStrategyOutput(strategy);
+export function getEvaderWallAvoidProposalOutput(proposal) {
+  return getActionProposalOutput(proposal);
 }

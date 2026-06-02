@@ -30,9 +30,6 @@ function normalizeMapOverlayViewMode(settings = {}) {
 }
 
 export function normalizeActionPathViewMode(viewMode) {
-  if (viewMode === "search") {
-    return CHASER_ACTION_PATH_VIEW_MODES.SPIN;
-  }
   return Object.values(CHASER_ACTION_PATH_VIEW_MODES).includes(viewMode)
     ? viewMode
     : CHASER_ACTION_PATH_VIEW_MODES.HIDDEN;

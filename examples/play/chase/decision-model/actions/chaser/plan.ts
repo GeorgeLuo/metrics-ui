@@ -3,8 +3,8 @@ import {
 } from "../../../config/constants.mjs";
 import {
   CHASER_MOTIVE_IDS,
-  CHASER_STRATEGY_IDS,
-} from "../../../config/strategy-ids.mjs";
+  CHASER_ACTION_PROPOSAL_IDS,
+} from "../../../config/decision-ids.mjs";
 import { getSteeringFromBearing } from "../vehicle/action-paths.ts";
 import {
   buildActionPathConsensus,
@@ -29,7 +29,7 @@ type PlanOptions = Record<string, any>;
  * Builds the executable chaser action plan for one simulation frame.
  *
  * This is the high-level action-stage entry point: it chooses a motive, builds
- * strategy proposals, applies the current mixing policies, and returns the
+ * action proposals, applies the current mixing policies, and returns the
  * concrete vehicle controls plus the debug proposal payload.
  */
 export function planProgrammaticChaserAction({
@@ -87,7 +87,7 @@ export function planProgrammaticChaserAction({
 
   proposals.spin = buildSpinProposal({
     enabled: shouldAcquireKnowledge
-      && getActionEngineEnabled(actionEngines, CHASER_STRATEGY_IDS.SPIN),
+      && getActionEngineEnabled(actionEngines, CHASER_ACTION_PROPOSAL_IDS.SPIN),
     chaserPosition,
     chaserLookDirection,
     spinSteering,
@@ -136,7 +136,7 @@ export function planProgrammaticChaserAction({
       movement,
       desiredDirection,
       actionPath: actionPathConsensus.path,
-      chosenStrategy: chosenPeerLabel,
+      selectedActionProposalId: chosenPeerLabel,
       selectedProposalLabel: chosenPeerLabel,
       spinSteeringHint: proposals.spin.active && firstAction.steer !== 0
         ? firstAction.steer
@@ -154,7 +154,7 @@ export function planProgrammaticChaserAction({
         steering: 0,
         desiredDirection: null,
         actionPath: [],
-        chosenStrategy: "none",
+        selectedActionProposalId: "none",
         selectedProposalLabel: "none",
         spinSteeringHint: null,
         wallFollowSign: movement.wallFollowSign,
@@ -167,8 +167,8 @@ export function planProgrammaticChaserAction({
       steering: spinSteering,
       desiredDirection: null,
       actionPath: [],
-      chosenStrategy: CHASER_STRATEGY_IDS.SPIN,
-      selectedProposalLabel: CHASER_STRATEGY_IDS.SPIN,
+      selectedActionProposalId: CHASER_ACTION_PROPOSAL_IDS.SPIN,
+      selectedProposalLabel: CHASER_ACTION_PROPOSAL_IDS.SPIN,
       spinSteeringHint: null,
       wallFollowSign: movement.wallFollowSign,
       proposals,
@@ -183,7 +183,7 @@ export function planProgrammaticChaserAction({
       steering: 0,
       desiredDirection: null,
       actionPath: [],
-      chosenStrategy: "none",
+      selectedActionProposalId: "none",
       selectedProposalLabel: "none",
       spinSteeringHint: null,
       wallFollowSign: movement.wallFollowSign,
@@ -196,7 +196,7 @@ export function planProgrammaticChaserAction({
     steering,
     desiredDirection: null,
     actionPath: [],
-    chosenStrategy: "lineOfSightPursuit",
+    selectedActionProposalId: "lineOfSightPursuit",
     selectedProposalLabel: "lineOfSightPursuit",
     spinSteeringHint: null,
     wallFollowSign: movement.wallFollowSign,
