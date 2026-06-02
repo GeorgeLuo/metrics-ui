@@ -13,6 +13,6 @@ The chase example keeps decision logic grouped by IDAE stage, with the RC chase 
 - `world/` contains chase field geometry, obstacle layout, bounds, and collision helpers.
 - `ui/` contains browser runtime, rendering, sidebar controls, stored settings, and keyboard input.
 - `debug/` contains debug panel, prediction performance snapshots, and derived debug payloads.
-- `config/` contains chase constants and strategy identifiers.
+- `config/` contains chase constants, action proposal identifiers, motive identifiers, and pattern identifiers.
 
 The intended direction is that IDAE-stage code is discoverable in `decision-model/`, while actor adapters stay thin and world/UI/debug code remains outside the decision model.

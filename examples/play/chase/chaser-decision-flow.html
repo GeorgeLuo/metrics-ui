@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chaser Motives, Strategies, and Action Flow</title>
+  <title>Chaser Motives, Action Proposals, and Action Flow</title>
   <style>
     :root {
       color-scheme: light;
@@ -298,7 +298,7 @@
       <div>
         <h1>Chaser Decision Flow</h1>
         <p class="summary">
-          Current implementation path from actor memory to motive gate, strategy proposals,
+          Current implementation path from actor memory to motive gate, action proposals,
           weighting, feasible action-path mixing, and final vehicle controls.
         </p>
       </div>
@@ -333,7 +333,7 @@
             <strong>Motive signal</strong>
             <ul>
               <li><code>id</code>: chase or knowledge acquisition</li>
-              <li><code>reason</code>: visibility / enabled action-strategy state</li>
+              <li><code>reason</code>: visibility / enabled action-proposal state</li>
               <li><code>confidence</code>: currently fixed at 1</li>
             </ul>
           </div>
@@ -342,7 +342,7 @@
         <div class="flow-column">
           <div class="arrow">&rarr;</div>
           <div class="flow-card chase">
-            <strong>Chase action strategies</strong>
+            <strong>Chase action proposals</strong>
             <ul>
               <li><code>evaderPredictionPursuit</code>: target reachable projection point</li>
               <li><code>lineOfSightPursuit</code>: target visible bearing</li>
@@ -350,7 +350,7 @@
             </ul>
           </div>
           <div class="flow-card knowledge">
-            <strong>Knowledge action strategies</strong>
+            <strong>Knowledge action proposals</strong>
             <ul>
               <li><code>mapDiscovery</code>: target frontier cells</li>
               <li><code>mapRecencyRefresh</code>: target stale known cells</li>
@@ -379,7 +379,7 @@
             <ul>
               <li><code>forward</code>, <code>reverse</code>, <code>steering</code></li>
               <li><code>actionPath</code> for debug rendering</li>
-              <li><code>chosenStrategy</code> and full proposal payload</li>
+              <li><code>selectedActionProposalId</code> and full proposal payload</li>
               <li>controller stores last pursuit source and spin hint</li>
             </ul>
           </div>
@@ -400,7 +400,7 @@
         <h2>1. Motive</h2>
         <p>
           The motive is a frame-local gate, not a blended layer. If the evader is visible
-          and at least one chase action strategy is enabled, the chaser chooses chase. Otherwise it
+          and at least one chase action proposal is enabled, the chaser chooses chase. Otherwise it
           chooses knowledge acquisition.
         </p>
         <div class="formula">shouldChase =
@@ -414,7 +414,7 @@ motive =
       <article class="panel card">
         <h2>2. Action Proposal</h2>
         <p>
-          Each active action strategy proposes a common action payload. Inactive proposals still
+          Each active action proposal proposes a common action payload. Inactive proposals still
           exist in the proposal object, but do not enter weighting.
         </p>
         <div class="table">
@@ -452,7 +452,7 @@ motive =
 
     <section class="grid">
       <article class="panel card">
-        <h2>Chase Strategies</h2>
+        <h2>Chase Action Proposals</h2>
         <div class="table">
           <div class="row">
             <div class="key">Evader prediction pursuit</div>
@@ -473,7 +473,7 @@ motive =
       </article>
 
       <article class="panel card wide">
-        <h2>Knowledge Acquisition Strategies</h2>
+        <h2>Knowledge Acquisition Action Proposals</h2>
         <div class="table">
           <div class="row">
             <div class="key">Map discovery</div>
@@ -554,14 +554,14 @@ mixedSteering = sum(frame.steer * weight) / sum(weight)</div>
         <h2>What Is Not Blended Yet</h2>
         <div class="callout">
           Motives do not currently compete in the same frame. The motive gate chooses chase
-          or knowledge acquisition first, and only action strategies inside that selected motive can
+          or knowledge acquisition first, and only action proposals inside that selected motive can
           contribute to proposal weighting.
         </div>
         <div class="formula">current:
-motive gate -> action strategies inside motive -> action
+motive gate -> action proposals inside motive -> action
 
 not current:
-all motives -> all action strategies -> action</div>
+all motives -> all action proposals -> action</div>
       </article>
     </section>
 
@@ -586,8 +586,8 @@ all motives -> all action strategies -> action</div>
             <div><code>decision-model/actions/chaser/mixing/{motive,direction,action-path}/</code></div>
           </div>
           <div class="row">
-            <div class="key">Strategy IDs and motive groups</div>
-            <div><code>config/strategy-ids.mjs</code></div>
+            <div class="key">Action proposal IDs and motive groups</div>
+            <div><code>config/decision-ids.mjs</code></div>
           </div>
         </div>
       </article>
@@ -596,17 +596,17 @@ all motives -> all action strategies -> action</div>
         <h2>Debug Payload Mental Model</h2>
         <p>
           The returned chaser action includes both the selected controls and the explanation
-          payload. Debug views can inspect <code>actionStrategies</code> / <code>actionPlan.proposals</code>
+          payload. Debug views can inspect <code>actionProposals</code> / <code>actionPlan.proposals</code>
           to see the motive signal, peer consensus, action-path consensus, local navigation
-          placeholder, knowledge signal, and every strategy proposal.
+          placeholder, knowledge signal, and every action proposal.
         </p>
         <div class="formula">return {
   forward, reverse, steering,
   pursuitPoint,
   movement,
   actionPath,
-  chosenStrategy,
-  actionStrategies: actionPlan.proposals,
+  selectedActionProposalId,
+  actionProposals: actionPlan.proposals,
   actionPlan
 }</div>
       </article>
