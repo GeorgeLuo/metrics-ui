@@ -4,12 +4,12 @@ import {
 } from "./policy.mjs";
 import { normalizeVector } from "../../core/math.ts";
 import {
-  createStatefulActionStrategy,
-  getActionStrategyOutput,
-  updateActionStrategy,
-} from "../core/stateful-action-strategy.mjs";
+  createStatefulActionProposal,
+  getActionProposalOutput,
+  updateActionProposal,
+} from "../core/stateful-action-proposal.mjs";
 
-export const EVADER_VISIBLE_CHASER_EVADE_STRATEGY_ID = "visible-chaser-evade";
+export const EVADER_VISIBLE_CHASER_EVADE_PROPOSAL_ID = "visible-chaser-evade";
 
 function createEvadeVisibleChaserState() {
   return {
@@ -29,9 +29,9 @@ function createEvadeVisibleChaserState() {
   };
 }
 
-export function createEvaderVisibleChaserEvadeStrategy() {
-  return createStatefulActionStrategy({
-    id: EVADER_VISIBLE_CHASER_EVADE_STRATEGY_ID,
+export function createEvaderVisibleChaserEvadeProposal() {
+  return createStatefulActionProposal({
+    id: EVADER_VISIBLE_CHASER_EVADE_PROPOSAL_ID,
     createState: createEvadeVisibleChaserState,
     createOutput: () => null,
     deriveOutput: (state, context = {}) => {
@@ -90,7 +90,7 @@ export function createEvaderVisibleChaserEvadeStrategy() {
         ),
         debug: {
           ...(context.baselineMovementOutput?.debug ?? null),
-          policyId: EVADER_VISIBLE_CHASER_EVADE_STRATEGY_ID,
+          policyId: EVADER_VISIBLE_CHASER_EVADE_PROPOSAL_ID,
           chaserVisible: true,
           chaserDistance: context.chaserLocation.distance,
           chaserBearingRadians: context.chaserLocation.bearingRadians,
@@ -104,13 +104,13 @@ export function createEvaderVisibleChaserEvadeStrategy() {
 }
 
 export function recordEvaderVisibleChaserExecution(
-  strategy,
+  proposal,
   {
     frameIndex = null,
     executed = false,
   } = {},
 ) {
-  const state = strategy?.state;
+  const state = proposal?.state;
   if (!state || frameIndex === null || state.lastExecutionFrameIndex === frameIndex) {
     return;
   }
@@ -125,14 +125,14 @@ export function recordEvaderVisibleChaserExecution(
   state.lastExecutionFrameIndex = frameIndex;
 }
 
-export function updateEvaderVisibleChaserEvadeStrategy(strategy, context) {
-  return updateActionStrategy(strategy, context);
+export function updateEvaderVisibleChaserEvadeProposal(proposal, context) {
+  return updateActionProposal(proposal, context);
 }
 
-export function getEvaderVisibleChaserEvadeStrategyOutput(strategy) {
-  return getActionStrategyOutput(strategy);
+export function getEvaderVisibleChaserEvadeProposalOutput(proposal) {
+  return getActionProposalOutput(proposal);
 }
 
-export function getEvaderVisibleChaserEvadeStrategyState(strategy) {
-  return strategy?.state ?? null;
+export function getEvaderVisibleChaserEvadeProposalState(proposal) {
+  return proposal?.state ?? null;
 }

@@ -21,7 +21,7 @@ import {
   normalizeVector,
 } from "../decision-model/core/math.ts";
 import { CHASE_TRACE_SINKS } from "./trace-recorder.mjs";
-import { CHASER_PATTERN_IDS, CHASER_STRATEGY_IDS, EVADER_STRATEGY_IDS } from "../config/strategy-ids.mjs";
+import { CHASER_PATTERN_IDS, CHASER_ACTION_PROPOSAL_IDS, EVADER_ACTION_PROPOSAL_IDS } from "../config/decision-ids.mjs";
 import { getFieldObstacleLayout } from "../world/world.mjs";
 
 function asRecord(value) {
@@ -150,13 +150,13 @@ function normalizeBooleanMap(value) {
   );
 }
 
-function normalizeStrategyMap(value, knownIds, defaultEnabled = true) {
+function normalizeToggleMap(value, knownIds, defaultEnabled = true) {
   const record = asRecord(value);
   const overrides = normalizeBooleanMap(record);
   return Object.fromEntries(
-    knownIds.map((strategyId) => [
-      strategyId,
-      strategyId in overrides ? overrides[strategyId] : defaultEnabled,
+    knownIds.map((id) => [
+      id,
+      id in overrides ? overrides[id] : defaultEnabled,
     ]),
   );
 }
@@ -277,13 +277,13 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
       chaser: {
         position: normalizePosition(chaser.position, fallbackChaserPosition),
         direction: normalizeDirection(chaser.direction, fallbackChaserDirection),
-        patterns: normalizeStrategyMap(
+        patterns: normalizeToggleMap(
           chaser.patterns,
           Object.values(CHASER_PATTERN_IDS),
         ),
-        strategies: normalizeStrategyMap(
-          chaser.strategies,
-          Object.values(CHASER_STRATEGY_IDS),
+        actionProposals: normalizeToggleMap(
+          chaser.actionProposals,
+          Object.values(CHASER_ACTION_PROPOSAL_IDS),
         ),
       },
       evader: {
@@ -294,9 +294,9 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
         direction: evaderExists
           ? normalizeDirection(evader.direction, fallbackEvaderDirection)
           : null,
-        strategies: normalizeStrategyMap(
-          evader.strategies,
-          Object.values(EVADER_STRATEGY_IDS),
+        actionProposals: normalizeToggleMap(
+          evader.actionProposals,
+          Object.values(EVADER_ACTION_PROPOSAL_IDS),
         ),
       },
     },

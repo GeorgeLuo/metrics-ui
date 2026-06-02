@@ -61,18 +61,18 @@ test("scenario config can omit the evader without debug hardcoding", () => {
   assert.equal(chaserSnapshot?.patterns?.continuance, null);
   assert.equal(chaserSnapshot?.patterns?.wallAvoidance, null);
   assert.deepEqual(chaserSnapshot?.patternUnits, {});
-  assert.equal(state.lastStep.chaserAction?.chosenStrategy, "mapDiscovery+spin");
+  assert.equal(state.lastStep.chaserAction?.selectedActionProposalId, "mapDiscovery+spin");
   assert.equal(
-    state.lastStep.chaserAction?.actionStrategies?.motiveSignal?.id,
+    state.lastStep.chaserAction?.actionProposals?.motiveSignal?.id,
     "knowledgeAcquisition",
   );
-  assert.equal(state.lastStep.chaserAction?.actionStrategies?.mapDiscovery?.active, true);
+  assert.equal(state.lastStep.chaserAction?.actionProposals?.mapDiscovery?.active, true);
   assert.notEqual(
-    state.lastStep.chaserAction?.actionStrategies?.knowledgeAcquisition?.selectedCandidateId,
+    state.lastStep.chaserAction?.actionProposals?.knowledgeAcquisition?.selectedCandidateId,
     null,
   );
   assert.ok(
-    (state.lastStep.chaserAction?.actionStrategies?.knowledgeAcquisition?.candidates?.length ?? 0) > 0,
+    (state.lastStep.chaserAction?.actionProposals?.knowledgeAcquisition?.candidates?.length ?? 0) > 0,
     "expected knowledge acquisition to expose scored map-memory candidates",
   );
   assert.deepEqual(

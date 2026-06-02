@@ -1,25 +1,12 @@
 import {
-  CAR_BOUND_RADIUS,
-  FIELD_OF_VIEW_DISTANCE,
-} from "../../../config/constants.mjs";
-import {
   angleToVector,
-  normalizeAngleDelta,
-  normalizeVector,
   vectorToAngle,
   type VectorXZ,
 } from "../../core/math.ts";
-import { isLineOfSightBlockedByObstacles } from "../../../world/world.mjs";
-
-const EMPTY_OBSTACLES = Object.freeze({ walls: Object.freeze([]) });
+import type { ObservedActor } from "../../observer-world/interfaces.ts";
 
 /** Per-frame visibility facts from one actor observing another actor. */
-export type ActorPerception = {
-  visible: boolean;
-  absent?: boolean;
-  bearingRadians?: number;
-  distance?: number;
-};
+export type ActorPerception = ObservedActor;
 
 /** Latest known relative location state for an observed actor. */
 export type ActorLocationMemory = {
@@ -45,47 +32,6 @@ export function createActorLocationMemory(): ActorLocationMemory {
     framesSinceObservation: 0,
     observationGapFrames: 1,
   };
-}
-
-/**
- * Computes whether a subject actor is visible from an observer pose.
- */
-export function getActorPerception(
-  actorPosition: VectorXZ | null | undefined,
-  subjectPosition: VectorXZ | null | undefined,
-  actorLookDirection: VectorXZ | null | undefined,
-  fieldOfViewAngleRadians: number,
-  obstacles: unknown,
-): ActorPerception {
-  if (!actorPosition || !subjectPosition || !actorLookDirection) {
-    return { visible: false, absent: !subjectPosition };
-  }
-
-  const offsetX = subjectPosition.x - actorPosition.x;
-  const offsetZ = subjectPosition.z - actorPosition.z;
-  const distance = Math.hypot(offsetX, offsetZ);
-  if (distance <= CAR_BOUND_RADIUS) {
-    return { visible: true, bearingRadians: 0, distance };
-  }
-
-  const subjectDirection = normalizeVector(offsetX, offsetZ);
-  const bearingRadians = normalizeAngleDelta(
-    vectorToAngle(subjectDirection) - vectorToAngle(actorLookDirection),
-  );
-  const subjectAngularRadius = Math.atan2(CAR_BOUND_RADIUS, distance);
-  const isVisible =
-    distance <= FIELD_OF_VIEW_DISTANCE + CAR_BOUND_RADIUS
-    && Math.abs(bearingRadians) <= fieldOfViewAngleRadians / 2 + subjectAngularRadius;
-  const isOccluded = isVisible
-    && isLineOfSightBlockedByObstacles(
-      actorPosition,
-      subjectPosition,
-      obstacles ?? EMPTY_OBSTACLES,
-    );
-
-  return isVisible && !isOccluded
-    ? { visible: true, bearingRadians, distance }
-    : { visible: false };
 }
 
 /**

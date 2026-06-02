@@ -2,7 +2,7 @@ import {
   CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING,
   CHASER_AUTOPILOT_SPIN_LEAD_RADIANS,
 } from "../../../../config/constants.mjs";
-import { CHASER_STRATEGY_IDS } from "../../../../config/strategy-ids.mjs";
+import { CHASER_ACTION_PROPOSAL_IDS } from "../../../../config/decision-ids.mjs";
 import {
   buildFeasibleActionPath,
   clampUnit,
@@ -37,7 +37,7 @@ export function buildSpinProposal({
   turnRateRadiansPerFrame,
 }: Record<string, any> = {}): VehicleActionProposal {
   if (!enabled || !chaserLookDirection) {
-    return createInactiveActionProposal(CHASER_STRATEGY_IDS.SPIN);
+    return createInactiveActionProposal(CHASER_ACTION_PROPOSAL_IDS.SPIN);
   }
 
   const steering = clampUnit(spinSteering);
@@ -54,10 +54,10 @@ export function buildSpinProposal({
   });
 
   return {
-    id: CHASER_STRATEGY_IDS.SPIN,
+    id: CHASER_ACTION_PROPOSAL_IDS.SPIN,
     active: true,
     confidence: 0.35,
-    pursuitSource: CHASER_STRATEGY_IDS.SPIN,
+    pursuitSource: CHASER_ACTION_PROPOSAL_IDS.SPIN,
     goalDirection: getSpinDirection(chaserLookDirection, steering),
     actionPath,
     firstAction: actionPath[0] ?? null,

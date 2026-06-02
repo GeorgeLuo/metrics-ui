@@ -323,13 +323,13 @@ function appendSummaryCard(parent, label, { score = "n/a", counts = "", status =
   parent.appendChild(card);
 }
 
-function renderWallAvoidanceStrategy(parent, { chaserSnapshot, evaderWallTruth } = {}) {
+function renderWallAvoidancePattern(parent, { chaserSnapshot, evaderWallTruth } = {}) {
   const wallAvoidancePattern = chaserSnapshot?.patterns?.wallAvoidance ?? null;
   const observedEvaderMotion = chaserSnapshot?.memory?.abstracted?.observedEvaderMotion
     ?? chaserSnapshot?.patterns?.evaderMotionModel
     ?? null;
   const evaderVisible = chaserSnapshot?.memory?.directObservation?.evaderLocation?.visible ?? false;
-  const summaryBody = createSection(parent, "Wall avoidance strategy");
+  const summaryBody = createSection(parent, "Wall avoidance pattern");
 
   if (!wallAvoidancePattern || !evaderWallTruth) {
     appendDebugRow(summaryBody, "status").textContent = "inactive";
@@ -366,14 +366,14 @@ function renderWallAvoidanceStrategy(parent, { chaserSnapshot, evaderWallTruth }
     : "n/a";
 }
 
-function renderEvasionOnSightStrategy(parent, { evaderReasoning } = {}) {
+function renderEvasionOnSightProposal(parent, { evaderReasoning } = {}) {
   const evaderSnapshot = evaderReasoning?.snapshot ?? null;
   const chaserLocation = evaderSnapshot?.memory?.directObservation?.chaserLocation ?? null;
   const evadeOnSight = evaderSnapshot?.actionStatus?.evadeOnSight ?? null;
   const defaultRoam = evaderSnapshot?.actionStatus?.defaultRoam ?? null;
   const evadeOnSightState = evadeOnSight?.state ?? null;
   const evaderActionDebug = evaderReasoning?.action?.debug ?? null;
-  const summaryBody = createSection(parent, "Evasion on sight strategy");
+  const summaryBody = createSection(parent, "Evasion on sight proposal");
 
   appendSummaryCard(summaryBody, "Evader Evasion", {
     score: formatRatio(
@@ -409,9 +409,9 @@ function renderEvasionOnSightStrategy(parent, { evaderReasoning } = {}) {
   appendDebugRow(detailBody, "Evade active").textContent = evaderActionDebug?.evadeActive ? "yes" : "no";
   appendDebugRow(detailBody, "Default roam actionable").textContent = defaultRoam?.actionable ? "yes" : "no";
   appendDebugRow(detailBody, "Current policy").textContent = evaderActionDebug?.policyId ?? "n/a";
-  appendDebugRow(detailBody, "Active action strategies").textContent = Array.isArray(evaderActionDebug?.activeStrategyIds)
-    && evaderActionDebug.activeStrategyIds.length > 0
-    ? evaderActionDebug.activeStrategyIds.join(", ")
+  appendDebugRow(detailBody, "Active action proposals").textContent = Array.isArray(evaderActionDebug?.activeActionProposalIds)
+    && evaderActionDebug.activeActionProposalIds.length > 0
+    ? evaderActionDebug.activeActionProposalIds.join(", ")
     : "none";
   appendDebugRow(detailBody, "Consensus order").textContent = Number.isFinite(evaderActionDebug?.consensusOrder)
     ? formatNumber(evaderActionDebug.consensusOrder)
@@ -606,7 +606,7 @@ function renderProjectionStage(parent, payload, actorId) {
   renderCollection(statusBody, snapshot?.projectionStatus ?? {});
 
   if (actorId === ACTOR_IDS.CHASER) {
-    renderWallAvoidanceStrategy(parent, payload);
+    renderWallAvoidancePattern(parent, payload);
   }
 }
 
@@ -615,11 +615,11 @@ function renderActionStage(parent, payload, actorId) {
   renderCollection(actionBody, getActorAction(payload, actorId) ?? {});
   if (actorId === ACTOR_IDS.EVADER) {
     const snapshot = getActorSnapshot(payload, actorId);
-    const actionStrategiesBody = createSection(parent, "Action strategies");
-    renderCollection(actionStrategiesBody, snapshot?.actionStrategies ?? {});
+    const actionProposalsBody = createSection(parent, "Action proposals");
+    renderCollection(actionProposalsBody, snapshot?.actionProposals ?? {});
     const actionStatusBody = createSection(parent, "Action status");
     renderCollection(actionStatusBody, snapshot?.actionStatus ?? {});
-    renderEvasionOnSightStrategy(parent, payload);
+    renderEvasionOnSightProposal(parent, payload);
     const appliedBody = createSection(parent, "Applied movement");
     renderCollection(appliedBody, payload.evaderMovementDecision ?? {});
   }

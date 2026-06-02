@@ -3,21 +3,21 @@ import { constrainDirectionToBounds } from "../../../actors/evader/evader.mjs";
 import { getEvaderPolicyNumber } from "./policy.mjs";
 import { normalizeVector } from "../../core/math.ts";
 import {
-  createStatefulActionStrategy,
-  getActionStrategyOutput,
-  updateActionStrategy,
-} from "../core/stateful-action-strategy.mjs";
+  createStatefulActionProposal,
+  getActionProposalOutput,
+  updateActionProposal,
+} from "../core/stateful-action-proposal.mjs";
 
-export const EVADER_BASELINE_MOVEMENT_STRATEGY_ID = "baseline-drift-wall-avoid";
+export const EVADER_BASELINE_MOVEMENT_PROPOSAL_ID = "baseline-drift-wall-avoid";
 
-export function createEvaderBaselineMovementStrategy() {
-  return createStatefulActionStrategy({
-    id: EVADER_BASELINE_MOVEMENT_STRATEGY_ID,
+export function createEvaderBaselineMovementProposal() {
+  return createStatefulActionProposal({
+    id: EVADER_BASELINE_MOVEMENT_PROPOSAL_ID,
     createState: () => null,
     createOutput: () => ({
       direction: { x: 0, z: 0 },
       debug: {
-        policyId: EVADER_BASELINE_MOVEMENT_STRATEGY_ID,
+        policyId: EVADER_BASELINE_MOVEMENT_PROPOSAL_ID,
         wallAvoidanceActive: false,
         nearestWall: null,
         nearestDistance: null,
@@ -25,8 +25,8 @@ export function createEvaderBaselineMovementStrategy() {
       confidence: 1,
     }),
     deriveOutput: (_state, context = {}) => {
-      const driftDirection = context.driftStrategyOutput?.direction ?? { x: 0, z: 0 };
-      const wallAvoidDirection = context.wallAvoidStrategyOutput?.direction ?? { x: 0, z: 0 };
+      const driftDirection = context.driftProposalOutput?.direction ?? { x: 0, z: 0 };
+      const wallAvoidDirection = context.wallAvoidProposalOutput?.direction ?? { x: 0, z: 0 };
       const currentDirection = context.direction ?? { x: 0, z: 0 };
       const driftWeight = getEvaderPolicyNumber(
         context.policy,
@@ -52,10 +52,10 @@ export function createEvaderBaselineMovementStrategy() {
         debug: {
           policyId: typeof context.policy?.id === "string"
             ? context.policy.id
-            : EVADER_BASELINE_MOVEMENT_STRATEGY_ID,
-          wallAvoidanceActive: Boolean(context.wallAvoidStrategyOutput?.active),
-          nearestWall: context.wallAvoidStrategyOutput?.nearestWall ?? null,
-          nearestDistance: context.wallAvoidStrategyOutput?.nearestDistance ?? null,
+            : EVADER_BASELINE_MOVEMENT_PROPOSAL_ID,
+          wallAvoidanceActive: Boolean(context.wallAvoidProposalOutput?.active),
+          nearestWall: context.wallAvoidProposalOutput?.nearestWall ?? null,
+          nearestDistance: context.wallAvoidProposalOutput?.nearestDistance ?? null,
         },
       };
     },
@@ -64,10 +64,10 @@ export function createEvaderBaselineMovementStrategy() {
   });
 }
 
-export function updateEvaderBaselineMovementStrategy(strategy, context) {
-  return updateActionStrategy(strategy, context);
+export function updateEvaderBaselineMovementProposal(proposal, context) {
+  return updateActionProposal(proposal, context);
 }
 
-export function getEvaderBaselineMovementStrategyOutput(strategy) {
-  return getActionStrategyOutput(strategy);
+export function getEvaderBaselineMovementProposalOutput(proposal) {
+  return getActionProposalOutput(proposal);
 }

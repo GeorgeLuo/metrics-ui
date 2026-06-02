@@ -1,52 +1,52 @@
 import {
-  CHASER_CHASE_MOTIVE_STRATEGY_IDS,
-  CHASER_KNOWLEDGE_MOTIVE_STRATEGY_IDS,
+  CHASER_CHASE_MOTIVE_ACTION_PROPOSAL_IDS,
+  CHASER_KNOWLEDGE_MOTIVE_ACTION_PROPOSAL_IDS,
   CHASER_MOTIVE_IDS,
-} from "../../../../../config/strategy-ids.mjs";
+} from "../../../../../config/decision-ids.mjs";
 import type { MotiveSignal } from "../../../core/interfaces.ts";
 
-type StrategyEnabledResolver = (strategyId: string) => boolean;
+type ActionProposalEnabledResolver = (actionProposalId: string) => boolean;
 
 /**
- * Tests whether at least one strategy in a motive group can currently run.
+ * Tests whether at least one action proposal in a motive group can currently run.
  */
-function hasEnabledStrategy(
-  isStrategyEnabled: StrategyEnabledResolver,
-  strategyIds: readonly string[],
+function hasEnabledActionProposal(
+  isActionProposalEnabled: ActionProposalEnabledResolver,
+  actionProposalIds: readonly string[],
 ): boolean {
-  return strategyIds.some((strategyId) => isStrategyEnabled(strategyId));
+  return actionProposalIds.some((actionProposalId) => isActionProposalEnabled(actionProposalId));
 }
 
 /**
  * Current mutable policy for reducing motive candidates to one motive signal.
  *
- * Visible evader plus an enabled chase strategy selects `chase`; otherwise the
+ * Visible evader plus an enabled chase action proposal selects `chase`; otherwise the
  * chaser falls back to `knowledgeAcquisition`. This is hard selection, but it
  * lives with mixing policies because it reduces competing motive conditions.
  */
 export function buildVisibilityPriorityMotiveSignal({
   evaderLocation,
-  isStrategyEnabled = () => true,
+  isActionProposalEnabled = () => true,
 }: {
   evaderLocation?: Record<string, unknown> | null;
-  isStrategyEnabled?: StrategyEnabledResolver;
+  isActionProposalEnabled?: ActionProposalEnabledResolver;
 } = {}): MotiveSignal {
   const evaderInLineOfSight = Boolean(evaderLocation?.visible);
-  const chaseStrategyEnabled = hasEnabledStrategy(
-    isStrategyEnabled,
-    CHASER_CHASE_MOTIVE_STRATEGY_IDS,
+  const chaseActionProposalEnabled = hasEnabledActionProposal(
+    isActionProposalEnabled,
+    CHASER_CHASE_MOTIVE_ACTION_PROPOSAL_IDS,
   );
-  const knowledgeStrategyEnabled = hasEnabledStrategy(
-    isStrategyEnabled,
-    CHASER_KNOWLEDGE_MOTIVE_STRATEGY_IDS,
+  const knowledgeActionProposalEnabled = hasEnabledActionProposal(
+    isActionProposalEnabled,
+    CHASER_KNOWLEDGE_MOTIVE_ACTION_PROPOSAL_IDS,
   );
-  const shouldChase = evaderInLineOfSight && chaseStrategyEnabled;
+  const shouldChase = evaderInLineOfSight && chaseActionProposalEnabled;
   const reason = evaderInLineOfSight
-    ? chaseStrategyEnabled
+    ? chaseActionProposalEnabled
       ? "evader-visible"
-      : knowledgeStrategyEnabled
+      : knowledgeActionProposalEnabled
         ? "evader-visible-chase-disabled"
-        : "evader-visible-no-enabled-strategy"
+        : "evader-visible-no-enabled-action-proposal"
     : "evader-not-visible";
 
   return {

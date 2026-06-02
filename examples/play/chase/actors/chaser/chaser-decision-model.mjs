@@ -8,7 +8,7 @@ import {
   updateChaserPatternStage,
   updateChaserProjectionStage,
   updateChaserSuccessMetricsStage,
-} from "./chaser-knowledge.mjs";
+} from "./knowledge/index.ts";
 import {
   buildActorSnapshot,
   createActorIdae,
@@ -19,7 +19,7 @@ function applyScenarioEngineToggles(scenario, actorState) {
   Object.entries(scenario?.engines?.knowledge ?? {}).forEach(([engineId, enabled]) => {
     setChaserKnowledgeEngineEnabled(actorState, engineId, enabled);
   });
-  Object.entries(scenario?.actors?.chaser?.strategies ?? {}).forEach(([engineId, enabled]) => {
+  Object.entries(scenario?.actors?.chaser?.actionProposals ?? {}).forEach(([engineId, enabled]) => {
     setChaserActionEngineEnabled(actorState.controllerState, engineId, enabled);
   });
 }
@@ -147,9 +147,7 @@ function getChaserIdaeSnapshot(state) {
     projectionStatus: snapshot.projectionStatus,
     assumedBehavior: snapshot.assumedBehavior,
     controllerState: {
-      spinSteering: Number(
-        state.controllerState?.spinSteering ?? state.controllerState?.searchSteering,
-      ) || 0,
+      spinSteering: Number(state.controllerState?.spinSteering) || 0,
       lastPursuitSource: state.controllerState?.lastPursuitSource ?? "spin",
       wallFollowSign: Number(state.controllerState?.wallFollowSign) || 0,
       actionEngines: { ...(state.controllerState?.actionEngines ?? {}) },

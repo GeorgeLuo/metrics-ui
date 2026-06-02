@@ -20,7 +20,7 @@ import {
   normalizeVector,
   vectorToAngle,
 } from "../../core/math.ts";
-import { CHASER_STRATEGY_IDS } from "../../../config/strategy-ids.mjs";
+import { CHASER_ACTION_PROPOSAL_IDS } from "../../../config/decision-ids.mjs";
 import { buildActionPathAlongRoute } from "../vehicle/route-paths.ts";
 import type { ActionSelectionSignal } from "../core/interfaces.ts";
 import type { VehicleActionProposal } from "../vehicle/interfaces.ts";
@@ -29,7 +29,7 @@ import type { VectorXZ } from "../../observer-world/interfaces.ts";
 type AnyRecord = Record<string, any>;
 
 /**
- * Ranked map-memory target considered by knowledge-acquisition strategies.
+ * Ranked map-memory target considered by knowledge-acquisition proposals.
  */
 type KnowledgeCandidate = AnyRecord & {
   id: string;
@@ -359,8 +359,8 @@ export function createKnowledgeAcquisitionSignal({
     .filter((candidate: AnyRecord) =>
       candidate.reachable && candidate.components.recencyDebt >= MIN_RECENCY_REFRESH_SCORE));
   const selected = {
-    [CHASER_STRATEGY_IDS.MAP_DISCOVERY]: discoveryCandidates[0] ?? null,
-    [CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH]: recencyCandidates[0] ?? null,
+    [CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY]: discoveryCandidates[0] ?? null,
+    [CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH]: recencyCandidates[0] ?? null,
   };
 
   return {
@@ -374,8 +374,8 @@ export function createKnowledgeAcquisitionSignal({
     discoveryComplete: discoveryCandidates.length === 0,
     candidates,
     selected,
-    selectedCandidateId: selected[CHASER_STRATEGY_IDS.MAP_DISCOVERY]?.id
-      ?? selected[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH]?.id
+    selectedCandidateId: selected[CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY]?.id
+      ?? selected[CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH]?.id
       ?? null,
   };
 }
@@ -412,27 +412,27 @@ export function buildKnowledgeAcquisitionProposals({
     speedUnitsPerFrame,
     turnRateRadiansPerFrame,
   };
-  const mapDiscovery = enabled && actionEngines[CHASER_STRATEGY_IDS.MAP_DISCOVERY] !== false
+  const mapDiscovery = enabled && actionEngines[CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY] !== false
     ? createKnowledgeProposal(
-      CHASER_STRATEGY_IDS.MAP_DISCOVERY,
-      signal.selected[CHASER_STRATEGY_IDS.MAP_DISCOVERY],
+      CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY,
+      signal.selected[CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY],
       proposalContext,
     )
-    : createInactiveKnowledgeProposal(CHASER_STRATEGY_IDS.MAP_DISCOVERY);
+    : createInactiveKnowledgeProposal(CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY);
   const mapRecencyRefreshEnabled = enabled
-    && actionEngines[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH] !== false;
+    && actionEngines[CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH] !== false;
   let mapRecencyRefresh = createInactiveKnowledgeProposal(
-    CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH,
+    CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH,
   );
   if (mapRecencyRefreshEnabled) {
     mapRecencyRefresh = mapDiscovery.active
-      ? createInactiveKnowledgeProposal(CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH, {
+      ? createInactiveKnowledgeProposal(CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH, {
         inactiveReason: "discovery-frontier-available",
-        targetCandidate: signal.selected[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH],
+        targetCandidate: signal.selected[CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH],
       })
       : createKnowledgeProposal(
-        CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH,
-        signal.selected[CHASER_STRATEGY_IDS.MAP_RECENCY_REFRESH],
+        CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH,
+        signal.selected[CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH],
         proposalContext,
       );
   }

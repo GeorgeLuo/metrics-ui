@@ -2,11 +2,8 @@ import { CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING } from "../../config/constants.m
 import {
   planProgrammaticChaserAction,
   selectPursuitPoint,
-} from "../../decision-model/actions/chaser/action-strategies.ts";
-import {
-  CHASER_LEGACY_STRATEGY_IDS,
-  CHASER_STRATEGY_IDS,
-} from "../../config/strategy-ids.mjs";
+} from "../../decision-model/actions/chaser/action-proposals.ts";
+import { CHASER_ACTION_PROPOSAL_IDS } from "../../config/decision-ids.mjs";
 
 /**
  * @typedef {import("../../decision-model/actions/chaser/interfaces.ts").ProgrammaticChaserAction} ProgrammaticChaserAction
@@ -21,46 +18,40 @@ export function createChaserAutopilotState() {
   };
 }
 
-export const CHASER_ACTION_ENGINE_IDS = CHASER_STRATEGY_IDS;
-
 function asEnabled(value, fallback = true) {
   return typeof value === "boolean" ? value : fallback;
 }
 
 export function createChaserActionEngines(overrides = {}) {
   return {
-    [CHASER_ACTION_ENGINE_IDS.EVADER_PREDICTION_PURSUIT]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.EVADER_PREDICTION_PURSUIT],
+    [CHASER_ACTION_PROPOSAL_IDS.EVADER_PREDICTION_PURSUIT]: asEnabled(
+      overrides[CHASER_ACTION_PROPOSAL_IDS.EVADER_PREDICTION_PURSUIT],
       true,
     ),
-    [CHASER_ACTION_ENGINE_IDS.LINE_OF_SIGHT_PURSUIT]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.LINE_OF_SIGHT_PURSUIT],
+    [CHASER_ACTION_PROPOSAL_IDS.LINE_OF_SIGHT_PURSUIT]: asEnabled(
+      overrides[CHASER_ACTION_PROPOSAL_IDS.LINE_OF_SIGHT_PURSUIT],
       true,
     ),
-    [CHASER_ACTION_ENGINE_IDS.MAP_DISCOVERY]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.MAP_DISCOVERY],
+    [CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY]: asEnabled(
+      overrides[CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY],
       true,
     ),
-    [CHASER_ACTION_ENGINE_IDS.MAP_RECENCY_REFRESH]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.MAP_RECENCY_REFRESH],
+    [CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH]: asEnabled(
+      overrides[CHASER_ACTION_PROPOSAL_IDS.MAP_RECENCY_REFRESH],
       true,
     ),
-    [CHASER_ACTION_ENGINE_IDS.SPIN]: asEnabled(
-      overrides[CHASER_ACTION_ENGINE_IDS.SPIN]
-        ?? overrides[CHASER_LEGACY_STRATEGY_IDS.SEARCH],
+    [CHASER_ACTION_PROPOSAL_IDS.SPIN]: asEnabled(
+      overrides[CHASER_ACTION_PROPOSAL_IDS.SPIN],
       true,
     ),
   };
 }
 
 export function setChaserActionEngineEnabled(autopilotState, engineId, enabled) {
-  const normalizedEngineId = engineId === CHASER_LEGACY_STRATEGY_IDS.SEARCH
-    ? CHASER_ACTION_ENGINE_IDS.SPIN
-    : engineId;
-  if (!autopilotState?.actionEngines || !(normalizedEngineId in autopilotState.actionEngines)) {
+  if (!autopilotState?.actionEngines || !(engineId in autopilotState.actionEngines)) {
     return;
   }
-  autopilotState.actionEngines[normalizedEngineId] = Boolean(enabled);
+  autopilotState.actionEngines[engineId] = Boolean(enabled);
 }
 
 /**
@@ -86,7 +77,6 @@ export function getProgrammaticChaserInput({
     chaserLookDirection,
     actionEngines,
     spinSteering: autopilotState?.spinSteering
-      ?? autopilotState?.searchSteering
       ?? CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING,
     previousWallFollowSign: autopilotState?.wallFollowSign ?? 1,
     chaserSpeedUnitsPerFrame,
@@ -99,7 +89,7 @@ export function getProgrammaticChaserInput({
   });
 
   if (autopilotState) {
-    autopilotState.lastPursuitSource = actionPlan.chosenStrategy;
+    autopilotState.lastPursuitSource = actionPlan.selectedActionProposalId;
     autopilotState.wallFollowSign = actionPlan.wallFollowSign;
     if (actionPlan.spinSteeringHint !== null) {
       autopilotState.spinSteering = actionPlan.spinSteeringHint;
@@ -113,8 +103,8 @@ export function getProgrammaticChaserInput({
     pursuitPoint: actionPlan.pursuitPoint ?? null,
     movement: actionPlan.movement ?? null,
     actionPath: actionPlan.actionPath ?? [],
-    chosenStrategy: actionPlan.chosenStrategy,
-    actionStrategies: actionPlan.proposals,
+    selectedActionProposalId: actionPlan.selectedActionProposalId,
+    actionProposals: actionPlan.proposals,
     actionPlan,
   };
 }

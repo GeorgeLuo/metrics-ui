@@ -61,7 +61,7 @@ function getChaserPredictionConfidence(lastStep = {}) {
     return predictionConsensus;
   }
   return lastStep.chaserAction
-    ?.actionStrategies
+    ?.actionProposals
     ?.evaderPredictionPursuit
     ?.confidence;
 }
@@ -89,8 +89,8 @@ function getPredictionSuccessRateLines(simulationState = {}) {
 
 export function buildGreentextDebugText(simulationState) {
   const lastStep = simulationState?.lastStep ?? {};
-  const actionStrategies = lastStep.chaserAction?.actionStrategies;
-  const motiveId = actionStrategies?.motiveSignal?.id ?? "none";
+  const actionProposals = lastStep.chaserAction?.actionProposals;
+  const motiveId = actionProposals?.motiveSignal?.id ?? "none";
   const predictionConfidence = getChaserPredictionConfidence(lastStep);
   return [
     `frame: ${Number(simulationState?.frameIndex) || 0}`,

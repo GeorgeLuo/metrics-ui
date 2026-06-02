@@ -85,7 +85,7 @@ export type ActionProposalMap<
 
 /**
  * Proposal map with optional diagnostic entries that are not themselves
- * proposals. Strategy ids remain actor-owned strings instead of core fields.
+ * proposals. Proposal ids remain actor-owned strings instead of core fields.
  */
 export type ActionProposalCollection<
   TProposal extends ActionProposal = ActionProposal,

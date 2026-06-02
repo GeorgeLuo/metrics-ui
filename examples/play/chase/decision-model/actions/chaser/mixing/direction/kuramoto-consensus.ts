@@ -1,6 +1,6 @@
 import {
-  CHASER_STRATEGY_CONSENSUS_COUPLING,
-  CHASER_STRATEGY_CONSENSUS_ITERATIONS,
+  CHASER_ACTION_PROPOSAL_CONSENSUS_COUPLING,
+  CHASER_ACTION_PROPOSAL_CONSENSUS_ITERATIONS,
 } from "../../../../../config/constants.mjs";
 import { runKuramotoConsensus } from "../../../../core/kuramoto.ts";
 import { normalizeVector } from "../../../../core/math.ts";
@@ -58,7 +58,7 @@ export function buildPeerConsensusProposal({
   goalDirection: VehiclePeerConsensus["direction"];
 }): VehiclePeerConsensus {
   return {
-    id: "strategyConsensus",
+    id: "actionProposalConsensus",
     active: activePeerIds.length > 0,
     activePeerIds,
     consensus: peerConsensus,
@@ -81,8 +81,8 @@ export function buildDirectionConsensus({
     .map((proposal) => createPeerConsensusSignal(proposal))
     .filter((signal): signal is NonNullable<typeof signal> => Boolean(signal));
   const peerConsensus = runKuramotoConsensus(peerSignals, {
-    coupling: CHASER_STRATEGY_CONSENSUS_COUPLING,
-    iterations: CHASER_STRATEGY_CONSENSUS_ITERATIONS,
+    coupling: CHASER_ACTION_PROPOSAL_CONSENSUS_COUPLING,
+    iterations: CHASER_ACTION_PROPOSAL_CONSENSUS_ITERATIONS,
   });
   const primaryProposal = getHighestConfidenceProposal(proposals);
   const goalDirection = peerConsensus.direction.x === 0 && peerConsensus.direction.z === 0

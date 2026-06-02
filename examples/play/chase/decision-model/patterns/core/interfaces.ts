@@ -50,9 +50,9 @@ export type PatternConfidenceParts = {
 /**
  * One prediction for a future frame.
  *
- * `values` contains domain-specific predicted values and is also spread onto
- * the sample for existing spatial call sites that read fields like `position`
- * or `direction` directly.
+ * `values` contains domain-specific predicted values. Those values are also
+ * exposed directly on the sample so domain consumers can read fields like
+ * `position` or `direction` without unpacking the generic values container.
  */
 export type PatternPredictionSample<
   TPredictionPayload = object,
@@ -70,7 +70,7 @@ export type PatternPredictionSample<
 } & TValues;
 
 /**
- * Common container that patterns expose to downstream strategies.
+ * Common container that patterns expose to downstream projections or action proposals.
  */
 export type PatternPredictionUnit<
   TUnit = object,

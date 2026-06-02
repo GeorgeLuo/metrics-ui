@@ -459,7 +459,7 @@ export function getContinuancePatternOutput(
 }
 
 /**
- * Builds the evader motion model exposed to prediction strategies.
+ * Builds the evader motion model exposed to downstream prediction stages.
  */
 export function buildEvaderMotionModel({
   observedEvaderMotion,

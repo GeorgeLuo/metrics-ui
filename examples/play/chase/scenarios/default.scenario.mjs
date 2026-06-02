@@ -9,7 +9,7 @@ const defaultScenarioDefinition = {
     chaser: {
       position: { x: -3.42, z: 0 },
       direction: { x: 1, z: 0 },
-      strategies: {
+      actionProposals: {
         evaderPredictionPursuit: true,
         lineOfSightPursuit: true,
         mapDiscovery: true,
@@ -20,7 +20,7 @@ const defaultScenarioDefinition = {
     evader: {
       position: { x: 2.25, z: 0 },
       direction: { x: -1, z: 0.4 },
-      strategies: {
+      actionProposals: {
         defaultRoam: true,
         evadeOnSight: true,
       },
@@ -64,7 +64,6 @@ const defaultScenarioDefinition = {
   },
   engines: {
     knowledge: {
-      perception: true,
       evaderTracking: true,
       wallAvoidanceInference: true,
       predictionPlanning: true,

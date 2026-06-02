@@ -312,7 +312,7 @@ export function buildActionPathToDirection({
 }
 
 /**
- * Creates the shared inactive proposal shape for vehicle-capability strategies.
+ * Creates the shared inactive proposal shape for vehicle-capability proposals.
  */
 export function createInactiveActionProposal(
   id: string,
