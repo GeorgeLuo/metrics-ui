@@ -22,7 +22,7 @@ import {
 import {
   createChaserKnowledgeEngines,
   createChaserPatternEngines,
-} from "./engines.ts";
+} from "./runtime-settings/index.ts";
 import type { VectorXZ } from "../../../decision-model/core/math.ts";
 
 type CreateChaserKnowledgeBaseOptions = {

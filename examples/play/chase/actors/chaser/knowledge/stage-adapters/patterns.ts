@@ -13,7 +13,7 @@ import {
 import {
   CHASER_KNOWLEDGE_ENGINE_IDS,
   isPatternEnabled,
-} from "../engines.ts";
+} from "../runtime-settings/index.ts";
 import { getRememberedObstacles } from "../memory-selectors.ts";
 
 type ChaserPatternStageContext = {

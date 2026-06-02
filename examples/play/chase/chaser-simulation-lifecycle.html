@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chaser Simulation Lifecycle</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #5c6878;
+      --line: #cfd8e3;
+      --page: #f4f7fb;
+      --panel: #ffffff;
+      --code-bg: #eef3f8;
+      --sim: #0f766e;
+      --adapter: #2563eb;
+      --idae: #7c3aed;
+      --memory: #c2410c;
+      --projection: #be123c;
+      --action: #047857;
+      --feedback: #334155;
+      --shadow: 0 12px 30px rgba(23, 32, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1320px, calc(100vw - 40px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 20px;
+      align-items: end;
+      margin-bottom: 22px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 30px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    h3 {
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .summary {
+      max-width: 880px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: #fff;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .flow-panel {
+      padding: 18px;
+      overflow-x: auto;
+    }
+
+    .flow {
+      min-width: 1240px;
+      display: grid;
+      grid-template-columns: 1fr 0.9fr 1.2fr 1.25fr 1fr 1.05fr;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .column {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .stage {
+      min-height: 132px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 12px;
+      position: relative;
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      top: -1px;
+      left: -1px;
+      right: -1px;
+      height: 4px;
+      border-radius: 8px 8px 0 0;
+      background: var(--line);
+    }
+
+    .stage.sim::before { background: var(--sim); }
+    .stage.adapter::before { background: var(--adapter); }
+    .stage.idae::before { background: var(--idae); }
+    .stage.memory::before { background: var(--memory); }
+    .stage.projection::before { background: var(--projection); }
+    .stage.action::before { background: var(--action); }
+    .stage.feedback::before { background: var(--feedback); }
+
+    .stage strong {
+      display: block;
+      font-size: 13px;
+      margin: 3px 0 6px;
+    }
+
+    .stage ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .stage li + li {
+      margin-top: 3px;
+    }
+
+    .arrow {
+      align-self: center;
+      justify-self: center;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 22px;
+      margin-top: 48px;
+    }
+
+    .rail {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .rail span {
+      display: block;
+      padding-top: 8px;
+      border-top: 3px solid var(--line);
+    }
+
+    .rail .sim { border-color: var(--sim); }
+    .rail .adapter { border-color: var(--adapter); }
+    .rail .idae { border-color: var(--idae); }
+    .rail .memory { border-color: var(--memory); }
+    .rail .action { border-color: var(--action); }
+    .rail .feedback { border-color: var(--feedback); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .wide {
+      grid-column: span 2;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    .card {
+      padding: 16px;
+    }
+
+    .card p {
+      color: var(--muted);
+    }
+
+    .table {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 210px minmax(0, 1fr);
+      gap: 12px;
+      padding: 8px 0;
+      border-top: 1px solid #e6ebf1;
+    }
+
+    .row:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .key {
+      font-weight: 700;
+    }
+
+    .formula {
+      padding: 12px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid #e1e8f0;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      color: #27364a;
+      white-space: pre-wrap;
+      margin-top: 10px;
+    }
+
+    .callout {
+      border-left: 4px solid var(--memory);
+      padding: 12px;
+      background: #fff7ed;
+      border-radius: 6px;
+      color: #7c2d12;
+      margin-top: 10px;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      background: var(--code-bg);
+      border: 1px solid #dce4ee;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+
+    @media (max-width: 920px) {
+      main {
+        width: min(100vw - 24px, 1320px);
+        padding-top: 20px;
+      }
+
+      header {
+        grid-template-columns: 1fr;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .wide,
+      .full {
+        grid-column: span 1;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Chaser Simulation Lifecycle</h1>
+        <p class="summary">
+          Frame-by-frame path from the simulation harness into the chaser IDAE model,
+          through observation, memory, patterns, projections, action selection, action
+          application, and post-action feedback.
+        </p>
+      </div>
+      <div class="badge">Current code: one IDAE cycle before each applied action</div>
+    </header>
+
+    <section class="panel flow-panel" aria-label="Chaser simulation lifecycle">
+      <div class="flow">
+        <div class="column">
+          <div class="stage sim">
+            <strong>1. State is created</strong>
+            <ul>
+              <li><code>createChaseSimulationState</code></li>
+              <li>resolves scenario, map, actors, settings</li>
+              <li>constructs <code>chaserIdae</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="arrow">&rarr;</div>
+          <div class="stage sim">
+            <strong>2. A frame starts</strong>
+            <ul>
+              <li><code>stepChaseSimulation</code></li>
+              <li><code>buildReasonedActionFrame</code></li>
+              <li>freezes synchronized actor positions</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="arrow">&rarr;</div>
+          <div class="stage adapter">
+            <strong>3. Simulation enters chaser IDAE</strong>
+            <ul>
+              <li><code>updateChaserReasoningState</code></li>
+              <li><code>stepChaserIdae</code></li>
+              <li>passes frame context into actor adapter</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="arrow">&rarr;</div>
+          <div class="stage idae">
+            <strong>4. Generic IDAE order runs</strong>
+            <ul>
+              <li><code>stepActorIdae</code></li>
+              <li><code>stepDecisionEngine</code></li>
+              <li>observe, memory, patterns, projections, action, snapshot</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="arrow">&rarr;</div>
+          <div class="stage action">
+            <strong>5. Chaser action returns</strong>
+            <ul>
+              <li><code>chooseChaserIdaeAction</code></li>
+              <li><code>getProgrammaticChaserInput</code></li>
+              <li><code>planProgrammaticChaserAction</code></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="arrow">&rarr;</div>
+          <div class="stage feedback">
+            <strong>6. Simulation commits the result</strong>
+            <ul>
+              <li><code>applyChaserAction</code></li>
+              <li><code>recordChaserSuccessMetrics</code></li>
+              <li>updates trace, metrics, and <code>lastStep</code></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="rail">
+        <span class="sim">simulation state</span>
+        <span class="sim">frame context</span>
+        <span class="adapter">chaser adapter</span>
+        <span class="idae">generic IDAE engine</span>
+        <span class="action">action proposal planning</span>
+        <span class="feedback">post-action feedback</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="panel card full">
+        <h2>One Frame In Code</h2>
+        <div class="formula">stepChaseSimulation(state)
+  -> buildReasonedActionFrame(state)
+    -> createSynchronizedFrameContext(state)
+    -> updateChaserReasoningState(state, frameContext)
+      -> stepChaserIdae(state.chaserIdae, frameContext)
+        -> stepActorIdae(...)
+          -> stepDecisionEngine(...)
+            -> observe
+            -> updateMemory
+            -> updatePatterns
+            -> updateProjections
+            -> chooseAction
+            -> getSnapshot
+    -> returns chaserReasoning.action
+  -> commitReasonedActionFrame(state, actionFrame)
+    -> applyChaserAction(state, actionFrame.chaserAction)
+    -> recordChaserSuccessMetrics(state.chaserIdae, outcome)
+    -> recordChaseTraceFrame(state.traceRecorder, state)</div>
+      </article>
+
+      <article class="panel card wide">
+        <h2>Simulation Access Points</h2>
+        <div class="table">
+          <div class="row">
+            <div class="key">Create chaser model</div>
+            <div>
+              <code>simulation/simulation.mjs</code> calls <code>createChaserIdae({ scenario })</code>
+              during <code>createChaseSimulationState</code>.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Step chaser model</div>
+            <div>
+              <code>updateChaserReasoningState</code> calls <code>stepChaserIdae</code> with
+              a synchronized frame context before either actor moves.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Apply chaser output</div>
+            <div>
+              <code>commitReasonedActionFrame</code> passes <code>chaserAction</code> into
+              <code>applyChaserAction</code>, which uses <code>applyVehicleAction</code> and
+              obstacle collision resolution.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Record feedback</div>
+            <div>
+              After movement, <code>recordChaserSuccessMetrics</code> writes outcome memory for
+              later frames. Run metrics and trace frames are updated in the same commit phase.
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel card">
+        <h2>Frame Context</h2>
+        <p>
+          The chaser receives simulator truth as frame context, but the decision model only
+          reasons through observed-world and memory shapes after the observation adapter runs.
+        </p>
+        <div class="formula">{
+  chaserPosition,
+  evaderPosition,
+  chaserLookDirection,
+  evaderExists,
+  frameIndex,
+  fieldOfViewAngleRadians,
+  obstacles,
+  columns,
+  rows,
+  projectionSettings,
+  humanInput,
+  programmaticChaserEnabled
+}</div>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="panel card full">
+        <h2>Chaser IDAE Stage Mapping</h2>
+        <div class="table">
+          <div class="row">
+            <div class="key">Assembly</div>
+            <div>
+              <code>actors/chaser/chaser-decision-model-adapter.ts</code> calls
+              <code>createActorIdae</code> and provides chaser-specific stage callbacks and module lists.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Observe</div>
+            <div>
+              <code>observeChaserIdae</code> calls <code>observeChaserEnvironment</code>, which delegates
+              to <code>perception/chaser/observe.ts</code>. This computes visible evader facts and visible map facts.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Memory</div>
+            <div>
+              <code>CHASER_MEMORY_MODULES</code> runs <code>updateChaserMemoryStage</code>. It updates
+              direct evader-location memory, persistent map-shape memory, map recency, and observed evader motion.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Patterns</div>
+            <div>
+              <code>CHASER_PATTERN_MODULES</code> runs <code>updateChaserPatternStage</code>. It updates
+              continuance and wall-avoidance pattern evidence using remembered obstacles, not full map truth.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Projections</div>
+            <div>
+              <code>CHASER_PROJECTION_MODULES</code> runs <code>updateChaserProjectionStage</code>. It
+              updates the evader-motion projection from pattern units, current memory, and remembered map geometry.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Action</div>
+            <div>
+              <code>chooseChaserIdaeAction</code> either normalizes human input or calls
+              <code>getProgrammaticChaserInput</code>, which calls <code>planProgrammaticChaserAction</code>
+              in <code>decision-model/actions/chaser/plan.ts</code>.
+            </div>
+          </div>
+          <div class="row">
+            <div class="key">Snapshot</div>
+            <div>
+              <code>getChaserIdaeSnapshot</code> combines chaser knowledge with framework fields through
+              <code>buildActorSnapshot</code>. UI, debug overlays, tests, and trace recording read this output.
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="panel card">
+        <h2>Observed World Boundary</h2>
+        <p>
+          Perception is outside the decision model. It turns simulator truth into a trusted
+          observed-world payload before memory or patterns see it.
+        </p>
+        <div class="formula">observeChaserWorld(context)
+  -> getObservedActor(...)
+  -> getObservedMap(...)
+    -> getVisibleMapWalls(...)
+    -> getVisibleMapAreaCells(...)</div>
+      </article>
+
+      <article class="panel card">
+        <h2>Action Boundary</h2>
+        <p>
+          The IDAE action stage returns vehicle controls plus debug payload. The simulator
+          owns the physical application of those controls.
+        </p>
+        <div class="formula">chaserAction = {
+  source: "idae",
+  forward,
+  reverse,
+  steering,
+  actionPath,
+  selectedActionProposalId,
+  actionProposals
+}</div>
+      </article>
+
+      <article class="panel card">
+        <h2>Feedback Boundary</h2>
+        <p>
+          Success metrics are recorded only after the world state changes, so they describe
+          the committed outcome and are available to future IDAE cycles.
+        </p>
+        <div class="formula">commitReasonedActionFrame
+  -> applyChaserAction
+  -> validatePredictionPerformance
+  -> recordChaserSuccessMetrics
+  -> updateRunMetrics</div>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="panel card wide">
+        <h2>Where Debug Views Read From</h2>
+        <div class="table">
+          <div class="row">
+            <div class="key">Latest action</div>
+            <div><code>state.lastStep.chaserAction</code> stores selected controls and action proposal debug data.</div>
+          </div>
+          <div class="row">
+            <div class="key">Latest reasoning</div>
+            <div><code>state.lastStep.chaserReasoning</code> stores the last IDAE cycle with <code>action</code> and <code>snapshot</code>.</div>
+          </div>
+          <div class="row">
+            <div class="key">Decision state</div>
+            <div><code>state.chaserIdae.state</code> persists memory, pattern modules, projections, engines, and controller state.</div>
+          </div>
+          <div class="row">
+            <div class="key">Trace/debug</div>
+            <div><code>debug/debug-snapshot.mjs</code>, <code>debug/decision-debug.mjs</code>, and scene path rendering read these payloads.</div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel card">
+        <h2>Important Timing Detail</h2>
+        <p>
+          Chaser and evader reasoning both use the same frozen frame context before actions
+          are applied. The chaser does not observe the evader's just-computed movement until
+          the next simulation frame.
+        </p>
+        <div class="callout">
+          Prediction performance is recorded before movement and validated after the evader
+          movement is applied.
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

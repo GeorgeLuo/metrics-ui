@@ -377,6 +377,7 @@ function buildEquationsTopicCatalogs(): EquationsTopicCatalog[] {
 
 export const EQUATIONS_TOPIC_CATALOGS = buildEquationsTopicCatalogs();
 export const EQUATIONS_TOPIC_OPTIONS = EQUATIONS_TOPIC_CATALOGS.flatMap((catalog) => catalog.topics);
+export const DEFAULT_EQUATIONS_TOPIC_ID = "chase-docs:chaser-simulation-lifecycle";
 
 const catalogById = new Map(
   EQUATIONS_TOPIC_CATALOGS.map((catalog) => [catalog.id, catalog] as const),
@@ -413,8 +414,16 @@ export function getEquationsTopicPayloadSignature(option: EquationsTopicOption):
     : signatureForDocument(option.payload.document);
 }
 
+export function getDefaultEquationsTopicOption(): EquationsTopicOption | null {
+  return getEquationsTopicOptionById(DEFAULT_EQUATIONS_TOPIC_ID)
+    ?? EQUATIONS_TOPIC_OPTIONS[0]
+    ?? null;
+}
+
 export function getDefaultEquationsTopicCatalogId(): string | null {
-  return EQUATIONS_TOPIC_CATALOGS[0]?.id ?? null;
+  return getDefaultEquationsTopicOption()?.catalogId
+    ?? EQUATIONS_TOPIC_CATALOGS[0]?.id
+    ?? null;
 }
 
 export function getEquationsTopicCatalogById(id: string): EquationsTopicCatalog | null {

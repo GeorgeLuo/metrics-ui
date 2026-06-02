@@ -1,4 +1,4 @@
-import { setChaserActionEngineEnabled } from "../actors/chaser/chaser-controller.mjs";
+import { setChaserActionEngineEnabled } from "../actors/chaser/chaser-controller.ts";
 import { setEvaderActionProposalEngineEnabled } from "../actors/evader/evader-decision-model.mjs";
 
 export function getActorActionProposalCollections(simulationState) {
