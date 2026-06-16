@@ -16,10 +16,15 @@ import {
   createChaseSimulationState,
   stepChaseSimulation,
 } from "./simulation/simulation.mjs";
-import { getWallBounds } from "./world/world.mjs";
+import {
+  getWallBounds,
+  isLineOfSightBlockedByObstacles,
+  isPositionInsideWall,
+} from "./world/world.mjs";
 import { publishSidebarSections } from "./ui/sidebar.mjs";
 import { getChaserActionPathDebugEntries } from "./ui/rendering.mjs";
 import { createScenarioDefinitionWithEvaderOverride } from "./ui/runtime.mjs";
+import { createChaseScenarioSession } from "./ui/scenario-session.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 
@@ -105,6 +110,16 @@ test("runtime evader existence override supersedes scenario config", () => {
   assert.equal(roundNumber(forcedPresent.actors.evader.direction.z), 0.3714);
 });
 
+test("scenario selection starts from the selected scenario evader default", () => {
+  const scenarioSession = createChaseScenarioSession(GRID);
+  assert.equal(scenarioSession.buildScenario().actors.evader.exists, true);
+  scenarioSession.setEvaderExists(true);
+
+  const piracerScenario = scenarioSession.loadScenario("piracer-room-sketch");
+  assert.equal(piracerScenario.actors.evader.exists, false);
+  assert.equal(piracerScenario.actors.evader.position, null);
+});
+
 test("chase sidebar exposes scenario selector and evader existence override", () => {
   const scenario = resolveChaseScenario(defaultScenarioDefinition, GRID);
   const state = createChaseSimulationState({ scenario, columns: GRID.columns, rows: GRID.rows });
@@ -177,6 +192,10 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
     scenarioSelect?.options?.some((option) => option.value === "two-rooms"),
     "expected sidebar scenario selector to include the two-rooms scenario",
   );
+  assert.ok(
+    scenarioSelect?.options?.some((option) => option.value === "piracer-room-sketch"),
+    "expected sidebar scenario selector to include the PiRacer room sketch scenario",
+  );
 });
 
 test("open-room scenario resolves to an empty obstacle list", () => {
@@ -232,4 +251,45 @@ test("two-rooms scenario resolves to a vertical divider with a doorway gap", () 
   assert.equal(topBounds.minZ - bottomBounds.maxZ, 1.5);
   assert.equal(scenario.actors.chaser.position.x < bottomBounds.minX, true);
   assert.equal(scenario.actors.evader.position.x > bottomBounds.maxX, true);
+});
+
+test("PiRacer room sketch scenario resolves rotated box obstacles", () => {
+  const scenario = resolveChaseScenario(getChaseScenarioDefinition("piracer-room-sketch"), GRID);
+  const leftBox = scenario.map.obstacles.walls.find((wall) => wall.id === "left-cardboard-box");
+  const rightBox = scenario.map.obstacles.walls.find((wall) => wall.id === "right-cardboard-box");
+
+  assert.equal(scenario.id, "piracer-room-sketch");
+  assert.equal(scenario.map.layout, "piracer-room-sketch-two-boxes");
+  assert.equal(scenario.map.columns, 7.8);
+  assert.equal(scenario.map.rows, 6.2);
+  assert.equal(scenario.actors.evader.exists, false);
+  assert.equal(scenario.runtime.programmaticChaserEnabled, false);
+  assert.equal(scenario.map.obstacles.walls.length, 2);
+  assert.ok(leftBox, "expected left box obstacle");
+  assert.ok(rightBox, "expected right box obstacle");
+  assert.equal(roundNumber(leftBox.rotationRadians), roundNumber((-4 * Math.PI) / 180));
+  assert.equal(roundNumber(rightBox.rotationRadians), roundNumber((4 * Math.PI) / 180));
+  assert.equal(isPositionInsideWall({ x: leftBox.x, z: leftBox.z }, leftBox), true);
+  assert.equal(isPositionInsideWall({ x: rightBox.x, z: rightBox.z }, rightBox), true);
+
+  const leftBounds = getWallBounds(leftBox);
+  assert.equal(leftBounds.maxX - leftBounds.minX > leftBox.width, true);
+  assert.equal(leftBounds.maxZ - leftBounds.minZ > leftBox.depth, true);
+  assert.equal(
+    isLineOfSightBlockedByObstacles(
+      scenario.actors.chaser.position,
+      { x: leftBox.x, z: leftBox.z },
+      scenario.map.obstacles,
+    ),
+    true,
+  );
+});
+
+test("PiRacer room sketch viewport keeps fractional world units out of the FrameGrid cell grid", () => {
+  const scenarioSession = createChaseScenarioSession(GRID);
+  const scenario = scenarioSession.loadScenario("piracer-room-sketch");
+  const viewportSpec = scenarioSession.getViewportSpec(scenario);
+
+  assert.deepEqual(viewportSpec?.frameAspect, [7.8, 6.2]);
+  assert.equal(Object.hasOwn(viewportSpec ?? {}, "grid"), false);
 });

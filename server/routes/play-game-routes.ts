@@ -6,6 +6,7 @@ import {
   normalizePlayGameCatalog,
   type PlayPair,
 } from "@shared/play-catalog";
+import { registerPlayChaseActorViewImageRoute } from "./play-chase-actor-view-image";
 
 type PlayGameRouteRecord = {
   id: string;
@@ -206,6 +207,8 @@ export function getPlayGameWatchFiles(projectRoot: string): string[] {
 }
 
 export function registerPlayGameRoutes({ app, projectRoot }: RegisterPlayGameRoutesOptions) {
+  registerPlayChaseActorViewImageRoute({ app, projectRoot });
+
   app.get("/api/play/games", (_req, res) => {
     try {
       const { games } = readPlayGames(projectRoot);

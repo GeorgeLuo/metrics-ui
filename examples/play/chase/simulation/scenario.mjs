@@ -64,6 +64,15 @@ function normalizeDirection(value, fallback) {
     : direction;
 }
 
+function normalizeObstacleRotation(record) {
+  const radians = normalizeNumber(record?.rotationRadians, NaN);
+  if (Number.isFinite(radians)) {
+    return radians;
+  }
+  const degrees = normalizeNumber(record?.rotationDegrees, NaN);
+  return Number.isFinite(degrees) ? degreesToRadians(degrees) : 0;
+}
+
 function normalizeObstacle(value, index) {
   const record = asRecord(value);
   if (!record) {
@@ -82,6 +91,7 @@ function normalizeObstacle(value, index) {
     z: normalizeNumber(record.z, 0),
     width,
     depth,
+    rotationRadians: normalizeObstacleRotation(record),
   };
 }
 

@@ -36,6 +36,13 @@ type KnowledgeCandidate = AnyRecord & {
   score: number;
 };
 
+type UnknownNeighborCell = {
+  id: string;
+  cellX: number;
+  cellZ: number;
+  center: VectorXZ;
+};
+
 /**
  * Selection payload shared by map discovery and recency refresh proposals.
  */
@@ -132,28 +139,34 @@ function isCellCenterWithinBounds(cellX: number, cellZ: number, bounds: BoundsXZ
 }
 
 /**
- * Counts adjacent traversable cells that remain unknown to map memory.
+ * Returns adjacent traversable cells that have not been observed yet.
  */
-function getUnknownNeighborCount(
+function getUnknownNeighbors(
   area: MapAreaMemory,
   knownAreaIds: Set<string>,
   bounds: BoundsXZ,
   obstacles: MapObstacleMemory,
-): number {
-  return NEIGHBOR_OFFSETS.reduce((count, offset) => {
+): UnknownNeighborCell[] {
+  return NEIGHBOR_OFFSETS.flatMap((offset) => {
     const cellX = area.cellX + offset.x;
     const cellZ = area.cellZ + offset.z;
     if (!isCellCenterWithinBounds(cellX, cellZ, bounds)) {
-      return count;
+      return [];
     }
+    const id = getMapCellId(cellX, cellZ);
     if (
-      knownAreaIds.has(getMapCellId(cellX, cellZ))
+      knownAreaIds.has(id)
       || isMapCellInsideRememberedWall(cellX, cellZ, obstacles, 0)
     ) {
-      return count;
+      return [];
     }
-    return count + 1;
-  }, 0);
+    return [{
+      id,
+      cellX,
+      cellZ,
+      center: getMapCellCenter(cellX, cellZ),
+    }];
+  });
 }
 
 /**
@@ -201,6 +214,22 @@ function getDistanceScore(
 }
 
 /**
+ * Chooses which unknown adjacent cell a frontier visit should reveal first.
+ */
+function selectDiscoveryTarget(
+  unknownNeighbors: UnknownNeighborCell[],
+  chaserPosition: VectorXZ | null | undefined,
+  chaserLookDirection: VectorXZ | null | undefined,
+): UnknownNeighborCell | null {
+  return [...unknownNeighbors].sort((first, second) =>
+    getBearingScore(chaserPosition, chaserLookDirection, second.center)
+      - getBearingScore(chaserPosition, chaserLookDirection, first.center)
+    || getDistanceScore(chaserPosition, first.center)
+      - getDistanceScore(chaserPosition, second.center)
+    || first.id.localeCompare(second.id))[0] ?? null;
+}
+
+/**
  * Computes how long it has been since a known area was last visible.
  */
 function getAreaAgeFrames(area: MapAreaMemory, frameIndex: unknown): number {
@@ -245,8 +274,12 @@ function createKnowledgeProposal(id: string, candidate: KnowledgeCandidate | nul
   const actionPath = buildActionPathAlongRoute({
     vehiclePosition: chaserPosition,
     vehicleDirection: chaserLookDirection,
-    route: candidate.route,
-    fallbackTargetPosition: candidate.position,
+    route: id === CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY
+      ? candidate.discoveryRoute ?? candidate.route
+      : candidate.route,
+    fallbackTargetPosition: id === CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY
+      ? candidate.discoveryTargetPosition ?? candidate.position
+      : candidate.position,
     speedUnitsPerFrame,
     turnRateRadiansPerFrame,
     waypointReachDistance: KNOWN_AREA_CELL_SIZE * 0.75,
@@ -262,7 +295,9 @@ function createKnowledgeProposal(id: string, candidate: KnowledgeCandidate | nul
   return {
     id,
     active: true,
-    confidence: clamp01(candidate.score),
+    confidence: clamp01(id === CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY
+      ? candidate.components?.discovery ?? candidate.score
+      : candidate.components?.recency ?? candidate.score),
     pursuitSource: "knowledge-acquisition",
     goalDirection: normalizeVector(
       (candidate.route?.waypoints?.[1] ?? candidate.route?.waypoints?.[0] ?? candidate.position).x
@@ -282,6 +317,19 @@ function createKnowledgeProposal(id: string, candidate: KnowledgeCandidate | nul
 function rankCandidates(candidates: KnowledgeCandidate[]): KnowledgeCandidate[] {
   return [...candidates].sort((first, second) =>
     Number(second.score) - Number(first.score) || String(first.id).localeCompare(String(second.id)));
+}
+
+/**
+ * Sorts candidates by a specific knowledge-acquisition component.
+ */
+function rankCandidatesByComponent(
+  candidates: KnowledgeCandidate[],
+  component: string,
+): KnowledgeCandidate[] {
+  return [...candidates].sort((first, second) =>
+    Number(second.components?.[component] ?? 0) - Number(first.components?.[component] ?? 0)
+    || Number(second.score) - Number(first.score)
+    || String(first.id).localeCompare(String(second.id)));
 }
 
 /**
@@ -314,7 +362,13 @@ export function createKnowledgeAcquisitionSignal({
     Number(mapShapeMemory?.recentVisitationMaxAgeFrames) || RECENT_VISITATION_MAX_AGE_FRAMES,
   );
   const candidates: KnowledgeCandidate[] = knownAreas.map((area) => {
-    const unknownNeighborCount = getUnknownNeighborCount(area, knownAreaIds, mapBounds, obstacles);
+    const unknownNeighbors = getUnknownNeighbors(area, knownAreaIds, mapBounds, obstacles);
+    const discoveryTarget = selectDiscoveryTarget(
+      unknownNeighbors,
+      chaserPosition,
+      chaserLookDirection,
+    );
+    const unknownNeighborCount = unknownNeighbors.length;
     const route = routeIndex.getRouteToArea(area);
     const reachable = Boolean(route?.reachable);
     const distanceScore = getDistanceScore(chaserPosition, area.center);
@@ -347,14 +401,29 @@ export function createKnowledgeAcquisitionSignal({
       lastObservedFrame: area.lastObservedFrame,
       ageFrames,
       unknownNeighborCount,
+      unknownNeighbors,
+      discoveryTargetPosition: discoveryTarget?.center ?? null,
+      discoveryRoute: route?.reachable && discoveryTarget
+        ? {
+          ...route,
+          waypoints: [
+            ...route.waypoints,
+            { ...discoveryTarget.center },
+          ],
+          cost: route.cost + 1,
+        }
+        : route,
       route,
       routeCost: route?.cost ?? null,
       reachable,
       visibleFromCurrentPose: ageFrames === 0,
     };
   });
-  const discoveryCandidates = rankCandidates(candidates
-    .filter((candidate: AnyRecord) => candidate.reachable && candidate.components.discovery > 0));
+  const discoveryCandidates = rankCandidatesByComponent(
+    candidates
+      .filter((candidate: AnyRecord) => candidate.reachable && candidate.components.discovery > 0),
+    "discovery",
+  );
   const recencyCandidates = rankCandidates(candidates
     .filter((candidate: AnyRecord) =>
       candidate.reachable && candidate.components.recencyDebt >= MIN_RECENCY_REFRESH_SCORE));

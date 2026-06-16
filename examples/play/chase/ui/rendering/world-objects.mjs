@@ -35,6 +35,7 @@ export function createWall(wall) {
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(wall.x, OBSTACLE_PRISM_HEIGHT / 2, wall.z);
+  mesh.rotation.y = Number(wall.rotationRadians) || 0;
   return mesh;
 }
 

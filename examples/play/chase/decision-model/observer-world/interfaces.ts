@@ -9,6 +9,7 @@ export type WallObstacle = {
   z: number;
   width: number;
   depth: number;
+  rotationRadians?: number;
 };
 
 export type ObstacleSet = {
@@ -47,6 +48,7 @@ export type ObservedMapWall = {
   z: number;
   width: number;
   depth: number;
+  rotationRadians: number;
 };
 
 export type ObservedMapObstacleSet = {

@@ -213,7 +213,7 @@ export function createPlayGame({
   };
   const loadScenario = (scenarioId) => {
     scenario = scenarioSession.loadScenario(scenarioId);
-    replaceSimulationState(scenario, { preserveSidebarSettings: true });
+    replaceSimulationState(scenario);
     if (shouldCloseEvaderView(simulationState, evaderViewVisible)) {
       evaderView.close();
     }
