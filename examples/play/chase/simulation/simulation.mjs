@@ -81,6 +81,14 @@ function cloneHumanInput(humanInput) {
   };
 }
 
+function clampUnit(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return 0;
+  }
+  return Math.max(-1, Math.min(1, numericValue));
+}
+
 function applyVehicleAction({
   position,
   direction,
@@ -94,20 +102,14 @@ function applyVehicleAction({
   const isMovingForward = Boolean(action?.forward);
   const isMovingReverse = Boolean(action?.reverse);
   const movementSign = isMovingForward ? 1 : isMovingReverse ? -1 : 0;
-  const isMoving = movementSign !== 0;
-  const steeringInput = Number.isFinite(action?.steering) ? action.steering : 0;
-  const actionNextDirection = action?.nextDirection;
-  let nextDirection = actionNextDirection
-    ? {
-      x: Number(actionNextDirection.x) || 0,
-      z: Number(actionNextDirection.z) || 0,
-    }
-    : {
-      x: Number(direction?.x) || 0,
-      z: Number(direction?.z) || 0,
-    };
+  const speed = Math.max(0, Number(speedUnitsPerFrame) || 0);
+  const turnRate = Math.max(0, Number(turnRateRadiansPerFrame) || 0);
+  const isMoving = movementSign !== 0 && speed > 0;
+  const steeringInput = clampUnit(action?.steering);
+  const currentDirection = cloneVector(direction, { x: 1, z: 0 });
+  let nextDirection = currentDirection;
 
-  if (!isMoving && !actionNextDirection) {
+  if (!isMoving) {
     return {
       direction: nextDirection,
       position: {
@@ -117,18 +119,21 @@ function applyVehicleAction({
     };
   }
 
-  if (!actionNextDirection && isMoving && steeringInput !== 0) {
+  let travelDirection = currentDirection;
+  if (steeringInput !== 0 && turnRate > 0) {
+    const currentAngle = vectorToAngle(currentDirection);
+    const turnDelta = steeringInput * turnRate * (isMovingReverse ? -1 : 1);
+    travelDirection = angleToVector(currentAngle + turnDelta / 2);
     nextDirection = angleToVector(
-      vectorToAngle(nextDirection)
-        + steeringInput * turnRateRadiansPerFrame * (isMovingReverse ? -1 : 1),
+      currentAngle + turnDelta,
     );
   }
 
   const nextPosition = resolveObstacleCollisions({
     x: (Number(position?.x) || 0)
-      + nextDirection.x * speedUnitsPerFrame * movementSign,
+      + travelDirection.x * speed * movementSign,
     z: (Number(position?.z) || 0)
-      + nextDirection.z * speedUnitsPerFrame * movementSign,
+      + travelDirection.z * speed * movementSign,
   }, position, columns, rows, obstacles);
 
   return {
@@ -175,6 +180,7 @@ function updateChaserReasoningState(state, frameContext) {
     humanInput: frameContext.humanInput,
     programmaticChaserEnabled: frameContext.programmaticChaserEnabled,
     chaserSpeedUnitsPerFrame: frameContext.chaserSpeedUnitsPerFrame,
+    turnRateRadiansPerFrame: frameContext.turnRateRadiansPerFrame,
   });
   return cycle;
 }
