@@ -157,16 +157,18 @@ export function stepActionPathFrame({
     0,
     Number(turnRateRadiansPerFrame) || DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
   );
-  const isMoving = Math.abs(resolvedThrottle) > 0.001;
-  const nextDirection = isMoving && resolvedSteering !== 0
-    ? angleToVector(
-      vectorToAngle(currentDirection)
-        + resolvedSteering * turnRate * (resolvedThrottle < 0 ? -1 : 1),
-    )
-    : currentDirection;
+  const isMoving = Math.abs(resolvedThrottle) > 0.001 && speed > 0;
+  let travelDirection = currentDirection;
+  let nextDirection = currentDirection;
+  if (isMoving && resolvedSteering !== 0) {
+    const currentAngle = vectorToAngle(currentDirection);
+    const turnDelta = resolvedSteering * turnRate * (resolvedThrottle < 0 ? -1 : 1);
+    travelDirection = angleToVector(currentAngle + turnDelta / 2);
+    nextDirection = angleToVector(currentAngle + turnDelta);
+  }
   const nextPosition = {
-    x: currentPosition.x + nextDirection.x * speed * resolvedThrottle,
-    z: currentPosition.z + nextDirection.z * speed * resolvedThrottle,
+    x: currentPosition.x + travelDirection.x * speed * resolvedThrottle,
+    z: currentPosition.z + travelDirection.z * speed * resolvedThrottle,
   };
 
   return {

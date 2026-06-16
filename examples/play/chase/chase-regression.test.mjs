@@ -39,7 +39,7 @@ import {
 import { createChasePerformanceTracker } from "./debug/performance-debug.mjs";
 import { getPredictionPerformanceSnapshot } from "./debug/prediction-performance.mjs";
 import { createNodeJsonlTraceRecorder } from "./simulation/trace-recorder-node.mjs";
-import { getFieldBounds, getWallBounds } from "./world/world.mjs";
+import { getFieldBounds, getGroundBounds, getWallBounds } from "./world/world.mjs";
 import {
   createActorActionProposalToggleActionId,
   publishSidebarSections,
@@ -91,6 +91,14 @@ function reverseLeftInput() {
   return { forward: false, reverse: true, steering: 1 };
 }
 
+function leftInput() {
+  return { forward: false, reverse: false, steering: 1 };
+}
+
+function forwardLeftInput() {
+  return { forward: true, steering: 1 };
+}
+
 const REGRESSION_CASES = [
   {
     name: "idle_default_120",
@@ -100,7 +108,7 @@ const REGRESSION_CASES = [
     expected: {
       frame: 120,
       chaser: { x: -3.42, z: 0, dx: 1, dz: 0 },
-      evader: { x: 3.2882, z: 0.6381, dx: -0.9592, dz: -0.2829 },
+      evader: { x: 3.4433, z: 0.6334, dx: -0.9208, dz: -0.3901 },
       touches: 0,
       visible: false,
       prediction: {
@@ -122,7 +130,7 @@ const REGRESSION_CASES = [
     expected: {
       frame: 120,
       chaser: { x: -1.0994, z: 0, dx: 1, dz: 0 },
-      evader: { x: 3.2882, z: 0.6381, dx: -0.9592, dz: -0.2829 },
+      evader: { x: 3.4433, z: 0.6334, dx: -0.9208, dz: -0.3901 },
       touches: 0,
       visible: false,
       prediction: {
@@ -143,8 +151,8 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 180,
-      chaser: { x: -1.5006, z: -1.0884, dx: -0.9141, dz: 0.4055 },
-      evader: { x: 3.2705, z: 2.1467, dx: 0.9812, dz: -0.1929 },
+      chaser: { x: -1.1424, z: -1.105, dx: -0.9969, dz: -0.0789 },
+      evader: { x: 3.1955, z: 2.1203, dx: 0.9975, dz: -0.0704 },
       touches: 0,
       visible: false,
       prediction: {
@@ -155,7 +163,7 @@ const REGRESSION_CASES = [
         firstAhead: 20,
         sourcePatternIds: ["continuance"],
       },
-      inference: { speed: 0.0467, wallScore: 0 },
+      inference: { speed: 0.0467, wallScore: 1 },
     },
   },
   {
@@ -171,8 +179,8 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 158,
-      chaser: { x: 1.6533, z: -0.5635, dx: 0.6006, dz: 0.7995 },
-      evader: { x: 3.5442, z: 1.5626, dx: -0.6742, dz: 0.7385 },
+      chaser: { x: 1.6696, z: -0.5747, dx: 0.6287, dz: 0.7777 },
+      evader: { x: 3.6053, z: 1.5323, dx: -0.7699, dz: 0.6381 },
       touches: 0,
       visible: true,
       prediction: {
@@ -574,6 +582,61 @@ test("manual reverse moves the chaser backward and reverse steering turns the he
     reverseSteerState.chaserPosition.z < 0,
     "expected reverse-left input to back the chaser toward negative z",
   );
+});
+
+test("manual steering without throttle does not rotate the chaser in place", () => {
+  const state = createChaseSimulationState({
+    scenario: buildManualChaserScenario(),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  const startPosition = { ...state.chaserPosition };
+  const startDirection = { ...state.chaserLookDirection };
+
+  stepChaseSimulation(state, { humanInput: leftInput() });
+
+  assert.deepEqual(state.chaserPosition, startPosition);
+  assert.deepEqual(state.chaserLookDirection, startDirection);
+});
+
+test("vehicle steering does not rotate actors in place when speed is zero", () => {
+  const bounds = getGroundBounds(GRID.columns, GRID.rows);
+  const state = createChaseSimulationState({
+    scenario: buildManualChaserScenario((scenario) => {
+      scenario.actors.evader.position = { x: bounds.maxX, z: 0 };
+      scenario.actors.evader.direction = { x: 1, z: 0 };
+      scenario.vehicleSettings.chaserSpeedUnitsPerFrame = 0;
+      scenario.vehicleSettings.evaderSpeedUnitsPerFrame = 0;
+    }),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  const startChaserPosition = { ...state.chaserPosition };
+  const startChaserDirection = { ...state.chaserLookDirection };
+  const startEvaderPosition = { ...state.evaderPosition };
+  const startEvaderDirection = { ...state.evaderDirection };
+
+  stepChaseSimulation(state, {
+    humanInput: forwardLeftInput(),
+    pauseBeforeActions: true,
+  });
+  assert.notDeepEqual(
+    {
+      x: roundNumber(state.pendingActionFrame.evaderMovementDecision.nextDirection.x),
+      z: roundNumber(state.pendingActionFrame.evaderMovementDecision.nextDirection.z),
+    },
+    {
+      x: roundNumber(startEvaderDirection.x),
+      z: roundNumber(startEvaderDirection.z),
+    },
+  );
+
+  stepChaseSimulation(state, { pauseBeforeActions: false });
+
+  assert.deepEqual(state.chaserPosition, startChaserPosition);
+  assert.deepEqual(state.chaserLookDirection, startChaserDirection);
+  assert.deepEqual(state.evaderPosition, startEvaderPosition);
+  assert.deepEqual(state.evaderDirection, startEvaderDirection);
 });
 
 test("chaser records success metrics in actor memory after committed frames", () => {
@@ -1174,7 +1237,7 @@ test("chaser pattern config filters prediction sources without disabling support
   });
   let wallOnlySnapshot = null;
 
-  for (let frame = 0; frame < 500; frame += 1) {
+  for (let frame = 0; frame < 800; frame += 1) {
     stepChaseSimulation(state, { humanInput: idleInput() });
     const snapshot = state.lastStep.chaserReasoning?.snapshot;
     const sourcePatternIds = snapshot?.projections?.evaderMotion?.prediction?.sourcePatternIds ?? [];
@@ -1363,7 +1426,7 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
   }
 
   assert.deepEqual(lostSightPursuitFrame, {
-    frame: 233,
+    frame: 246,
     strategy: "rectified-evader-projection",
     persisted: false,
     pathLen: 6,
@@ -1382,8 +1445,8 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
     spinPathLen: 36,
     localNavigationActive: false,
     wallPressure: null,
-    wallProbability: 0.9167,
-    wallCredibleLowerBound: 0.7828,
+    wallProbability: 0.7,
+    wallCredibleLowerBound: 0.4602,
   });
 });
 
@@ -1484,8 +1547,8 @@ test("evader IDAE evades when the chaser is in evader FOV", () => {
     },
     {
       evader: {
-        x: 1.5417,
-        z: 0.5189,
+        x: 1.5264,
+        z: 0.4973,
         dx: -0.3584,
         dz: 0.9336,
       },
@@ -1494,7 +1557,7 @@ test("evader IDAE evades when the chaser is in evader FOV", () => {
         policyId: "evader-consensus-baseline",
         wallAvoidanceActive: true,
         nearestWall: "center-square",
-        nearestDistance: 0.7183746928487549,
+        nearestDistance: 0.7043792299274978,
         chaserVisible: false,
         evadeActive: false,
         activeActionProposalIds: ["defaultRoam"],
@@ -1511,7 +1574,7 @@ test("evader IDAE evades when the chaser is in evader FOV", () => {
       visibilityEpisodeCount: 1,
       actionableEpisodeCount: 1,
       executionEpisodeCount: 1,
-      lastSeenDistance: 0.24217397247254568,
+      lastSeenDistance: 0.225622652670046,
       lastSeenBearingRadians: 0,
     },
   );
@@ -1750,7 +1813,7 @@ test("map discovery-only chaser stops after remembered traversable map is covere
   const knownVertices = knownAreas.flatMap((area) => area.vertices ?? []);
   const fieldBounds = getFieldBounds(GRID.columns, GRID.rows);
 
-  assert.equal(completionFrame, 728);
+  assert.equal(completionFrame, 706);
   assert.equal(state.lastStep.chaserAction?.selectedActionProposalId, "none");
   assert.equal(state.lastStep.chaserAction?.forward, false);
   assert.equal(
