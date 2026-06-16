@@ -4,7 +4,7 @@ import type {
   ObservedMapWall,
 } from "../../decision-model/observer-world/interfaces.ts";
 import {
-  getWallBounds,
+  getWallSamplePoints,
   isLineOfSightBlockedByObstacles,
 } from "../../world/world.mjs";
 import {
@@ -24,22 +24,8 @@ function cloneObservedWall(wall: Partial<ObservedMapWall>, index: number): Obser
     z: Number(wall?.z) || 0,
     width: Math.max(0, Number(wall?.width) || 0),
     depth: Math.max(0, Number(wall?.depth) || 0),
+    rotationRadians: Number(wall?.rotationRadians) || 0,
   };
-}
-
-function getWallSamplePoints(wall: Partial<ObservedMapWall>): VectorXZ[] {
-  const bounds = getWallBounds(wall);
-  return [
-    { x: Number(wall.x) || 0, z: Number(wall.z) || 0 },
-    { x: bounds.minX, z: bounds.minZ },
-    { x: bounds.minX, z: bounds.maxZ },
-    { x: bounds.maxX, z: bounds.minZ },
-    { x: bounds.maxX, z: bounds.maxZ },
-    { x: Number(wall.x) || 0, z: bounds.minZ },
-    { x: Number(wall.x) || 0, z: bounds.maxZ },
-    { x: bounds.minX, z: Number(wall.z) || 0 },
-    { x: bounds.maxX, z: Number(wall.z) || 0 },
-  ];
 }
 
 function isSampleOccludedByOtherWalls(

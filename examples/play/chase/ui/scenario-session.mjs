@@ -28,7 +28,6 @@ function createViewportSpec(scenario) {
     return null;
   }
   return {
-    grid: [columns, rows],
     frameAspect: [columns, rows],
   };
 }
@@ -48,6 +47,7 @@ export function createChaseScenarioSession({ columns, rows } = {}) {
   const loadScenario = (scenarioId) => {
     activeScenarioDefinition = getChaseScenarioDefinition(scenarioId);
     activeScenarioId = activeScenarioDefinition.id ?? DEFAULT_CHASE_SCENARIO_ID;
+    evaderExistsOverride = getScenarioEvaderExists(activeScenarioDefinition, dimensions);
     return buildScenario();
   };
 

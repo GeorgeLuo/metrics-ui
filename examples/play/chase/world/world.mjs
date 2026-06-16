@@ -15,17 +15,101 @@ export function getFieldObstacleLayout(columns, rows) {
         z: 0,
         width: centerObstacleSize,
         depth: centerObstacleSize,
+        rotationRadians: 0,
       },
     ],
   };
 }
 
-export function getWallBounds(wall, padding = 0) {
+function getWallRotationRadians(wall) {
+  const rotation = Number(wall?.rotationRadians);
+  return Number.isFinite(rotation) ? rotation : 0;
+}
+
+function getWallLocalBounds(wall, padding = 0) {
+  const halfWidth = Math.max(0, Number(wall?.width) || 0) / 2 + padding;
+  const halfDepth = Math.max(0, Number(wall?.depth) || 0) / 2 + padding;
   return {
-    minX: wall.x - wall.width / 2 - padding,
-    maxX: wall.x + wall.width / 2 + padding,
-    minZ: wall.z - wall.depth / 2 - padding,
-    maxZ: wall.z + wall.depth / 2 + padding,
+    minX: -halfWidth,
+    maxX: halfWidth,
+    minZ: -halfDepth,
+    maxZ: halfDepth,
+  };
+}
+
+function getWallCenter(wall) {
+  return {
+    x: Number(wall?.x) || 0,
+    z: Number(wall?.z) || 0,
+  };
+}
+
+function getWallLocalPoint(position, wall) {
+  const center = getWallCenter(wall);
+  const rotation = getWallRotationRadians(wall);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const dx = (Number(position?.x) || 0) - center.x;
+  const dz = (Number(position?.z) || 0) - center.z;
+  return {
+    x: dx * cos - dz * sin,
+    z: dx * sin + dz * cos,
+  };
+}
+
+function getWallWorldDirection(localDirection, wall) {
+  const rotation = getWallRotationRadians(wall);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return normalizeVector(
+    localDirection.x * cos + localDirection.z * sin,
+    -localDirection.x * sin + localDirection.z * cos,
+  );
+}
+
+function getWallWorldPoint(localPoint, wall) {
+  const center = getWallCenter(wall);
+  const rotation = getWallRotationRadians(wall);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return {
+    x: center.x + localPoint.x * cos + localPoint.z * sin,
+    z: center.z - localPoint.x * sin + localPoint.z * cos,
+  };
+}
+
+export function getWallCorners(wall, padding = 0) {
+  const bounds = getWallLocalBounds(wall, padding);
+  return [
+    getWallWorldPoint({ x: bounds.minX, z: bounds.minZ }, wall),
+    getWallWorldPoint({ x: bounds.maxX, z: bounds.minZ }, wall),
+    getWallWorldPoint({ x: bounds.maxX, z: bounds.maxZ }, wall),
+    getWallWorldPoint({ x: bounds.minX, z: bounds.maxZ }, wall),
+  ];
+}
+
+export function getWallSamplePoints(wall) {
+  const bounds = getWallLocalBounds(wall);
+  return [
+    getWallWorldPoint({ x: 0, z: 0 }, wall),
+    getWallWorldPoint({ x: bounds.minX, z: bounds.minZ }, wall),
+    getWallWorldPoint({ x: bounds.maxX, z: bounds.minZ }, wall),
+    getWallWorldPoint({ x: bounds.maxX, z: bounds.maxZ }, wall),
+    getWallWorldPoint({ x: bounds.minX, z: bounds.maxZ }, wall),
+    getWallWorldPoint({ x: 0, z: bounds.minZ }, wall),
+    getWallWorldPoint({ x: bounds.maxX, z: 0 }, wall),
+    getWallWorldPoint({ x: 0, z: bounds.maxZ }, wall),
+    getWallWorldPoint({ x: bounds.minX, z: 0 }, wall),
+  ];
+}
+
+export function getWallBounds(wall, padding = 0) {
+  const corners = getWallCorners(wall, padding);
+  return {
+    minX: Math.min(...corners.map((corner) => corner.x)),
+    maxX: Math.max(...corners.map((corner) => corner.x)),
+    minZ: Math.min(...corners.map((corner) => corner.z)),
+    maxZ: Math.max(...corners.map((corner) => corner.z)),
   };
 }
 
@@ -59,10 +143,22 @@ function doesLineSegmentIntersectBounds(startPosition, endPosition, bounds) {
     && tMin < 1;
 }
 
+export function isPositionInsideWall(position, wall, padding = 0) {
+  return isPositionInsideBounds(getWallLocalPoint(position, wall), getWallLocalBounds(wall, padding));
+}
+
+function doesLineSegmentIntersectWall(startPosition, endPosition, wall, padding = 0) {
+  return doesLineSegmentIntersectBounds(
+    getWallLocalPoint(startPosition, wall),
+    getWallLocalPoint(endPosition, wall),
+    getWallLocalBounds(wall, padding),
+  );
+}
+
 export function isLineOfSightBlockedByObstacles(startPosition, endPosition, obstacles) {
   const walls = Array.isArray(obstacles?.walls) ? obstacles.walls : [];
   return walls.some((wall) =>
-    doesLineSegmentIntersectBounds(startPosition, endPosition, getWallBounds(wall)),
+    doesLineSegmentIntersectWall(startPosition, endPosition, wall),
   );
 }
 
@@ -146,6 +242,16 @@ function getDistanceToBounds(position, bounds) {
   };
 }
 
+function getDistanceToWall(position, wall) {
+  const localPosition = getWallLocalPoint(position, wall);
+  const bounds = getWallLocalBounds(wall);
+  const localDistance = getDistanceToBounds(localPosition, bounds);
+  return {
+    distance: localDistance.distance,
+    direction: getWallWorldDirection(localDistance.direction, wall),
+  };
+}
+
 export function getObstacleWallPressure(position, obstacles) {
   const walls = Array.isArray(obstacles?.walls) ? obstacles.walls : [];
   let nearest = {
@@ -153,7 +259,7 @@ export function getObstacleWallPressure(position, obstacles) {
     distance: Number.POSITIVE_INFINITY,
   };
   const pressure = walls.reduce((sum, wall, index) => {
-    const distanceToWall = getDistanceToBounds(position, getWallBounds(wall));
+    const distanceToWall = getDistanceToWall(position, wall);
     if (distanceToWall.distance < nearest.distance) {
       nearest = {
         wall: wall.id ?? `obstacle-${index + 1}`,
@@ -209,38 +315,40 @@ export function clampPosition(position, columns, rows) {
 }
 
 function resolveWallCollision(position, previousPosition, columns, rows, wall) {
-  const bounds = getWallBounds(wall, CAR_BOUND_RADIUS);
+  const bounds = getWallLocalBounds(wall, CAR_BOUND_RADIUS);
+  const localPosition = getWallLocalPoint(position, wall);
+  const localPreviousPosition = getWallLocalPoint(previousPosition, wall);
   if (
-    !isPositionInsideBounds(position, bounds)
-    && !doesLineSegmentIntersectBounds(previousPosition, position, bounds)
+    !isPositionInsideBounds(localPosition, bounds)
+    && !doesLineSegmentIntersectBounds(localPreviousPosition, localPosition, bounds)
   ) {
     return position;
   }
 
-  let resolved = { ...position };
-  if (previousPosition.x <= bounds.minX) {
-    resolved.x = bounds.minX;
-  } else if (previousPosition.x >= bounds.maxX) {
-    resolved.x = bounds.maxX;
-  } else if (previousPosition.z <= bounds.minZ) {
-    resolved.z = bounds.minZ;
-  } else if (previousPosition.z >= bounds.maxZ) {
-    resolved.z = bounds.maxZ;
+  let resolvedLocal = { ...localPosition };
+  if (localPreviousPosition.x <= bounds.minX) {
+    resolvedLocal.x = bounds.minX;
+  } else if (localPreviousPosition.x >= bounds.maxX) {
+    resolvedLocal.x = bounds.maxX;
+  } else if (localPreviousPosition.z <= bounds.minZ) {
+    resolvedLocal.z = bounds.minZ;
+  } else if (localPreviousPosition.z >= bounds.maxZ) {
+    resolvedLocal.z = bounds.maxZ;
   } else {
     const distances = [
-      { axis: "x", value: bounds.minX, distance: Math.abs(position.x - bounds.minX) },
-      { axis: "x", value: bounds.maxX, distance: Math.abs(position.x - bounds.maxX) },
-      { axis: "z", value: bounds.minZ, distance: Math.abs(position.z - bounds.minZ) },
-      { axis: "z", value: bounds.maxZ, distance: Math.abs(position.z - bounds.maxZ) },
+      { axis: "x", value: bounds.minX, distance: Math.abs(localPosition.x - bounds.minX) },
+      { axis: "x", value: bounds.maxX, distance: Math.abs(localPosition.x - bounds.maxX) },
+      { axis: "z", value: bounds.minZ, distance: Math.abs(localPosition.z - bounds.minZ) },
+      { axis: "z", value: bounds.maxZ, distance: Math.abs(localPosition.z - bounds.maxZ) },
     ].sort((first, second) => first.distance - second.distance);
     const nearestEdge = distances[0];
-    resolved = {
-      ...resolved,
+    resolvedLocal = {
+      ...resolvedLocal,
       [nearestEdge.axis]: nearestEdge.value,
     };
   }
 
-  return clampPosition(resolved, columns, rows);
+  return clampPosition(getWallWorldPoint(resolvedLocal, wall), columns, rows);
 }
 
 export function resolveObstacleCollisions(position, previousPosition, columns, rows, obstacles) {

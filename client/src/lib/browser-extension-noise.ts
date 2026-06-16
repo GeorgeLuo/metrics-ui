@@ -78,6 +78,19 @@ export function isBrowserExtensionErrorEvent(event: Event | null | undefined): b
     || (isLikelyExtensionScript(filename) && (message.length > 0 || errorMessage.length > 0));
 }
 
+export function isBrowserExtensionRuntimeError(error: Error | null | undefined): boolean {
+  if (!error) {
+    return false;
+  }
+
+  const message = getErrorMessage(error);
+  const stack = getErrorStack(error);
+
+  return isKnownBrowserExtensionNoiseMessage(message)
+    || isBrowserExtensionUrl(stack)
+    || isLikelyExtensionScript(stack);
+}
+
 function isBrowserExtensionRejection(event: PromiseRejectionEvent): boolean {
   const reason = event.reason;
   return isKnownBrowserExtensionNoiseMessage(reason)

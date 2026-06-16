@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isBrowserExtensionErrorEvent,
+  isBrowserExtensionRuntimeError,
   isKnownBrowserExtensionNoiseMessage,
 } from "./browser-extension-noise";
 
@@ -43,4 +44,15 @@ test("browser extension noise filter does not match ordinary app errors", () => 
 
   assert.equal(isBrowserExtensionErrorEvent(event), false);
   assert.equal(isKnownBrowserExtensionNoiseMessage("Visualization runtime error"), false);
+});
+
+test("browser extension runtime error filter matches MetaMask overlay errors", () => {
+  const error = new Error("Failed to connect to MetaMask");
+  error.stack = [
+    "Error: Failed to connect to MetaMask",
+    "    at Object.connect (chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn/scripts/inpage.js:7:81161)",
+  ].join("\n");
+
+  assert.equal(isBrowserExtensionRuntimeError(error), true);
+  assert.equal(isBrowserExtensionRuntimeError(new Error("Application runtime error")), false);
 });

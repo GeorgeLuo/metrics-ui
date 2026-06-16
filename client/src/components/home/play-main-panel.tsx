@@ -28,6 +28,15 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function isIntegerPlayGrid(value: PlayViewportSpec["grid"]): value is [number, number] {
+  return Array.isArray(value)
+    && value.length === 2
+    && Number.isInteger(value[0])
+    && Number.isInteger(value[1])
+    && value[0] > 0
+    && value[1] > 0;
+}
+
 export function PlayMainPanel({
   frameGridLayoutDebug = false,
   onFrameGridDebugChange,
@@ -70,7 +79,9 @@ export function PlayMainPanel({
 
   const selectedGame = games[0] ?? null;
   const [hostColumns, hostRows] = selectedGame?.grid ?? DEFAULT_PLAY_GRID;
-  const [columns, rows] = viewportSpecOverride?.grid ?? [hostColumns, hostRows];
+  const [columns, rows] = isIntegerPlayGrid(viewportSpecOverride?.grid)
+    ? viewportSpecOverride.grid
+    : [hostColumns, hostRows];
   const frameGridSpec = useMemo<FrameGridSpec>(() => ({
     ...PLAY_FRAME_GRID_SPEC,
     frameAspect: viewportSpecOverride?.frameAspect ?? selectedGame?.frameAspect ?? DEFAULT_PLAY_GRID,

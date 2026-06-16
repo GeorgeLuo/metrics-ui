@@ -2,11 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { isBrowserExtensionRuntimeError } from "./client/src/lib/browser-extension-noise";
 
 export default defineConfig({
   plugins: [
     react(),
-    runtimeErrorOverlay(),
+    runtimeErrorOverlay({
+      filter: (error) => !isBrowserExtensionRuntimeError(error),
+    }),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [

@@ -14,7 +14,12 @@ import {
   type MapAreaMemory,
   type MapObstacleMemory,
 } from "./memory.ts";
-import { getFieldBounds, getGroundBounds, getWallBounds } from "../../../../world/world.mjs";
+import {
+  getFieldBounds,
+  getGroundBounds,
+  getWallBounds,
+  isPositionInsideWall,
+} from "../../../../world/world.mjs";
 import type { VectorXZ } from "../../../core/math.ts";
 
 const CARDINAL_OFFSETS = Object.freeze([
@@ -94,8 +99,8 @@ export function isMapCellInsideRememberedWall(
   padding = CAR_BOUND_RADIUS,
 ): boolean {
   const center = getMapCellCenter(cellX, cellZ);
-  return getRememberedWallBounds(obstacles, padding).some((bounds) =>
-    isPositionInsideBounds(center, bounds));
+  return (Array.isArray(obstacles?.walls) ? obstacles.walls : []).some((wall) =>
+    isPositionInsideWall(center, wall, padding));
 }
 
 /** Resolves a remembered area's world center, deriving it if needed. */
