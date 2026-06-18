@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { FrameGrid, type FrameGridDebugSnapshot, type FrameGridSpec } from "@/components/frame-grid";
-import { PlayGameHost, type PlayViewportSpec } from "@/components/home/play-game-host";
+import {
+  PlayGameHost,
+  type PlayFrontViewSnapshotHandler,
+  type PlayViewportSpec,
+} from "@/components/home/play-game-host";
 import type { PlaySidebarSection } from "@/lib/play/sidebar-sections";
 import {
   DEFAULT_PLAY_GRID,
@@ -22,6 +26,7 @@ type PlayMainPanelProps = {
   onSidebarSectionsChange?: (sections: PlaySidebarSection[]) => void;
   onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
   onDebugSnapshotChange?: (snapshot: unknown) => void;
+  onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
 };
 
 function getErrorMessage(error: unknown): string {
@@ -43,6 +48,7 @@ export function PlayMainPanel({
   onSidebarSectionsChange,
   onSidebarActionHandlerChange,
   onDebugSnapshotChange,
+  onFrontViewSnapshotHandlerChange,
 }: PlayMainPanelProps) {
   const [games, setGames] = useState<PlayGameCatalogEntry[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -126,6 +132,7 @@ export function PlayMainPanel({
               onSidebarSectionsChange={onSidebarSectionsChange}
               onSidebarActionHandlerChange={onSidebarActionHandlerChange}
               onDebugSnapshotChange={onDebugSnapshotChange}
+              onFrontViewSnapshotHandlerChange={onFrontViewSnapshotHandlerChange}
             />
           )}
         </FrameGrid.Item>

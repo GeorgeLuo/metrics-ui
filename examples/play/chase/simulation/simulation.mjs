@@ -14,6 +14,9 @@ import {
   updateEvaderWallAvoidanceTruth,
 } from "../decision-model/patterns/chaser/evader-motion/wall-avoidance/evidence.ts";
 import {
+  recordFrameFrontViewCaptures,
+} from "./front-view-captures.ts";
+import {
   createChaseTraceRecorder,
   getChaseTraceRecorderSnapshot,
   recordChaseTraceFrame,
@@ -74,10 +77,21 @@ function cloneVector(vector, fallback = { x: 0, z: 0 }) {
 }
 
 function cloneHumanInput(humanInput) {
+  const frontViewCapture = humanInput?.frontViewCapture?.requested
+    ? {
+      requested: true,
+      rendererId: typeof humanInput.frontViewCapture.rendererId === "string"
+        ? humanInput.frontViewCapture.rendererId
+        : undefined,
+    }
+    : humanInput?.captureFrontView
+      ? { requested: true }
+      : null;
   return {
     forward: Boolean(humanInput?.forward),
     reverse: Boolean(humanInput?.reverse),
     steering: Number.isFinite(humanInput?.steering) ? humanInput.steering : 0,
+    frontViewCapture,
   };
 }
 
@@ -230,6 +244,7 @@ function buildEvaderMovementDecision(state, evaderAction) {
     steering: Number.isFinite(evaderAction?.steering)
       ? evaderAction.steering
       : 0,
+    frontViewCapture: evaderAction?.frontViewCapture ?? null,
     desiredDirection: evaderAction?.desiredDirection ?? null,
     nextDirection: evaderAction?.nextDirection ?? evaderAction?.direction ?? state.evaderDirection,
     direction: evaderAction?.direction ?? state.evaderDirection,
@@ -271,6 +286,7 @@ function buildReasonedActionFrame(state, { humanInput } = {}) {
     forward: false,
     reverse: false,
     steering: 0,
+    frontViewCapture: null,
   };
   const evaderReasoning = updateEvaderReasoningState(state, frameContext);
   const evaderMovementDecision = buildEvaderMovementDecision(
@@ -318,6 +334,7 @@ function commitReasonedActionFrame(state, actionFrame) {
     state,
     actionFrame.evaderMovementDecision,
   );
+  const frontViewCaptures = recordFrameFrontViewCaptures(state, actionFrame);
   if (state.evaderExists !== false) {
     validatePredictionPerformance(state.predictionPerformance, {
       frameIndex: state.frameIndex + 1,
@@ -338,6 +355,7 @@ function commitReasonedActionFrame(state, actionFrame) {
     phase: "after-actions",
     actionApplicationPending: false,
     evaderMovementDecision,
+    frontViewCaptures,
   };
   state.pendingActionFrame = null;
   state.frameIndex += 1;
@@ -399,11 +417,24 @@ export function createChaseSimulationState({
       phase: "initial",
       frameIndex: 0,
       actionApplicationPending: false,
-      chaserInput: { source: "human", forward: false, reverse: false, steering: 0 },
-      chaserAction: { source: "human", forward: false, reverse: false, steering: 0 },
+      chaserInput: {
+        source: "human",
+        forward: false,
+        reverse: false,
+        steering: 0,
+        frontViewCapture: null,
+      },
+      chaserAction: {
+        source: "human",
+        forward: false,
+        reverse: false,
+        steering: 0,
+        frontViewCapture: null,
+      },
       chaserReasoning: null,
       evaderReasoning: null,
       evaderMovementDecision: null,
+      frontViewCaptures: { chaser: null, evader: null },
     },
   };
 }

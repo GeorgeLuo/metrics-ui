@@ -11,6 +11,7 @@ import type { ChartViewProps } from "@/components/home/metrics-chart-view";
 import { MetricsMainPanel } from "@/components/home/metrics-main-panel";
 import { MiniModeView, MiniProjectionContent } from "@/components/home/mini-mode-view";
 import { PlayMainPanel } from "@/components/home/play-main-panel";
+import type { PlayFrontViewSnapshotHandler } from "@/components/home/play-game-host";
 import { SidebarDerivationsPane } from "@/components/home/sidebar-derivations-pane";
 import { SidebarEquationsPane } from "@/components/home/sidebar-equations-pane";
 import { SidebarPlayPane } from "@/components/home/sidebar-play-pane";
@@ -618,6 +619,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const equationsFrameDebugRef = useRef<FrameGridDebugSnapshot | null>(null);
   const playSidebarActionHandlerRef = useRef<((actionId: string, value?: unknown) => void) | null>(null);
   const playDebugSnapshotRef = useRef<unknown>(null);
+  const playFrontViewSnapshotHandlerRef = useRef<PlayFrontViewSnapshotHandler | null>(null);
   const equationsProtocolHandlersRef = useRef<EquationsProtocolHandlers>({});
   const [playFrameGridDebugSnapshot, setPlayFrameGridDebugSnapshot] =
     useState<FrameGridDebugSnapshot | null>(null);
@@ -644,6 +646,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handlePlayDebugSnapshotChange = useCallback((snapshot: unknown) => {
     playDebugSnapshotRef.current = snapshot;
   }, []);
+  const handlePlayFrontViewSnapshotHandlerChange = useCallback((
+    handler: PlayFrontViewSnapshotHandler | null,
+  ) => {
+    playFrontViewSnapshotHandlerRef.current = handler;
+  }, []);
   const handlePlayGameAction = useCallback((actionId: string, value?: unknown) => {
     const handler = playSidebarActionHandlerRef.current;
     if (!handler) {
@@ -653,6 +660,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     return true;
   }, []);
   const getPlayDebug = useCallback(() => playDebugSnapshotRef.current, []);
+  const getPlayFrontViewSnapshot = useCallback((
+    options?: Parameters<PlayFrontViewSnapshotHandler>[0],
+  ) => playFrontViewSnapshotHandlerRef.current?.(options) ?? null, []);
   const handleSetEquationsTopicCommand = useCallback((topicId: string, options?: { preserveViewMode?: boolean }) =>
     equationsProtocolHandlersRef.current.setTopic?.(topicId, options) === true, []);
   const handleSetEquationsViewModeCommand = useCallback((viewMode: VisualizationState["equationsPane"]["viewMode"]) =>
@@ -5527,6 +5537,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     getMemoryStats: buildMemoryStats,
     getUiDebug,
     getPlayDebug,
+    getPlayFrontViewSnapshot,
     onDerivationPlugins: (plugins) => {
       setDerivationPluginsError(null);
       setDerivationPlugins(normalizeDerivationPlugins(plugins));
@@ -6725,6 +6736,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onSidebarSectionsChange={handlePlaySidebarSectionsChange}
               onSidebarActionHandlerChange={handlePlaySidebarActionHandlerChange}
               onDebugSnapshotChange={handlePlayDebugSnapshotChange}
+              onFrontViewSnapshotHandlerChange={handlePlayFrontViewSnapshotHandlerChange}
             />
           )}
         </div>

@@ -2,6 +2,9 @@ import {
   createActorLocationMemory,
 } from "../../../decision-model/memory/actors/perceived-actor-location.ts";
 import {
+  createVehicleFrontViewCaptureMemory,
+} from "../../../decision-model/memory/vehicle/front-view-captures.ts";
+import {
   createMapShapeMemory,
 } from "../../../decision-model/memory/chaser/map/memory.ts";
 import {
@@ -51,6 +54,7 @@ export function createChaserKnowledgeBase({
     memory: {
       directObservation: {
         evaderLocation: createActorLocationMemory(),
+        frontViewCaptures: createVehicleFrontViewCaptureMemory(),
       },
       abstracted: {
         observedEvaderMotion: createObservedEvaderMotionMemory(resolvedEvaderDirection),

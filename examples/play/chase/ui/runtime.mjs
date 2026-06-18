@@ -7,6 +7,7 @@ import {
 import { createChaseSimulationState } from "../simulation/simulation.mjs";
 import { createChasePerformanceTracker } from "../debug/performance-debug.mjs";
 import { buildChaseDebugSnapshot } from "../debug/debug-snapshot.mjs";
+import { buildManualFrontViewSnapshot } from "./front-view-snapshot.ts";
 import {
   createChaserViewController,
   createEvaderViewController,
@@ -287,6 +288,13 @@ export function createPlayGame({
   });
 
   return {
+    getFrontViewSnapshot(options = {}) {
+      const renderedImage = sceneView.captureActorView?.(options) ?? null;
+      return buildManualFrontViewSnapshot(simulationState, {
+        ...options,
+        renderedImage,
+      });
+    },
     dispose() {
       runtimeLoop?.dispose();
       clearSidebarActions(

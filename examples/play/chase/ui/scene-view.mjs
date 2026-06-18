@@ -25,6 +25,7 @@ import {
   isMapKnowledgeOverlayVisible,
   isMapRecencyOverlayVisible,
 } from "./settings.mjs";
+import { captureActorViewImage } from "./actor-view-controller.mjs";
 
 export function createChaseSceneView({
   container,
@@ -120,6 +121,28 @@ export function createChaseSceneView({
     evaderFieldOfView.geometry = nextEvaderGeometry;
     chaserView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
     evaderView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
+  };
+
+  const syncActorMeshes = () => {
+    const {
+      chaserPosition,
+      chaserLookDirection,
+      evaderExists,
+      evaderPosition,
+      evaderDirection,
+    } = simulationState;
+    chaser.position.set(chaserPosition.x, CAR_HEIGHT / 2, chaserPosition.z);
+    chaser.rotation.y = vectorToAngle(chaserLookDirection);
+    chaserFieldOfView.position.set(chaserPosition.x, 0, chaserPosition.z);
+    chaserFieldOfView.rotation.y = vectorToAngle(chaserLookDirection);
+    evader.visible = Boolean(evaderExists && evaderPosition && evaderDirection);
+    evaderFieldOfView.visible = Boolean(evaderExists && evaderPosition && evaderDirection);
+    if (evader.visible) {
+      evader.position.set(evaderPosition.x, CAR_HEIGHT / 2, evaderPosition.z);
+      evader.rotation.y = vectorToAngle(evaderDirection);
+      evaderFieldOfView.position.set(evaderPosition.x, 0, evaderPosition.z);
+      evaderFieldOfView.rotation.y = vectorToAngle(evaderDirection);
+    }
   };
 
   const resize = () => {
@@ -218,18 +241,7 @@ export function createChaseSceneView({
     const mapKnowledgeDisplayMs = performance.now() - mapKnowledgeDisplayStartMs;
 
     const sceneSyncStartMs = performance.now();
-    chaser.position.set(chaserPosition.x, CAR_HEIGHT / 2, chaserPosition.z);
-    chaser.rotation.y = vectorToAngle(chaserLookDirection);
-    chaserFieldOfView.position.set(chaserPosition.x, 0, chaserPosition.z);
-    chaserFieldOfView.rotation.y = vectorToAngle(chaserLookDirection);
-    evader.visible = Boolean(evaderExists && evaderPosition && evaderDirection);
-    evaderFieldOfView.visible = Boolean(evaderExists && evaderPosition && evaderDirection);
-    if (evader.visible) {
-      evader.position.set(evaderPosition.x, CAR_HEIGHT / 2, evaderPosition.z);
-      evader.rotation.y = vectorToAngle(evaderDirection);
-      evaderFieldOfView.position.set(evaderPosition.x, 0, evaderPosition.z);
-      evaderFieldOfView.rotation.y = vectorToAngle(evaderDirection);
-    }
+    syncActorMeshes();
     const sceneSyncMs = performance.now() - sceneSyncStartMs;
 
     const mainRenderStartMs = performance.now();
@@ -280,6 +292,38 @@ export function createChaseSceneView({
     };
   };
 
+  const captureActorView = ({ actorId = "chaser", width, height } = {}) => {
+    syncObstacleMeshes();
+    syncActorMeshes();
+    if (actorId === "evader") {
+      if (!simulationState.evaderExists || !simulationState.evaderPosition || !simulationState.evaderDirection) {
+        return null;
+      }
+      return captureActorViewImage({
+        scene,
+        actorMesh: evader,
+        actorFieldOfView: evaderFieldOfView,
+        otherActorFieldOfView: chaserFieldOfView,
+        actorPosition: simulationState.evaderPosition,
+        actorLookDirection: simulationState.evaderDirection,
+        fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
+        width,
+        height,
+      });
+    }
+    return captureActorViewImage({
+      scene,
+      actorMesh: chaser,
+      actorFieldOfView: chaserFieldOfView,
+      otherActorFieldOfView: evaderFieldOfView,
+      actorPosition: simulationState.chaserPosition,
+      actorLookDirection: simulationState.chaserLookDirection,
+      fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
+      width,
+      height,
+    });
+  };
+
   const dispose = () => {
     resizeObserver.disconnect();
     if (renderer.domElement.parentElement === container) {
@@ -305,6 +349,7 @@ export function createChaseSceneView({
   return {
     updateFieldOfView,
     renderFrame,
+    captureActorView,
     resize,
     dispose,
   };

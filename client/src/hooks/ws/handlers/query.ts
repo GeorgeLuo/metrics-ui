@@ -214,6 +214,38 @@ export function handleQueryCommand(
       context.sendAck(requestId, command.type);
       return true;
     }
+    case "get_play_front_view_snapshot": {
+      if (!context.getPlayFrontViewSnapshot) {
+        context.sendError(requestId, "Play front-view snapshotting is not available.");
+        return true;
+      }
+      let snapshot: unknown;
+      try {
+        snapshot = context.getPlayFrontViewSnapshot({
+          actorId: typeof command.actorId === "string" ? command.actorId : undefined,
+          width: Number.isFinite(command.width) ? Number(command.width) : undefined,
+          height: Number.isFinite(command.height) ? Number(command.height) : undefined,
+        });
+      } catch (error) {
+        context.sendError(
+          requestId,
+          error instanceof Error ? error.message : "Failed to build Play front-view snapshot.",
+          { command: "get_play_front_view_snapshot" },
+        );
+        return true;
+      }
+      if (snapshot === null || snapshot === undefined) {
+        context.sendError(requestId, "No Play front-view snapshot is available. Activate the Play sub-app and wait for the game to load.");
+        return true;
+      }
+      context.sendMessage({
+        type: "play_front_view_snapshot",
+        request_id: requestId,
+        payload: snapshot,
+      });
+      context.sendAck(requestId, command.type);
+      return true;
+    }
     case "get_memory_stats": {
       const stats = context.getMemoryStats();
       context.sendMessage({

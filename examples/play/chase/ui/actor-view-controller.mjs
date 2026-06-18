@@ -3,6 +3,110 @@ import { CHASER_VIEW_MAX_DISTANCE } from "../config/constants.mjs";
 import { configureChaserViewCamera } from "./rendering.mjs";
 
 const DEFAULT_ACTOR_VIEW_WIDTH = 280;
+const ACTOR_VIEW_IMAGE_RENDERER_ID = "chase-actor-view-threejs-v1";
+
+function normalizeCaptureDimension(value, fallback) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? Math.round(numericValue)
+    : fallback;
+}
+
+function configureActorViewRenderCamera(camera, {
+  actorPosition,
+  actorLookDirection,
+  fieldOfViewAngleRadians,
+  width,
+  height,
+}) {
+  camera.fov = fieldOfViewAngleRadians * 180 / Math.PI;
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  configureChaserViewCamera(camera, actorPosition, actorLookDirection);
+}
+
+function renderActorViewScene({
+  renderer,
+  camera,
+  scene,
+  actorMesh,
+  actorFieldOfView,
+  otherActorFieldOfView,
+}) {
+  const actorMeshVisible = actorMesh.visible;
+  const actorFieldOfViewVisible = actorFieldOfView.visible;
+  const otherActorFieldOfViewVisible = otherActorFieldOfView?.visible ?? false;
+  actorMesh.visible = false;
+  actorFieldOfView.visible = false;
+  if (otherActorFieldOfView) {
+    otherActorFieldOfView.visible = false;
+  }
+  renderer.render(scene, camera);
+  actorMesh.visible = actorMeshVisible;
+  actorFieldOfView.visible = actorFieldOfViewVisible;
+  if (otherActorFieldOfView) {
+    otherActorFieldOfView.visible = otherActorFieldOfViewVisible;
+  }
+}
+
+export function captureActorViewImage({
+  scene,
+  actorMesh,
+  actorFieldOfView,
+  otherActorFieldOfView,
+  actorPosition,
+  actorLookDirection,
+  fieldOfViewAngleRadians,
+  width,
+  height,
+  contentType = "image/png",
+} = {}) {
+  if (!scene || !actorMesh || !actorFieldOfView || !actorPosition || !actorLookDirection) {
+    return null;
+  }
+  const imageWidth = normalizeCaptureDimension(width, 640);
+  const imageHeight = normalizeCaptureDimension(height, 480);
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true,
+    preserveDrawingBuffer: true,
+  });
+  const camera = new THREE.PerspectiveCamera(
+    fieldOfViewAngleRadians * 180 / Math.PI,
+    imageWidth / imageHeight,
+    0.04,
+    CHASER_VIEW_MAX_DISTANCE,
+  );
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.setClearColor(0x000000, 0);
+  renderer.setPixelRatio(1);
+  renderer.setSize(imageWidth, imageHeight, false);
+  configureActorViewRenderCamera(camera, {
+    actorPosition,
+    actorLookDirection,
+    fieldOfViewAngleRadians,
+    width: imageWidth,
+    height: imageHeight,
+  });
+  renderActorViewScene({
+    renderer,
+    camera,
+    scene,
+    actorMesh,
+    actorFieldOfView,
+    otherActorFieldOfView,
+  });
+  const dataUrl = renderer.domElement.toDataURL(contentType);
+  renderer.dispose();
+  renderer.forceContextLoss?.();
+  return {
+    contentType,
+    rendererId: ACTOR_VIEW_IMAGE_RENDERER_ID,
+    width: imageWidth,
+    height: imageHeight,
+    dataUrl,
+  };
+}
 
 export function createActorViewController({
   createFloatingFrame,
@@ -163,20 +267,14 @@ export function createActorViewController({
       return;
     }
     configureChaserViewCamera(mountedView.camera, actorPosition, actorLookDirection);
-    const actorMeshVisible = actorMesh.visible;
-    const actorFieldOfViewVisible = actorFieldOfView.visible;
-    const otherActorFieldOfViewVisible = otherActorFieldOfView?.visible ?? false;
-    actorMesh.visible = false;
-    actorFieldOfView.visible = false;
-    if (otherActorFieldOfView) {
-      otherActorFieldOfView.visible = false;
-    }
-    mountedView.renderer.render(scene, mountedView.camera);
-    actorMesh.visible = actorMeshVisible;
-    actorFieldOfView.visible = actorFieldOfViewVisible;
-    if (otherActorFieldOfView) {
-      otherActorFieldOfView.visible = otherActorFieldOfViewVisible;
-    }
+    renderActorViewScene({
+      renderer: mountedView.renderer,
+      camera: mountedView.camera,
+      scene,
+      actorMesh,
+      actorFieldOfView,
+      otherActorFieldOfView,
+    });
   };
 
   return {

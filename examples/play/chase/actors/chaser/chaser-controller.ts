@@ -157,6 +157,7 @@ export function getProgrammaticChaserInput({
     forward: actionPlan.forward,
     reverse: actionPlan.reverse,
     steering: actionPlan.steering,
+    frontViewCapture: actionPlan.frontViewCapture ?? null,
     pursuitPoint: actionPlan.pursuitPoint ?? null,
     movement: actionPlan.movement ?? null,
     actionPath: actionPlan.actionPath ?? [],

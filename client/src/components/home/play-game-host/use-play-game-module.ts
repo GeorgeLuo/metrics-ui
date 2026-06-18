@@ -21,6 +21,9 @@ type UsePlayGameModuleOptions = {
   clearFloatingFrames: () => void;
   setDebugSnapshot: (snapshot: unknown) => void;
   setViewportSpec: (spec: PlayViewportSpec | null) => void;
+  setFrontViewSnapshotHandler: (
+    handler: PlayGameInstance["getFrontViewSnapshot"] | null,
+  ) => void;
 };
 
 function getErrorMessage(error: unknown): string {
@@ -41,6 +44,7 @@ export function usePlayGameModule({
   clearFloatingFrames,
   setDebugSnapshot,
   setViewportSpec,
+  setFrontViewSnapshotHandler,
 }: UsePlayGameModuleOptions) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -51,11 +55,13 @@ export function usePlayGameModule({
     setSidebarSections([]);
     setDebugSnapshot(null);
     setViewportSpec(null);
+    setFrontViewSnapshotHandler(null);
   }, [
     clearFloatingFrames,
     clearPendingSidebarPublish,
     clearSidebarActionHandlers,
     setDebugSnapshot,
+    setFrontViewSnapshotHandler,
     setSidebarSections,
     setViewportSpec,
   ]);
@@ -96,6 +102,7 @@ export function usePlayGameModule({
           debug: { setSnapshot: setDebugSnapshot },
           viewport: { setSpec: setViewportSpec },
         });
+        setFrontViewSnapshotHandler(gameInstance?.getFrontViewSnapshot ?? null);
       })
       .catch((error: unknown) => {
         if (!isDisposed) {
@@ -121,6 +128,7 @@ export function usePlayGameModule({
     moduleUrl,
     rows,
     setDebugSnapshot,
+    setFrontViewSnapshotHandler,
     setSidebarActionHandler,
     setSidebarSections,
     setViewportSpec,

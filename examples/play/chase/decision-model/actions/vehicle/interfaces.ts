@@ -15,6 +15,18 @@ export type VehicleAction = {
   forward: boolean;
   reverse?: boolean;
   steering: number;
+  frontViewCapture?: VehicleFrontViewCaptureAction | null;
+};
+
+/**
+ * Optional vehicle sensor action for capturing the actor's current front view.
+ *
+ * The action requests a capture; the simulation commits the concrete frame
+ * metadata after movement has been applied.
+ */
+export type VehicleFrontViewCaptureAction = {
+  requested: boolean;
+  rendererId?: string;
 };
 
 /**
@@ -163,6 +175,7 @@ export const VEHICLE_ACTION_FIELDS = Object.freeze([
   "forward",
   "reverse",
   "steering",
+  "frontViewCapture",
 ]);
 
 /**
@@ -172,6 +185,7 @@ export const VEHICLE_STEERING_ACTION_FIELDS = Object.freeze([
   "forward",
   "reverse",
   "steering",
+  "frontViewCapture",
   "desiredDirection",
   "nextDirection",
 ]);
@@ -226,6 +240,7 @@ export const VEHICLE_ACTION_PLAN_FIELDS = Object.freeze([
   "forward",
   "reverse",
   "steering",
+  "frontViewCapture",
   "desiredDirection",
   "actionPath",
   "selectedProposalId",
