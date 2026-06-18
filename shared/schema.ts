@@ -950,6 +950,12 @@ export type ControlCommand =
     } & ControlRequestBase)
   | ({ type: "get_ui_debug"; scope?: string } & ControlRequestBase)
   | ({ type: "get_play_debug" } & ControlRequestBase)
+  | ({
+      type: "get_play_front_view_snapshot";
+      actorId?: "chaser" | "evader" | string;
+      width?: number;
+      height?: number;
+    } & ControlRequestBase)
   | ({ type: "get_memory_stats" } & ControlRequestBase)
   | ({ type: "get_metric_coverage"; captureId?: string } & ControlRequestBase)
   | ({ type: "get_derivation_plugins" } & ControlRequestBase)
@@ -977,6 +983,7 @@ export interface ControlResponse {
     | "render_debug"
     | "ui_debug"
     | "play_debug"
+    | "play_front_view_snapshot"
     | "ui_notice"
     | "ui_error"
     | "memory_stats"

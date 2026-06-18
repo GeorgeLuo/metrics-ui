@@ -124,6 +124,11 @@ interface UseWebSocketControlProps {
   getMemoryStats: () => MemoryStatsResponse;
   getUiDebug?: () => UiDebugResponse;
   getPlayDebug?: () => unknown;
+  getPlayFrontViewSnapshot?: (options?: {
+    actorId?: string;
+    width?: number;
+    height?: number;
+  }) => unknown;
   onUiNotice?: (notice: { message: string; context?: Record<string, unknown>; requestId?: string }) => void;
   onUiError?: (notice: { error: string; context?: Record<string, unknown>; requestId?: string }) => void;
   onReconnect?: () => void;
@@ -222,6 +227,7 @@ export function useWebSocketControl({
   getMemoryStats,
   getUiDebug,
   getPlayDebug,
+  getPlayFrontViewSnapshot,
   onUiNotice,
   onUiError,
   onStateSync,
@@ -499,6 +505,7 @@ export function useWebSocketControl({
       getMemoryStats,
       getUiDebug,
       getPlayDebug,
+      getPlayFrontViewSnapshot,
       onStateSync,
       onDerivationPlugins,
       onUiNotice,
@@ -583,6 +590,7 @@ export function useWebSocketControl({
     getMemoryStats,
     getUiDebug,
     getPlayDebug,
+    getPlayFrontViewSnapshot,
     onStateSync,
     onDerivationPlugins,
     onUiNotice,

@@ -103,6 +103,7 @@ export const CHASER_ACTION_PLAN_FIELDS = Object.freeze([
   "forward",
   "reverse",
   "steering",
+  "frontViewCapture",
   "pursuitPoint",
   "movement",
   "desiredDirection",

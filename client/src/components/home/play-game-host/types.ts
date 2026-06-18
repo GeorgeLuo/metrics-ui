@@ -13,6 +13,16 @@ export type PlayViewportSpec = {
   grid?: PlayPair;
 };
 
+export type PlayFrontViewSnapshotRequest = {
+  actorId?: string;
+  width?: number;
+  height?: number;
+};
+
+export type PlayFrontViewSnapshotHandler = (
+  options?: PlayFrontViewSnapshotRequest,
+) => unknown;
+
 export type PlayGameHostProps = {
   gameLabel?: string;
   moduleUrl: string | null;
@@ -22,6 +32,7 @@ export type PlayGameHostProps = {
   onSidebarSectionsChange?: (sections: PlaySidebarSection[]) => void;
   onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
   onDebugSnapshotChange?: (snapshot: unknown) => void;
+  onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
 };
 
 export type PlayGameRuntimeContext = {
@@ -50,6 +61,7 @@ export type PlayGameRuntimeContext = {
 
 export type PlayGameInstance = {
   dispose?: () => void;
+  getFrontViewSnapshot?: PlayFrontViewSnapshotHandler;
 };
 
 export type PlayGameModule = {

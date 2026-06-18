@@ -132,6 +132,11 @@ export interface WsCommandDispatchContext {
   getMemoryStats: () => MemoryStatsResponse;
   getUiDebug?: () => UiDebugResponse;
   getPlayDebug?: () => unknown;
+  getPlayFrontViewSnapshot?: (options?: {
+    actorId?: string;
+    width?: number;
+    height?: number;
+  }) => unknown;
   onStateSync?: (captures: { captureId: string; lastTick?: number | null }[]) => void;
   onDerivationPlugins?: (plugins: unknown[]) => void;
   onUiNotice?: (notice: UiNotice) => void;

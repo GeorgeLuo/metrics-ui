@@ -5,7 +5,11 @@ import {
 } from "@/components/floating-frame-registry";
 import { usePlayGameModule } from "./use-play-game-module";
 import { usePlaySidebarBridge } from "./use-play-sidebar-bridge";
-import type { PlayGameHostProps, PlayViewportSpec } from "./types";
+import type {
+  PlayFrontViewSnapshotHandler,
+  PlayGameHostProps,
+  PlayViewportSpec,
+} from "./types";
 
 export function PlayGameHost({
   gameLabel = "game",
@@ -16,6 +20,7 @@ export function PlayGameHost({
   onSidebarSectionsChange,
   onSidebarActionHandlerChange,
   onDebugSnapshotChange,
+  onFrontViewSnapshotHandlerChange,
 }: PlayGameHostProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [mountElement, setMountElement] = useState<HTMLDivElement | null>(null);
@@ -40,6 +45,11 @@ export function PlayGameHost({
   const setViewportSpec = useCallback((spec: PlayViewportSpec | null) => {
     onViewportSpecChange?.(spec);
   }, [onViewportSpecChange]);
+  const setFrontViewSnapshotHandler = useCallback((
+    handler: PlayFrontViewSnapshotHandler | null | undefined,
+  ) => {
+    onFrontViewSnapshotHandlerChange?.(handler ?? null);
+  }, [onFrontViewSnapshotHandlerChange]);
 
   const loadError = usePlayGameModule({
     container: mountElement,
@@ -55,6 +65,7 @@ export function PlayGameHost({
     clearFloatingFrames,
     setDebugSnapshot,
     setViewportSpec,
+    setFrontViewSnapshotHandler,
   });
 
   return (

@@ -3,6 +3,9 @@ import {
   updateActorLocationMemory,
 } from "../../decision-model/memory/actors/perceived-actor-location.ts";
 import {
+  createVehicleFrontViewCaptureMemory,
+} from "../../decision-model/memory/vehicle/front-view-captures.ts";
+import {
   buildActorSnapshot,
   createActorIdae,
   stepActorIdae,
@@ -46,6 +49,7 @@ function createEvaderIdaeState({ scenario } = {}) {
     memory: {
       directObservation: {
         chaserLocation: createActorLocationMemory(),
+        frontViewCaptures: createVehicleFrontViewCaptureMemory(),
       },
       abstracted: {},
     },

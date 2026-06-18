@@ -24,6 +24,7 @@ import {
   type ActorModule,
 } from "../../decision-model/core/actor-decision-model.ts";
 import type { ProgrammaticChaserAction } from "../../decision-model/actions/chaser/interfaces.ts";
+import type { VehicleFrontViewCaptureAction } from "../../decision-model/actions/vehicle/interfaces.ts";
 import type { VectorXZ } from "../../decision-model/core/math.ts";
 
 type ToggleMap = Record<string, boolean | undefined>;
@@ -33,6 +34,8 @@ type HumanInput = {
   forward?: boolean;
   reverse?: boolean;
   steering?: number;
+  captureFrontView?: boolean;
+  frontViewCapture?: VehicleFrontViewCaptureAction | null;
 };
 
 type HumanChaserAction = {
@@ -40,6 +43,7 @@ type HumanChaserAction = {
   forward: boolean;
   reverse: boolean;
   steering: number;
+  frontViewCapture: VehicleFrontViewCaptureAction | null;
 };
 
 type IdaeChaserAction = ProgrammaticChaserAction & {
@@ -125,11 +129,17 @@ function applyScenarioEngineToggles(
  * Normalizes direct human input into the same action slot used by IDAE output.
  */
 function normalizeHumanAction(humanInput: HumanInput | null | undefined): HumanChaserAction {
+  const requestedCapture = humanInput?.frontViewCapture?.requested
+    ? humanInput.frontViewCapture
+    : humanInput?.captureFrontView
+      ? { requested: true }
+      : null;
   return {
     source: "human",
     forward: Boolean(humanInput?.forward),
     reverse: Boolean(humanInput?.reverse),
     steering: Number.isFinite(humanInput?.steering) ? Number(humanInput?.steering) : 0,
+    frontViewCapture: requestedCapture,
   };
 }
 

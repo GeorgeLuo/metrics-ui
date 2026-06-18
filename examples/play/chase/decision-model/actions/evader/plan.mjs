@@ -199,6 +199,7 @@ export function planEvaderIdaeAction({
     actionProposalId: "evader-consensus",
     forward: vehicleAction.forward,
     steering: vehicleAction.steering,
+    frontViewCapture: vehicleAction.frontViewCapture ?? null,
     desiredDirection: vehicleAction.desiredDirection,
     nextDirection: vehicleAction.nextDirection,
     direction: vehicleAction.nextDirection,
