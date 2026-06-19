@@ -94,7 +94,7 @@ export type EvaderObservedWorld = {
   rows?: number;
   frameIndex?: number | null;
   obstacles?: ObstacleSet;
-  turnRateRadiansPerFrame?: number;
+  maxSteeringAngleRadians?: number;
   policy?: Record<string, unknown>;
 };
 
@@ -189,7 +189,7 @@ export const EVADER_OBSERVED_WORLD_FIELDS = Object.freeze([
   "rows",
   "frameIndex",
   "obstacles",
-  "turnRateRadiansPerFrame",
+  "maxSteeringAngleRadians",
   "policy",
 ]);
 

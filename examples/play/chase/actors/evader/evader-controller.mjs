@@ -12,16 +12,16 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function getSteeringInputToward(currentDirection, resolvedDirection, turnRateRadiansPerFrame) {
-  const safeTurnRate = Number(turnRateRadiansPerFrame) || 0;
-  if (!currentDirection || !resolvedDirection || safeTurnRate <= 0) {
+function getSteeringInputToward(currentDirection, resolvedDirection, maxSteeringAngleRadians) {
+  const safeMaxSteeringAngle = Number(maxSteeringAngleRadians) || 0;
+  if (!currentDirection || !resolvedDirection || safeMaxSteeringAngle <= 0) {
     return 0;
   }
 
   const delta = normalizeAngleDelta(
     vectorToAngle(resolvedDirection) - vectorToAngle(currentDirection),
   );
-  return clamp(delta / safeTurnRate, -1, 1);
+  return clamp(delta / safeMaxSteeringAngle, -1, 1);
 }
 
 /**
@@ -31,7 +31,7 @@ export function planEvaderVehicleAction({
   position,
   currentDirection,
   desiredDirection,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   columns,
   rows,
 } = {}) {
@@ -46,7 +46,7 @@ export function planEvaderVehicleAction({
     steerDirectionToward(
       currentDirection ?? { x: 0, z: 0 },
       boundedDesiredDirection,
-      turnRateRadiansPerFrame,
+      maxSteeringAngleRadians,
     ),
     columns,
     rows,
@@ -57,7 +57,7 @@ export function planEvaderVehicleAction({
     steering: getSteeringInputToward(
       currentDirection,
       nextDirection,
-      turnRateRadiansPerFrame,
+      maxSteeringAngleRadians,
     ),
     desiredDirection: boundedDesiredDirection,
     nextDirection,

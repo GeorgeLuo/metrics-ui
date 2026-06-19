@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CHASER_ACTION_PATH_VIEW_MODES,
+  CHASER_CONTROL_SOURCE_ACTION_ID,
+  CHASER_CONTROL_SOURCES,
   EVADER_EXISTS_ACTION_ID,
   SCENARIO_SELECT_ACTION_ID,
 } from "./config/constants.mjs";
@@ -128,7 +130,7 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
     (nextSections) => {
       sections = nextSections;
     },
-    state.programmaticChaserEnabled,
+    state.chaserControlSource,
     { chaserViewVisible: false, evaderViewVisible: false, idaeDebugVisible: false },
     state.simulationSettings,
     state.vehicleSettings,
@@ -146,6 +148,7 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
   const gameRows = gameSection?.rows ?? [];
   const scenarioSelect = gameRows.find((row) => row.id === SCENARIO_SELECT_ACTION_ID);
   const evaderExistsToggle = gameRows.find((row) => row.id === EVADER_EXISTS_ACTION_ID);
+  const chaserControlSource = gameRows.find((row) => row.id === CHASER_CONTROL_SOURCE_ACTION_ID);
   const scoreHeaderIndex = gameRows.findIndex(
     (row) => row.kind === "header" && row.label === "Score",
   );
@@ -173,6 +176,22 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
   assert.equal(scenarioSelect?.kind, "select");
   assert.equal(scenarioSelect?.value, DEFAULT_CHASE_SCENARIO_ID);
   assert.equal(evaderExistsToggle?.kind, "toggle");
+  assert.deepEqual(
+    {
+      kind: chaserControlSource?.kind,
+      value: chaserControlSource?.value,
+      options: chaserControlSource?.options?.map((option) => option.value),
+    },
+    {
+      kind: "select",
+      value: CHASER_CONTROL_SOURCES.PROGRAMMATIC,
+      options: [
+        CHASER_CONTROL_SOURCES.PROGRAMMATIC,
+        CHASER_CONTROL_SOURCES.KEYBOARD,
+        CHASER_CONTROL_SOURCES.WS,
+      ],
+    },
+  );
   assert.equal(evaderExistsToggle?.enabled, true);
   assert.equal(evaderExistsToggle?.enabledLabel, "present");
   assert.equal(evaderExistsToggle?.disabledLabel, "absent");
@@ -263,6 +282,7 @@ test("PiRacer room sketch scenario resolves rotated box obstacles", () => {
   assert.equal(scenario.map.columns, 7.8);
   assert.equal(scenario.map.rows, 6.2);
   assert.equal(scenario.actors.evader.exists, false);
+  assert.equal(scenario.runtime.chaserControlSource, CHASER_CONTROL_SOURCES.KEYBOARD);
   assert.equal(scenario.runtime.programmaticChaserEnabled, false);
   assert.equal(scenario.map.obstacles.walls.length, 2);
   assert.ok(leftBox, "expected left box obstacle");

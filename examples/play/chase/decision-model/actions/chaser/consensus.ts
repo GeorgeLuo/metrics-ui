@@ -90,14 +90,14 @@ export function buildActionPathConsensus({
   chaserPosition,
   chaserLookDirection,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
 }: Record<string, any> = {}): VehicleActionPathConsensus {
   return buildWeightedPathConsensus({
     activeProposals: getActivePathProposals(proposals),
     vehiclePosition: chaserPosition,
     vehicleDirection: chaserLookDirection,
     speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
   });
 }
 

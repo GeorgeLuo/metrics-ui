@@ -95,7 +95,7 @@ export function buildEvaderPredictionPursuitProposal({
   snapshot,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
 }: Record<string, any> = {}): VehicleActionProposal {
   if (!enabled) {
     return createInactiveActionProposal("evaderPredictionPursuit");
@@ -118,7 +118,7 @@ export function buildEvaderPredictionPursuitProposal({
     vehicleDirection: chaserLookDirection,
     targetPosition: pursuitPoint.position,
     speedUnitsPerFrame: chaserSpeedUnitsPerFrame ?? speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     horizonFrames: pursuitPoint.sample?.framesAhead,
     metadata: {
       proposalId: "evaderPredictionPursuit",
@@ -147,7 +147,7 @@ export function buildVisibleBearingFallbackProposal({
   chaserLookDirection,
   evaderLocation,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
 }: Record<string, any> = {}): VehicleActionProposal {
   if (!enabled || !evaderLocation?.visible || !chaserLookDirection) {
     return createInactiveActionProposal("lineOfSightPursuit");
@@ -159,7 +159,7 @@ export function buildVisibleBearingFallbackProposal({
     vehicleDirection: chaserLookDirection,
     targetDirection: goalDirection,
     speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     metadata: {
       proposalId: "lineOfSightPursuit",
       pursuitSource: "visible-bearing",

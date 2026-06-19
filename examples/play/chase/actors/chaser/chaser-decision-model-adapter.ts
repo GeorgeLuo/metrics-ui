@@ -31,6 +31,7 @@ type ToggleMap = Record<string, boolean | undefined>;
 type RuntimeRecord = Record<string, any>;
 
 type HumanInput = {
+  source?: string;
   forward?: boolean;
   reverse?: boolean;
   steering?: number;
@@ -39,7 +40,7 @@ type HumanInput = {
 };
 
 type HumanChaserAction = {
-  source: "human";
+  source: "human" | "ws";
   forward: boolean;
   reverse: boolean;
   steering: number;
@@ -82,7 +83,7 @@ type ChaserFrameContext = RuntimeRecord & {
   humanInput?: HumanInput | null;
   programmaticChaserEnabled?: boolean;
   chaserSpeedUnitsPerFrame?: number;
-  turnRateRadiansPerFrame?: number;
+  maxSteeringAngleRadians?: number;
 };
 
 type ChaserSelfState = {
@@ -135,7 +136,7 @@ function normalizeHumanAction(humanInput: HumanInput | null | undefined): HumanC
       ? { requested: true }
       : null;
   return {
-    source: "human",
+    source: humanInput?.source === "ws" ? "ws" : "human",
     forward: Boolean(humanInput?.forward),
     reverse: Boolean(humanInput?.reverse),
     steering: Number.isFinite(humanInput?.steering) ? Number(humanInput?.steering) : 0,
@@ -293,7 +294,7 @@ function chooseChaserIdaeAction(
       chaserLookDirection: frameContext.chaserLookDirection,
       autopilotState: state.controllerState,
       chaserSpeedUnitsPerFrame: frameContext.chaserSpeedUnitsPerFrame,
-      turnRateRadiansPerFrame: frameContext.turnRateRadiansPerFrame,
+      maxSteeringAngleRadians: frameContext.maxSteeringAngleRadians,
       frameIndex: frameContext.frameIndex,
       columns: frameContext.columns,
       rows: frameContext.rows,

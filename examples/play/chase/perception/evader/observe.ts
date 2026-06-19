@@ -19,7 +19,7 @@ export function observeEvaderWorld({
   columns,
   rows,
   frameIndex,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   policy,
 }: EvaderObservationContext = {}): EvaderObservedWorld {
   const chaserPerception = getObservedActor(
@@ -39,7 +39,7 @@ export function observeEvaderWorld({
     rows,
     frameIndex,
     obstacles,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     policy,
   };
 }

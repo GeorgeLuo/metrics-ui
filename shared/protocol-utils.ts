@@ -719,6 +719,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "set_source_mode",
       "set_live_source",
       "play_game_action",
+      "set_play_chaser_input",
       "sync_capture_sources",
       "live_start",
       "live_stop",

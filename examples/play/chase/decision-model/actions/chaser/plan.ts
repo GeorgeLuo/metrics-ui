@@ -41,7 +41,7 @@ export function planProgrammaticChaserAction({
   previousWallFollowSign = 1,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   frameIndex,
   columns,
   rows,
@@ -59,7 +59,7 @@ export function planProgrammaticChaserAction({
     chaserLookDirection,
     frameIndex,
     speedUnitsPerFrame: actionSpeedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     columns,
     rows,
   });
@@ -71,7 +71,7 @@ export function planProgrammaticChaserAction({
       chaserLookDirection,
       snapshot,
       chaserSpeedUnitsPerFrame: actionSpeedUnitsPerFrame,
-      turnRateRadiansPerFrame,
+      maxSteeringAngleRadians,
     }),
     lineOfSightPursuit: buildVisibleBearingFallbackProposal({
       enabled: shouldChase && actionEngines.lineOfSightPursuit !== false,
@@ -79,7 +79,7 @@ export function planProgrammaticChaserAction({
       chaserLookDirection,
       evaderLocation,
       speedUnitsPerFrame: actionSpeedUnitsPerFrame,
-      turnRateRadiansPerFrame,
+      maxSteeringAngleRadians,
     }),
     mapDiscovery: knowledgeProposals.mapDiscovery,
     mapRecencyRefresh: knowledgeProposals.mapRecencyRefresh,
@@ -92,7 +92,7 @@ export function planProgrammaticChaserAction({
     chaserLookDirection,
     spinSteering,
     speedUnitsPerFrame: actionSpeedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
   });
 
   const directionConsensus = buildDirectionConsensus({ proposals });
@@ -106,7 +106,7 @@ export function planProgrammaticChaserAction({
     chaserPosition,
     chaserLookDirection,
     speedUnitsPerFrame: actionSpeedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
   });
   const firstAction = actionPathConsensus.firstAction;
   const actionPathDirection = firstAction?.predictedDirection ?? goalDirection;

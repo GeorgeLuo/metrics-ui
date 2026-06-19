@@ -181,7 +181,7 @@ export function planEvaderIdaeAction({
     position: observation?.position,
     currentDirection: observation?.direction,
     desiredDirection: boundedDirection,
-    turnRateRadiansPerFrame: observation?.turnRateRadiansPerFrame,
+    maxSteeringAngleRadians: observation?.maxSteeringAngleRadians,
     columns: observation?.columns,
     rows: observation?.rows,
   });

@@ -881,6 +881,13 @@ export type ControlCommand =
       value?: unknown;
     } & ControlRequestBase)
   | ({
+      type: "set_play_chaser_input";
+      motion?: "forward" | "reverse" | "backward" | "backwards" | "idle" | "none" | "stop" | "stopped";
+      forward?: boolean;
+      reverse?: boolean;
+      steering?: number;
+    } & ControlRequestBase)
+  | ({
       type: "sync_capture_sources";
       sources: Array<{
         captureId: string;

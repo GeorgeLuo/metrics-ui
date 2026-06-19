@@ -11,7 +11,11 @@ import type { ChartViewProps } from "@/components/home/metrics-chart-view";
 import { MetricsMainPanel } from "@/components/home/metrics-main-panel";
 import { MiniModeView, MiniProjectionContent } from "@/components/home/mini-mode-view";
 import { PlayMainPanel } from "@/components/home/play-main-panel";
-import type { PlayFrontViewSnapshotHandler } from "@/components/home/play-game-host";
+import type {
+  PlayChaserControlHandler,
+  PlayFrontViewSnapshotHandler,
+  PlaySidebarActionHandler,
+} from "@/components/home/play-game-host";
 import { SidebarDerivationsPane } from "@/components/home/sidebar-derivations-pane";
 import { SidebarEquationsPane } from "@/components/home/sidebar-equations-pane";
 import { SidebarPlayPane } from "@/components/home/sidebar-play-pane";
@@ -617,9 +621,10 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const sourceRepairAttemptAtRef = useRef(new Map<string, number>());
   const visualizationDebugRef = useRef<VisualizationDebugState | null>(null);
   const equationsFrameDebugRef = useRef<FrameGridDebugSnapshot | null>(null);
-  const playSidebarActionHandlerRef = useRef<((actionId: string, value?: unknown) => void) | null>(null);
+  const playSidebarActionHandlerRef = useRef<PlaySidebarActionHandler | null>(null);
   const playDebugSnapshotRef = useRef<unknown>(null);
   const playFrontViewSnapshotHandlerRef = useRef<PlayFrontViewSnapshotHandler | null>(null);
+  const playChaserControlHandlerRef = useRef<PlayChaserControlHandler | null>(null);
   const equationsProtocolHandlersRef = useRef<EquationsProtocolHandlers>({});
   const [playFrameGridDebugSnapshot, setPlayFrameGridDebugSnapshot] =
     useState<FrameGridDebugSnapshot | null>(null);
@@ -637,7 +642,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handlePlaySidebarSectionsChange = useCallback((sections: PlaySidebarSection[]) => {
     setPlaySidebarSections(sections);
   }, []);
-  const handlePlaySidebarActionHandlerChange = useCallback((handler: ((actionId: string, value?: unknown) => void) | null) => {
+  const handlePlaySidebarActionHandlerChange = useCallback((handler: PlaySidebarActionHandler | null) => {
     playSidebarActionHandlerRef.current = handler;
   }, []);
   const handlePlaySidebarAction = useCallback((actionId: string, value?: unknown) => {
@@ -651,18 +656,25 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   ) => {
     playFrontViewSnapshotHandlerRef.current = handler;
   }, []);
+  const handlePlayChaserControlHandlerChange = useCallback((
+    handler: PlayChaserControlHandler | null,
+  ) => {
+    playChaserControlHandlerRef.current = handler;
+  }, []);
   const handlePlayGameAction = useCallback((actionId: string, value?: unknown) => {
     const handler = playSidebarActionHandlerRef.current;
     if (!handler) {
       return false;
     }
-    handler(actionId, value);
-    return true;
+    return handler(actionId, value);
   }, []);
   const getPlayDebug = useCallback(() => playDebugSnapshotRef.current, []);
   const getPlayFrontViewSnapshot = useCallback((
     options?: Parameters<PlayFrontViewSnapshotHandler>[0],
   ) => playFrontViewSnapshotHandlerRef.current?.(options) ?? null, []);
+  const setPlayChaserControl = useCallback((
+    input?: Parameters<PlayChaserControlHandler>[0],
+  ) => playChaserControlHandlerRef.current?.(input) !== undefined, []);
   const handleSetEquationsTopicCommand = useCallback((topicId: string, options?: { preserveViewMode?: boolean }) =>
     equationsProtocolHandlersRef.current.setTopic?.(topicId, options) === true, []);
   const handleSetEquationsViewModeCommand = useCallback((viewMode: VisualizationState["equationsPane"]["viewMode"]) =>
@@ -5520,6 +5532,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     onSetEquationsHighlightHidden: handleSetEquationsHighlightHiddenCommand,
     onDeleteEquationsHighlight: handleDeleteEquationsHighlightCommand,
     onPlayGameAction: handlePlayGameAction,
+    onPlayChaserControl: setPlayChaserControl,
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,
@@ -6737,6 +6750,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onSidebarActionHandlerChange={handlePlaySidebarActionHandlerChange}
               onDebugSnapshotChange={handlePlayDebugSnapshotChange}
               onFrontViewSnapshotHandlerChange={handlePlayFrontViewSnapshotHandlerChange}
+              onChaserControlHandlerChange={handlePlayChaserControlHandlerChange}
             />
           )}
         </div>

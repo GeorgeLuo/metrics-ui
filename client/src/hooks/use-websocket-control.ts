@@ -74,6 +74,12 @@ interface UseWebSocketControlProps {
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
+  onPlayChaserControl?: (input?: {
+    motion?: string;
+    forward?: boolean;
+    reverse?: boolean;
+    steering?: number;
+  }) => boolean;
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
@@ -212,6 +218,7 @@ export function useWebSocketControl({
   onLiveStart,
   onLiveStop,
   onPlayGameAction,
+  onPlayChaserControl,
   onCaptureInit,
   onCaptureComponents,
   onCaptureAppend,
@@ -488,6 +495,7 @@ export function useWebSocketControl({
       onSourceModeChange,
       onLiveSourceChange,
       onPlayGameAction,
+      onPlayChaserControl,
       onLiveStart,
       onLiveStop,
       onCaptureInit,
@@ -573,6 +581,7 @@ export function useWebSocketControl({
     onSourceModeChange,
     onLiveSourceChange,
     onPlayGameAction,
+    onPlayChaserControl,
     onLiveStart,
     onLiveStop,
     onCaptureInit,

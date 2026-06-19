@@ -4,6 +4,7 @@ import {
   type PlaySidebarSection,
 } from "@/lib/play/sidebar-sections";
 import { normalizeSidebarActionId } from "./ids";
+import type { PlaySidebarActionHandler } from "./types";
 
 const SIDEBAR_VALUE_UPDATE_MIN_MS = 250;
 
@@ -35,7 +36,7 @@ export function usePlaySidebarBridge({
   onSidebarActionHandlerChange,
 }: {
   onSidebarSectionsChange?: (sections: PlaySidebarSection[]) => void;
-  onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
+  onSidebarActionHandlerChange?: (handler: PlaySidebarActionHandler | null) => void;
 }) {
   const actionHandlersRef = useRef<Map<string, (value?: unknown) => void>>(new Map());
   const onSectionsChangeRef = useRef(onSidebarSectionsChange);
@@ -128,9 +129,14 @@ export function usePlaySidebarBridge({
   const dispatchSidebarAction = useCallback((actionId: string, value?: unknown) => {
     const normalizedActionId = normalizeSidebarActionId(actionId);
     if (!normalizedActionId) {
-      return;
+      return false;
     }
-    actionHandlersRef.current.get(normalizedActionId)?.(value);
+    const handler = actionHandlersRef.current.get(normalizedActionId);
+    if (!handler) {
+      return false;
+    }
+    handler(value);
+    return true;
   }, []);
 
   useEffect(() => {

@@ -55,7 +55,7 @@ export function buildActionPathAlongRoute({
   route,
   fallbackTargetPosition,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   horizonFrames = DEFAULT_ACTION_PATH_HORIZON_FRAMES,
   waypointReachDistance = DEFAULT_WAYPOINT_REACH_DISTANCE,
   metadata = {},
@@ -102,7 +102,7 @@ export function buildActionPathAlongRoute({
       throttle: 1,
       steering: getSteeringFromBearing(getBearingToDirection(direction, targetDirection)),
       speedUnitsPerFrame,
-      turnRateRadiansPerFrame,
+      maxSteeringAngleRadians,
     });
     position = nextFrame.position;
     direction = nextFrame.direction;

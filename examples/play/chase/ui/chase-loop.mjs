@@ -63,7 +63,7 @@ export function createChaseLoop({
     accumulatedMs = pauseBeforeActions && simulationState.pendingActionFrame
       ? 0
       : Math.min(accumulatedMs + elapsedMs, frameDurationMs * MAX_STEPS_PER_TICK);
-    const humanInput = inputTracker.getHumanInput();
+    const chaserInput = inputTracker.getChaserInput(simulationState.chaserControlSource);
     let stepsThisTick = 0;
     const stepStartMs = performance.now();
     while (accumulatedMs >= frameDurationMs && stepsThisTick < MAX_STEPS_PER_TICK) {
@@ -71,7 +71,7 @@ export function createChaseLoop({
         accumulatedMs = 0;
         break;
       }
-      stepChaseSimulation(simulationState, { humanInput, pauseBeforeActions });
+      stepChaseSimulation(simulationState, { humanInput: chaserInput, pauseBeforeActions });
       accumulatedMs -= frameDurationMs;
       stepsThisTick += 1;
       if (pauseBeforeActions && simulationState.pendingActionFrame) {

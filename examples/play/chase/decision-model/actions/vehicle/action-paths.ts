@@ -1,4 +1,3 @@
-import { DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME } from "../../../config/constants.mjs";
 import {
   angleToVector,
   normalizeAngleDelta,
@@ -6,10 +5,18 @@ import {
   vectorToAngle,
 } from "../../core/math.ts";
 import type { VectorXZ } from "../../observer-world/interfaces.ts";
+import {
+  clampUnit,
+  cloneVehicleDirection,
+  cloneVehicleVector,
+  stepVehicleBicycleFrame,
+} from "./kinematics.ts";
 import type {
   VehicleActionFrame,
   VehicleActionProposal,
 } from "./interfaces.ts";
+
+export { clampUnit } from "./kinematics.ts";
 
 /**
  * Flexible option bag for vehicle path helpers.
@@ -22,21 +29,6 @@ type ActionPathOptions = Record<string, any>;
 const DEFAULT_ACTION_PATH_HORIZON_FRAMES = 36;
 const MAX_ACTION_PATH_HORIZON_FRAMES = 120;
 const DEFAULT_VEHICLE_STEERING_DEADZONE_RADIANS = 0.08;
-
-function clampNumber(value: unknown, min: number, max: number): number {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return min;
-  }
-  return Math.max(min, Math.min(max, numericValue));
-}
-
-/**
- * Clamps throttle or steering input to the normalized vehicle control range.
- */
-export function clampUnit(value: unknown): number {
-  return clampNumber(value, -1, 1);
-}
 
 function getPositiveInteger(value: unknown, fallback: number): number {
   const numericValue = Number(value);
@@ -59,12 +51,7 @@ export function clonePosition(
   position: Partial<VectorXZ> | null | undefined,
   fallback: VectorXZ = { x: 0, z: 0 },
 ): VectorXZ {
-  const x = Number(position?.x);
-  const z = Number(position?.z);
-  return {
-    x: Number.isFinite(x) ? x : fallback.x,
-    z: Number.isFinite(z) ? z : fallback.z,
-  };
+  return cloneVehicleVector(position, fallback);
 }
 
 /**
@@ -74,13 +61,7 @@ export function cloneDirection(
   direction: Partial<VectorXZ> | null | undefined,
   fallback: VectorXZ = { x: 1, z: 0 },
 ): VectorXZ {
-  const x = Number(direction?.x);
-  const z = Number(direction?.z);
-  const normalized = normalizeVector(
-    Number.isFinite(x) ? x : fallback.x,
-    Number.isFinite(z) ? z : fallback.z,
-  );
-  return normalized.x === 0 && normalized.z === 0 ? { ...fallback } : normalized;
+  return cloneVehicleDirection(direction, fallback);
 }
 
 /**
@@ -141,42 +122,21 @@ export function stepActionPathFrame({
   throttle,
   steering,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
 }: ActionPathOptions = {}): {
   throttle: number;
   steering: number;
   position: VectorXZ;
   direction: VectorXZ;
 } {
-  const currentPosition = clonePosition(position);
-  const currentDirection = cloneDirection(direction);
-  const resolvedThrottle = clampUnit(throttle);
-  const resolvedSteering = clampUnit(steering);
-  const speed = Math.max(0, Number(speedUnitsPerFrame) || 0);
-  const turnRate = Math.max(
-    0,
-    Number(turnRateRadiansPerFrame) || DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
-  );
-  const isMoving = Math.abs(resolvedThrottle) > 0.001 && speed > 0;
-  let travelDirection = currentDirection;
-  let nextDirection = currentDirection;
-  if (isMoving && resolvedSteering !== 0) {
-    const currentAngle = vectorToAngle(currentDirection);
-    const turnDelta = resolvedSteering * turnRate * (resolvedThrottle < 0 ? -1 : 1);
-    travelDirection = angleToVector(currentAngle + turnDelta / 2);
-    nextDirection = angleToVector(currentAngle + turnDelta);
-  }
-  const nextPosition = {
-    x: currentPosition.x + travelDirection.x * speed * resolvedThrottle,
-    z: currentPosition.z + travelDirection.z * speed * resolvedThrottle,
-  };
-
-  return {
-    throttle: resolvedThrottle,
-    steering: resolvedSteering,
-    position: nextPosition,
-    direction: nextDirection,
-  };
+  return stepVehicleBicycleFrame({
+    position,
+    direction,
+    throttle,
+    steering,
+    speedUnitsPerFrame,
+    maxSteeringAngleRadians,
+  });
 }
 
 /**
@@ -213,7 +173,7 @@ export function buildFeasibleActionPath({
   vehiclePosition,
   vehicleDirection,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   horizonFrames,
   getFrameSteering,
   getFrameThrottle = () => 1,
@@ -233,7 +193,7 @@ export function buildFeasibleActionPath({
       throttle,
       steering,
       speedUnitsPerFrame,
-      turnRateRadiansPerFrame,
+      maxSteeringAngleRadians,
     });
     position = nextFrame.position;
     direction = nextFrame.direction;
@@ -258,7 +218,7 @@ export function buildActionPathToPosition({
   vehicleDirection,
   targetPosition,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   horizonFrames,
   metadata,
 }: ActionPathOptions = {}): VehicleActionFrame[] {
@@ -269,7 +229,7 @@ export function buildActionPathToPosition({
     vehiclePosition,
     vehicleDirection,
     speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     horizonFrames,
     metadata: {
       ...metadata,
@@ -290,7 +250,7 @@ export function buildActionPathToDirection({
   vehicleDirection,
   targetDirection,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   horizonFrames,
   metadata,
 }: ActionPathOptions = {}): VehicleActionFrame[] {
@@ -302,7 +262,7 @@ export function buildActionPathToDirection({
     vehiclePosition,
     vehicleDirection,
     speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     horizonFrames,
     metadata: {
       ...metadata,

@@ -266,7 +266,7 @@ function createKnowledgeProposal(id: string, candidate: KnowledgeCandidate | nul
   chaserPosition,
   chaserLookDirection,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
 }: AnyRecord = {}): VehicleActionProposal {
   if (!candidate?.position) {
     return createInactiveKnowledgeProposal(id);
@@ -281,7 +281,7 @@ function createKnowledgeProposal(id: string, candidate: KnowledgeCandidate | nul
       ? candidate.discoveryTargetPosition ?? candidate.position
       : candidate.position,
     speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     waypointReachDistance: KNOWN_AREA_CELL_SIZE * 0.75,
     metadata: {
       proposalId: id,
@@ -463,7 +463,7 @@ export function buildKnowledgeAcquisitionProposals({
   chaserLookDirection,
   frameIndex,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   columns,
   rows,
 }: AnyRecord = {}) {
@@ -479,7 +479,7 @@ export function buildKnowledgeAcquisitionProposals({
     chaserPosition,
     chaserLookDirection,
     speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
   };
   const mapDiscovery = enabled && actionEngines[CHASER_ACTION_PROPOSAL_IDS.MAP_DISCOVERY] !== false
     ? createKnowledgeProposal(

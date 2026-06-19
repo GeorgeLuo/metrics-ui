@@ -24,6 +24,9 @@ type UsePlayGameModuleOptions = {
   setFrontViewSnapshotHandler: (
     handler: PlayGameInstance["getFrontViewSnapshot"] | null,
   ) => void;
+  setChaserControlHandler: (
+    handler: PlayGameInstance["setChaserControlInput"] | null,
+  ) => void;
 };
 
 function getErrorMessage(error: unknown): string {
@@ -45,6 +48,7 @@ export function usePlayGameModule({
   setDebugSnapshot,
   setViewportSpec,
   setFrontViewSnapshotHandler,
+  setChaserControlHandler,
 }: UsePlayGameModuleOptions) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -56,12 +60,14 @@ export function usePlayGameModule({
     setDebugSnapshot(null);
     setViewportSpec(null);
     setFrontViewSnapshotHandler(null);
+    setChaserControlHandler(null);
   }, [
     clearFloatingFrames,
     clearPendingSidebarPublish,
     clearSidebarActionHandlers,
     setDebugSnapshot,
     setFrontViewSnapshotHandler,
+    setChaserControlHandler,
     setSidebarSections,
     setViewportSpec,
   ]);
@@ -103,6 +109,7 @@ export function usePlayGameModule({
           viewport: { setSpec: setViewportSpec },
         });
         setFrontViewSnapshotHandler(gameInstance?.getFrontViewSnapshot ?? null);
+        setChaserControlHandler(gameInstance?.setChaserControlInput ?? null);
       })
       .catch((error: unknown) => {
         if (!isDisposed) {
@@ -129,6 +136,7 @@ export function usePlayGameModule({
     rows,
     setDebugSnapshot,
     setFrontViewSnapshotHandler,
+    setChaserControlHandler,
     setSidebarActionHandler,
     setSidebarSections,
     setViewportSpec,
