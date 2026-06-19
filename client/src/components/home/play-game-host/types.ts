@@ -23,6 +23,21 @@ export type PlayFrontViewSnapshotHandler = (
   options?: PlayFrontViewSnapshotRequest,
 ) => unknown;
 
+export type PlayChaserControlInput = {
+  motion?: string;
+  forward?: boolean;
+  reverse?: boolean;
+  steering?: number;
+};
+
+export type PlayChaserControlHandler = (
+  input?: PlayChaserControlInput,
+) => unknown;
+export type PlaySidebarActionHandler = (
+  actionId: string,
+  value?: unknown,
+) => boolean;
+
 export type PlayGameHostProps = {
   gameLabel?: string;
   moduleUrl: string | null;
@@ -30,9 +45,10 @@ export type PlayGameHostProps = {
   rows: number;
   onViewportSpecChange?: (spec: PlayViewportSpec | null) => void;
   onSidebarSectionsChange?: (sections: PlaySidebarSection[]) => void;
-  onSidebarActionHandlerChange?: (handler: ((actionId: string, value?: unknown) => void) | null) => void;
+  onSidebarActionHandlerChange?: (handler: PlaySidebarActionHandler | null) => void;
   onDebugSnapshotChange?: (snapshot: unknown) => void;
   onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
+  onChaserControlHandlerChange?: (handler: PlayChaserControlHandler | null) => void;
 };
 
 export type PlayGameRuntimeContext = {
@@ -62,6 +78,7 @@ export type PlayGameRuntimeContext = {
 export type PlayGameInstance = {
   dispose?: () => void;
   getFrontViewSnapshot?: PlayFrontViewSnapshotHandler;
+  setChaserControlInput?: PlayChaserControlHandler;
 };
 
 export type PlayGameModule = {

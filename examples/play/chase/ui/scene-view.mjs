@@ -11,9 +11,11 @@ import {
   createMapRecencyOverlayDisplayState,
   createPredictionDebugDisplayState,
   createWall,
+  disposeObject3D,
   disposeMapKnowledgeOverlayDisplayState,
   disposeMapRecencyOverlayDisplayState,
   disposePredictionDebugDisplayState,
+  setCarWheelSteeringAngle,
   syncProjectionFrames,
   updateChaserActionPathDebugDisplay,
   updateEvaderProjectionDisplay,
@@ -94,6 +96,13 @@ export function createChaseSceneView({
   };
   syncObstacleMeshes();
 
+  const getSteeringAngle = (action) => {
+    const steering = Number(action?.steering);
+    return Number.isFinite(steering)
+      ? steering * vehicleSettings.maxSteeringAngleRadians
+      : 0;
+  };
+
   evaderProjectionGroup.visible = false;
   idaePredictionDebugGroup.visible = false;
   chaserActionPathDebugGroup.visible = false;
@@ -133,6 +142,7 @@ export function createChaseSceneView({
     } = simulationState;
     chaser.position.set(chaserPosition.x, CAR_HEIGHT / 2, chaserPosition.z);
     chaser.rotation.y = vectorToAngle(chaserLookDirection);
+    setCarWheelSteeringAngle(chaser, getSteeringAngle(simulationState.lastStep.chaserAction));
     chaserFieldOfView.position.set(chaserPosition.x, 0, chaserPosition.z);
     chaserFieldOfView.rotation.y = vectorToAngle(chaserLookDirection);
     evader.visible = Boolean(evaderExists && evaderPosition && evaderDirection);
@@ -140,6 +150,7 @@ export function createChaseSceneView({
     if (evader.visible) {
       evader.position.set(evaderPosition.x, CAR_HEIGHT / 2, evaderPosition.z);
       evader.rotation.y = vectorToAngle(evaderDirection);
+      setCarWheelSteeringAngle(evader, getSteeringAngle(simulationState.lastStep.evaderMovementDecision));
       evaderFieldOfView.position.set(evaderPosition.x, 0, evaderPosition.z);
       evaderFieldOfView.rotation.y = vectorToAngle(evaderDirection);
     }
@@ -329,14 +340,12 @@ export function createChaseSceneView({
     if (renderer.domElement.parentElement === container) {
       container.removeChild(renderer.domElement);
     }
-    chaser.geometry.dispose();
-    chaser.material.dispose();
+    disposeObject3D(chaser);
     chaserFieldOfView.geometry.dispose();
     chaserFieldOfView.material.dispose();
     evaderFieldOfView.geometry.dispose();
     evaderFieldOfView.material.dispose();
-    evader.geometry.dispose();
-    evader.material.dispose();
+    disposeObject3D(evader);
     syncProjectionFrames(evaderProjectionGroup, evaderProjectionFrames, 0);
     disposePredictionDebugDisplayState(idaePredictionDebugGroup, idaePredictionDebugDisplayState);
     disposePredictionDebugDisplayState(chaserActionPathDebugGroup, chaserActionPathDebugDisplayState);

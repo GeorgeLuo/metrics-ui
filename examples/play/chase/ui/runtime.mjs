@@ -5,6 +5,7 @@ import {
   readStoredProjectionSettings,
 } from "./settings.mjs";
 import { createChaseSimulationState } from "../simulation/simulation.mjs";
+import { setChaserControlSource } from "../simulation/chaser-control-source.mjs";
 import { createChasePerformanceTracker } from "../debug/performance-debug.mjs";
 import { buildChaseDebugSnapshot } from "../debug/debug-snapshot.mjs";
 import { buildManualFrontViewSnapshot } from "./front-view-snapshot.ts";
@@ -99,7 +100,7 @@ export function createPlayGame({
   const refreshSidebarSections = () => {
     publishSidebarSections(
       setSidebarSections,
-      simulationState.programmaticChaserEnabled,
+      simulationState.chaserControlSource,
       { chaserViewVisible, evaderViewVisible, idaeDebugVisible },
       simulationSettings,
       vehicleSettings,
@@ -171,7 +172,7 @@ export function createPlayGame({
 
   const replaceSimulationState = (nextScenario, { preserveSidebarSettings = false } = {}) => {
     const preservedSettings = preserveSidebarSettings ? {
-      programmaticChaserEnabled: simulationState.programmaticChaserEnabled,
+      chaserControlSource: simulationState.chaserControlSource,
       simulationSettings: { ...simulationSettings },
       vehicleSettings: { ...vehicleSettings },
       projectionSettings: { ...projectionSettings },
@@ -186,7 +187,7 @@ export function createPlayGame({
 
     copyInto(simulationState, freshState);
     if (preservedSettings) {
-      simulationState.programmaticChaserEnabled = preservedSettings.programmaticChaserEnabled;
+      setChaserControlSource(simulationState, preservedSettings.chaserControlSource);
     }
     copyInto(simulationSettings, nextSimulationSettings);
     normalizeSimulationSettings(simulationSettings);
@@ -197,7 +198,7 @@ export function createPlayGame({
     simulationState.projectionSettings = projectionSettings;
     applyActorActionProposalOverrides(simulationState, actorActionProposalOverrides);
 
-    inputTracker.clear();
+    inputTracker.clearKeyboard();
     runtimeLoop?.resetTiming();
     performanceTracker.reset();
     sceneView.updateFieldOfView();
@@ -233,7 +234,11 @@ export function createPlayGame({
     setSidebarActionHandler,
     getProgrammaticChaserEnabled: () => simulationState.programmaticChaserEnabled,
     setProgrammaticChaserEnabled: (value) => {
-      simulationState.programmaticChaserEnabled = value;
+      setChaserControlSource(simulationState, value ? "programmatic" : "keyboard");
+    },
+    getChaserControlSource: () => simulationState.chaserControlSource,
+    setChaserControlSource: (value) => {
+      setChaserControlSource(simulationState, value);
     },
     refreshSidebarSections,
     getChaserViewVisible: () => chaserViewVisible,
@@ -288,6 +293,9 @@ export function createPlayGame({
   });
 
   return {
+    setChaserControlInput(input = {}) {
+      return inputTracker.setWsInput(input);
+    },
     getFrontViewSnapshot(options = {}) {
       const renderedImage = sceneView.captureActorView?.(options) ?? null;
       return buildManualFrontViewSnapshot(simulationState, {

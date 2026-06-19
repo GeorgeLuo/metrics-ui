@@ -15,7 +15,8 @@ export const DEFAULT_CHASER_SPEED_UNITS_PER_FRAME = 2.2 / ASSUMED_GAME_FRAMES_PE
 export const DEFAULT_EVADER_SPEED_UNITS_PER_FRAME = 2.8 / ASSUMED_GAME_FRAMES_PER_SECOND;
 export const DEFAULT_EVADER_SPEED_ESTIMATE_UNITS_PER_FRAME = 2.4 / ASSUMED_GAME_FRAMES_PER_SECOND;
 export const DEFAULT_CAR_SPEED_UNITS_PER_FRAME = DEFAULT_CHASER_SPEED_UNITS_PER_FRAME;
-export const DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME = (Math.PI * 1.15) / ASSUMED_GAME_FRAMES_PER_SECOND;
+export const DEFAULT_CAR_WHEELBASE_UNITS = CAR_LENGTH;
+export const DEFAULT_CAR_MAX_STEERING_ANGLE_RADIANS = (37 * Math.PI) / 180;
 
 export const FORWARD_CONTROL_CODES = new Set(["KeyI"]);
 export const REVERSE_CONTROL_CODES = new Set(["KeyK"]);
@@ -29,6 +30,7 @@ export const CONTROL_CODES = new Set([
 ]);
 
 export const CHASER_AUTOPILOT_ACTION_ID = "chaser-autopilot";
+export const CHASER_CONTROL_SOURCE_ACTION_ID = "chaser-control-source";
 export const SCENARIO_SELECT_ACTION_ID = "scenario-select";
 export const EVADER_EXISTS_ACTION_ID = "evader-exists";
 export const CHASER_VIEW_ACTION_ID = "chaser-view";
@@ -36,7 +38,7 @@ export const EVADER_VIEW_ACTION_ID = "evader-view";
 export const CHASER_SPEED_ACTION_ID = "chaser-speed";
 export const IDAE_DEBUG_ACTION_ID = "idae-debug";
 export const EVADER_SPEED_ACTION_ID = "evader-speed";
-export const VEHICLE_TURN_RATE_ACTION_ID = "vehicle-turn-rate";
+export const VEHICLE_MAX_STEERING_ANGLE_ACTION_ID = "vehicle-max-steering-angle";
 export const VEHICLE_FOV_ACTION_ID = "vehicle-fov";
 export const EVADER_PROJECTION_VIEW_ACTION_ID = "evader-projection-view";
 export const EVADER_PROJECTION_DEBUG_ACTION_ID = "evader-projection-debug";
@@ -72,6 +74,11 @@ export const CHASER_MAP_OVERLAY_VIEW_MODES = Object.freeze({
   KNOWLEDGE: "knowledge",
   RECENCY: "recency",
   ALL: "all",
+});
+export const CHASER_CONTROL_SOURCES = Object.freeze({
+  PROGRAMMATIC: "programmatic",
+  KEYBOARD: "keyboard",
+  WS: "ws",
 });
 
 export const CHASER_MAP_OBSERVATION_CELL_SIZE = 0.3;

@@ -4,6 +4,7 @@ import {
   CHASER_ACTION_PATH_RATE_ACTION_ID,
   CHASER_ACTION_PATH_VIEW_ACTION_ID,
   CHASER_AUTOPILOT_ACTION_ID,
+  CHASER_CONTROL_SOURCE_ACTION_ID,
   CHASER_MAP_OVERLAY_ACTION_ID,
   CHASER_MAP_OVERLAY_VIEW_MODES,
   CHASER_SPEED_ACTION_ID,
@@ -28,7 +29,7 @@ import {
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
-  VEHICLE_TURN_RATE_ACTION_ID,
+  VEHICLE_MAX_STEERING_ANGLE_ACTION_ID,
 } from "../config/constants.mjs";
 import {
   clampNumber,
@@ -185,14 +186,14 @@ function createVehicleActionDescriptors({
       },
     },
     {
-      id: VEHICLE_TURN_RATE_ACTION_ID,
+      id: VEHICLE_MAX_STEERING_ANGLE_ACTION_ID,
       handler(value) {
         const parsed = parseEditableNumber(value);
         if (parsed !== null) {
-          vehicleSettings.turnRateRadiansPerFrame = degreesToRadians(clampNumber(
+          vehicleSettings.maxSteeringAngleRadians = degreesToRadians(clampNumber(
             parsed,
-            10 / ASSUMED_GAME_FRAMES_PER_SECOND,
-            720 / ASSUMED_GAME_FRAMES_PER_SECOND,
+            0,
+            70,
           ));
         }
         refreshSidebarSections();
@@ -337,6 +338,13 @@ export function createSidebarActionDescriptors(context) {
         context.setProgrammaticChaserEnabled(
           typeof value === "boolean" ? value : !context.getProgrammaticChaserEnabled(),
         );
+        context.refreshSidebarSections();
+      },
+    },
+    {
+      id: CHASER_CONTROL_SOURCE_ACTION_ID,
+      handler(value) {
+        context.setChaserControlSource?.(value);
         context.refreshSidebarSections();
       },
     },

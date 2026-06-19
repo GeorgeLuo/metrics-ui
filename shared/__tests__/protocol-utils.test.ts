@@ -338,10 +338,11 @@ test("buildRenderDebug domain preview includes axis info for negative values", (
 
 test("buildCapabilitiesPayload names sub-apps and current command families", () => {
   const capabilities = buildCapabilitiesPayload();
-  assert.equal(capabilities.protocolVersion, "1.1.0");
+  assert.equal(capabilities.protocolVersion, "1.2.0");
   assert.ok(capabilities.commands.includes("set_equations_topic"));
   assert.ok(capabilities.commands.includes("set_equations_view_mode"));
   assert.ok(capabilities.commands.includes("play_game_action"));
+  assert.ok(capabilities.commands.includes("set_play_chaser_input"));
   assert.deepEqual(
     capabilities.subApps.map((subApp) => [subApp.id, subApp.label]),
     [

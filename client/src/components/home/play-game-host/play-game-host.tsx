@@ -6,6 +6,7 @@ import {
 import { usePlayGameModule } from "./use-play-game-module";
 import { usePlaySidebarBridge } from "./use-play-sidebar-bridge";
 import type {
+  PlayChaserControlHandler,
   PlayFrontViewSnapshotHandler,
   PlayGameHostProps,
   PlayViewportSpec,
@@ -21,6 +22,7 @@ export function PlayGameHost({
   onSidebarActionHandlerChange,
   onDebugSnapshotChange,
   onFrontViewSnapshotHandlerChange,
+  onChaserControlHandlerChange,
 }: PlayGameHostProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [mountElement, setMountElement] = useState<HTMLDivElement | null>(null);
@@ -50,6 +52,11 @@ export function PlayGameHost({
   ) => {
     onFrontViewSnapshotHandlerChange?.(handler ?? null);
   }, [onFrontViewSnapshotHandlerChange]);
+  const setChaserControlHandler = useCallback((
+    handler: PlayChaserControlHandler | null | undefined,
+  ) => {
+    onChaserControlHandlerChange?.(handler ?? null);
+  }, [onChaserControlHandlerChange]);
 
   const loadError = usePlayGameModule({
     container: mountElement,
@@ -66,6 +73,7 @@ export function PlayGameHost({
     setDebugSnapshot,
     setViewportSpec,
     setFrontViewSnapshotHandler,
+    setChaserControlHandler,
   });
 
   return (

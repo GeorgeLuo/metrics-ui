@@ -34,7 +34,7 @@ export function buildSpinProposal({
   chaserLookDirection,
   spinSteering = CHASER_AUTOPILOT_DEFAULT_SPIN_STEERING,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
 }: Record<string, any> = {}): VehicleActionProposal {
   if (!enabled || !chaserLookDirection) {
     return createInactiveActionProposal(CHASER_ACTION_PROPOSAL_IDS.SPIN);
@@ -46,7 +46,7 @@ export function buildSpinProposal({
     vehicleDirection: chaserLookDirection,
     spinSteering,
     speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     metadata: {
       targetDirection: getSpinDirection(chaserLookDirection, steering),
     },

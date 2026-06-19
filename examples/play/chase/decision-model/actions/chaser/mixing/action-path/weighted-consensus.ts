@@ -74,7 +74,7 @@ export function buildWeightedPathConsensus({
   vehiclePosition,
   vehicleDirection,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
 }: Record<string, any> = {}): VehicleActionPathConsensus {
   if (activeProposals.length === 0) {
     return {
@@ -105,7 +105,7 @@ export function buildWeightedPathConsensus({
       throttle: mixedAction.throttle,
       steering: mixedAction.steering,
       speedUnitsPerFrame,
-      turnRateRadiansPerFrame,
+      maxSteeringAngleRadians,
     });
     position = nextFrame.position;
     direction = nextFrame.direction;

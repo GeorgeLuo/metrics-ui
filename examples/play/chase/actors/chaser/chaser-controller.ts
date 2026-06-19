@@ -32,7 +32,7 @@ type ProgrammaticChaserInputOptions = {
   autopilotState?: ChaserAutopilotState | null;
   chaserSpeedUnitsPerFrame?: number;
   speedUnitsPerFrame?: number;
-  turnRateRadiansPerFrame?: number;
+  maxSteeringAngleRadians?: number;
   frameIndex?: number | null;
   columns?: number;
   rows?: number;
@@ -120,7 +120,7 @@ export function getProgrammaticChaserInput({
   autopilotState,
   chaserSpeedUnitsPerFrame,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   frameIndex,
   columns,
   rows,
@@ -137,7 +137,7 @@ export function getProgrammaticChaserInput({
     previousWallFollowSign: autopilotState?.wallFollowSign ?? 1,
     chaserSpeedUnitsPerFrame,
     speedUnitsPerFrame,
-    turnRateRadiansPerFrame,
+    maxSteeringAngleRadians,
     frameIndex,
     columns,
     rows,

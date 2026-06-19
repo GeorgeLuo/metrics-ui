@@ -148,7 +148,10 @@ function renderGameSectionRow(
         <span className="min-w-0">{row.label}</span>
         <select
           value={row.value}
-          onChange={(event) => onGameAction(row.id, event.target.value)}
+          onChange={(event) => {
+            onGameAction(row.id, event.target.value);
+            event.currentTarget.blur();
+          }}
           aria-label={row.label}
           className={PLAY_INLINE_SELECT_CLASS}
         >

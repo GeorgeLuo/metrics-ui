@@ -71,7 +71,7 @@ const piracerRoomSketchScenarioDefinition = {
   },
   runtime: {
     ...defaultScenarioDefinition.runtime,
-    programmaticChaserEnabled: false,
+    chaserControlSource: "keyboard",
   },
   vehicleSettings: {
     ...defaultScenarioDefinition.vehicleSettings,

@@ -13,17 +13,76 @@ import {
 } from "../../config/constants.mjs";
 
 export function createCar(color) {
-  const geometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
-  const material = new THREE.MeshStandardMaterial({
+  const car = new THREE.Group();
+  const bodyGeometry = new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, CAR_LENGTH);
+  const bodyMaterial = new THREE.MeshStandardMaterial({
     color,
     emissive: color,
     emissiveIntensity: 0.2,
     roughness: 0.45,
     metalness: 0.05,
   });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.y = CAR_HEIGHT / 2;
-  return mesh;
+  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+  const wheelGeometry = new THREE.BoxGeometry(CAR_WIDTH * 0.12, CAR_HEIGHT * 0.42, CAR_LENGTH * 0.22);
+  const wheelMaterial = new THREE.MeshStandardMaterial({
+    color: 0x111827,
+    roughness: 0.7,
+    metalness: 0.05,
+  });
+  const wheelX = CAR_WIDTH * 0.58;
+  const frontZ = CAR_LENGTH * 0.34;
+  const rearZ = -CAR_LENGTH * 0.34;
+  const wheelY = -CAR_HEIGHT * 0.22;
+  const frontWheels = [];
+
+  [
+    { x: -wheelX, z: frontZ, steerable: true },
+    { x: wheelX, z: frontZ, steerable: true },
+    { x: -wheelX, z: rearZ, steerable: false },
+    { x: wheelX, z: rearZ, steerable: false },
+  ].forEach((wheelSpec) => {
+    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel.position.set(wheelSpec.x, wheelY, wheelSpec.z);
+    wheel.name = wheelSpec.steerable ? "front-wheel" : "rear-wheel";
+    if (wheelSpec.steerable) {
+      frontWheels.push(wheel);
+    }
+    car.add(wheel);
+  });
+
+  car.add(body);
+  car.position.y = CAR_HEIGHT / 2;
+  car.userData.frontWheels = frontWheels;
+  return car;
+}
+
+export function setCarWheelSteeringAngle(car, steeringAngleRadians = 0) {
+  const steeringAngle = Number.isFinite(steeringAngleRadians)
+    ? steeringAngleRadians
+    : 0;
+  (car?.userData?.frontWheels ?? []).forEach((wheel) => {
+    wheel.rotation.y = steeringAngle;
+  });
+  return steeringAngle;
+}
+
+export function disposeObject3D(object) {
+  const geometries = new Set();
+  const materials = new Set();
+  object?.traverse?.((child) => {
+    if (child.geometry) {
+      geometries.add(child.geometry);
+    }
+    if (Array.isArray(child.material)) {
+      child.material.forEach((material) => materials.add(material));
+      return;
+    }
+    if (child.material) {
+      materials.add(child.material);
+    }
+  });
+  geometries.forEach((geometry) => geometry.dispose?.());
+  materials.forEach((material) => material.dispose?.());
 }
 
 export function createWall(wall) {

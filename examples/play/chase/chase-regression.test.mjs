@@ -9,7 +9,7 @@ import {
   CHASER_ACTION_PATH_RATE_ACTION_ID,
   CHASER_ACTION_PATH_VIEW_ACTION_ID,
   CHASER_ACTION_PATH_VIEW_MODES,
-  CHASER_AUTOPILOT_ACTION_ID,
+  CHASER_CONTROL_SOURCE_ACTION_ID,
   CHASER_MAP_OVERLAY_ACTION_ID,
   CHASER_MAP_OVERLAY_VIEW_MODES,
   EVADER_PROJECTION_VIEW_ACTION_ID,
@@ -45,6 +45,11 @@ import {
   publishSidebarSections,
 } from "./ui/sidebar.mjs";
 import { getChaserActionPathDebugEntries } from "./ui/rendering.mjs";
+import {
+  createCar,
+  disposeObject3D,
+  setCarWheelSteeringAngle,
+} from "./ui/rendering/world-objects.mjs";
 import {
   createMapShapeMemory,
   RECENT_VISITATION_MAX_AGE_FRAMES,
@@ -108,7 +113,7 @@ const REGRESSION_CASES = [
     expected: {
       frame: 120,
       chaser: { x: -3.42, z: 0, dx: 1, dz: 0 },
-      evader: { x: 3.4433, z: 0.6334, dx: -0.9208, dz: -0.3901 },
+      evader: { x: 4.2375, z: 1.6492, dx: 0.9208, dz: 0.39 },
       touches: 0,
       visible: false,
       prediction: {
@@ -119,7 +124,7 @@ const REGRESSION_CASES = [
         firstAhead: 20,
         sourcePatternIds: ["continuance"],
       },
-      inference: { speed: 0.0467, wallScore: 0 },
+      inference: { speed: 0.0467, wallScore: 1 },
     },
   },
   {
@@ -130,7 +135,7 @@ const REGRESSION_CASES = [
     expected: {
       frame: 120,
       chaser: { x: -1.0994, z: 0, dx: 1, dz: 0 },
-      evader: { x: 3.4433, z: 0.6334, dx: -0.9208, dz: -0.3901 },
+      evader: { x: 4.2375, z: 1.6492, dx: 0.9208, dz: 0.39 },
       touches: 0,
       visible: false,
       prediction: {
@@ -151,8 +156,8 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 180,
-      chaser: { x: -1.1424, z: -1.105, dx: -0.9969, dz: -0.0789 },
-      evader: { x: 3.1955, z: 2.1203, dx: 0.9975, dz: -0.0704 },
+      chaser: { x: 0.5652, z: -2.4369, dx: 0.101, dz: -0.9949 },
+      evader: { x: 3.0384, z: 1.9634, dx: 0.1853, dz: -0.9827 },
       touches: 0,
       visible: false,
       prediction: {
@@ -163,7 +168,7 @@ const REGRESSION_CASES = [
         firstAhead: 20,
         sourcePatternIds: ["continuance"],
       },
-      inference: { speed: 0.0467, wallScore: 1 },
+      inference: { speed: 0.042, wallScore: 0 },
     },
   },
   {
@@ -179,17 +184,17 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 158,
-      chaser: { x: 1.6696, z: -0.5747, dx: 0.6287, dz: 0.7777 },
-      evader: { x: 3.6053, z: 1.5323, dx: -0.7699, dz: 0.6381 },
+      chaser: { x: 1.7818, z: -0.5441, dx: 0.6514, dz: 0.7587 },
+      evader: { x: 3.3773, z: 1.2482, dx: -0.4308, dz: 0.9024 },
       touches: 0,
       visible: true,
       prediction: {
         actionable: true,
         invalidReason: null,
-        strategy: "rectified-evader-projection",
+        strategy: "continuance-default",
         pathLen: 6,
         firstAhead: 20,
-        sourcePatternIds: ["continuance", "wallAvoidance"],
+        sourcePatternIds: ["continuance"],
       },
       inference: { speed: 0.0467, wallScore: 1 },
     },
@@ -639,6 +644,22 @@ test("vehicle steering does not rotate actors in place when speed is zero", () =
   assert.deepEqual(state.evaderDirection, startEvaderDirection);
 });
 
+test("vehicle renderer angles steerable front wheels", () => {
+  const car = createCar(0x38bdf8);
+  const appliedAngle = setCarWheelSteeringAngle(car, 0.42);
+  const frontWheels = car.userData.frontWheels ?? [];
+  try {
+    assert.equal(appliedAngle, 0.42);
+    assert.equal(frontWheels.length, 2);
+    assert.deepEqual(
+      frontWheels.map((wheel) => roundNumber(wheel.rotation.y, 2)),
+      [0.42, 0.42],
+    );
+  } finally {
+    disposeObject3D(car);
+  }
+});
+
 test("chaser records success metrics in actor memory after committed frames", () => {
   const state = createChaseSimulationState({
     scenario: buildManualChaserScenario((scenario) => {
@@ -712,7 +733,7 @@ test("chase sidebar combines score and settings into the game section", () => {
     (nextSections) => {
       sections = nextSections;
     },
-    state.programmaticChaserEnabled,
+    state.chaserControlSource,
     {
       chaserViewVisible: false,
       evaderViewVisible: false,
@@ -758,14 +779,14 @@ test("chase sidebar combines score and settings into the game section", () => {
   const gameControlsHeaderIndex = gameRows.findIndex(
     (row) => row.kind === "header" && row.label === "Controls",
   );
-  const gameChaserAutopilotIndex = gameRows.findIndex(
-    (row) => row.id === CHASER_AUTOPILOT_ACTION_ID,
+  const gameChaserControlSourceIndex = gameRows.findIndex(
+    (row) => row.id === CHASER_CONTROL_SOURCE_ACTION_ID,
   );
   const actionProposalRows = sections.find((section) => section.id === "actionProposals")?.rows ?? [];
   const vehicleRows = sections.find((section) => section.id === "vehicle")?.rows ?? [];
   const viewRows = sections.find((section) => section.id === "view")?.rows ?? [];
   const chaserAutopilotIndex = actionProposalRows.findIndex(
-    (row) => row.id === CHASER_AUTOPILOT_ACTION_ID,
+    (row) => row.id === "chaser-autopilot",
   );
   const vehicleControlsHeaderIndex = vehicleRows.findIndex(
     (row) => row.kind === "header" && row.label === "Controls",
@@ -823,12 +844,12 @@ test("chase sidebar combines score and settings into the game section", () => {
   assert.equal(simulationHeaderIndex, touchRateIndex + 1);
   assert.equal(fpsIndex, simulationHeaderIndex + 1);
   assert.equal(playbackIndex, fpsIndex + 1);
-  assert.equal(resetIndex, playbackIndex + 1);
+  assert.equal(gameChaserControlSourceIndex, playbackIndex + 1);
+  assert.equal(resetIndex, gameChaserControlSourceIndex + 1);
   assert.equal(greentextIndex, -1);
   assert.equal(gameControlsHeaderIndex, -1);
-  assert.equal(gameChaserAutopilotIndex, -1);
-  assert.equal(chaserAutopilotIndex, 0);
-  assert.equal(actionProposalRows[chaserAutopilotIndex]?.enabled, true);
+  assert.equal(gameRows[gameChaserControlSourceIndex]?.kind, "select");
+  assert.equal(chaserAutopilotIndex, -1);
   assert.equal(vehicleControlsHeaderIndex > -1, true);
   assert.equal(forwardControlIndex, vehicleControlsHeaderIndex + 1);
   assert.equal(reverseControlIndex, forwardControlIndex + 1);
@@ -969,7 +990,7 @@ test("chase sidebar projection dropdown syncs prediction path debug mode", () =>
     (nextSections) => {
       sections = nextSections;
     },
-    state.programmaticChaserEnabled,
+    state.chaserControlSource,
     {
       chaserViewVisible: false,
       evaderViewVisible: false,
@@ -1041,7 +1062,7 @@ test("chase sidebar groups action proposal toggles by chaser motive", () => {
     (nextSections) => {
       sections = nextSections;
     },
-    state.programmaticChaserEnabled,
+    state.chaserControlSource,
     {
       chaserViewVisible: false,
       evaderViewVisible: false,
@@ -1078,7 +1099,6 @@ test("chase sidebar groups action proposal toggles by chaser motive", () => {
   });
 
   assert.deepEqual(rowSummary, [
-    `toggle:${CHASER_AUTOPILOT_ACTION_ID}:Programmatic chaser:true`,
     "header:Chaser motive: Chase",
     `toggle:${createActorActionProposalToggleActionId("chaser", CHASER_ACTION_PROPOSAL_IDS.EVADER_PREDICTION_PURSUIT)}:Evader Prediction Pursuit:true`,
     `toggle:${createActorActionProposalToggleActionId("chaser", CHASER_ACTION_PROPOSAL_IDS.LINE_OF_SIGHT_PURSUIT)}:Line Of Sight Pursuit:false`,
@@ -1426,7 +1446,7 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
   }
 
   assert.deepEqual(lostSightPursuitFrame, {
-    frame: 246,
+    frame: 237,
     strategy: "rectified-evader-projection",
     persisted: false,
     pathLen: 6,
@@ -1445,8 +1465,8 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
     spinPathLen: 36,
     localNavigationActive: false,
     wallPressure: null,
-    wallProbability: 0.7,
-    wallCredibleLowerBound: 0.4602,
+    wallProbability: 0.625,
+    wallCredibleLowerBound: 0.3475,
   });
 });
 
@@ -1527,7 +1547,7 @@ test("evader IDAE evades when the chaser is in evader FOV", () => {
         frame: 13, actionProposalId: "evader-consensus", chaserVisible: true, evadeActionable: true, baselineActionable: true,
       },
       {
-        frame: 14, actionProposalId: "evader-consensus", chaserVisible: true, evadeActionable: true, baselineActionable: true,
+        frame: 14, actionProposalId: "evader-consensus", chaserVisible: false, evadeActionable: false, baselineActionable: true,
       },
       {
         frame: 15, actionProposalId: "evader-consensus", chaserVisible: false, evadeActionable: false, baselineActionable: true,
@@ -1547,17 +1567,17 @@ test("evader IDAE evades when the chaser is in evader FOV", () => {
     },
     {
       evader: {
-        x: 1.5264,
-        z: 0.4973,
-        dx: -0.3584,
-        dz: 0.9336,
+        x: 1.5824,
+        z: 0.5642,
+        dx: -0.4,
+        dz: 0.9165,
       },
       lastActionProposal: "evader-consensus",
       lastDebug: {
         policyId: "evader-consensus-baseline",
         wallAvoidanceActive: true,
         nearestWall: "center-square",
-        nearestDistance: 0.7043792299274978,
+        nearestDistance: 0.7616702950963221,
         chaserVisible: false,
         evadeActive: false,
         activeActionProposalIds: ["defaultRoam"],
@@ -1568,13 +1588,13 @@ test("evader IDAE evades when the chaser is in evader FOV", () => {
   assert.deepEqual(
     state.lastStep.evaderReasoning?.snapshot?.actionStatus?.evadeOnSight?.state,
     {
-      visibleFrameCount: 14,
-      actionableFrameCount: 14,
-      executedFrameCount: 14,
+      visibleFrameCount: 13,
+      actionableFrameCount: 13,
+      executedFrameCount: 13,
       visibilityEpisodeCount: 1,
       actionableEpisodeCount: 1,
       executionEpisodeCount: 1,
-      lastSeenDistance: 0.225622652670046,
+      lastSeenDistance: 0.2481222728965418,
       lastSeenBearingRadians: 0,
     },
   );
@@ -1813,7 +1833,7 @@ test("map discovery-only chaser stops after remembered traversable map is covere
   const knownVertices = knownAreas.flatMap((area) => area.vertices ?? []);
   const fieldBounds = getFieldBounds(GRID.columns, GRID.rows);
 
-  assert.equal(completionFrame, 706);
+  assert.equal(completionFrame, 804);
   assert.equal(state.lastStep.chaserAction?.selectedActionProposalId, "none");
   assert.equal(state.lastStep.chaserAction?.forward, false);
   assert.equal(

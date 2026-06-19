@@ -5,10 +5,7 @@ import {
   stepChaserIdae,
 } from "../actors/chaser/chaser-decision-model-adapter.ts";
 import { createEvaderIdae, stepEvaderIdae } from "../actors/evader/evader-decision-model.mjs";
-import {
-  angleToVector,
-  vectorToAngle,
-} from "../decision-model/core/math.ts";
+import { stepVehicleBicycleFrame } from "../decision-model/actions/vehicle/kinematics.ts";
 import {
   createEvaderWallAvoidanceTruthState,
   updateEvaderWallAvoidanceTruth,
@@ -16,6 +13,11 @@ import {
 import {
   recordFrameFrontViewCaptures,
 } from "./front-view-captures.ts";
+import {
+  getInitialChaserControlSource,
+  isProgrammaticChaserControlSource,
+  setChaserControlSource,
+} from "./chaser-control-source.mjs";
 import {
   createChaseTraceRecorder,
   getChaseTraceRecorderSnapshot,
@@ -88,6 +90,7 @@ function cloneHumanInput(humanInput) {
       ? { requested: true }
       : null;
   return {
+    source: humanInput?.source === "ws" ? "ws" : "human",
     forward: Boolean(humanInput?.forward),
     reverse: Boolean(humanInput?.reverse),
     steering: Number.isFinite(humanInput?.steering) ? humanInput.steering : 0,
@@ -108,7 +111,7 @@ function applyVehicleAction({
   direction,
   action,
   speedUnitsPerFrame,
-  turnRateRadiansPerFrame,
+  maxSteeringAngleRadians,
   columns,
   rows,
   obstacles,
@@ -117,15 +120,13 @@ function applyVehicleAction({
   const isMovingReverse = Boolean(action?.reverse);
   const movementSign = isMovingForward ? 1 : isMovingReverse ? -1 : 0;
   const speed = Math.max(0, Number(speedUnitsPerFrame) || 0);
-  const turnRate = Math.max(0, Number(turnRateRadiansPerFrame) || 0);
   const isMoving = movementSign !== 0 && speed > 0;
   const steeringInput = clampUnit(action?.steering);
   const currentDirection = cloneVector(direction, { x: 1, z: 0 });
-  let nextDirection = currentDirection;
 
   if (!isMoving) {
     return {
-      direction: nextDirection,
+      direction: currentDirection,
       position: {
         x: Number(position?.x) || 0,
         z: Number(position?.z) || 0,
@@ -133,25 +134,25 @@ function applyVehicleAction({
     };
   }
 
-  let travelDirection = currentDirection;
-  if (steeringInput !== 0 && turnRate > 0) {
-    const currentAngle = vectorToAngle(currentDirection);
-    const turnDelta = steeringInput * turnRate * (isMovingReverse ? -1 : 1);
-    travelDirection = angleToVector(currentAngle + turnDelta / 2);
-    nextDirection = angleToVector(
-      currentAngle + turnDelta,
-    );
-  }
+  const nextFrame = stepVehicleBicycleFrame({
+    position,
+    direction: currentDirection,
+    speedUnitsPerFrame: speed,
+    throttle: movementSign,
+    steering: steeringInput,
+    maxSteeringAngleRadians,
+  });
 
-  const nextPosition = resolveObstacleCollisions({
-    x: (Number(position?.x) || 0)
-      + travelDirection.x * speed * movementSign,
-    z: (Number(position?.z) || 0)
-      + travelDirection.z * speed * movementSign,
-  }, position, columns, rows, obstacles);
+  const nextPosition = resolveObstacleCollisions(
+    nextFrame.position,
+    position,
+    columns,
+    rows,
+    obstacles,
+  );
 
   return {
-    direction: nextDirection,
+    direction: nextFrame.direction,
     position: nextPosition,
   };
 }
@@ -171,9 +172,9 @@ function createSynchronizedFrameContext(state, humanInput) {
     rows: state.rows,
     projectionSettings: state.projectionSettings,
     humanInput,
-    programmaticChaserEnabled: state.programmaticChaserEnabled,
+    programmaticChaserEnabled: isProgrammaticChaserControlSource(state.chaserControlSource),
     chaserSpeedUnitsPerFrame: state.vehicleSettings.chaserSpeedUnitsPerFrame,
-    turnRateRadiansPerFrame: state.vehicleSettings.turnRateRadiansPerFrame,
+    maxSteeringAngleRadians: state.vehicleSettings.maxSteeringAngleRadians,
   };
 }
 
@@ -194,7 +195,7 @@ function updateChaserReasoningState(state, frameContext) {
     humanInput: frameContext.humanInput,
     programmaticChaserEnabled: frameContext.programmaticChaserEnabled,
     chaserSpeedUnitsPerFrame: frameContext.chaserSpeedUnitsPerFrame,
-    turnRateRadiansPerFrame: frameContext.turnRateRadiansPerFrame,
+    maxSteeringAngleRadians: frameContext.maxSteeringAngleRadians,
   });
   return cycle;
 }
@@ -213,7 +214,7 @@ function updateEvaderReasoningState(state, frameContext) {
     frameIndex: frameContext.frameIndex,
     obstacles: frameContext.obstacles,
     fieldOfViewAngleRadians: frameContext.fieldOfViewAngleRadians,
-    turnRateRadiansPerFrame: frameContext.turnRateRadiansPerFrame,
+    maxSteeringAngleRadians: frameContext.maxSteeringAngleRadians,
   });
 }
 
@@ -223,7 +224,7 @@ function applyChaserAction(state, chaserAction) {
     direction: state.chaserLookDirection,
     action: chaserAction,
     speedUnitsPerFrame: state.vehicleSettings.chaserSpeedUnitsPerFrame,
-    turnRateRadiansPerFrame: state.vehicleSettings.turnRateRadiansPerFrame,
+    maxSteeringAngleRadians: state.vehicleSettings.maxSteeringAngleRadians,
     columns: state.columns,
     rows: state.rows,
     obstacles: state.obstacles,
@@ -262,7 +263,7 @@ function applyEvaderMovementDecision(state, evaderMovementDecision) {
     direction: state.evaderDirection,
     action: evaderMovementDecision,
     speedUnitsPerFrame: state.vehicleSettings.evaderSpeedUnitsPerFrame,
-    turnRateRadiansPerFrame: state.vehicleSettings.turnRateRadiansPerFrame,
+    maxSteeringAngleRadians: state.vehicleSettings.maxSteeringAngleRadians,
     columns: state.columns,
     rows: state.rows,
     obstacles: state.obstacles,
@@ -379,8 +380,9 @@ export function createChaseSimulationState({
   const chaserIdae = createChaserIdae({ scenario });
   const evaderIdae = evaderExists ? createEvaderIdae({ scenario }) : null;
   const resolvedTraceRecorder = traceRecorder ?? createChaseTraceRecorder(scenario?.trace);
+  const chaserControlSource = getInitialChaserControlSource(scenario);
 
-  return {
+  const state = {
     scenario,
     columns: resolvedColumns,
     rows: resolvedRows,
@@ -396,7 +398,8 @@ export function createChaseSimulationState({
     projectionSettings: {
       ...(scenario?.projectionSettings ?? {}),
     },
-    programmaticChaserEnabled: Boolean(scenario?.runtime?.programmaticChaserEnabled),
+    chaserControlSource,
+    programmaticChaserEnabled: isProgrammaticChaserControlSource(chaserControlSource),
     chaserPosition: { ...(scenario?.actors?.chaser?.position ?? { x: 0, z: 0 }) },
     chaserLookDirection: { ...(scenario?.actors?.chaser?.direction ?? { x: 1, z: 0 }) },
     evaderPosition: evaderExists
@@ -418,14 +421,14 @@ export function createChaseSimulationState({
       frameIndex: 0,
       actionApplicationPending: false,
       chaserInput: {
-        source: "human",
+        source: isProgrammaticChaserControlSource(chaserControlSource) ? "programmatic" : "human",
         forward: false,
         reverse: false,
         steering: 0,
         frontViewCapture: null,
       },
       chaserAction: {
-        source: "human",
+        source: isProgrammaticChaserControlSource(chaserControlSource) ? "programmatic" : "human",
         forward: false,
         reverse: false,
         steering: 0,
@@ -437,6 +440,8 @@ export function createChaseSimulationState({
       frontViewCaptures: { chaser: null, evader: null },
     },
   };
+  setChaserControlSource(state, chaserControlSource);
+  return state;
 }
 
 export function stepChaseSimulation(state, {

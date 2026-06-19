@@ -3,7 +3,8 @@ import {
   CHASER_ACTION_PATH_RATE_ACTION_ID,
   CHASER_ACTION_PATH_VIEW_ACTION_ID,
   CHASER_ACTION_PATH_VIEW_MODES,
-  CHASER_AUTOPILOT_ACTION_ID,
+  CHASER_CONTROL_SOURCE_ACTION_ID,
+  CHASER_CONTROL_SOURCES,
   CHASER_MAP_OVERLAY_ACTION_ID,
   CHASER_MAP_OVERLAY_VIEW_MODES,
   CHASER_VIEW_ACTION_ID,
@@ -21,7 +22,7 @@ import {
   EVADER_PROJECTION_VIEW_MODES,
   EVADER_SPEED_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
-  VEHICLE_TURN_RATE_ACTION_ID,
+  VEHICLE_MAX_STEERING_ANGLE_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
@@ -124,15 +125,20 @@ function buildActorActionProposalRows(actorActionProposalCollections = {}) {
   ];
 }
 
-function buildProgrammaticChaserRow(programmaticChaserEnabled) {
+function buildChaserControlSourceRow(chaserControlSource) {
   return {
-    kind: "toggle",
-    id: CHASER_AUTOPILOT_ACTION_ID,
-    label: "Programmatic chaser",
-    enabled: programmaticChaserEnabled,
-    enabledLabel: "on",
-    disabledLabel: "off",
-    hint: "Let the game algorithm press the same forward, reverse, and steering inputs available to a human player.",
+    kind: "select",
+    id: CHASER_CONTROL_SOURCE_ACTION_ID,
+    label: "Chaser control",
+    value: Object.values(CHASER_CONTROL_SOURCES).includes(chaserControlSource)
+      ? chaserControlSource
+      : CHASER_CONTROL_SOURCES.PROGRAMMATIC,
+    options: [
+      { value: CHASER_CONTROL_SOURCES.PROGRAMMATIC, label: "decision model" },
+      { value: CHASER_CONTROL_SOURCES.KEYBOARD, label: "keyboard" },
+      { value: CHASER_CONTROL_SOURCES.WS, label: "WS" },
+    ],
+    hint: "Choose the single control source consumed by the chaser each simulation frame.",
   };
 }
 
@@ -212,7 +218,7 @@ function buildScenarioRows(scenarioControls = {}) {
 
 export function publishSidebarSections(
   setSidebarSections,
-  programmaticChaserEnabled,
+  chaserControlSource,
   frameVisibility,
   simulationSettings,
   vehicleSettings,
@@ -266,6 +272,7 @@ export function publishSidebarSections(
       tone: "playback",
       hint: "Freeze after all actor reasoning has run for the current frame, before actions update the world.",
     },
+    buildChaserControlSourceRow(chaserControlSource),
     {
       kind: "action",
       id: SIMULATION_RESET_ACTION_ID,
@@ -482,11 +489,11 @@ export function publishSidebarSections(
         }] : []),
         {
           kind: "editableValue",
-          id: VEHICLE_TURN_RATE_ACTION_ID,
-          label: "Turn rate",
-          value: formatEditableNumber(radiansToDegrees(vehicleSettings.turnRateRadiansPerFrame), 2),
-          suffix: "deg/frame",
-          hint: "Edit the steering rate used by the same forward and reverse input model.",
+          id: VEHICLE_MAX_STEERING_ANGLE_ACTION_ID,
+          label: "Max steering angle",
+          value: formatEditableNumber(radiansToDegrees(vehicleSettings.maxSteeringAngleRadians), 1),
+          suffix: "deg",
+          hint: "Edit the maximum front-wheel steering angle used by vehicle movement.",
         },
         {
           kind: "editableValue",
@@ -505,7 +512,6 @@ export function publishSidebarSections(
   ];
 
   const actionProposalRows = [
-    buildProgrammaticChaserRow(programmaticChaserEnabled),
     ...buildActorActionProposalRows(actorActionProposalCollections),
   ];
   if (actionProposalRows.length > 0) {
@@ -513,7 +519,7 @@ export function publishSidebarSections(
     sections.splice(vehicleSectionIndex === -1 ? sections.length : vehicleSectionIndex, 0, {
       id: "actionProposals",
       title: "Action Proposals",
-      hint: "Programmatic control and live actor action-proposal toggles generated from the current actor engine collections.",
+      hint: "Live actor action-proposal toggles generated from the current actor engine collections.",
       rows: actionProposalRows,
     });
   }

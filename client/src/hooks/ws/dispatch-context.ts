@@ -101,6 +101,12 @@ export interface WsCommandDispatchContext {
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
+  onPlayChaserControl?: (input?: {
+    motion?: string;
+    forward?: boolean;
+    reverse?: boolean;
+    steering?: number;
+  }) => boolean;
   onLiveStart: (options: {
     source?: string;
     pollIntervalMs?: number;

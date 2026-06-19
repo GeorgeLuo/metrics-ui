@@ -1,7 +1,7 @@
 import {
   ASSUMED_GAME_FRAMES_PER_SECOND,
   DEFAULT_CHASER_SPEED_UNITS_PER_FRAME,
-  DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME,
+  DEFAULT_CAR_MAX_STEERING_ANGLE_RADIANS,
   DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS,
   DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
   DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
@@ -10,6 +10,7 @@ import {
   DEFAULT_EVADER_DRIFT_Z_PHASE_PER_FRAME,
   DEFAULT_EVADER_SPEED_UNITS_PER_FRAME,
   DEFAULT_EVADER_WALL_AVOID_WEIGHT,
+  CHASER_CONTROL_SOURCES,
   MAX_SIMULATION_FRAMES_PER_SECOND,
   MAX_EVADER_PROJECTION_HORIZON_FRAMES,
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
@@ -32,6 +33,15 @@ function asRecord(value) {
 
 function normalizeBoolean(value, fallback = false) {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeChaserControlSource(value, programmaticChaserEnabled) {
+  if (Object.values(CHASER_CONTROL_SOURCES).includes(value)) {
+    return value;
+  }
+  return programmaticChaserEnabled === false
+    ? CHASER_CONTROL_SOURCES.KEYBOARD
+    : CHASER_CONTROL_SOURCES.PROGRAMMATIC;
 }
 
 function normalizeNumber(value, fallback) {
@@ -212,17 +222,22 @@ function normalizeUnitsPerFrame(record, {
   return clampNumber(fallback, min, max);
 }
 
-function normalizeTurnRateRadiansPerFrame(record) {
-  const degreesPerFrame = Number(record?.turnRateDegreesPerFrame);
-  if (Number.isFinite(degreesPerFrame)) {
+function normalizeMaxSteeringAngleRadians(record) {
+  const radians = Number(record?.maxSteeringAngleRadians);
+  if (Number.isFinite(radians)) {
+    return clampNumber(radians, 0, degreesToRadians(70));
+  }
+
+  const degrees = Number(record?.maxSteeringAngleDegrees);
+  if (Number.isFinite(degrees)) {
     return degreesToRadians(clampNumber(
-      degreesPerFrame,
-      10 / ASSUMED_GAME_FRAMES_PER_SECOND,
-      720 / ASSUMED_GAME_FRAMES_PER_SECOND,
+      degrees,
+      0,
+      70,
     ));
   }
 
-  return DEFAULT_CAR_TURN_RATE_RADIANS_PER_FRAME;
+  return DEFAULT_CAR_MAX_STEERING_ANGLE_RADIANS;
 }
 
 function normalizeProjectionSpacingFrames(record) {
@@ -323,7 +338,7 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
         min: 0.2 / ASSUMED_GAME_FRAMES_PER_SECOND,
         max: 12 / ASSUMED_GAME_FRAMES_PER_SECOND,
       }),
-      turnRateRadiansPerFrame: normalizeTurnRateRadiansPerFrame(vehicleSettings),
+      maxSteeringAngleRadians: normalizeMaxSteeringAngleRadians(vehicleSettings),
       fieldOfViewAngleRadians: degreesToRadians(clampNumber(
         normalizeNumber(
           vehicleSettings.fieldOfViewDegrees,
@@ -345,9 +360,16 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
       )),
       sampleSpacingFrames: normalizeProjectionSpacingFrames(projectionSettings),
     },
-    runtime: {
-      programmaticChaserEnabled: normalizeBoolean(runtime.programmaticChaserEnabled, true),
-    },
+    runtime: (() => {
+      const chaserControlSource = normalizeChaserControlSource(
+        runtime.chaserControlSource,
+        runtime.programmaticChaserEnabled,
+      );
+      return {
+        programmaticChaserEnabled: chaserControlSource === CHASER_CONTROL_SOURCES.PROGRAMMATIC,
+        chaserControlSource,
+      };
+    })(),
     simulation: {
       framesPerSecond: Math.round(clampNumber(
         normalizeNumber(simulation.framesPerSecond, ASSUMED_GAME_FRAMES_PER_SECOND),

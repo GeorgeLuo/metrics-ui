@@ -29,7 +29,7 @@ const defaultScenarioDefinition = {
   vehicleSettings: {
     chaserSpeedUnitsPerFrame: 0.03666666666666667,
     evaderSpeedUnitsPerFrame: 0.04666666666666667,
-    turnRateDegreesPerFrame: 3.45,
+    maxSteeringAngleDegrees: 37,
     fieldOfViewDegrees: 60,
   },
   projectionSettings: {

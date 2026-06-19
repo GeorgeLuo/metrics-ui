@@ -71,7 +71,7 @@ function observeEvaderEnvironment(state, frameContext = {}) {
     columns: frameContext.columns,
     rows: frameContext.rows,
     frameIndex: frameContext.frameIndex,
-    turnRateRadiansPerFrame: frameContext.turnRateRadiansPerFrame,
+    maxSteeringAngleRadians: frameContext.maxSteeringAngleRadians,
     policy: state.policy,
   });
 }

@@ -440,6 +440,20 @@ export function handleInteractionCommand(
       context.sendAck(requestId, command.type);
       return true;
     }
+    case "set_play_chaser_input": {
+      const handled = context.onPlayChaserControl?.({
+        motion: typeof command.motion === "string" ? command.motion : undefined,
+        forward: typeof command.forward === "boolean" ? command.forward : undefined,
+        reverse: typeof command.reverse === "boolean" ? command.reverse : undefined,
+        steering: Number.isFinite(command.steering) ? Number(command.steering) : undefined,
+      }) === true;
+      if (!handled) {
+        context.sendError(requestId, "Play chaser control is unavailable. Activate the Play sub-app and wait for the game to load.");
+        return true;
+      }
+      context.sendAck(requestId, command.type);
+      return true;
+    }
     case "state_sync": {
       const captures = Array.isArray(command.captures) ? command.captures : [];
       context.onStateSync?.(captures);
