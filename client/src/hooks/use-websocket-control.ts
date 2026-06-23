@@ -23,6 +23,10 @@ import {
 } from "@/hooks/ws/bootstrap";
 
 type RestoreStateCommand = Extract<ControlCommand, { type: "restore_state" }>;
+type PlayGameCommandInput = Pick<
+  Extract<ControlCommand, { type: "play_game_command" }>,
+  "commandId" | "payload"
+>;
 
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
@@ -74,12 +78,7 @@ interface UseWebSocketControlProps {
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
-  onPlayChaserControl?: (input?: {
-    motion?: string;
-    forward?: boolean;
-    reverse?: boolean;
-    steering?: number;
-  }) => boolean;
+  onPlayGameCommand?: (command: PlayGameCommandInput) => boolean;
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
@@ -130,6 +129,7 @@ interface UseWebSocketControlProps {
   getMemoryStats: () => MemoryStatsResponse;
   getUiDebug?: () => UiDebugResponse;
   getPlayDebug?: () => unknown;
+  getPlayGameUsage?: () => unknown;
   getPlayFrontViewSnapshot?: (options?: {
     actorId?: string;
     width?: number;
@@ -218,7 +218,7 @@ export function useWebSocketControl({
   onLiveStart,
   onLiveStop,
   onPlayGameAction,
-  onPlayChaserControl,
+  onPlayGameCommand,
   onCaptureInit,
   onCaptureComponents,
   onCaptureAppend,
@@ -234,6 +234,7 @@ export function useWebSocketControl({
   getMemoryStats,
   getUiDebug,
   getPlayDebug,
+  getPlayGameUsage,
   getPlayFrontViewSnapshot,
   onUiNotice,
   onUiError,
@@ -495,7 +496,7 @@ export function useWebSocketControl({
       onSourceModeChange,
       onLiveSourceChange,
       onPlayGameAction,
-      onPlayChaserControl,
+      onPlayGameCommand,
       onLiveStart,
       onLiveStop,
       onCaptureInit,
@@ -513,6 +514,7 @@ export function useWebSocketControl({
       getMemoryStats,
       getUiDebug,
       getPlayDebug,
+      getPlayGameUsage,
       getPlayFrontViewSnapshot,
       onStateSync,
       onDerivationPlugins,
@@ -581,7 +583,7 @@ export function useWebSocketControl({
     onSourceModeChange,
     onLiveSourceChange,
     onPlayGameAction,
-    onPlayChaserControl,
+    onPlayGameCommand,
     onLiveStart,
     onLiveStop,
     onCaptureInit,
@@ -599,6 +601,7 @@ export function useWebSocketControl({
     getMemoryStats,
     getUiDebug,
     getPlayDebug,
+    getPlayGameUsage,
     getPlayFrontViewSnapshot,
     onStateSync,
     onDerivationPlugins,

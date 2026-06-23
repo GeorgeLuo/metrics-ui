@@ -1,9 +1,10 @@
 export { PlayGameHost } from "./play-game-host";
 export type {
-  PlayChaserControlHandler,
-  PlayChaserControlInput,
   PlayFrontViewSnapshotHandler,
   PlayFrontViewSnapshotRequest,
+  PlayGameCommand,
+  PlayGameCommandHandler,
+  PlayGameUsageHandler,
   PlayGameHostProps,
   PlaySidebarActionHandler,
   PlayViewportSpec,

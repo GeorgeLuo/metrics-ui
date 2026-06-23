@@ -214,6 +214,34 @@ export function handleQueryCommand(
       context.sendAck(requestId, command.type);
       return true;
     }
+    case "get_play_game_usage": {
+      if (!context.getPlayGameUsage) {
+        context.sendError(requestId, "Play game usage is not available.");
+        return true;
+      }
+      let usage: unknown;
+      try {
+        usage = context.getPlayGameUsage();
+      } catch (error) {
+        context.sendError(
+          requestId,
+          error instanceof Error ? error.message : "Failed to build Play game usage.",
+          { command: "get_play_game_usage" },
+        );
+        return true;
+      }
+      if (usage === null || usage === undefined) {
+        context.sendError(requestId, "No Play game usage is available. Activate the Play sub-app and wait for the game to load.");
+        return true;
+      }
+      context.sendMessage({
+        type: "play_game_usage",
+        request_id: requestId,
+        payload: usage,
+      });
+      context.sendAck(requestId, command.type);
+      return true;
+    }
     case "get_play_front_view_snapshot": {
       if (!context.getPlayFrontViewSnapshot) {
         context.sendError(requestId, "Play front-view snapshotting is not available.");

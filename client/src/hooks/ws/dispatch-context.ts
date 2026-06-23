@@ -14,6 +14,10 @@ import type {
 } from "@shared/schema";
 
 export type RestoreStateCommand = Extract<ControlCommand, { type: "restore_state" }>;
+export type PlayGameCommandInput = Pick<
+  Extract<ControlCommand, { type: "play_game_command" }>,
+  "commandId" | "payload"
+>;
 
 export type UiNotice = {
   message: string;
@@ -101,12 +105,7 @@ export interface WsCommandDispatchContext {
   onSourceModeChange: (mode: "file" | "live") => void;
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
-  onPlayChaserControl?: (input?: {
-    motion?: string;
-    forward?: boolean;
-    reverse?: boolean;
-    steering?: number;
-  }) => boolean;
+  onPlayGameCommand?: (command: PlayGameCommandInput) => boolean;
   onLiveStart: (options: {
     source?: string;
     pollIntervalMs?: number;
@@ -138,6 +137,7 @@ export interface WsCommandDispatchContext {
   getMemoryStats: () => MemoryStatsResponse;
   getUiDebug?: () => UiDebugResponse;
   getPlayDebug?: () => unknown;
+  getPlayGameUsage?: () => unknown;
   getPlayFrontViewSnapshot?: (options?: {
     actorId?: string;
     width?: number;

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { FrameGrid, type FrameGridDebugSnapshot, type FrameGridSpec } from "@/components/frame-grid";
 import {
   PlayGameHost,
-  type PlayChaserControlHandler,
   type PlayFrontViewSnapshotHandler,
+  type PlayGameCommandHandler,
+  type PlayGameUsageHandler,
   type PlaySidebarActionHandler,
   type PlayViewportSpec,
 } from "@/components/home/play-game-host";
@@ -29,7 +30,8 @@ type PlayMainPanelProps = {
   onSidebarActionHandlerChange?: (handler: PlaySidebarActionHandler | null) => void;
   onDebugSnapshotChange?: (snapshot: unknown) => void;
   onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
-  onChaserControlHandlerChange?: (handler: PlayChaserControlHandler | null) => void;
+  onGameCommandHandlerChange?: (handler: PlayGameCommandHandler | null) => void;
+  onGameUsageHandlerChange?: (handler: PlayGameUsageHandler | null) => void;
 };
 
 function getErrorMessage(error: unknown): string {
@@ -52,7 +54,8 @@ export function PlayMainPanel({
   onSidebarActionHandlerChange,
   onDebugSnapshotChange,
   onFrontViewSnapshotHandlerChange,
-  onChaserControlHandlerChange,
+  onGameCommandHandlerChange,
+  onGameUsageHandlerChange,
 }: PlayMainPanelProps) {
   const [games, setGames] = useState<PlayGameCatalogEntry[]>([]);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -137,7 +140,8 @@ export function PlayMainPanel({
               onSidebarActionHandlerChange={onSidebarActionHandlerChange}
               onDebugSnapshotChange={onDebugSnapshotChange}
               onFrontViewSnapshotHandlerChange={onFrontViewSnapshotHandlerChange}
-              onChaserControlHandlerChange={onChaserControlHandlerChange}
+              onGameCommandHandlerChange={onGameCommandHandlerChange}
+              onGameUsageHandlerChange={onGameUsageHandlerChange}
             />
           )}
         </FrameGrid.Item>

@@ -24,8 +24,11 @@ type UsePlayGameModuleOptions = {
   setFrontViewSnapshotHandler: (
     handler: PlayGameInstance["getFrontViewSnapshot"] | null,
   ) => void;
-  setChaserControlHandler: (
-    handler: PlayGameInstance["setChaserControlInput"] | null,
+  setGameCommandHandler: (
+    handler: PlayGameInstance["handleCommand"] | null,
+  ) => void;
+  setGameUsageHandler: (
+    handler: PlayGameInstance["getUsage"] | null,
   ) => void;
 };
 
@@ -48,7 +51,8 @@ export function usePlayGameModule({
   setDebugSnapshot,
   setViewportSpec,
   setFrontViewSnapshotHandler,
-  setChaserControlHandler,
+  setGameCommandHandler,
+  setGameUsageHandler,
 }: UsePlayGameModuleOptions) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -60,14 +64,16 @@ export function usePlayGameModule({
     setDebugSnapshot(null);
     setViewportSpec(null);
     setFrontViewSnapshotHandler(null);
-    setChaserControlHandler(null);
+    setGameCommandHandler(null);
+    setGameUsageHandler(null);
   }, [
     clearFloatingFrames,
     clearPendingSidebarPublish,
     clearSidebarActionHandlers,
     setDebugSnapshot,
     setFrontViewSnapshotHandler,
-    setChaserControlHandler,
+    setGameCommandHandler,
+    setGameUsageHandler,
     setSidebarSections,
     setViewportSpec,
   ]);
@@ -109,7 +115,8 @@ export function usePlayGameModule({
           viewport: { setSpec: setViewportSpec },
         });
         setFrontViewSnapshotHandler(gameInstance?.getFrontViewSnapshot ?? null);
-        setChaserControlHandler(gameInstance?.setChaserControlInput ?? null);
+        setGameCommandHandler(gameInstance?.handleCommand ?? null);
+        setGameUsageHandler(gameInstance?.getUsage ?? null);
       })
       .catch((error: unknown) => {
         if (!isDisposed) {
@@ -136,7 +143,8 @@ export function usePlayGameModule({
     rows,
     setDebugSnapshot,
     setFrontViewSnapshotHandler,
-    setChaserControlHandler,
+    setGameCommandHandler,
+    setGameUsageHandler,
     setSidebarActionHandler,
     setSidebarSections,
     setViewportSpec,

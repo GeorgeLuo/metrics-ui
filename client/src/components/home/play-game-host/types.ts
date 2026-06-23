@@ -23,16 +23,13 @@ export type PlayFrontViewSnapshotHandler = (
   options?: PlayFrontViewSnapshotRequest,
 ) => unknown;
 
-export type PlayChaserControlInput = {
-  motion?: string;
-  forward?: boolean;
-  reverse?: boolean;
-  steering?: number;
+export type PlayGameCommand = {
+  commandId: string;
+  payload?: unknown;
 };
 
-export type PlayChaserControlHandler = (
-  input?: PlayChaserControlInput,
-) => unknown;
+export type PlayGameCommandHandler = (command: PlayGameCommand) => boolean;
+export type PlayGameUsageHandler = () => unknown;
 export type PlaySidebarActionHandler = (
   actionId: string,
   value?: unknown,
@@ -48,7 +45,8 @@ export type PlayGameHostProps = {
   onSidebarActionHandlerChange?: (handler: PlaySidebarActionHandler | null) => void;
   onDebugSnapshotChange?: (snapshot: unknown) => void;
   onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
-  onChaserControlHandlerChange?: (handler: PlayChaserControlHandler | null) => void;
+  onGameCommandHandlerChange?: (handler: PlayGameCommandHandler | null) => void;
+  onGameUsageHandlerChange?: (handler: PlayGameUsageHandler | null) => void;
 };
 
 export type PlayGameRuntimeContext = {
@@ -78,7 +76,8 @@ export type PlayGameRuntimeContext = {
 export type PlayGameInstance = {
   dispose?: () => void;
   getFrontViewSnapshot?: PlayFrontViewSnapshotHandler;
-  setChaserControlInput?: PlayChaserControlHandler;
+  handleCommand?: PlayGameCommandHandler;
+  getUsage?: PlayGameUsageHandler;
 };
 
 export type PlayGameModule = {
