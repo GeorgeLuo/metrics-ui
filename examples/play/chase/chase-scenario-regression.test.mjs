@@ -248,18 +248,28 @@ test("large-open-room scenario resolves to a larger empty obstacle list", () => 
   assert.equal(scenario.actors.evader.position.x, 3.375);
 });
 
-test("chaser-empty-map scenario resolves to a single idle chaser in an empty room", () => {
+test("chaser-empty-map scenario resolves to a backed-up chaser facing a front obstacle", () => {
   const scenario = resolveChaseScenario(getChaseScenarioDefinition("chaser-empty-map"), GRID);
   const state = createChaseSimulationState({
     scenario,
     columns: GRID.columns,
     rows: GRID.rows,
   });
+  const frontObstacle = scenario.map.obstacles.walls.find((wall) => wall.id === "front-rectangle");
 
   assert.equal(scenario.id, "chaser-empty-map");
-  assert.equal(scenario.map.layout, "chaser-empty-map");
-  assert.deepEqual(scenario.map.obstacles, { walls: [] });
-  assert.deepEqual(scenario.actors.chaser.position, { x: 0, z: 0 });
+  assert.equal(scenario.label, "Chaser Front Obstacle");
+  assert.equal(scenario.map.layout, "chaser-front-obstacle");
+  assert.equal(scenario.map.obstacles.walls.length, 1);
+  assert.deepEqual(frontObstacle, {
+    id: "front-rectangle",
+    x: 0,
+    z: 0.25,
+    width: 1.4,
+    depth: 0.7,
+    rotationRadians: 0,
+  });
+  assert.deepEqual(scenario.actors.chaser.position, { x: 0, z: 1.5 });
   assert.deepEqual(scenario.actors.chaser.direction, { x: 0, z: -1 });
   assert.equal(scenario.actors.evader.exists, false);
   assert.equal(scenario.actors.evader.position, null);
