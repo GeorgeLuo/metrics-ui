@@ -6,8 +6,9 @@ import {
 import { usePlayGameModule } from "./use-play-game-module";
 import { usePlaySidebarBridge } from "./use-play-sidebar-bridge";
 import type {
-  PlayChaserControlHandler,
   PlayFrontViewSnapshotHandler,
+  PlayGameCommandHandler,
+  PlayGameUsageHandler,
   PlayGameHostProps,
   PlayViewportSpec,
 } from "./types";
@@ -22,7 +23,8 @@ export function PlayGameHost({
   onSidebarActionHandlerChange,
   onDebugSnapshotChange,
   onFrontViewSnapshotHandlerChange,
-  onChaserControlHandlerChange,
+  onGameCommandHandlerChange,
+  onGameUsageHandlerChange,
 }: PlayGameHostProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [mountElement, setMountElement] = useState<HTMLDivElement | null>(null);
@@ -52,11 +54,16 @@ export function PlayGameHost({
   ) => {
     onFrontViewSnapshotHandlerChange?.(handler ?? null);
   }, [onFrontViewSnapshotHandlerChange]);
-  const setChaserControlHandler = useCallback((
-    handler: PlayChaserControlHandler | null | undefined,
+  const setGameCommandHandler = useCallback((
+    handler: PlayGameCommandHandler | null | undefined,
   ) => {
-    onChaserControlHandlerChange?.(handler ?? null);
-  }, [onChaserControlHandlerChange]);
+    onGameCommandHandlerChange?.(handler ?? null);
+  }, [onGameCommandHandlerChange]);
+  const setGameUsageHandler = useCallback((
+    handler: PlayGameUsageHandler | null | undefined,
+  ) => {
+    onGameUsageHandlerChange?.(handler ?? null);
+  }, [onGameUsageHandlerChange]);
 
   const loadError = usePlayGameModule({
     container: mountElement,
@@ -73,7 +80,8 @@ export function PlayGameHost({
     setDebugSnapshot,
     setViewportSpec,
     setFrontViewSnapshotHandler,
-    setChaserControlHandler,
+    setGameCommandHandler,
+    setGameUsageHandler,
   });
 
   return (

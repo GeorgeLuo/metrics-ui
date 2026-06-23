@@ -342,7 +342,9 @@ test("buildCapabilitiesPayload names sub-apps and current command families", () 
   assert.ok(capabilities.commands.includes("set_equations_topic"));
   assert.ok(capabilities.commands.includes("set_equations_view_mode"));
   assert.ok(capabilities.commands.includes("play_game_action"));
-  assert.ok(capabilities.commands.includes("set_play_chaser_input"));
+  assert.ok(capabilities.commands.includes("play_game_command"));
+  assert.ok(capabilities.commands.includes("get_play_game_usage"));
+  assert.ok(capabilities.responses.includes("play_game_usage"));
   assert.deepEqual(
     capabilities.subApps.map((subApp) => [subApp.id, subApp.label]),
     [

@@ -32,6 +32,8 @@ import {
   getActorActionProposalCollections,
   setActorActionProposalOverride,
 } from "./action-proposal-overrides.mjs";
+import { handleChasePlayCommand } from "./chase-play-commands.mjs";
+import { buildChasePlayUsage } from "./chase-play-usage.mjs";
 
 function copyInto(target, source) {
   Object.keys(target).forEach((key) => {
@@ -293,8 +295,16 @@ export function createPlayGame({
   });
 
   return {
-    setChaserControlInput(input = {}) {
-      return inputTracker.setWsInput(input);
+    handleCommand(command = {}) {
+      return handleChasePlayCommand(command, {
+        setChaserInput: (input = {}) => {
+          inputTracker.setWsInput(input);
+        },
+        setChaserControlSource: (source) => {
+          setChaserControlSource(simulationState, source);
+          refreshSidebarSections();
+        },
+      });
     },
     getFrontViewSnapshot(options = {}) {
       const renderedImage = sceneView.captureActorView?.(options) ?? null;
@@ -302,6 +312,9 @@ export function createPlayGame({
         ...options,
         renderedImage,
       });
+    },
+    getUsage() {
+      return buildChasePlayUsage();
     },
     dispose() {
       runtimeLoop?.dispose();

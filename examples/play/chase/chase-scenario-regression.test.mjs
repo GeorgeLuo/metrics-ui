@@ -208,6 +208,10 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
     "expected sidebar scenario selector to include the large-open-room scenario",
   );
   assert.ok(
+    scenarioSelect?.options?.some((option) => option.value === "chaser-empty-map"),
+    "expected sidebar scenario selector to include the chaser-empty-map scenario",
+  );
+  assert.ok(
     scenarioSelect?.options?.some((option) => option.value === "two-rooms"),
     "expected sidebar scenario selector to include the two-rooms scenario",
   );
@@ -242,6 +246,31 @@ test("large-open-room scenario resolves to a larger empty obstacle list", () => 
   assert.equal(state.rows, 9);
   assert.equal(scenario.actors.chaser.position.x, -5.13);
   assert.equal(scenario.actors.evader.position.x, 3.375);
+});
+
+test("chaser-empty-map scenario resolves to a single idle chaser in an empty room", () => {
+  const scenario = resolveChaseScenario(getChaseScenarioDefinition("chaser-empty-map"), GRID);
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+
+  assert.equal(scenario.id, "chaser-empty-map");
+  assert.equal(scenario.map.layout, "chaser-empty-map");
+  assert.deepEqual(scenario.map.obstacles, { walls: [] });
+  assert.deepEqual(scenario.actors.chaser.position, { x: 0, z: 0 });
+  assert.deepEqual(scenario.actors.chaser.direction, { x: 0, z: -1 });
+  assert.equal(scenario.actors.evader.exists, false);
+  assert.equal(scenario.actors.evader.position, null);
+  assert.equal(scenario.actors.evader.direction, null);
+  assert.equal(scenario.runtime.chaserControlSource, CHASER_CONTROL_SOURCES.KEYBOARD);
+  assert.equal(scenario.runtime.programmaticChaserEnabled, false);
+  assert.equal(state.evaderExists, false);
+  assert.equal(state.evaderPosition, null);
+  assert.equal(state.evaderDirection, null);
+  assert.equal(state.chaserControlSource, CHASER_CONTROL_SOURCES.KEYBOARD);
+  assert.equal(state.programmaticChaserEnabled, false);
 });
 
 test("two-rooms scenario resolves to a vertical divider with a doorway gap", () => {

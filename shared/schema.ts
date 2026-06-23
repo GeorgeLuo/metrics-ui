@@ -881,11 +881,9 @@ export type ControlCommand =
       value?: unknown;
     } & ControlRequestBase)
   | ({
-      type: "set_play_chaser_input";
-      motion?: "forward" | "reverse" | "backward" | "backwards" | "idle" | "none" | "stop" | "stopped";
-      forward?: boolean;
-      reverse?: boolean;
-      steering?: number;
+      type: "play_game_command";
+      commandId: string;
+      payload?: unknown;
     } & ControlRequestBase)
   | ({
       type: "sync_capture_sources";
@@ -957,6 +955,7 @@ export type ControlCommand =
     } & ControlRequestBase)
   | ({ type: "get_ui_debug"; scope?: string } & ControlRequestBase)
   | ({ type: "get_play_debug" } & ControlRequestBase)
+  | ({ type: "get_play_game_usage" } & ControlRequestBase)
   | ({
       type: "get_play_front_view_snapshot";
       actorId?: "chaser" | "evader" | string;
@@ -990,6 +989,7 @@ export interface ControlResponse {
     | "render_debug"
     | "ui_debug"
     | "play_debug"
+    | "play_game_usage"
     | "play_front_view_snapshot"
     | "ui_notice"
     | "ui_error"
