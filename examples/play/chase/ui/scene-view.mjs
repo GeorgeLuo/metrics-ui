@@ -359,6 +359,10 @@ export function createChaseSceneView({
     updateFieldOfView,
     renderFrame,
     captureActorView,
+    getAnimationFrameWindow: () =>
+      chaserView.getRenderWindow?.()
+      ?? evaderView.getRenderWindow?.()
+      ?? window,
     resize,
     dispose,
   };

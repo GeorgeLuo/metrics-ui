@@ -112,6 +112,7 @@ export function createActorViewController({
   createFloatingFrame,
   vehicleSettings,
   onVisibilityChange,
+  onControlWindowChange,
   frameId,
   title,
   lostLabelText,
@@ -119,12 +120,31 @@ export function createActorViewController({
   let mountedView = null;
   let suppressNextCloseNotification = false;
   let resizeFrame = 0;
+  let currentControlWindow = null;
+
+  const syncControlWindow = () => {
+    const nextControlWindow = mountedView?.frame.mount.ownerDocument?.defaultView ?? null;
+    if (nextControlWindow === currentControlWindow) {
+      return;
+    }
+    currentControlWindow = nextControlWindow;
+    onControlWindowChange?.(nextControlWindow);
+  };
+
+  const clearControlWindow = () => {
+    if (currentControlWindow === null) {
+      return;
+    }
+    currentControlWindow = null;
+    onControlWindowChange?.(null);
+  };
 
   const resizeMountedView = () => {
     resizeFrame = 0;
     if (!mountedView) {
       return;
     }
+    syncControlWindow();
     const viewWidth = Math.max(1, mountedView.frame.mount.clientWidth);
     const viewHeight = Math.max(1, mountedView.frame.mount.clientHeight);
     mountedView.renderer.setSize(viewWidth, viewHeight, false);
@@ -153,6 +173,7 @@ export function createActorViewController({
     mountedView.resizeObserver.disconnect();
     mountedView.renderer.dispose();
     mountedView = null;
+    clearControlWindow();
     if (notifyVisibilityChange) {
       onVisibilityChange?.(false);
     }
@@ -226,6 +247,7 @@ export function createActorViewController({
     };
     resizeObserver.observe(frame.mount);
     resizeMountedView();
+    syncControlWindow();
     onVisibilityChange?.(true);
   };
 
@@ -266,6 +288,7 @@ export function createActorViewController({
     if (!mountedView) {
       return;
     }
+    syncControlWindow();
     configureChaserViewCamera(mountedView.camera, actorPosition, actorLookDirection);
     renderActorViewScene({
       renderer: mountedView.renderer,
@@ -281,6 +304,7 @@ export function createActorViewController({
     open,
     close,
     dispose: () => close({ notifyVisibilityChange: false }),
+    getRenderWindow: () => mountedView?.frame.mount.ownerDocument?.defaultView ?? null,
     resize: resizeMountedView,
     setFieldOfViewAngleRadians,
     setTrackedActorVisible,
@@ -289,11 +313,17 @@ export function createActorViewController({
   };
 }
 
-export function createChaserViewController({ createFloatingFrame, vehicleSettings, onVisibilityChange }) {
+export function createChaserViewController({
+  createFloatingFrame,
+  vehicleSettings,
+  onVisibilityChange,
+  onControlWindowChange,
+}) {
   return createActorViewController({
     createFloatingFrame,
     vehicleSettings,
     onVisibilityChange,
+    onControlWindowChange,
     frameId: "chaser-view",
     title: "Chaser View",
     lostLabelText: "Evader out of sight",
