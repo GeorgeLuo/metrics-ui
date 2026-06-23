@@ -7,8 +7,11 @@ import {
 } from "../config/constants.mjs";
 
 export function isTextEditingTarget(target) {
-  return target instanceof HTMLElement
-    && Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+  return Boolean(
+    target
+      && typeof target.closest === "function"
+      && target.closest("input, textarea, select, [contenteditable='true']"),
+  );
 }
 
 function hasPressedKey(pressedKeys, codes) {

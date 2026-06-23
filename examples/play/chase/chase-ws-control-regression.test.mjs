@@ -5,8 +5,50 @@ import {
   CHASE_PLAY_COMMAND_IDS,
   handleChasePlayCommand,
 } from "./ui/chase-play-commands.mjs";
+import { createChaseLoop } from "./ui/chase-loop.mjs";
 import { buildChasePlayUsage } from "./ui/chase-play-usage.mjs";
 import { createControlInputTracker } from "./ui/input-tracker.mjs";
+
+function createKeyboardWindowStub() {
+  const listeners = new Map();
+  return {
+    innerWidth: 800,
+    addEventListener(type, listener) {
+      if (!listeners.has(type)) {
+        listeners.set(type, new Set());
+      }
+      listeners.get(type).add(listener);
+    },
+    removeEventListener(type, listener) {
+      listeners.get(type)?.delete(listener);
+    },
+    dispatchKeyboardEvent(type, event = {}) {
+      for (const listener of listeners.get(type) ?? []) {
+        listener({
+          target: null,
+          preventDefault() {},
+          ...event,
+        });
+      }
+    },
+  };
+}
+
+function createAnimationFrameWindowStub() {
+  return {
+    closed: false,
+    scheduled: [],
+    canceled: [],
+    requestAnimationFrame(callback) {
+      const id = this.scheduled.length + 1;
+      this.scheduled.push({ id, callback });
+      return id;
+    },
+    cancelAnimationFrame(id) {
+      this.canceled.push(id);
+    },
+  };
+}
 
 test("chase play commands adapt generic host commands to chaser controls", () => {
   const calls = [];
@@ -50,6 +92,101 @@ test("chase play usage documents CLI flow and game command ids", () => {
     usage.cli.some((group) => group.commands.some((command) => command.command.includes("play-chaser-control"))),
     "expected usage CLI examples to include chaser control",
   );
+});
+
+test("keyboard chaser input can relay from a popout window", () => {
+  const originalWindow = globalThis.window;
+  const mainWindow = createKeyboardWindowStub();
+  const popoutWindow = createKeyboardWindowStub();
+  globalThis.window = mainWindow;
+  try {
+    const tracker = createControlInputTracker();
+    tracker.setKeyboardRelayWindow(popoutWindow);
+
+    popoutWindow.dispatchKeyboardEvent("keydown", { code: "KeyI" });
+    popoutWindow.dispatchKeyboardEvent("keydown", { code: "KeyD" });
+    assert.deepEqual(tracker.getChaserInput(CHASER_CONTROL_SOURCES.KEYBOARD), {
+      source: "human",
+      forward: true,
+      reverse: false,
+      steering: -1,
+    });
+
+    mainWindow.dispatchKeyboardEvent("blur");
+    assert.deepEqual(tracker.getChaserInput(CHASER_CONTROL_SOURCES.KEYBOARD), {
+      source: "human",
+      forward: true,
+      reverse: false,
+      steering: -1,
+    });
+
+    popoutWindow.dispatchKeyboardEvent("keyup", { code: "KeyI" });
+    assert.deepEqual(tracker.getChaserInput(CHASER_CONTROL_SOURCES.KEYBOARD), {
+      source: "human",
+      forward: false,
+      reverse: false,
+      steering: -1,
+    });
+
+    popoutWindow.dispatchKeyboardEvent("blur");
+    assert.deepEqual(tracker.getChaserInput(CHASER_CONTROL_SOURCES.KEYBOARD), {
+      source: "human",
+      forward: false,
+      reverse: false,
+      steering: 0,
+    });
+
+    tracker.setKeyboardRelayWindow(null);
+    popoutWindow.dispatchKeyboardEvent("keydown", { code: "KeyI" });
+    assert.deepEqual(tracker.getChaserInput(CHASER_CONTROL_SOURCES.KEYBOARD), {
+      source: "human",
+      forward: false,
+      reverse: false,
+      steering: 0,
+    });
+    tracker.dispose();
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
+test("chase loop can schedule from the actor-view popout window", () => {
+  const originalWindow = globalThis.window;
+  const mainWindow = createAnimationFrameWindowStub();
+  const popoutWindow = createAnimationFrameWindowStub();
+  globalThis.window = mainWindow;
+  try {
+    const loop = createChaseLoop({
+      simulationState: {},
+      simulationSettings: {},
+      inputTracker: { getChaserInput: () => ({}) },
+      sceneView: {
+        getAnimationFrameWindow: () => popoutWindow,
+        renderFrame: () => ({
+          chaserSnapshot: null,
+          actorSnapshots: {},
+          timings: {},
+          visibility: {},
+        }),
+      },
+      performanceTracker: {
+        getSnapshot: () => ({}),
+        recordTick() {},
+      },
+      getPredictionDebugState: () => ({}),
+      getProjectionSettings: () => ({}),
+      getActionPathDebugSettings: () => ({}),
+      getMapKnowledgeDebugSettings: () => ({}),
+      getVisibility: () => ({}),
+    });
+
+    assert.equal(popoutWindow.scheduled.length, 1);
+    assert.equal(mainWindow.scheduled.length, 0);
+    loop.dispose();
+    assert.deepEqual(popoutWindow.canceled, [1]);
+  } finally {
+    globalThis.window = originalWindow;
+  }
 });
 
 test("ws chaser input latches until changed", () => {

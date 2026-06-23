@@ -119,6 +119,9 @@ export function createPlayGame({
   const chaserView = createChaserViewController({
     createFloatingFrame,
     vehicleSettings,
+    onControlWindowChange: (targetWindow) => {
+      inputTracker.setKeyboardRelayWindow(targetWindow);
+    },
     onVisibilityChange: (visible) => {
       chaserViewVisible = visible;
       refreshSidebarSections();

@@ -61,14 +61,21 @@ function normalizeWsInput(input = {}, fallback = createIdleInput("ws")) {
 
 export function createControlInputTracker() {
   const pressedKeys = new Set();
+  const keyboardTargetCleanups = new Map();
+  let activeKeyboardWindow = null;
   let wsInput = createIdleInput("ws");
-  const handleKeyDown = (event) => {
+  let relayKeyboardWindow = null;
+  let relayKeyboardCleanup = null;
+
+  const handleKeyDown = (event, targetWindow) => {
     if (!isControlCode(event.code) || isTextEditingTarget(event.target)) {
       return;
     }
+    activeKeyboardWindow = targetWindow;
     pressedKeys.add(event.code);
     event.preventDefault();
   };
+
   const handleKeyUp = (event) => {
     if (!isControlCode(event.code)) {
       return;
@@ -76,15 +83,71 @@ export function createControlInputTracker() {
     pressedKeys.delete(event.code);
     event.preventDefault();
   };
-  const clearKeyboard = () => pressedKeys.clear();
+
+  const clearKeyboard = () => {
+    activeKeyboardWindow = null;
+    pressedKeys.clear();
+  };
+
+  const clearKeyboardForWindow = (targetWindow) => {
+    if (activeKeyboardWindow === null || activeKeyboardWindow === targetWindow) {
+      clearKeyboard();
+    }
+  };
+
   const clear = () => {
     clearKeyboard();
     wsInput = createIdleInput("ws");
   };
 
-  window.addEventListener("keydown", handleKeyDown);
-  window.addEventListener("keyup", handleKeyUp);
-  window.addEventListener("blur", clearKeyboard);
+  const normalizeKeyboardWindow = (targetWindow) =>
+    targetWindow
+      && typeof targetWindow.addEventListener === "function"
+      && typeof targetWindow.removeEventListener === "function"
+      ? targetWindow
+      : null;
+
+  const registerKeyboardWindow = (targetWindow) => {
+    const target = normalizeKeyboardWindow(targetWindow);
+    if (!target) {
+      return () => {};
+    }
+    const existingCleanup = keyboardTargetCleanups.get(target);
+    if (existingCleanup) {
+      return existingCleanup;
+    }
+    const handleTargetKeyDown = (event) => handleKeyDown(event, target);
+    const handleTargetKeyUp = (event) => handleKeyUp(event);
+    const handleTargetBlur = () => clearKeyboardForWindow(target);
+    const cleanup = () => {
+      target.removeEventListener("keydown", handleTargetKeyDown);
+      target.removeEventListener("keyup", handleTargetKeyUp);
+      target.removeEventListener("blur", handleTargetBlur);
+      keyboardTargetCleanups.delete(target);
+    };
+    target.addEventListener("keydown", handleTargetKeyDown);
+    target.addEventListener("keyup", handleTargetKeyUp);
+    target.addEventListener("blur", handleTargetBlur);
+    keyboardTargetCleanups.set(target, cleanup);
+    return cleanup;
+  };
+
+  const setKeyboardRelayWindow = (targetWindow) => {
+    const normalizedWindow = normalizeKeyboardWindow(targetWindow);
+    const mainWindow = normalizeKeyboardWindow(window);
+    const nextRelayWindow = normalizedWindow && normalizedWindow !== mainWindow
+      ? normalizedWindow
+      : null;
+    if (nextRelayWindow === relayKeyboardWindow) {
+      return;
+    }
+    relayKeyboardCleanup?.();
+    relayKeyboardWindow = nextRelayWindow;
+    relayKeyboardCleanup = nextRelayWindow ? registerKeyboardWindow(nextRelayWindow) : null;
+    clearKeyboard();
+  };
+
+  registerKeyboardWindow(window);
 
   return {
     getHumanInput: () => ({
@@ -104,12 +167,14 @@ export function createControlInputTracker() {
       wsInput = normalizeWsInput(input, wsInput);
       return { ...wsInput };
     },
+    setKeyboardRelayWindow,
     clearKeyboard,
     clear,
     dispose() {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("blur", clearKeyboard);
+      relayKeyboardCleanup?.();
+      relayKeyboardCleanup = null;
+      relayKeyboardWindow = null;
+      Array.from(keyboardTargetCleanups.values()).forEach((cleanup) => cleanup());
       clear();
     },
   };

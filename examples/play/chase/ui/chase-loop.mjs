@@ -28,6 +28,7 @@ export function createChaseLoop({
   publishDebugSnapshot,
 }) {
   let animationFrame = 0;
+  let animationFrameWindow = window;
   let previousTimestamp = null;
   let accumulatedMs = 0;
   let lastSidebarPublishMs = 0;
@@ -48,7 +49,35 @@ export function createChaseLoop({
     refreshSidebarSections?.();
   };
 
-  const tick = (timestamp) => {
+  const getAnimationFrameWindow = () => {
+    const candidate = sceneView.getAnimationFrameWindow?.();
+    return candidate
+      && !candidate.closed
+      && typeof candidate.requestAnimationFrame === "function"
+      && typeof candidate.cancelAnimationFrame === "function"
+      ? candidate
+      : window;
+  };
+
+  const scheduleTick = () => {
+    animationFrameWindow = getAnimationFrameWindow();
+    animationFrame = animationFrameWindow.requestAnimationFrame(tick);
+  };
+
+  const cancelScheduledTick = () => {
+    if (!animationFrame) {
+      return;
+    }
+    try {
+      animationFrameWindow.cancelAnimationFrame(animationFrame);
+    } catch {
+      window.cancelAnimationFrame(animationFrame);
+    }
+    animationFrame = 0;
+  };
+
+  const tick = () => {
+    const timestamp = performance.now();
     const tickStartMs = performance.now();
     if (previousTimestamp === null) {
       previousTimestamp = timestamp;
@@ -128,14 +157,14 @@ export function createChaseLoop({
     if (shouldPublishPeriodicUi(timestamp, lastDebugSnapshotPublishMs)) {
       publishDebugSnapshotFromLoop();
     }
-    animationFrame = window.requestAnimationFrame(tick);
+    scheduleTick();
   };
 
-  animationFrame = window.requestAnimationFrame(tick);
+  scheduleTick();
   return {
     resetTiming,
     dispose() {
-      window.cancelAnimationFrame(animationFrame);
+      cancelScheduledTick();
     },
   };
 }
