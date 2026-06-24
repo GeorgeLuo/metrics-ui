@@ -10,6 +10,7 @@ import {
   createMapKnowledgeOverlayDisplayState,
   createMapRecencyOverlayDisplayState,
   createPredictionDebugDisplayState,
+  createSurfacePatch,
   createWall,
   disposeObject3D,
   disposeMapKnowledgeOverlayDisplayState,
@@ -72,7 +73,10 @@ export function createChaseSceneView({
   const mapRecencyOverlayDisplayState = createMapRecencyOverlayDisplayState();
   const obstacleGroup = new THREE.Group();
   const obstacleMeshes = [];
+  const surfaceGroup = new THREE.Group();
+  const surfaceMeshes = [];
   let renderedObstacles = null;
+  let renderedSurfaces = null;
 
   const disposeObstacleMesh = (mesh) => {
     mesh.geometry.dispose();
@@ -96,6 +100,23 @@ export function createChaseSceneView({
   };
   syncObstacleMeshes();
 
+  const syncSurfaceMeshes = () => {
+    if (simulationState.surfaces === renderedSurfaces) {
+      return;
+    }
+    renderedSurfaces = simulationState.surfaces;
+    surfaceMeshes.splice(0).forEach((mesh) => {
+      surfaceGroup.remove(mesh);
+      disposeObstacleMesh(mesh);
+    });
+    (simulationState.surfaces ?? []).forEach((surface) => {
+      const mesh = createSurfacePatch(surface);
+      surfaceMeshes.push(mesh);
+      surfaceGroup.add(mesh);
+    });
+  };
+  syncSurfaceMeshes();
+
   const getSteeringAngle = (action) => {
     const steering = Number(action?.steering);
     return Number.isFinite(steering)
@@ -111,6 +132,7 @@ export function createChaseSceneView({
   scene.add(
     mapKnowledgeOverlayGroup,
     mapRecencyOverlayGroup,
+    surfaceGroup,
     chaserFieldOfView,
     evaderFieldOfView,
     obstacleGroup,
@@ -189,6 +211,7 @@ export function createChaseSceneView({
       lastStep,
     } = simulationState;
     syncObstacleMeshes();
+    syncSurfaceMeshes();
     const chaserSnapshot = lastStep.chaserReasoning?.snapshot ?? null;
     const evaderLocationMemory = chaserSnapshot?.memory?.directObservation?.evaderLocation ?? null;
     const evaderMotionProjection = chaserSnapshot?.projections?.evaderMotion ?? null;
@@ -305,6 +328,7 @@ export function createChaseSceneView({
 
   const captureActorView = ({ actorId = "chaser", width, height } = {}) => {
     syncObstacleMeshes();
+    syncSurfaceMeshes();
     syncActorMeshes();
     if (actorId === "evader") {
       if (!simulationState.evaderExists || !simulationState.evaderPosition || !simulationState.evaderDirection) {
@@ -352,6 +376,7 @@ export function createChaseSceneView({
     disposeMapKnowledgeOverlayDisplayState(mapKnowledgeOverlayGroup, mapKnowledgeOverlayDisplayState);
     disposeMapRecencyOverlayDisplayState(mapRecencyOverlayGroup, mapRecencyOverlayDisplayState);
     obstacleMeshes.forEach(disposeObstacleMesh);
+    surfaceMeshes.forEach(disposeObstacleMesh);
     renderer.dispose();
   };
 

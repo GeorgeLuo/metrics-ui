@@ -1,7 +1,7 @@
 import defaultScenarioDefinition from "./default.scenario.mjs";
 
 const CHASER_START_Z = 1.5;
-const FRONT_OBSTACLE_Z = 0.25;
+const FRONT_OBSTACLE_Z = -0.35;
 const FRONT_OBSTACLE_WIDTH = 1.4;
 const FRONT_OBSTACLE_DEPTH = 0.7;
 

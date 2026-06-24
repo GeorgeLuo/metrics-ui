@@ -116,6 +116,7 @@ export function buildChaseDebugSnapshot(simulationState, {
       evaderPosition: cloneVector(simulationState?.evaderPosition),
       evaderDirection: cloneVector(simulationState?.evaderDirection),
       obstacles: cloneSerializable(simulationState?.obstacles ?? null),
+      surfaces: cloneSerializable(simulationState?.surfaces ?? []),
       simulationSettings: cloneSerializable(simulationState?.simulationSettings ?? {}),
       vehicleSettings: cloneSerializable(simulationState?.vehicleSettings ?? {}),
       projectionSettings: cloneSerializable(simulationState?.projectionSettings ?? {}),

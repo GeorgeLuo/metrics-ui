@@ -74,13 +74,40 @@ function normalizeDirection(value, fallback) {
     : direction;
 }
 
-function normalizeObstacleRotation(record) {
+function normalizeRectangleRotation(record) {
   const radians = normalizeNumber(record?.rotationRadians, NaN);
   if (Number.isFinite(radians)) {
     return radians;
   }
   const degrees = normalizeNumber(record?.rotationDegrees, NaN);
   return Number.isFinite(degrees) ? degreesToRadians(degrees) : 0;
+}
+
+function normalizeColor(value, fallback) {
+  const numericValue = Number(value);
+  if (Number.isFinite(numericValue) && numericValue >= 0 && numericValue <= 0xffffff) {
+    return numericValue;
+  }
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    const hexValue = trimmedValue.startsWith("#") ? trimmedValue.slice(1) : trimmedValue;
+    if (/^[0-9a-fA-F]{6}$/.test(hexValue)) {
+      return Number.parseInt(hexValue, 16);
+    }
+  }
+
+  return fallback;
+}
+
+function getDefaultSurfaceColor(speedMultiplier) {
+  if (speedMultiplier < 0.85) {
+    return 0x2563eb;
+  }
+  if (speedMultiplier > 1.15) {
+    return 0x16a34a;
+  }
+  return 0x94a3b8;
 }
 
 function normalizeObstacle(value, index) {
@@ -101,7 +128,7 @@ function normalizeObstacle(value, index) {
     z: normalizeNumber(record.z, 0),
     width,
     depth,
-    rotationRadians: normalizeObstacleRotation(record),
+    rotationRadians: normalizeRectangleRotation(record),
   };
 }
 
@@ -113,6 +140,52 @@ function normalizeObstacles(value, fallback) {
     .map((obstacle, index) => normalizeObstacle(obstacle, index))
     .filter(Boolean);
   return { walls };
+}
+
+function normalizeSurfaceSpeedMultiplier(record) {
+  return clampNumber(
+    normalizeNumber(
+      record?.speedMultiplier ?? record?.frictionMultiplier ?? record?.friction,
+      1,
+    ),
+    0,
+    2,
+  );
+}
+
+function normalizeSurfacePatch(value, index) {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const width = normalizeNumber(record.width, NaN);
+  const depth = normalizeNumber(record.depth, NaN);
+  if (!Number.isFinite(width) || !Number.isFinite(depth) || width <= 0 || depth <= 0) {
+    return null;
+  }
+  const speedMultiplier = normalizeSurfaceSpeedMultiplier(record);
+  return {
+    id: typeof record.id === "string" && record.id.trim()
+      ? record.id.trim()
+      : `surface-${index + 1}`,
+    x: normalizeNumber(record.x, 0),
+    z: normalizeNumber(record.z, 0),
+    width,
+    depth,
+    rotationRadians: normalizeRectangleRotation(record),
+    speedMultiplier,
+    color: normalizeColor(record.color, getDefaultSurfaceColor(speedMultiplier)),
+    opacity: clampNumber(normalizeNumber(record.opacity, 0.18), 0, 1),
+  };
+}
+
+function normalizeSurfacePatches(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((surface, index) => normalizeSurfacePatch(surface, index))
+    .filter(Boolean);
 }
 
 function normalizeMapDimension(value, fallback) {
@@ -133,6 +206,7 @@ function resolveMapScenario(mapConfig, columns, rows) {
       columns: resolvedColumns,
       rows: resolvedRows,
       obstacles: fallbackLayout,
+      surfaces: [],
     };
   }
 
@@ -145,6 +219,7 @@ function resolveMapScenario(mapConfig, columns, rows) {
       columns: resolvedColumns,
       rows: resolvedRows,
       obstacles: normalizeObstacles(mapRecord.obstacles, fallbackLayout),
+      surfaces: normalizeSurfacePatches(mapRecord.surfaces),
     };
   }
 
@@ -156,6 +231,7 @@ function resolveMapScenario(mapConfig, columns, rows) {
     columns: resolvedColumns,
     rows: resolvedRows,
     obstacles: fallbackLayout,
+    surfaces: normalizeSurfacePatches(mapRecord.surfaces),
   };
 }
 
