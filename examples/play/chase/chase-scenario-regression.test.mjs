@@ -212,6 +212,10 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
     "expected sidebar scenario selector to include the chaser-empty-map scenario",
   );
   assert.ok(
+    scenarioSelect?.options?.some((option) => option.value === "surface-patches"),
+    "expected sidebar scenario selector to include the surface-patches scenario",
+  );
+  assert.ok(
     scenarioSelect?.options?.some((option) => option.value === "two-rooms"),
     "expected sidebar scenario selector to include the two-rooms scenario",
   );
@@ -264,7 +268,7 @@ test("chaser-empty-map scenario resolves to a backed-up chaser facing a front ob
   assert.deepEqual(frontObstacle, {
     id: "front-rectangle",
     x: 0,
-    z: 0.25,
+    z: -0.35,
     width: 1.4,
     depth: 0.7,
     rotationRadians: 0,
@@ -281,6 +285,61 @@ test("chaser-empty-map scenario resolves to a backed-up chaser facing a front ob
   assert.equal(state.evaderDirection, null);
   assert.equal(state.chaserControlSource, CHASER_CONTROL_SOURCES.KEYBOARD);
   assert.equal(state.programmaticChaserEnabled, false);
+});
+
+test("surface-patches scenario resolves rotated surfaces with speed multipliers", () => {
+  const scenario = resolveChaseScenario(getChaseScenarioDefinition("surface-patches"), GRID);
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+
+  assert.equal(scenario.id, "surface-patches");
+  assert.equal(scenario.label, "Surface Patches");
+  assert.equal(scenario.map.layout, "surface-patches");
+  assert.deepEqual(scenario.map.obstacles, { walls: [] });
+  assert.equal(scenario.map.surfaces.length, 2);
+  assert.deepEqual(
+    scenario.map.surfaces.map((surface) => ({
+      id: surface.id,
+      x: surface.x,
+      z: surface.z,
+      width: surface.width,
+      depth: surface.depth,
+      rotationRadians: roundNumber(surface.rotationRadians),
+      speedMultiplier: surface.speedMultiplier,
+      color: surface.color,
+      opacity: surface.opacity,
+    })),
+    [
+      {
+        id: "slow-blue-mat",
+        x: -1.5,
+        z: -0.2,
+        width: 2.4,
+        depth: 3.6,
+        rotationRadians: -0.3142,
+        speedMultiplier: 0.45,
+        color: 0x2563eb,
+        opacity: 0.18,
+      },
+      {
+        id: "fast-green-strip",
+        x: 1.65,
+        z: 0.45,
+        width: 1.2,
+        depth: 4,
+        rotationRadians: 0.2094,
+        speedMultiplier: 1.35,
+        color: 0x16a34a,
+        opacity: 0.16,
+      },
+    ],
+  );
+  assert.equal(state.surfaces, scenario.map.surfaces);
+  assert.equal(state.evaderExists, false);
+  assert.equal(state.chaserControlSource, CHASER_CONTROL_SOURCES.KEYBOARD);
 });
 
 test("two-rooms scenario resolves to a vertical divider with a doorway gap", () => {

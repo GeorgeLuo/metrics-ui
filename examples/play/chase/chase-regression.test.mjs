@@ -604,6 +604,47 @@ test("manual steering without throttle does not rotate the chaser in place", () 
   assert.deepEqual(state.chaserLookDirection, startDirection);
 });
 
+test("vehicle speed is scaled by the active surface patch", () => {
+  const buildSurfaceScenario = (surfaces) => buildManualChaserScenario((scenario) => {
+    scenario.map.obstacles = { walls: [] };
+    scenario.map.surfaces = surfaces;
+    scenario.actors.chaser.position = { x: 0, z: 0 };
+    scenario.actors.chaser.direction = { x: 1, z: 0 };
+    scenario.actors.evader.exists = false;
+    scenario.actors.evader.position = null;
+    scenario.actors.evader.direction = null;
+  });
+  const normalState = createChaseSimulationState({
+    scenario: buildSurfaceScenario([]),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  const slowState = createChaseSimulationState({
+    scenario: buildSurfaceScenario([
+      {
+        id: "slow-test",
+        x: 0,
+        z: 0,
+        width: 2,
+        depth: 2,
+        rotationRadians: Math.PI / 6,
+        speedMultiplier: 0.5,
+      },
+    ]),
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+
+  stepChaseSimulation(normalState, { humanInput: forwardInput() });
+  stepChaseSimulation(slowState, { humanInput: forwardInput() });
+
+  assert.equal(
+    roundNumber(slowState.chaserPosition.x),
+    roundNumber(normalState.chaserPosition.x * 0.5),
+  );
+  assert.equal(slowState.chaserPosition.z, 0);
+});
+
 test("vehicle steering does not rotate actors in place when speed is zero", () => {
   const bounds = getGroundBounds(GRID.columns, GRID.rows);
   const state = createChaseSimulationState({

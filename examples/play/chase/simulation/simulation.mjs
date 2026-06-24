@@ -29,6 +29,7 @@ import {
   validatePredictionPerformance,
 } from "../debug/prediction-performance.mjs";
 import { resolveObstacleCollisions } from "../world/world.mjs";
+import { getSurfaceSpeedMultiplierAtPosition } from "../world/surfaces.mjs";
 
 function createRunMetrics() {
   return {
@@ -115,11 +116,13 @@ function applyVehicleAction({
   columns,
   rows,
   obstacles,
+  surfaces,
 } = {}) {
   const isMovingForward = Boolean(action?.forward);
   const isMovingReverse = Boolean(action?.reverse);
   const movementSign = isMovingForward ? 1 : isMovingReverse ? -1 : 0;
-  const speed = Math.max(0, Number(speedUnitsPerFrame) || 0);
+  const speedMultiplier = getSurfaceSpeedMultiplierAtPosition(position, surfaces);
+  const speed = Math.max(0, Number(speedUnitsPerFrame) || 0) * speedMultiplier;
   const isMoving = movementSign !== 0 && speed > 0;
   const steeringInput = clampUnit(action?.steering);
   const currentDirection = cloneVector(direction, { x: 1, z: 0 });
@@ -168,6 +171,7 @@ function createSynchronizedFrameContext(state, humanInput) {
     frameIndex: state.frameIndex,
     fieldOfViewAngleRadians: state.vehicleSettings.fieldOfViewAngleRadians,
     obstacles: state.obstacles,
+    surfaces: state.surfaces,
     columns: state.columns,
     rows: state.rows,
     projectionSettings: state.projectionSettings,
@@ -228,6 +232,7 @@ function applyChaserAction(state, chaserAction) {
     columns: state.columns,
     rows: state.rows,
     obstacles: state.obstacles,
+    surfaces: state.surfaces,
   });
   state.chaserLookDirection.x = nextChaser.direction.x;
   state.chaserLookDirection.z = nextChaser.direction.z;
@@ -267,6 +272,7 @@ function applyEvaderMovementDecision(state, evaderMovementDecision) {
     columns: state.columns,
     rows: state.rows,
     obstacles: state.obstacles,
+    surfaces: state.surfaces,
   });
   updateEvaderWallAvoidanceTruth(state.evaderWallAvoidanceTruth, {
     decisionDebug: evaderMovementDecision.debug,
@@ -392,6 +398,7 @@ export function createChaseSimulationState({
       ...(scenario?.simulation ?? {}),
     },
     obstacles: scenario?.map?.obstacles ?? { walls: [] },
+    surfaces: scenario?.map?.surfaces ?? [],
     vehicleSettings: {
       ...(scenario?.vehicleSettings ?? {}),
     },

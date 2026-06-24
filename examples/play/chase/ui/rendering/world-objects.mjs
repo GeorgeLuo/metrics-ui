@@ -98,6 +98,22 @@ export function createWall(wall) {
   return mesh;
 }
 
+export function createSurfacePatch(surface) {
+  const geometry = new THREE.BoxGeometry(surface.width, 0.006, surface.depth);
+  const material = new THREE.MeshStandardMaterial({
+    color: Number.isFinite(surface.color) ? surface.color : 0x94a3b8,
+    transparent: true,
+    opacity: Number.isFinite(surface.opacity) ? surface.opacity : 0.18,
+    roughness: 0.82,
+    metalness: 0,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(surface.x, 0.003, surface.z);
+  mesh.rotation.y = Number(surface.rotationRadians) || 0;
+  return mesh;
+}
+
 export function createFieldOfViewConeGeometry(fieldOfViewAngleRadians) {
   const positions = [0, 0.012, 0];
   for (let index = 0; index <= FIELD_OF_VIEW_SEGMENTS; index += 1) {
