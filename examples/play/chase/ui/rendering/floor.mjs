@@ -18,25 +18,25 @@ function createFloorCanvas() {
     return null;
   }
 
-  context.fillStyle = "#d6d1c5";
+  context.fillStyle = "#eee9dc";
   context.fillRect(0, 0, FLOOR_TEXTURE_SIZE, FLOOR_TEXTURE_SIZE);
 
   for (let row = 0; row < FLOOR_TEXTURE_SIZE; row += 2) {
-    const alpha = 0.04 + ((row % 17) / 17) * 0.025;
-    context.fillStyle = `rgba(80, 74, 64, ${alpha.toFixed(3)})`;
+    const alpha = 0.024 + ((row % 17) / 17) * 0.016;
+    context.fillStyle = `rgba(112, 104, 91, ${alpha.toFixed(3)})`;
     context.fillRect(0, row, FLOOR_TEXTURE_SIZE, 1);
   }
 
   for (let index = 0; index < 900; index += 1) {
     const x = (index * 37) % FLOOR_TEXTURE_SIZE;
     const y = (index * 91) % FLOOR_TEXTURE_SIZE;
-    const shade = index % 3 === 0 ? 255 : 72;
-    const alpha = index % 3 === 0 ? 0.05 : 0.04;
+    const shade = index % 3 === 0 ? 255 : 104;
+    const alpha = index % 3 === 0 ? 0.04 : 0.026;
     context.fillStyle = `rgba(${shade}, ${shade}, ${shade}, ${alpha})`;
     context.fillRect(x, y, 1, 1);
   }
 
-  context.strokeStyle = "rgba(106, 99, 87, 0.12)";
+  context.strokeStyle = "rgba(134, 125, 108, 0.08)";
   context.lineWidth = 1;
   for (let x = -FLOOR_TEXTURE_SIZE; x < FLOOR_TEXTURE_SIZE * 2; x += 32) {
     context.beginPath();
@@ -71,7 +71,7 @@ export function createTexturedFloor(columns, rows) {
   const safeRows = Math.max(0.1, Number(rows) || 1);
   const texture = createFloorTexture(safeColumns, safeRows);
   const material = new THREE.MeshStandardMaterial({
-    color: texture ? 0xffffff : 0xd6d1c5,
+    color: texture ? 0xffffff : 0xeee9dc,
     map: texture,
     roughness: 0.94,
     metalness: 0,
