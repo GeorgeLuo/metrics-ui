@@ -45,6 +45,7 @@ function copyInto(target, source) {
 function normalizeSimulationSettings(simulationSettings) {
   simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
   simulationSettings.greentextDebugVisible = Boolean(simulationSettings.greentextDebugVisible);
+  simulationSettings.floorGridVisible = Boolean(simulationSettings.floorGridVisible);
 }
 
 function shouldCloseEvaderView(simulationState, evaderViewVisible) {

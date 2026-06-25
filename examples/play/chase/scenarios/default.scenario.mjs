@@ -43,6 +43,7 @@ const defaultScenarioDefinition = {
   simulation: {
     framesPerSecond: 60,
     greentextDebugVisible: true,
+    floorGridVisible: false,
   },
   trace: {
     enabled: false,

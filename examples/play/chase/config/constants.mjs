@@ -50,6 +50,7 @@ export const CHASER_ACTION_PATH_HORIZON_ACTION_ID = "chaser-action-path-horizon"
 export const CHASER_ACTION_PATH_RATE_ACTION_ID = "chaser-action-path-rate";
 export const CHASER_ACTION_PATH_SPACING_ACTION_ID = CHASER_ACTION_PATH_RATE_ACTION_ID;
 export const CHASER_MAP_OVERLAY_ACTION_ID = "chaser-map-overlay";
+export const FLOOR_GRID_ACTION_ID = "floor-grid";
 export const SIMULATION_FPS_ACTION_ID = "simulation-fps";
 export const SIMULATION_GREENTEXT_DEBUG_ACTION_ID = "simulation-greentext-debug";
 export const SIMULATION_PAUSE_BEFORE_ACTIONS_ID = "simulation-pause-before-actions";

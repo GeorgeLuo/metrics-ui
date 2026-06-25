@@ -453,6 +453,7 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
         MAX_SIMULATION_FRAMES_PER_SECOND,
       )),
       greentextDebugVisible: normalizeBoolean(simulation.greentextDebugVisible, true),
+      floorGridVisible: normalizeBoolean(simulation.floorGridVisible, false),
     },
     trace: normalizeTraceConfig(root.trace),
     policies: {
