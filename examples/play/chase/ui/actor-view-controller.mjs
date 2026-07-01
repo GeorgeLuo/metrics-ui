@@ -113,6 +113,7 @@ export function createActorViewController({
   vehicleSettings,
   onVisibilityChange,
   onControlWindowChange,
+  onRenderWindowChange,
   frameId,
   title,
   lostLabelText,
@@ -123,12 +124,20 @@ export function createActorViewController({
   let currentControlWindow = null;
 
   const syncControlWindow = () => {
-    const nextControlWindow = mountedView?.frame.mount.ownerDocument?.defaultView ?? null;
+    const candidateWindow = mountedView?.frame.mount.ownerDocument?.defaultView ?? null;
+    const nextControlWindow = candidateWindow && !candidateWindow.closed
+      ? candidateWindow
+      : null;
     if (nextControlWindow === currentControlWindow) {
       return;
     }
     currentControlWindow = nextControlWindow;
     onControlWindowChange?.(nextControlWindow);
+  };
+
+  const getRenderWindow = () => {
+    const candidateWindow = mountedView?.frame.mount.ownerDocument?.defaultView ?? null;
+    return candidateWindow && !candidateWindow.closed ? candidateWindow : null;
   };
 
   const clearControlWindow = () => {
@@ -203,6 +212,17 @@ export function createActorViewController({
       resizable: true,
       popoutable: true,
       closeable: true,
+      onPopoutChange: () => {
+        syncControlWindow();
+        onRenderWindowChange?.();
+        const scheduleDockSync = typeof requestAnimationFrame === "function"
+          ? requestAnimationFrame
+          : (callback) => setTimeout(callback, 0);
+        scheduleDockSync(() => {
+          syncControlWindow();
+          onRenderWindowChange?.();
+        });
+      },
       onClose: handleFrameClose,
     });
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -288,6 +308,10 @@ export function createActorViewController({
     if (!mountedView) {
       return;
     }
+    if (!getRenderWindow()) {
+      syncControlWindow();
+      return;
+    }
     syncControlWindow();
     configureChaserViewCamera(mountedView.camera, actorPosition, actorLookDirection);
     renderActorViewScene({
@@ -304,7 +328,7 @@ export function createActorViewController({
     open,
     close,
     dispose: () => close({ notifyVisibilityChange: false }),
-    getRenderWindow: () => mountedView?.frame.mount.ownerDocument?.defaultView ?? null,
+    getRenderWindow,
     resize: resizeMountedView,
     setFieldOfViewAngleRadians,
     setTrackedActorVisible,
@@ -318,23 +342,31 @@ export function createChaserViewController({
   vehicleSettings,
   onVisibilityChange,
   onControlWindowChange,
+  onRenderWindowChange,
 }) {
   return createActorViewController({
     createFloatingFrame,
     vehicleSettings,
     onVisibilityChange,
     onControlWindowChange,
+    onRenderWindowChange,
     frameId: "chaser-view",
     title: "Chaser View",
     lostLabelText: "Evader out of sight",
   });
 }
 
-export function createEvaderViewController({ createFloatingFrame, vehicleSettings, onVisibilityChange }) {
+export function createEvaderViewController({
+  createFloatingFrame,
+  vehicleSettings,
+  onVisibilityChange,
+  onRenderWindowChange,
+}) {
   return createActorViewController({
     createFloatingFrame,
     vehicleSettings,
     onVisibilityChange,
+    onRenderWindowChange,
     frameId: "evader-view",
     title: "Evader View",
     lostLabelText: "Chaser out of sight",

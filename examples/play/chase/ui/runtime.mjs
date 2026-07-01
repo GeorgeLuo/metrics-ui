@@ -128,6 +128,9 @@ export function createPlayGame({
       runtimeLoop?.rescheduleAnimationFrameSource?.();
       refreshSidebarSections();
     },
+    onRenderWindowChange: () => {
+      runtimeLoop?.rescheduleAnimationFrameSource?.();
+    },
   });
   const evaderView = createEvaderViewController({
     createFloatingFrame,
@@ -136,6 +139,9 @@ export function createPlayGame({
       evaderViewVisible = visible;
       runtimeLoop?.rescheduleAnimationFrameSource?.();
       refreshSidebarSections();
+    },
+    onRenderWindowChange: () => {
+      runtimeLoop?.rescheduleAnimationFrameSource?.();
     },
   });
 

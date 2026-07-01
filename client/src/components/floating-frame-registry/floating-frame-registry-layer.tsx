@@ -71,6 +71,7 @@ export function FloatingFrameRegistryLayer({
           closeable: frame.closeable ?? false,
           closeHint: `Close ${frame.title}.`,
           onClose: frame.closeable ? () => onCloseFrame(frame.id) : undefined,
+          onPopoutChange: frame.onPopoutChange,
         };
         const content = <FloatingFrameMount mount={frame.mount} />;
         if (frame.bounds === "viewport") {
