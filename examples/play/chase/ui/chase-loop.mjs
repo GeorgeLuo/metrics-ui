@@ -76,6 +76,11 @@ export function createChaseLoop({
     animationFrame = 0;
   };
 
+  const rescheduleAnimationFrameSource = () => {
+    cancelScheduledTick();
+    scheduleTick();
+  };
+
   const tick = () => {
     const timestamp = performance.now();
     const tickStartMs = performance.now();
@@ -163,6 +168,7 @@ export function createChaseLoop({
   scheduleTick();
   return {
     resetTiming,
+    rescheduleAnimationFrameSource,
     dispose() {
       cancelScheduledTick();
     },

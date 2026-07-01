@@ -189,6 +189,50 @@ test("chase loop can schedule from the actor-view popout window", () => {
   }
 });
 
+test("chase loop can reschedule from a closed actor-view popout window", () => {
+  const originalWindow = globalThis.window;
+  const mainWindow = createAnimationFrameWindowStub();
+  const popoutWindow = createAnimationFrameWindowStub();
+  globalThis.window = mainWindow;
+  try {
+    const loop = createChaseLoop({
+      simulationState: {},
+      simulationSettings: {},
+      inputTracker: { getChaserInput: () => ({}) },
+      sceneView: {
+        getAnimationFrameWindow: () => popoutWindow,
+        renderFrame: () => ({
+          chaserSnapshot: null,
+          actorSnapshots: {},
+          timings: {},
+          visibility: {},
+        }),
+      },
+      performanceTracker: {
+        getSnapshot: () => ({}),
+        recordTick() {},
+      },
+      getPredictionDebugState: () => ({}),
+      getProjectionSettings: () => ({}),
+      getActionPathDebugSettings: () => ({}),
+      getMapKnowledgeDebugSettings: () => ({}),
+      getVisibility: () => ({}),
+    });
+
+    assert.equal(popoutWindow.scheduled.length, 1);
+    popoutWindow.closed = true;
+    loop.rescheduleAnimationFrameSource();
+
+    assert.deepEqual(popoutWindow.canceled, [1]);
+    assert.equal(mainWindow.scheduled.length, 1);
+
+    loop.dispose();
+    assert.deepEqual(mainWindow.canceled, [1]);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
 test("ws chaser input latches until changed", () => {
   const originalWindow = globalThis.window;
   globalThis.window = {
