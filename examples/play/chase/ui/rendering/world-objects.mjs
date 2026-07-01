@@ -82,7 +82,17 @@ export function disposeObject3D(object) {
     }
   });
   geometries.forEach((geometry) => geometry.dispose?.());
-  materials.forEach((material) => material.dispose?.());
+  materials.forEach((material) => {
+    [
+      material.map,
+      material.normalMap,
+      material.roughnessMap,
+      material.metalnessMap,
+      material.alphaMap,
+      material.emissiveMap,
+    ].forEach((texture) => texture?.dispose?.());
+    material.dispose?.();
+  });
 }
 
 export function createWall(wall) {

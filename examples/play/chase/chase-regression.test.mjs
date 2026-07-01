@@ -14,6 +14,7 @@ import {
   CHASER_MAP_OVERLAY_VIEW_MODES,
   EVADER_PROJECTION_VIEW_ACTION_ID,
   EVADER_PROJECTION_VIEW_MODES,
+  FLOOR_GRID_ACTION_ID,
   SIMULATION_FPS_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
@@ -50,6 +51,10 @@ import {
   disposeObject3D,
   setCarWheelSteeringAngle,
 } from "./ui/rendering/world-objects.mjs";
+import {
+  createFloorGrid,
+  createTexturedFloor,
+} from "./ui/rendering/floor.mjs";
 import {
   createMapShapeMemory,
   RECENT_VISITATION_MAX_AGE_FRAMES,
@@ -701,6 +706,24 @@ test("vehicle renderer angles steerable front wheels", () => {
   }
 });
 
+test("floor renderer creates a textured floor and optional grid", () => {
+  const floor = createTexturedFloor(GRID.columns, GRID.rows);
+  const grid = createFloorGrid(GRID.columns, GRID.rows);
+  try {
+    assert.equal(floor.userData.kind, "textured-floor");
+    assert.equal(grid.userData.kind, "floor-grid");
+    assert.equal(roundNumber(floor.geometry.parameters.width), GRID.columns);
+    assert.equal(roundNumber(floor.geometry.parameters.depth), GRID.rows);
+    assert.equal(
+      grid.geometry.getAttribute("position").count > 0,
+      true,
+    );
+  } finally {
+    disposeObject3D(floor);
+    disposeObject3D(grid);
+  }
+});
+
 test("chaser records success metrics in actor memory after committed frames", () => {
   const state = createChaseSimulationState({
     scenario: buildManualChaserScenario((scenario) => {
@@ -868,6 +891,9 @@ test("chase sidebar combines score and settings into the game section", () => {
   const viewGreentextIndex = viewRows.findIndex(
     (row) => row.id === SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
   );
+  const floorGridIndex = viewRows.findIndex(
+    (row) => row.id === FLOOR_GRID_ACTION_ID,
+  );
 
   assert.equal(sections[0]?.id, "game");
   assert.equal(gameSection?.title, "Game");
@@ -991,7 +1017,8 @@ test("chase sidebar combines score and settings into the game section", () => {
     },
   );
   assert.equal(viewGreentextIndex, debugHeaderIndex + 1);
-  assert.equal(windowsHeaderIndex > viewGreentextIndex, true);
+  assert.equal(floorGridIndex, viewGreentextIndex + 1);
+  assert.equal(windowsHeaderIndex > floorGridIndex, true);
   assert.equal(
     viewRows.filter((row) => row.kind === "header").at(-1)?.label,
     "Windows",
@@ -1016,6 +1043,18 @@ test("chase sidebar combines score and settings into the game section", () => {
       kind: "toggle",
       label: "Debug overlay",
       enabled: true,
+    },
+  );
+  assert.deepEqual(
+    {
+      kind: viewRows[floorGridIndex]?.kind,
+      label: viewRows[floorGridIndex]?.label,
+      enabled: viewRows[floorGridIndex]?.enabled,
+    },
+    {
+      kind: "toggle",
+      label: "Floor grid",
+      enabled: false,
     },
   );
 });

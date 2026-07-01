@@ -21,6 +21,7 @@ import {
   EVADER_PROJECTION_VIEW_ACTION_ID,
   EVADER_PROJECTION_VIEW_MODES,
   EVADER_SPEED_ACTION_ID,
+  FLOOR_GRID_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
   VEHICLE_MAX_STEERING_ANGLE_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
@@ -435,6 +436,15 @@ export function publishSidebarSections(
           enabledLabel: "shown",
           disabledLabel: "hidden",
           hint: "Show or hide a green text debug overlay in the bottom-right of the Chase view.",
+        },
+        {
+          kind: "toggle",
+          id: FLOOR_GRID_ACTION_ID,
+          label: "Floor grid",
+          enabled: Boolean(simulationSettings.floorGridVisible),
+          enabledLabel: "shown",
+          disabledLabel: "hidden",
+          hint: "Show or hide reference grid lines over the textured Chase floor.",
         },
         { kind: "header", label: "Windows" },
         {

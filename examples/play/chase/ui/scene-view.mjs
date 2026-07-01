@@ -7,10 +7,12 @@ import {
   createEvaderFieldOfViewCone,
   createFieldOfViewCone,
   createFieldOfViewConeGeometry,
+  createFloorGrid,
   createMapKnowledgeOverlayDisplayState,
   createMapRecencyOverlayDisplayState,
   createPredictionDebugDisplayState,
   createSurfacePatch,
+  createTexturedFloor,
   createWall,
   disposeObject3D,
   disposeMapKnowledgeOverlayDisplayState,
@@ -71,6 +73,10 @@ export function createChaseSceneView({
   const mapKnowledgeOverlayDisplayState = createMapKnowledgeOverlayDisplayState();
   const mapRecencyOverlayGroup = new THREE.Group();
   const mapRecencyOverlayDisplayState = createMapRecencyOverlayDisplayState();
+  const floorGroup = new THREE.Group();
+  let floorMesh = null;
+  let floorGrid = null;
+  let renderedFloorKey = null;
   const obstacleGroup = new THREE.Group();
   const obstacleMeshes = [];
   const surfaceGroup = new THREE.Group();
@@ -82,6 +88,34 @@ export function createChaseSceneView({
     mesh.geometry.dispose();
     mesh.material.dispose();
   };
+
+  const getFloorKey = () => {
+    const fieldColumns = Number.isFinite(simulationState.columns)
+      ? simulationState.columns
+      : columns;
+    const fieldRows = Number.isFinite(simulationState.rows)
+      ? simulationState.rows
+      : rows;
+    return `${fieldColumns}:${fieldRows}`;
+  };
+
+  const syncFloorMeshes = () => {
+    const floorKey = getFloorKey();
+    if (floorKey !== renderedFloorKey) {
+      renderedFloorKey = floorKey;
+      floorGroup.clear();
+      disposeObject3D(floorMesh);
+      disposeObject3D(floorGrid);
+      const [fieldColumns, fieldRows] = floorKey.split(":").map(Number);
+      floorMesh = createTexturedFloor(fieldColumns, fieldRows);
+      floorGrid = createFloorGrid(fieldColumns, fieldRows);
+      floorGroup.add(floorMesh, floorGrid);
+    }
+    if (floorGrid) {
+      floorGrid.visible = Boolean(simulationState.simulationSettings?.floorGridVisible);
+    }
+  };
+  syncFloorMeshes();
 
   const syncObstacleMeshes = () => {
     if (simulationState.obstacles === renderedObstacles) {
@@ -130,6 +164,7 @@ export function createChaseSceneView({
   mapKnowledgeOverlayGroup.visible = false;
   mapRecencyOverlayGroup.visible = false;
   scene.add(
+    floorGroup,
     mapKnowledgeOverlayGroup,
     mapRecencyOverlayGroup,
     surfaceGroup,
@@ -210,6 +245,7 @@ export function createChaseSceneView({
       evaderDirection,
       lastStep,
     } = simulationState;
+    syncFloorMeshes();
     syncObstacleMeshes();
     syncSurfaceMeshes();
     const chaserSnapshot = lastStep.chaserReasoning?.snapshot ?? null;
@@ -320,6 +356,7 @@ export function createChaseSceneView({
       },
       visibility: {
         idaePredictionDebug: predictionDebugState.visible,
+        floorGrid: Boolean(simulationState.simulationSettings?.floorGridVisible),
         mapKnowledgeDebug: mapKnowledgeDebugVisible,
         mapRecencyDebug: mapRecencyDebugVisible,
       },
@@ -327,6 +364,7 @@ export function createChaseSceneView({
   };
 
   const captureActorView = ({ actorId = "chaser", width, height } = {}) => {
+    syncFloorMeshes();
     syncObstacleMeshes();
     syncSurfaceMeshes();
     syncActorMeshes();
@@ -375,6 +413,8 @@ export function createChaseSceneView({
     disposePredictionDebugDisplayState(chaserActionPathDebugGroup, chaserActionPathDebugDisplayState);
     disposeMapKnowledgeOverlayDisplayState(mapKnowledgeOverlayGroup, mapKnowledgeOverlayDisplayState);
     disposeMapRecencyOverlayDisplayState(mapRecencyOverlayGroup, mapRecencyOverlayDisplayState);
+    disposeObject3D(floorMesh);
+    disposeObject3D(floorGrid);
     obstacleMeshes.forEach(disposeObstacleMesh);
     surfaceMeshes.forEach(disposeObstacleMesh);
     renderer.dispose();

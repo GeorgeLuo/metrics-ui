@@ -16,6 +16,7 @@ import {
   EVADER_PROJECTION_VIEW_MODES,
   EVADER_SPEED_ACTION_ID,
   EVADER_VIEW_ACTION_ID,
+  FLOOR_GRID_ACTION_ID,
   IDAE_DEBUG_ACTION_ID,
   MAX_CHASER_ACTION_PATH_HORIZON_FRAMES,
   MAX_CHASER_ACTION_PATH_SPACING_FRAMES,
@@ -97,6 +98,15 @@ function createSimulationActionDescriptors(context) {
           ? value
           : !simulationSettings.greentextDebugVisible;
         updateGreentextDebugOverlay?.();
+        refreshSidebarSections();
+      },
+    },
+    {
+      id: FLOOR_GRID_ACTION_ID,
+      handler(value) {
+        simulationSettings.floorGridVisible = typeof value === "boolean"
+          ? value
+          : !simulationSettings.floorGridVisible;
         refreshSidebarSections();
       },
     },

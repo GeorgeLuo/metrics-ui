@@ -45,6 +45,7 @@ function copyInto(target, source) {
 function normalizeSimulationSettings(simulationSettings) {
   simulationSettings.pauseBeforeActions = Boolean(simulationSettings.pauseBeforeActions);
   simulationSettings.greentextDebugVisible = Boolean(simulationSettings.greentextDebugVisible);
+  simulationSettings.floorGridVisible = Boolean(simulationSettings.floorGridVisible);
 }
 
 function shouldCloseEvaderView(simulationState, evaderViewVisible) {
@@ -124,7 +125,11 @@ export function createPlayGame({
     },
     onVisibilityChange: (visible) => {
       chaserViewVisible = visible;
+      runtimeLoop?.rescheduleAnimationFrameSource?.();
       refreshSidebarSections();
+    },
+    onRenderWindowChange: () => {
+      runtimeLoop?.rescheduleAnimationFrameSource?.();
     },
   });
   const evaderView = createEvaderViewController({
@@ -132,7 +137,11 @@ export function createPlayGame({
     vehicleSettings,
     onVisibilityChange: (visible) => {
       evaderViewVisible = visible;
+      runtimeLoop?.rescheduleAnimationFrameSource?.();
       refreshSidebarSections();
+    },
+    onRenderWindowChange: () => {
+      runtimeLoop?.rescheduleAnimationFrameSource?.();
     },
   });
 
