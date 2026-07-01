@@ -125,6 +125,7 @@ export function createPlayGame({
     },
     onVisibilityChange: (visible) => {
       chaserViewVisible = visible;
+      runtimeLoop?.rescheduleAnimationFrameSource?.();
       refreshSidebarSections();
     },
   });
@@ -133,6 +134,7 @@ export function createPlayGame({
     vehicleSettings,
     onVisibilityChange: (visible) => {
       evaderViewVisible = visible;
+      runtimeLoop?.rescheduleAnimationFrameSource?.();
       refreshSidebarSections();
     },
   });
