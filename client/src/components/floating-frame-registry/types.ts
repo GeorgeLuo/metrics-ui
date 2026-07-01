@@ -20,6 +20,7 @@ export type FloatingFrameRegistryFrameOptions = {
   popoutable?: boolean;
   closeable?: boolean;
   onClose?: () => void;
+  onPopoutChange?: (isPoppedOut: boolean) => void;
 };
 
 export type FloatingFrameRegistryFrameHandle = {

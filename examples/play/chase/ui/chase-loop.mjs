@@ -6,6 +6,7 @@ import { stepChaseSimulation } from "../simulation/simulation.mjs";
 
 const MAX_STEPS_PER_TICK = 8;
 const PERIODIC_UI_PUBLISH_INTERVAL_MS = 250;
+const CLOSED_ANIMATION_FRAME_WATCHDOG_MS = 250;
 
 function shouldPublishPeriodicUi(timestamp, lastPublishMs) {
   return timestamp - lastPublishMs >= PERIODIC_UI_PUBLISH_INTERVAL_MS;
@@ -26,9 +27,12 @@ export function createChaseLoop({
   refreshSidebarSections,
   updateGreentextDebugOverlay,
   publishDebugSnapshot,
+  closedAnimationFrameWatchdogMs = CLOSED_ANIMATION_FRAME_WATCHDOG_MS,
 }) {
   let animationFrame = 0;
   let animationFrameWindow = window;
+  let animationFrameGeneration = 0;
+  let closedFrameWatchdog = null;
   let previousTimestamp = null;
   let accumulatedMs = 0;
   let lastSidebarPublishMs = 0;
@@ -59,15 +63,52 @@ export function createChaseLoop({
       : window;
   };
 
+  const clearClosedFrameWatchdog = () => {
+    if (closedFrameWatchdog === null) {
+      return;
+    }
+    clearTimeout(closedFrameWatchdog);
+    closedFrameWatchdog = null;
+  };
+
+  const isFrameWindowClosed = (frameWindow) => {
+    try {
+      return !frameWindow || Boolean(frameWindow.closed);
+    } catch {
+      return true;
+    }
+  };
+
+  const scheduleClosedFrameWatchdog = (frameWindow, generation) => {
+    if (frameWindow === window || closedAnimationFrameWatchdogMs < 0) {
+      return;
+    }
+    closedFrameWatchdog = setTimeout(() => {
+      closedFrameWatchdog = null;
+      if (
+        generation === animationFrameGeneration
+        && animationFrame
+        && isFrameWindowClosed(frameWindow)
+      ) {
+        rescheduleAnimationFrameSource();
+      }
+    }, closedAnimationFrameWatchdogMs);
+  };
+
   const scheduleTick = () => {
+    clearClosedFrameWatchdog();
     animationFrameWindow = getAnimationFrameWindow();
+    animationFrameGeneration += 1;
     animationFrame = animationFrameWindow.requestAnimationFrame(tick);
+    scheduleClosedFrameWatchdog(animationFrameWindow, animationFrameGeneration);
   };
 
   const cancelScheduledTick = () => {
     if (!animationFrame) {
+      clearClosedFrameWatchdog();
       return;
     }
+    clearClosedFrameWatchdog();
     try {
       animationFrameWindow.cancelAnimationFrame(animationFrame);
     } catch {
@@ -82,6 +123,8 @@ export function createChaseLoop({
   };
 
   const tick = () => {
+    animationFrame = 0;
+    clearClosedFrameWatchdog();
     const timestamp = performance.now();
     const tickStartMs = performance.now();
     if (previousTimestamp === null) {
