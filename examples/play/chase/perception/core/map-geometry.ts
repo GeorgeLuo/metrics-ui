@@ -47,6 +47,7 @@ export function getPointPerception(
   point: VectorXZ | null | undefined,
   actorLookDirection: VectorXZ | null | undefined,
   fieldOfViewAngleRadians: number,
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
 ): PointPerception {
   if (!actorPosition || !point || !actorLookDirection) {
     return { visible: false };
@@ -63,7 +64,7 @@ export function getPointPerception(
   const bearingRadians = normalizeAngleDelta(
     vectorToAngle(pointDirection) - vectorToAngle(actorLookDirection),
   );
-  const visible = distance <= FIELD_OF_VIEW_DISTANCE
+  const visible = distance <= fieldOfViewDistance
     && Math.abs(bearingRadians) <= fieldOfViewAngleRadians / 2;
 
   return visible
@@ -76,15 +77,16 @@ export function getCoverageBounds(
   actorPosition: VectorXZ,
   columns?: number,
   rows?: number,
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
 ): BoundsXZ {
   if (Number.isFinite(columns) && Number.isFinite(rows)) {
     return getFieldBounds(columns, rows);
   }
   return {
-    minX: actorPosition.x - FIELD_OF_VIEW_DISTANCE,
-    maxX: actorPosition.x + FIELD_OF_VIEW_DISTANCE,
-    minZ: actorPosition.z - FIELD_OF_VIEW_DISTANCE,
-    maxZ: actorPosition.z + FIELD_OF_VIEW_DISTANCE,
+    minX: actorPosition.x - fieldOfViewDistance,
+    maxX: actorPosition.x + fieldOfViewDistance,
+    minZ: actorPosition.z - fieldOfViewDistance,
+    maxZ: actorPosition.z + fieldOfViewDistance,
   };
 }
 
@@ -95,12 +97,14 @@ export function isPointVisibleThroughMap(
   actorLookDirection: VectorXZ,
   fieldOfViewAngleRadians: number,
   obstacles: ObstacleLike | null | undefined,
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
 ): boolean {
   return getPointPerception(
     actorPosition,
     point,
     actorLookDirection,
     fieldOfViewAngleRadians,
+    fieldOfViewDistance,
   ).visible
     && !isLineOfSightBlockedByObstacles(actorPosition, point, obstacles);
 }

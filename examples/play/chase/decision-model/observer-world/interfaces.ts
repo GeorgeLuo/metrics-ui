@@ -9,6 +9,8 @@ export type WallObstacle = {
   z: number;
   width: number;
   depth: number;
+  height?: number;
+  boundary?: boolean;
   rotationRadians?: number;
 };
 
@@ -48,6 +50,8 @@ export type ObservedMapWall = {
   z: number;
   width: number;
   depth: number;
+  height?: number;
+  boundary?: boolean;
   rotationRadians: number;
 };
 
@@ -127,6 +131,9 @@ export const WALL_OBSTACLE_FIELDS = Object.freeze([
   "z",
   "width",
   "depth",
+  "height",
+  "boundary",
+  "rotationRadians",
 ]);
 
 export const OBSTACLE_SET_FIELDS = Object.freeze([
@@ -158,6 +165,9 @@ export const OBSERVED_MAP_WALL_FIELDS = Object.freeze([
   "z",
   "width",
   "depth",
+  "height",
+  "boundary",
+  "rotationRadians",
 ]);
 
 export const OBSERVED_MAP_AREA_CELL_FIELDS = Object.freeze([

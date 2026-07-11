@@ -6,6 +6,7 @@ import type {
   ObservedMapWall,
   VectorXZ,
 } from "../../decision-model/observer-world/interfaces.ts";
+import { OBSTACLE_PRISM_HEIGHT } from "../../config/constants.mjs";
 
 type ProjectedPoint = {
   x: number;
@@ -20,7 +21,6 @@ export type FrontViewCaptureSvgOptions = {
 
 const DEFAULT_WIDTH = 640;
 const DEFAULT_HEIGHT = 480;
-const OBSTACLE_HEIGHT = 0.62;
 const ACTOR_HEIGHT = 0.22;
 const CAMERA_HEIGHT = 0.42;
 const CAMERA_LOOK_DISTANCE = 3;
@@ -114,6 +114,11 @@ function getVisibleWalls(capture: VehicleFrontViewCaptureRecord): ObservedMapWal
   return [...wallsById.values()];
 }
 
+function getWallHeight(wall: ObservedMapWall): number {
+  const height = Number(wall.height);
+  return Number.isFinite(height) && height > 0 ? height : OBSTACLE_PRISM_HEIGHT;
+}
+
 function getWallFaces({
   wall,
   capture,
@@ -135,7 +140,7 @@ function getWallFaces({
   }));
   const top = corners.map((corner) => projectPoint({
     point: corner,
-    y: OBSTACLE_HEIGHT,
+    y: getWallHeight(wall),
     capture,
     width,
     height,

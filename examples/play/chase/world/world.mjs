@@ -259,6 +259,9 @@ export function getObstacleWallPressure(position, obstacles) {
     distance: Number.POSITIVE_INFINITY,
   };
   const pressure = walls.reduce((sum, wall, index) => {
+    if (wall?.boundary === true) {
+      return sum;
+    }
     const distanceToWall = getDistanceToWall(position, wall);
     if (distanceToWall.distance < nearest.distance) {
       nearest = {
@@ -356,6 +359,9 @@ export function resolveObstacleCollisions(position, previousPosition, columns, r
 
   for (let iteration = 0; iteration < 2; iteration += 1) {
     for (const wall of obstacles.walls) {
+      if (wall?.boundary === true) {
+        continue;
+      }
       resolved = resolveWallCollision(resolved, previousPosition, columns, rows, wall);
     }
   }

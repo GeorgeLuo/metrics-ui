@@ -40,6 +40,7 @@ export const IDAE_DEBUG_ACTION_ID = "idae-debug";
 export const EVADER_SPEED_ACTION_ID = "evader-speed";
 export const VEHICLE_MAX_STEERING_ANGLE_ACTION_ID = "vehicle-max-steering-angle";
 export const VEHICLE_FOV_ACTION_ID = "vehicle-fov";
+export const VEHICLE_FOV_DISTANCE_ACTION_ID = "vehicle-fov-distance";
 export const EVADER_PROJECTION_VIEW_ACTION_ID = "evader-projection-view";
 export const EVADER_PROJECTION_DEBUG_ACTION_ID = "evader-projection-debug";
 export const EVADER_PROJECTION_HORIZON_ACTION_ID = "evader-projection-horizon";
@@ -118,11 +119,14 @@ export const DEFAULT_EVADER_DRIFT_WEIGHT = 0.45;
 export const DEFAULT_EVADER_WALL_AVOID_WEIGHT = 2.5;
 
 export const DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS = Math.PI / 3;
+export const DEFAULT_FIELD_OF_VIEW_DISTANCE = 14;
+export const MIN_FIELD_OF_VIEW_DISTANCE = 1;
+export const MAX_FIELD_OF_VIEW_DISTANCE = 30;
 export const FIELD_OF_VIEW_SEGMENTS = 28;
 export const CHASER_VIEW_CAMERA_HEIGHT = 0.42;
 export const CHASER_VIEW_LOOK_DISTANCE = 3;
 export const CHASER_VIEW_MAX_DISTANCE = 9;
-export const FIELD_OF_VIEW_DISTANCE = CHASER_VIEW_MAX_DISTANCE;
+export const FIELD_OF_VIEW_DISTANCE = DEFAULT_FIELD_OF_VIEW_DISTANCE;
 export const CHASER_FIELD_OF_VIEW_COLOR = 0x38bdf8;
 export const EVADER_FIELD_OF_VIEW_COLOR = 0xf43f5e;
 
