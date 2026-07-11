@@ -76,6 +76,7 @@ type ChaserFrameContext = RuntimeRecord & {
   evaderExists?: boolean;
   frameIndex?: number | null;
   fieldOfViewAngleRadians?: number;
+  fieldOfViewDistance?: number;
   obstacles?: unknown;
   columns?: number;
   rows?: number;

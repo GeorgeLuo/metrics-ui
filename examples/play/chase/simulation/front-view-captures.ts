@@ -62,6 +62,7 @@ function recordFrontViewCaptureAction(
     actorPosition,
     actorDirection,
     fieldOfViewAngleRadians: state.vehicleSettings.fieldOfViewAngleRadians,
+    fieldOfViewDistance: state.vehicleSettings.fieldOfViewDistance,
     obstacles: state.obstacles,
     columns: state.columns,
     rows: state.rows,

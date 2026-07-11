@@ -96,15 +96,30 @@ export function disposeObject3D(object) {
 }
 
 export function createWall(wall) {
-  const geometry = new THREE.BoxGeometry(wall.width, OBSTACLE_PRISM_HEIGHT, wall.depth);
+  const wallHeight = Number.isFinite(wall?.height) && wall.height > 0
+    ? wall.height
+    : OBSTACLE_PRISM_HEIGHT;
+  const geometry = new THREE.BoxGeometry(wall.width, wallHeight, wall.depth);
   const material = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.58,
     metalness: 0.02,
   });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(wall.x, OBSTACLE_PRISM_HEIGHT / 2, wall.z);
+  mesh.position.set(wall.x, wallHeight / 2, wall.z);
   mesh.rotation.y = Number(wall.rotationRadians) || 0;
+  const edgeGeometry = new THREE.EdgesGeometry(geometry, 18);
+  const edgeMaterial = new THREE.LineBasicMaterial({
+    color: 0x334155,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+  });
+  const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+  edges.name = "wall-boundary-edges";
+  edges.position.y = 0.006;
+  edges.renderOrder = 2;
+  mesh.add(edges);
   return mesh;
 }
 
@@ -124,15 +139,18 @@ export function createSurfacePatch(surface) {
   return mesh;
 }
 
-export function createFieldOfViewConeGeometry(fieldOfViewAngleRadians) {
+export function createFieldOfViewConeGeometry(
+  fieldOfViewAngleRadians,
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
+) {
   const positions = [0, 0.012, 0];
   for (let index = 0; index <= FIELD_OF_VIEW_SEGMENTS; index += 1) {
     const t = index / FIELD_OF_VIEW_SEGMENTS;
     const angle = -fieldOfViewAngleRadians / 2 + t * fieldOfViewAngleRadians;
     positions.push(
-      Math.sin(angle) * FIELD_OF_VIEW_DISTANCE,
+      Math.sin(angle) * fieldOfViewDistance,
       0.012,
-      Math.cos(angle) * FIELD_OF_VIEW_DISTANCE,
+      Math.cos(angle) * fieldOfViewDistance,
     );
   }
 
@@ -153,6 +171,7 @@ export function createFieldOfViewCone(
   {
     color = CHASER_FIELD_OF_VIEW_COLOR,
     opacity = 0.16,
+    distance = FIELD_OF_VIEW_DISTANCE,
   } = {},
 ) {
   const material = new THREE.MeshBasicMaterial({
@@ -162,13 +181,17 @@ export function createFieldOfViewCone(
     side: THREE.DoubleSide,
     depthWrite: false,
   });
-  return new THREE.Mesh(createFieldOfViewConeGeometry(fieldOfViewAngleRadians), material);
+  return new THREE.Mesh(createFieldOfViewConeGeometry(fieldOfViewAngleRadians, distance), material);
 }
 
-export function createEvaderFieldOfViewCone(fieldOfViewAngleRadians) {
+export function createEvaderFieldOfViewCone(
+  fieldOfViewAngleRadians,
+  distance = FIELD_OF_VIEW_DISTANCE,
+) {
   return createFieldOfViewCone(fieldOfViewAngleRadians, {
     color: EVADER_FIELD_OF_VIEW_COLOR,
     opacity: 0.12,
+    distance,
   });
 }
 

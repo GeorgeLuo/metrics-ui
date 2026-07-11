@@ -1,4 +1,5 @@
 import chaserEmptyMapScenarioDefinition from "./chaser-empty-map.scenario.mjs";
+import chaserDepthObstaclesScenarioDefinition from "./chaser-depth-obstacles.scenario.mjs";
 import defaultScenarioDefinition from "./default.scenario.mjs";
 import largeOpenRoomScenarioDefinition from "./large-open-room.scenario.mjs";
 import noEvaderScenarioDefinition from "./no-evader.scenario.mjs";
@@ -14,6 +15,7 @@ export const CHASE_SCENARIO_DEFINITIONS = Object.freeze([
   openRoomScenarioDefinition,
   largeOpenRoomScenarioDefinition,
   chaserEmptyMapScenarioDefinition,
+  chaserDepthObstaclesScenarioDefinition,
   noEvaderScenarioDefinition,
   surfacePatchesScenarioDefinition,
   twoRoomsScenarioDefinition,

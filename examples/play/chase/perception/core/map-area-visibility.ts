@@ -49,27 +49,28 @@ export function getVisibleMapAreaCells(
     columns,
     rows,
   }: WorldContext = {},
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
 ): ObservedMapAreaCell[] {
   if (!actorPosition || !actorLookDirection || !Number.isFinite(fieldOfViewAngleRadians)) {
     return [];
   }
 
-  const bounds = getCoverageBounds(actorPosition, columns, rows);
+  const bounds = getCoverageBounds(actorPosition, columns, rows, fieldOfViewDistance);
   const minCellX = Math.floor(Math.max(
     bounds.minX,
-    actorPosition.x - FIELD_OF_VIEW_DISTANCE,
+    actorPosition.x - fieldOfViewDistance,
   ) / CHASER_MAP_OBSERVATION_CELL_SIZE);
   const maxCellX = Math.floor(Math.min(
     bounds.maxX,
-    actorPosition.x + FIELD_OF_VIEW_DISTANCE,
+    actorPosition.x + fieldOfViewDistance,
   ) / CHASER_MAP_OBSERVATION_CELL_SIZE);
   const minCellZ = Math.floor(Math.max(
     bounds.minZ,
-    actorPosition.z - FIELD_OF_VIEW_DISTANCE,
+    actorPosition.z - fieldOfViewDistance,
   ) / CHASER_MAP_OBSERVATION_CELL_SIZE);
   const maxCellZ = Math.floor(Math.min(
     bounds.maxZ,
-    actorPosition.z + FIELD_OF_VIEW_DISTANCE,
+    actorPosition.z + fieldOfViewDistance,
   ) / CHASER_MAP_OBSERVATION_CELL_SIZE);
   const cells: ObservedMapAreaCell[] = [];
 
@@ -91,6 +92,7 @@ export function getVisibleMapAreaCells(
           actorLookDirection,
           fieldOfViewAngleRadians,
           obstacles,
+          fieldOfViewDistance,
         )
       ) {
         cells.push(cell);

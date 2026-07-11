@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { CHASER_VIEW_MAX_DISTANCE } from "../config/constants.mjs";
+import { FIELD_OF_VIEW_DISTANCE } from "../config/constants.mjs";
 import { configureChaserViewCamera } from "./rendering.mjs";
 
 const DEFAULT_ACTOR_VIEW_WIDTH = 280;
@@ -16,6 +16,7 @@ function configureActorViewRenderCamera(camera, {
   actorPosition,
   actorLookDirection,
   fieldOfViewAngleRadians,
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
   width,
   height,
 }) {
@@ -57,6 +58,7 @@ export function captureActorViewImage({
   actorPosition,
   actorLookDirection,
   fieldOfViewAngleRadians,
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
   width,
   height,
   contentType = "image/png",
@@ -75,7 +77,7 @@ export function captureActorViewImage({
     fieldOfViewAngleRadians * 180 / Math.PI,
     imageWidth / imageHeight,
     0.04,
-    CHASER_VIEW_MAX_DISTANCE,
+    fieldOfViewDistance,
   );
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
@@ -85,6 +87,7 @@ export function captureActorViewImage({
     actorPosition,
     actorLookDirection,
     fieldOfViewAngleRadians,
+    fieldOfViewDistance,
     width: imageWidth,
     height: imageHeight,
   });
@@ -231,7 +234,7 @@ export function createActorViewController({
       vehicleSettings.fieldOfViewAngleRadians * 180 / Math.PI,
       4 / 3,
       0.04,
-      CHASER_VIEW_MAX_DISTANCE,
+      vehicleSettings.fieldOfViewDistance,
     );
     const resizeObserver = new ResizeObserver(scheduleMountedViewResize);
 
@@ -290,6 +293,14 @@ export function createActorViewController({
     mountedView.camera.updateProjectionMatrix();
   };
 
+  const setFieldOfViewDistance = (fieldOfViewDistance) => {
+    if (!mountedView) {
+      return;
+    }
+    mountedView.camera.far = fieldOfViewDistance;
+    mountedView.camera.updateProjectionMatrix();
+  };
+
   const setTrackedActorVisible = (visible) => {
     if (!mountedView) {
       return;
@@ -331,6 +342,7 @@ export function createActorViewController({
     getRenderWindow,
     resize: resizeMountedView,
     setFieldOfViewAngleRadians,
+    setFieldOfViewDistance,
     setTrackedActorVisible,
     render,
     isOpen: () => mountedView !== null,

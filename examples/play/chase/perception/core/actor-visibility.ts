@@ -25,6 +25,7 @@ export function getObservedActor(
   actorLookDirection: VectorXZ | null | undefined,
   fieldOfViewAngleRadians: number,
   obstacles: unknown,
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
 ): ObservedActor {
   if (!actorPosition || !subjectPosition || !actorLookDirection) {
     return { visible: false, absent: !subjectPosition };
@@ -43,7 +44,7 @@ export function getObservedActor(
   );
   const subjectAngularRadius = Math.atan2(CAR_BOUND_RADIUS, distance);
   const isVisible =
-    distance <= FIELD_OF_VIEW_DISTANCE + CAR_BOUND_RADIUS
+    distance <= fieldOfViewDistance + CAR_BOUND_RADIUS
     && Math.abs(bearingRadians) <= fieldOfViewAngleRadians / 2 + subjectAngularRadius;
   const isOccluded = isVisible
     && isLineOfSightBlockedByObstacles(

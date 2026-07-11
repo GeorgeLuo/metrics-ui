@@ -26,6 +26,7 @@ export type CreateVehicleFrontViewCaptureRecordOptions = {
   actorPosition?: VectorXZ | null;
   actorDirection?: VectorXZ | null;
   fieldOfViewAngleRadians: number;
+  fieldOfViewDistance?: number;
   obstacles?: ObstacleSet | null;
   columns?: number;
   rows?: number;
@@ -50,12 +51,14 @@ function buildCapturedActor({
   actorPosition,
   actorDirection,
   fieldOfViewAngleRadians,
+  fieldOfViewDistance,
   obstacles,
   subject,
 }: {
   actorPosition: VectorXZ;
   actorDirection: VectorXZ;
   fieldOfViewAngleRadians: number;
+  fieldOfViewDistance?: number;
   obstacles?: ObstacleSet | null;
   subject: VehicleFrontViewCaptureSubject;
 }): VehicleFrontViewCapturedActor | null {
@@ -65,6 +68,7 @@ function buildCapturedActor({
     actorDirection,
     fieldOfViewAngleRadians,
     obstacles,
+    fieldOfViewDistance,
   );
   if (!perception.visible) {
     return null;
@@ -95,6 +99,7 @@ export function createVehicleFrontViewCaptureRecord({
   actorPosition,
   actorDirection,
   fieldOfViewAngleRadians,
+  fieldOfViewDistance,
   obstacles = null,
   columns,
   rows,
@@ -114,12 +119,14 @@ export function createVehicleFrontViewCaptureRecord({
     fieldOfViewAngleRadians,
     obstacles,
     { columns, rows },
+    fieldOfViewDistance,
   );
   const capturedActors = visibleActors
     .map((subject) => buildCapturedActor({
       actorPosition: position,
       actorDirection: direction,
       fieldOfViewAngleRadians,
+      fieldOfViewDistance,
       obstacles,
       subject,
     }))

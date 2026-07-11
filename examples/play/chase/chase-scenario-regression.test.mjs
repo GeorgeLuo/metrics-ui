@@ -5,6 +5,7 @@ import {
   CHASER_CONTROL_SOURCE_ACTION_ID,
   CHASER_CONTROL_SOURCES,
   EVADER_EXISTS_ACTION_ID,
+  OBSTACLE_PRISM_HEIGHT,
   SCENARIO_SELECT_ACTION_ID,
 } from "./config/constants.mjs";
 import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
@@ -27,6 +28,7 @@ import { publishSidebarSections } from "./ui/sidebar.mjs";
 import { getChaserActionPathDebugEntries } from "./ui/rendering.mjs";
 import { createScenarioDefinitionWithEvaderOverride } from "./ui/runtime.mjs";
 import { createChaseScenarioSession } from "./ui/scenario-session.mjs";
+import { observeChaserWorld } from "./perception/chaser/observe.ts";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 
@@ -212,6 +214,10 @@ test("chase sidebar exposes scenario selector and evader existence override", ()
     "expected sidebar scenario selector to include the chaser-empty-map scenario",
   );
   assert.ok(
+    scenarioSelect?.options?.some((option) => option.value === "chaser-depth-obstacles"),
+    "expected sidebar scenario selector to include the chaser-depth-obstacles scenario",
+  );
+  assert.ok(
     scenarioSelect?.options?.some((option) => option.value === "surface-patches"),
     "expected sidebar scenario selector to include the surface-patches scenario",
   );
@@ -271,6 +277,7 @@ test("chaser-empty-map scenario resolves to a backed-up chaser facing a front ob
     z: -0.35,
     width: 1.4,
     depth: 0.7,
+    height: OBSTACLE_PRISM_HEIGHT,
     rotationRadians: 0,
   });
   assert.deepEqual(scenario.actors.chaser.position, { x: 0, z: 1.5 });
@@ -285,6 +292,64 @@ test("chaser-empty-map scenario resolves to a backed-up chaser facing a front ob
   assert.equal(state.evaderDirection, null);
   assert.equal(state.chaserControlSource, CHASER_CONTROL_SOURCES.KEYBOARD);
   assert.equal(state.programmaticChaserEnabled, false);
+});
+
+test("chaser-depth-obstacles scenario resolves visible obstacles with configured heights", () => {
+  const scenario = resolveChaseScenario(getChaseScenarioDefinition("chaser-depth-obstacles"), GRID);
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  const observation = observeChaserWorld({
+    chaserPosition: scenario.actors.chaser.position,
+    chaserLookDirection: scenario.actors.chaser.direction,
+    fieldOfViewAngleRadians: scenario.vehicleSettings.fieldOfViewAngleRadians,
+    obstacles: scenario.map.obstacles,
+    columns: scenario.map.columns,
+    rows: scenario.map.rows,
+  });
+  const visibleWalls = observation.map.visibleWalls.map((entry) => entry.wall);
+
+  assert.equal(scenario.id, "chaser-depth-obstacles");
+  assert.equal(scenario.label, "Chaser Depth Obstacles");
+  assert.equal(scenario.map.layout, "chaser-depth-obstacles");
+  assert.equal(scenario.map.columns, 9);
+  assert.equal(scenario.map.rows, 8);
+  assert.equal(scenario.actors.evader.exists, false);
+  assert.equal(scenario.actors.evader.position, null);
+  assert.equal(scenario.actors.evader.direction, null);
+  assert.deepEqual(scenario.actors.chaser.position, { x: 0, z: 3.05 });
+  assert.deepEqual(scenario.actors.chaser.direction, { x: 0, z: -1 });
+  assert.equal(state.evaderExists, false);
+  assert.equal(state.chaserControlSource, CHASER_CONTROL_SOURCES.KEYBOARD);
+  assert.equal(state.programmaticChaserEnabled, false);
+  assert.deepEqual(
+    scenario.map.obstacles.walls.map((wall) => ({
+      id: wall.id,
+      height: wall.height,
+    })),
+    [
+      { id: "room-wall-north", height: 2.4 },
+      { id: "room-wall-south", height: 2.4 },
+      { id: "room-wall-west", height: 2.4 },
+      { id: "room-wall-east", height: 2.4 },
+      { id: "near-short-block", height: 0.28 },
+      { id: "middle-medium-block", height: 0.68 },
+      { id: "far-tall-block", height: 1.12 },
+    ],
+  );
+  assert.deepEqual(
+    visibleWalls.map((wall) => ({
+      id: wall.id,
+      height: wall.height,
+    })),
+    [
+      { id: "near-short-block", height: 0.28 },
+      { id: "middle-medium-block", height: 0.68 },
+      { id: "far-tall-block", height: 1.12 },
+    ],
+  );
 });
 
 test("surface-patches scenario resolves rotated surfaces with speed multipliers", () => {

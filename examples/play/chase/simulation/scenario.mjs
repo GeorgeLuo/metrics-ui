@@ -3,6 +3,9 @@ import {
   DEFAULT_CHASER_SPEED_UNITS_PER_FRAME,
   DEFAULT_CAR_MAX_STEERING_ANGLE_RADIANS,
   DEFAULT_FIELD_OF_VIEW_ANGLE_RADIANS,
+  DEFAULT_FIELD_OF_VIEW_DISTANCE,
+  MIN_FIELD_OF_VIEW_DISTANCE,
+  MAX_FIELD_OF_VIEW_DISTANCE,
   DEFAULT_EVADER_PROJECTION_HORIZON_FRAMES,
   DEFAULT_EVADER_PROJECTION_SPACING_FRAMES,
   DEFAULT_EVADER_DRIFT_WEIGHT,
@@ -15,6 +18,7 @@ import {
   MAX_EVADER_PROJECTION_HORIZON_FRAMES,
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
   MIN_SIMULATION_FRAMES_PER_SECOND,
+  OBSTACLE_PRISM_HEIGHT,
 } from "../config/constants.mjs";
 import {
   clampNumber,
@@ -83,6 +87,13 @@ function normalizeRectangleRotation(record) {
   return Number.isFinite(degrees) ? degreesToRadians(degrees) : 0;
 }
 
+function normalizePositiveNumber(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? numericValue
+    : null;
+}
+
 function normalizeColor(value, fallback) {
   const numericValue = Number(value);
   if (Number.isFinite(numericValue) && numericValue >= 0 && numericValue <= 0xffffff) {
@@ -128,6 +139,8 @@ function normalizeObstacle(value, index) {
     z: normalizeNumber(record.z, 0),
     width,
     depth,
+    height: normalizePositiveNumber(record.height) ?? OBSTACLE_PRISM_HEIGHT,
+    ...(record.boundary === true ? { boundary: true } : {}),
     rotationRadians: normalizeRectangleRotation(record),
   };
 }
@@ -423,6 +436,11 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
         20,
         140,
       )),
+      fieldOfViewDistance: clampNumber(
+        normalizeNumber(vehicleSettings.fieldOfViewDistance, DEFAULT_FIELD_OF_VIEW_DISTANCE),
+        MIN_FIELD_OF_VIEW_DISTANCE,
+        MAX_FIELD_OF_VIEW_DISTANCE,
+      ),
     },
     projectionSettings: {
       visible: normalizeBoolean(projectionSettings.visible, false),
