@@ -8,6 +8,7 @@ type ChaserObservationContext = {
   evaderPosition?: VectorXZ | null;
   chaserLookDirection?: VectorXZ | null;
   fieldOfViewAngleRadians?: number;
+  fieldOfViewDistance?: number;
   obstacles?: unknown;
   columns?: number;
   rows?: number;
@@ -24,6 +25,7 @@ export function observeChaserWorld({
   evaderPosition,
   chaserLookDirection,
   fieldOfViewAngleRadians = 0,
+  fieldOfViewDistance,
   obstacles,
   columns,
   rows,
@@ -34,6 +36,7 @@ export function observeChaserWorld({
     chaserLookDirection,
     fieldOfViewAngleRadians,
     obstacles,
+    fieldOfViewDistance,
   );
 
   return {
@@ -45,6 +48,7 @@ export function observeChaserWorld({
       fieldOfViewAngleRadians,
       obstacles,
       { columns, rows },
+      fieldOfViewDistance,
     ),
   };
 }

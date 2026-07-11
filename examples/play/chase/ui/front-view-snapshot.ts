@@ -137,6 +137,7 @@ export function buildManualFrontViewSnapshot(
     actorPosition: pose.position,
     actorDirection: pose.direction,
     fieldOfViewAngleRadians: simulationState.vehicleSettings?.fieldOfViewAngleRadians,
+    fieldOfViewDistance: simulationState.vehicleSettings?.fieldOfViewDistance,
     obstacles: simulationState.obstacles,
     columns: simulationState.columns,
     rows: simulationState.rows,

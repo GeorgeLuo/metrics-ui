@@ -30,7 +30,10 @@ import {
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
   SIMULATION_RESET_ACTION_ID,
   VEHICLE_FOV_ACTION_ID,
+  VEHICLE_FOV_DISTANCE_ACTION_ID,
   VEHICLE_MAX_STEERING_ANGLE_ACTION_ID,
+  MIN_FIELD_OF_VIEW_DISTANCE,
+  MAX_FIELD_OF_VIEW_DISTANCE,
 } from "../config/constants.mjs";
 import {
   clampNumber,
@@ -215,6 +218,21 @@ function createVehicleActionDescriptors({
         const parsed = parseEditableNumber(value);
         if (parsed !== null) {
           vehicleSettings.fieldOfViewAngleRadians = degreesToRadians(clampNumber(parsed, 20, 140));
+          updateFieldOfView();
+        }
+        refreshSidebarSections();
+      },
+    },
+    {
+      id: VEHICLE_FOV_DISTANCE_ACTION_ID,
+      handler(value) {
+        const parsed = parseEditableNumber(value);
+        if (parsed !== null) {
+          vehicleSettings.fieldOfViewDistance = clampNumber(
+            parsed,
+            MIN_FIELD_OF_VIEW_DISTANCE,
+            MAX_FIELD_OF_VIEW_DISTANCE,
+          );
           updateFieldOfView();
         }
         refreshSidebarSections();

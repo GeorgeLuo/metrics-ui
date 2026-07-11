@@ -59,8 +59,14 @@ export function createChaseSceneView({
   keyLight.position.set(3, 8, 4);
   scene.add(ambientLight, keyLight);
 
-  const chaserFieldOfView = createFieldOfViewCone(vehicleSettings.fieldOfViewAngleRadians);
-  const evaderFieldOfView = createEvaderFieldOfViewCone(vehicleSettings.fieldOfViewAngleRadians);
+  const chaserFieldOfView = createFieldOfViewCone(
+    vehicleSettings.fieldOfViewAngleRadians,
+    { distance: vehicleSettings.fieldOfViewDistance },
+  );
+  const evaderFieldOfView = createEvaderFieldOfViewCone(
+    vehicleSettings.fieldOfViewAngleRadians,
+    vehicleSettings.fieldOfViewDistance,
+  );
   const chaser = createCar(0x38bdf8);
   const evader = createCar(0xf43f5e);
   const evaderProjectionGroup = new THREE.Group();
@@ -179,14 +185,22 @@ export function createChaseSceneView({
   );
 
   const updateFieldOfView = () => {
-    const nextChaserGeometry = createFieldOfViewConeGeometry(vehicleSettings.fieldOfViewAngleRadians);
+    const nextChaserGeometry = createFieldOfViewConeGeometry(
+      vehicleSettings.fieldOfViewAngleRadians,
+      vehicleSettings.fieldOfViewDistance,
+    );
     chaserFieldOfView.geometry.dispose();
     chaserFieldOfView.geometry = nextChaserGeometry;
-    const nextEvaderGeometry = createFieldOfViewConeGeometry(vehicleSettings.fieldOfViewAngleRadians);
+    const nextEvaderGeometry = createFieldOfViewConeGeometry(
+      vehicleSettings.fieldOfViewAngleRadians,
+      vehicleSettings.fieldOfViewDistance,
+    );
     evaderFieldOfView.geometry.dispose();
     evaderFieldOfView.geometry = nextEvaderGeometry;
     chaserView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
+    chaserView.setFieldOfViewDistance(vehicleSettings.fieldOfViewDistance);
     evaderView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
+    evaderView.setFieldOfViewDistance(vehicleSettings.fieldOfViewDistance);
   };
 
   const syncActorMeshes = () => {
@@ -380,6 +394,7 @@ export function createChaseSceneView({
         actorPosition: simulationState.evaderPosition,
         actorLookDirection: simulationState.evaderDirection,
         fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
+        fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
         width,
         height,
       });
@@ -392,6 +407,7 @@ export function createChaseSceneView({
       actorPosition: simulationState.chaserPosition,
       actorLookDirection: simulationState.chaserLookDirection,
       fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
+      fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
       width,
       height,
     });

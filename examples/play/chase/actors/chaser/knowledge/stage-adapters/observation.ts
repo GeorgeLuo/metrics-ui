@@ -6,6 +6,7 @@ type ChaserObservationContext = {
   evaderPosition?: VectorXZ | null;
   chaserLookDirection?: VectorXZ | null;
   fieldOfViewAngleRadians?: number;
+  fieldOfViewDistance?: number;
   obstacles?: unknown;
   columns?: number;
   rows?: number;

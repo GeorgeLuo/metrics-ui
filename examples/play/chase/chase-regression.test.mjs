@@ -161,8 +161,8 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 180,
-      chaser: { x: 0.5652, z: -2.4369, dx: 0.101, dz: -0.9949 },
-      evader: { x: 3.0384, z: 1.9634, dx: 0.1853, dz: -0.9827 },
+      chaser: { x: -0.567, z: -1.0994, dx: -0.933, dz: 0.3599 },
+      evader: { x: 2.9594, z: 1.9734, dx: -0.0795, dz: -0.9968 },
       touches: 0,
       visible: false,
       prediction: {
@@ -1913,7 +1913,7 @@ test("map discovery-only chaser stops after remembered traversable map is covere
   const knownVertices = knownAreas.flatMap((area) => area.vertices ?? []);
   const fieldBounds = getFieldBounds(GRID.columns, GRID.rows);
 
-  assert.equal(completionFrame, 804);
+  assert.equal(completionFrame, 582);
   assert.equal(state.lastStep.chaserAction?.selectedActionProposalId, "none");
   assert.equal(state.lastStep.chaserAction?.forward, false);
   assert.equal(

@@ -1,3 +1,4 @@
+import { FIELD_OF_VIEW_DISTANCE } from "../../config/constants.mjs";
 import type { VectorXZ } from "../../decision-model/core/math.ts";
 import type { ObservedMap } from "../../decision-model/observer-world/interfaces.ts";
 import { getVisibleMapAreaCells } from "./map-area-visibility.ts";
@@ -13,6 +14,7 @@ export function getObservedMap(
   fieldOfViewAngleRadians: number,
   obstacles: unknown,
   worldContext: WorldContext = {},
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
 ): ObservedMap {
   if (!actorPosition || !actorLookDirection) {
     return {
@@ -28,6 +30,7 @@ export function getObservedMap(
     actorLookDirection,
     fieldOfViewAngleRadians,
     obstacleSet,
+    fieldOfViewDistance,
   );
   const visibleAreaCells = getVisibleMapAreaCells(
     actorPosition,
@@ -35,6 +38,7 @@ export function getObservedMap(
     fieldOfViewAngleRadians,
     obstacleSet,
     worldContext,
+    fieldOfViewDistance,
   );
 
   return {

@@ -170,6 +170,7 @@ function createSynchronizedFrameContext(state, humanInput) {
     evaderExists,
     frameIndex: state.frameIndex,
     fieldOfViewAngleRadians: state.vehicleSettings.fieldOfViewAngleRadians,
+    fieldOfViewDistance: state.vehicleSettings.fieldOfViewDistance,
     obstacles: state.obstacles,
     surfaces: state.surfaces,
     columns: state.columns,
@@ -192,6 +193,7 @@ function updateChaserReasoningState(state, frameContext) {
     evaderExists: frameContext.evaderExists !== false,
     frameIndex: frameContext.frameIndex,
     fieldOfViewAngleRadians: frameContext.fieldOfViewAngleRadians,
+    fieldOfViewDistance: frameContext.fieldOfViewDistance,
     obstacles: frameContext.obstacles,
     columns: frameContext.columns,
     rows: frameContext.rows,
@@ -218,6 +220,7 @@ function updateEvaderReasoningState(state, frameContext) {
     frameIndex: frameContext.frameIndex,
     obstacles: frameContext.obstacles,
     fieldOfViewAngleRadians: frameContext.fieldOfViewAngleRadians,
+    fieldOfViewDistance: frameContext.fieldOfViewDistance,
     maxSteeringAngleRadians: frameContext.maxSteeringAngleRadians,
   });
 }
