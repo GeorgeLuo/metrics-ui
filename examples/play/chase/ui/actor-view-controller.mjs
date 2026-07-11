@@ -58,6 +58,7 @@ export function captureActorViewImage({
   actorPosition,
   actorLookDirection,
   fieldOfViewAngleRadians,
+  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
   width,
   height,
   contentType = "image/png",
