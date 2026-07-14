@@ -15,7 +15,10 @@ import {
 import {
   buildManualFrontViewSnapshot,
 } from "./ui/front-view-snapshot.ts";
-import { renderActorViewScene } from "./ui/actor-view-controller.mjs";
+import {
+  createActorViewImageCapture,
+  renderActorViewScene,
+} from "./ui/actor-view-controller.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 const BASE_SCENARIO = Object.freeze(resolveChaseScenario(defaultScenarioDefinition, GRID));
@@ -147,4 +150,54 @@ test("front-view image rendering excludes debug projections and restores scene v
   assert.equal(actorFieldOfView.visible, true);
   assert.equal(otherActorFieldOfView.visible, false);
   assert.equal(projectionGroup.visible, true);
+});
+
+test("front-view captures reuse one WebGL renderer until scene disposal", () => {
+  let rendererCount = 0;
+  let renderCount = 0;
+  let disposeCount = 0;
+  let contextLossCount = 0;
+  const context = { isContextLost: () => false };
+  const captureSession = createActorViewImageCapture({
+    createRenderer() {
+      rendererCount += 1;
+      return {
+        domElement: { toDataURL: () => "data:image/png;base64,dGVzdA==" },
+        dispose: () => { disposeCount += 1; },
+        forceContextLoss: () => { contextLossCount += 1; },
+        getContext: () => context,
+        render: () => { renderCount += 1; },
+        setClearColor() {},
+        setPixelRatio() {},
+        setSize() {},
+      };
+    },
+    createCamera() {
+      return {
+        position: { set() {} },
+        lookAt() {},
+        updateProjectionMatrix() {},
+      };
+    },
+  });
+  const captureOptions = {
+    scene: {},
+    actorMesh: { visible: true },
+    actorFieldOfView: { visible: true },
+    actorPosition: { x: 0, z: 0 },
+    actorLookDirection: { x: 1, z: 0 },
+    fieldOfViewAngleRadians: Math.PI / 3,
+  };
+
+  captureSession.capture(captureOptions);
+  captureSession.capture(captureOptions);
+
+  assert.equal(rendererCount, 1);
+  assert.equal(renderCount, 2);
+  assert.equal(disposeCount, 0);
+  assert.equal(contextLossCount, 0);
+
+  captureSession.dispose();
+  assert.equal(disposeCount, 1);
+  assert.equal(contextLossCount, 1);
 });
