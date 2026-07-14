@@ -26,27 +26,31 @@ function configureActorViewRenderCamera(camera, {
   configureChaserViewCamera(camera, actorPosition, actorLookDirection);
 }
 
-function renderActorViewScene({
+export function renderActorViewScene({
   renderer,
   camera,
   scene,
   actorMesh,
   actorFieldOfView,
   otherActorFieldOfView,
+  excludedObjects = [],
 }) {
-  const actorMeshVisible = actorMesh.visible;
-  const actorFieldOfViewVisible = actorFieldOfView.visible;
-  const otherActorFieldOfViewVisible = otherActorFieldOfView?.visible ?? false;
-  actorMesh.visible = false;
-  actorFieldOfView.visible = false;
-  if (otherActorFieldOfView) {
-    otherActorFieldOfView.visible = false;
-  }
-  renderer.render(scene, camera);
-  actorMesh.visible = actorMeshVisible;
-  actorFieldOfView.visible = actorFieldOfViewVisible;
-  if (otherActorFieldOfView) {
-    otherActorFieldOfView.visible = otherActorFieldOfViewVisible;
+  const hiddenObjects = [
+    actorMesh,
+    actorFieldOfView,
+    otherActorFieldOfView,
+    ...excludedObjects,
+  ].filter(Boolean);
+  const priorVisibility = hiddenObjects.map((object) => [object, object.visible]);
+  hiddenObjects.forEach((object) => {
+    object.visible = false;
+  });
+  try {
+    renderer.render(scene, camera);
+  } finally {
+    priorVisibility.forEach(([object, visible]) => {
+      object.visible = visible;
+    });
   }
 }
 
@@ -59,6 +63,7 @@ export function captureActorViewImage({
   actorLookDirection,
   fieldOfViewAngleRadians,
   fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
+  excludedObjects = [],
   width,
   height,
   contentType = "image/png",
@@ -98,6 +103,7 @@ export function captureActorViewImage({
     actorMesh,
     actorFieldOfView,
     otherActorFieldOfView,
+    excludedObjects,
   });
   const dataUrl = renderer.domElement.toDataURL(contentType);
   renderer.dispose();

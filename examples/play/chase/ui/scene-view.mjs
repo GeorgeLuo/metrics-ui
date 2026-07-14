@@ -87,6 +87,11 @@ export function createChaseSceneView({
   const obstacleMeshes = [];
   const surfaceGroup = new THREE.Group();
   const surfaceMeshes = [];
+  const frontViewCaptureDebugObjects = [
+    evaderProjectionGroup,
+    idaePredictionDebugGroup,
+    chaserActionPathDebugGroup,
+  ];
   let renderedObstacles = null;
   let renderedSurfaces = null;
 
@@ -377,7 +382,12 @@ export function createChaseSceneView({
     };
   };
 
-  const captureActorView = ({ actorId = "chaser", width, height } = {}) => {
+  const captureActorView = ({
+    actorId = "chaser",
+    width,
+    height,
+    includeDebugVisualizations = false,
+  } = {}) => {
     syncFloorMeshes();
     syncObstacleMeshes();
     syncSurfaceMeshes();
@@ -395,6 +405,7 @@ export function createChaseSceneView({
         actorLookDirection: simulationState.evaderDirection,
         fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
         fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
+        excludedObjects: includeDebugVisualizations ? [] : frontViewCaptureDebugObjects,
         width,
         height,
       });
@@ -408,6 +419,7 @@ export function createChaseSceneView({
       actorLookDirection: simulationState.chaserLookDirection,
       fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
       fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
+      excludedObjects: includeDebugVisualizations ? [] : frontViewCaptureDebugObjects,
       width,
       height,
     });

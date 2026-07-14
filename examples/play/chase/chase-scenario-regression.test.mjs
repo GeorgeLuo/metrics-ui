@@ -439,6 +439,7 @@ test("PiRacer room sketch scenario resolves rotated box obstacles", () => {
   const scenario = resolveChaseScenario(getChaseScenarioDefinition("piracer-room-sketch"), GRID);
   const leftBox = scenario.map.obstacles.walls.find((wall) => wall.id === "left-cardboard-box");
   const rightBox = scenario.map.obstacles.walls.find((wall) => wall.id === "right-cardboard-box");
+  const boundaryWalls = scenario.map.obstacles.walls.filter((wall) => wall.boundary);
 
   assert.equal(scenario.id, "piracer-room-sketch");
   assert.equal(scenario.map.layout, "piracer-room-sketch-two-boxes");
@@ -447,7 +448,20 @@ test("PiRacer room sketch scenario resolves rotated box obstacles", () => {
   assert.equal(scenario.actors.evader.exists, false);
   assert.equal(scenario.runtime.chaserControlSource, CHASER_CONTROL_SOURCES.KEYBOARD);
   assert.equal(scenario.runtime.programmaticChaserEnabled, false);
-  assert.equal(scenario.map.obstacles.walls.length, 2);
+  assert.equal(scenario.map.obstacles.walls.length, 6);
+  assert.deepEqual(
+    boundaryWalls.map((wall) => ({ id: wall.id, height: wall.height })),
+    [
+      { id: "room-wall-north", height: 2.4 },
+      { id: "room-wall-south", height: 2.4 },
+      { id: "room-wall-west", height: 2.4 },
+      { id: "room-wall-east", height: 2.4 },
+    ],
+  );
+  assert.equal(boundaryWalls.find((wall) => wall.id === "room-wall-north")?.z, -3.1);
+  assert.equal(boundaryWalls.find((wall) => wall.id === "room-wall-south")?.z, 3.1);
+  assert.equal(boundaryWalls.find((wall) => wall.id === "room-wall-west")?.x, -3.9);
+  assert.equal(boundaryWalls.find((wall) => wall.id === "room-wall-east")?.x, 3.9);
   assert.ok(leftBox, "expected left box obstacle");
   assert.ok(rightBox, "expected right box obstacle");
   assert.equal(roundNumber(leftBox.rotationRadians), roundNumber((-4 * Math.PI) / 180));
