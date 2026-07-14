@@ -22,6 +22,7 @@ function configureActorViewRenderCamera(camera, {
 }) {
   camera.fov = fieldOfViewAngleRadians * 180 / Math.PI;
   camera.aspect = width / height;
+  camera.far = fieldOfViewDistance;
   camera.updateProjectionMatrix();
   configureChaserViewCamera(camera, actorPosition, actorLookDirection);
 }
@@ -54,66 +55,106 @@ export function renderActorViewScene({
   }
 }
 
-export function captureActorViewImage({
-  scene,
-  actorMesh,
-  actorFieldOfView,
-  otherActorFieldOfView,
-  actorPosition,
-  actorLookDirection,
-  fieldOfViewAngleRadians,
-  fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
-  excludedObjects = [],
-  width,
-  height,
-  contentType = "image/png",
-} = {}) {
-  if (!scene || !actorMesh || !actorFieldOfView || !actorPosition || !actorLookDirection) {
-    return null;
-  }
-  const imageWidth = normalizeCaptureDimension(width, 640);
-  const imageHeight = normalizeCaptureDimension(height, 480);
-  const renderer = new THREE.WebGLRenderer({
+function createCaptureRenderer() {
+  return new THREE.WebGLRenderer({
     antialias: true,
     alpha: true,
     preserveDrawingBuffer: true,
   });
-  const camera = new THREE.PerspectiveCamera(
-    fieldOfViewAngleRadians * 180 / Math.PI,
-    imageWidth / imageHeight,
-    0.04,
-    fieldOfViewDistance,
-  );
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setClearColor(0x000000, 0);
-  renderer.setPixelRatio(1);
-  renderer.setSize(imageWidth, imageHeight, false);
-  configureActorViewRenderCamera(camera, {
-    actorPosition,
-    actorLookDirection,
-    fieldOfViewAngleRadians,
-    fieldOfViewDistance,
-    width: imageWidth,
-    height: imageHeight,
-  });
-  renderActorViewScene({
-    renderer,
-    camera,
+}
+
+function createCaptureCamera() {
+  return new THREE.PerspectiveCamera(50, 4 / 3, 0.04, FIELD_OF_VIEW_DISTANCE);
+}
+
+/** Owns one reusable offscreen WebGL context for front-view image captures. */
+export function createActorViewImageCapture({
+  createRenderer = createCaptureRenderer,
+  createCamera = createCaptureCamera,
+} = {}) {
+  let renderer = null;
+  let camera = null;
+
+  const disposeRenderer = () => {
+    if (!renderer) {
+      return;
+    }
+    const activeRenderer = renderer;
+    renderer = null;
+    const context = activeRenderer.getContext?.();
+    activeRenderer.dispose?.();
+    if (!context?.isContextLost?.()) {
+      activeRenderer.forceContextLoss?.();
+    }
+  };
+
+  const ensureResources = () => {
+    if (renderer?.getContext?.().isContextLost?.()) {
+      disposeRenderer();
+    }
+    if (!renderer) {
+      renderer = createRenderer();
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.setClearColor(0x000000, 0);
+      renderer.setPixelRatio(1);
+    }
+    camera ??= createCamera();
+    return { renderer, camera };
+  };
+
+  const capture = ({
     scene,
     actorMesh,
     actorFieldOfView,
     otherActorFieldOfView,
-    excludedObjects,
-  });
-  const dataUrl = renderer.domElement.toDataURL(contentType);
-  renderer.dispose();
-  renderer.forceContextLoss?.();
+    actorPosition,
+    actorLookDirection,
+    fieldOfViewAngleRadians,
+    fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
+    excludedObjects = [],
+    width,
+    height,
+    contentType = "image/png",
+  } = {}) => {
+    if (!scene || !actorMesh || !actorFieldOfView || !actorPosition || !actorLookDirection) {
+      return null;
+    }
+    const imageWidth = normalizeCaptureDimension(width, 640);
+    const imageHeight = normalizeCaptureDimension(height, 480);
+    const resources = ensureResources();
+    resources.renderer.setSize(imageWidth, imageHeight, false);
+    configureActorViewRenderCamera(resources.camera, {
+      actorPosition,
+      actorLookDirection,
+      fieldOfViewAngleRadians,
+      fieldOfViewDistance,
+      width: imageWidth,
+      height: imageHeight,
+    });
+    renderActorViewScene({
+      renderer: resources.renderer,
+      camera: resources.camera,
+      scene,
+      actorMesh,
+      actorFieldOfView,
+      otherActorFieldOfView,
+      excludedObjects,
+    });
+    return {
+      contentType,
+      rendererId: ACTOR_VIEW_IMAGE_RENDERER_ID,
+      width: imageWidth,
+      height: imageHeight,
+      dataUrl: resources.renderer.domElement.toDataURL(contentType),
+    };
+  };
+
   return {
-    contentType,
-    rendererId: ACTOR_VIEW_IMAGE_RENDERER_ID,
-    width: imageWidth,
-    height: imageHeight,
-    dataUrl,
+    capture,
+    dispose() {
+      disposeRenderer();
+      camera = null;
+    },
   };
 }
 

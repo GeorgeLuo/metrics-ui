@@ -30,7 +30,7 @@ import {
   isMapKnowledgeOverlayVisible,
   isMapRecencyOverlayVisible,
 } from "./settings.mjs";
-import { captureActorViewImage } from "./actor-view-controller.mjs";
+import { createActorViewImageCapture } from "./actor-view-controller.mjs";
 
 export function createChaseSceneView({
   container,
@@ -42,6 +42,7 @@ export function createChaseSceneView({
   evaderView,
 }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  const actorViewImageCapture = createActorViewImageCapture();
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -396,7 +397,7 @@ export function createChaseSceneView({
       if (!simulationState.evaderExists || !simulationState.evaderPosition || !simulationState.evaderDirection) {
         return null;
       }
-      return captureActorViewImage({
+      return actorViewImageCapture.capture({
         scene,
         actorMesh: evader,
         actorFieldOfView: evaderFieldOfView,
@@ -410,7 +411,7 @@ export function createChaseSceneView({
         height,
       });
     }
-    return captureActorViewImage({
+    return actorViewImageCapture.capture({
       scene,
       actorMesh: chaser,
       actorFieldOfView: chaserFieldOfView,
@@ -445,6 +446,7 @@ export function createChaseSceneView({
     disposeObject3D(floorGrid);
     obstacleMeshes.forEach(disposeObstacleMesh);
     surfaceMeshes.forEach(disposeObstacleMesh);
+    actorViewImageCapture.dispose();
     renderer.dispose();
   };
 
