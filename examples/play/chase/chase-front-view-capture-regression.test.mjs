@@ -15,6 +15,7 @@ import {
 import {
   buildManualFrontViewSnapshot,
 } from "./ui/front-view-snapshot.ts";
+import { renderActorViewScene } from "./ui/actor-view-controller.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 const BASE_SCENARIO = Object.freeze(resolveChaseScenario(defaultScenarioDefinition, GRID));
@@ -116,4 +117,34 @@ test("manual front-view snapshot renders without storing referenceable actor mem
     ),
     null,
   );
+});
+
+test("front-view image rendering excludes debug projections and restores scene visibility", () => {
+  const actorMesh = { visible: true };
+  const actorFieldOfView = { visible: true };
+  const otherActorFieldOfView = { visible: false };
+  const projectionGroup = { visible: true };
+  const renderer = {
+    render() {
+      assert.equal(actorMesh.visible, false);
+      assert.equal(actorFieldOfView.visible, false);
+      assert.equal(otherActorFieldOfView.visible, false);
+      assert.equal(projectionGroup.visible, false);
+    },
+  };
+
+  renderActorViewScene({
+    renderer,
+    camera: {},
+    scene: {},
+    actorMesh,
+    actorFieldOfView,
+    otherActorFieldOfView,
+    excludedObjects: [projectionGroup],
+  });
+
+  assert.equal(actorMesh.visible, true);
+  assert.equal(actorFieldOfView.visible, true);
+  assert.equal(otherActorFieldOfView.visible, false);
+  assert.equal(projectionGroup.visible, true);
 });

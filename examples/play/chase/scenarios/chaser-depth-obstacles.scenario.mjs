@@ -1,52 +1,5 @@
 import defaultScenarioDefinition from "./default.scenario.mjs";
-
-const ROOM_WALL_HEIGHT = 2.4;
-const ROOM_WALL_THICKNESS = 0.18;
-
-function createRoomBoundaryWalls(columns, rows) {
-  const halfColumns = columns / 2;
-  const halfRows = rows / 2;
-  const overlap = ROOM_WALL_THICKNESS;
-
-  return [
-    {
-      id: "room-wall-north",
-      x: 0,
-      z: -halfRows,
-      width: columns + overlap,
-      depth: ROOM_WALL_THICKNESS,
-      height: ROOM_WALL_HEIGHT,
-      boundary: true,
-    },
-    {
-      id: "room-wall-south",
-      x: 0,
-      z: halfRows,
-      width: columns + overlap,
-      depth: ROOM_WALL_THICKNESS,
-      height: ROOM_WALL_HEIGHT,
-      boundary: true,
-    },
-    {
-      id: "room-wall-west",
-      x: -halfColumns,
-      z: 0,
-      width: ROOM_WALL_THICKNESS,
-      depth: rows + overlap,
-      height: ROOM_WALL_HEIGHT,
-      boundary: true,
-    },
-    {
-      id: "room-wall-east",
-      x: halfColumns,
-      z: 0,
-      width: ROOM_WALL_THICKNESS,
-      depth: rows + overlap,
-      height: ROOM_WALL_HEIGHT,
-      boundary: true,
-    },
-  ];
-}
+import { createRoomBoundaryWalls } from "./room-boundary-walls.mjs";
 
 const ROOM_COLUMNS = 9;
 const ROOM_ROWS = 8;

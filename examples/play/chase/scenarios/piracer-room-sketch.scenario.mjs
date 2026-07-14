@@ -1,4 +1,5 @@
 import defaultScenarioDefinition from "./default.scenario.mjs";
+import { createRoomBoundaryWalls } from "./room-boundary-walls.mjs";
 
 // Approximation from runs/world_sketch/two-box-motion-5-20260609-110159.
 const CELL_UNITS = 0.2;
@@ -32,6 +33,7 @@ const piracerRoomSketchScenarioDefinition = {
     columns: COLUMNS,
     rows: ROWS,
     obstacles: [
+      ...createRoomBoundaryWalls(COLUMNS, ROWS),
       {
         id: "left-cardboard-box",
         x: leftBoxPosition.x,
