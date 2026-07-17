@@ -241,10 +241,6 @@ export function createChaseSceneView({
     );
     evaderFieldOfView.geometry.dispose();
     evaderFieldOfView.geometry = nextEvaderGeometry;
-    chaserView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
-    chaserView.setFieldOfViewDistance(vehicleSettings.fieldOfViewDistance);
-    evaderView.setFieldOfViewAngleRadians(vehicleSettings.fieldOfViewAngleRadians);
-    evaderView.setFieldOfViewDistance(vehicleSettings.fieldOfViewDistance);
   };
 
   const syncActorMeshes = () => {
