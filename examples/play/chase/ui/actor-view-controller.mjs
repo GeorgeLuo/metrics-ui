@@ -1,10 +1,14 @@
 import * as THREE from "three";
 import { FIELD_OF_VIEW_DISTANCE } from "../config/constants.mjs";
 import { SIMULATION_RENDERING_PROFILE } from "../rendering/profiles.ts";
-import { configureChaserViewCamera } from "./rendering.mjs";
+import {
+  applyChaseCameraProjection,
+  configureChaseActorCamera,
+  resolveChaseCamera,
+} from "../rendering/camera.ts";
 import { applyRenderingEnvironment } from "./rendering/environment.mjs";
 
-const DEFAULT_ACTOR_VIEW_WIDTH = 280;
+const DEFAULT_ACTOR_VIEW_HEIGHT = 210;
 const ACTOR_VIEW_IMAGE_RENDERER_ID = "chase-actor-view-threejs-v1";
 
 function normalizeCaptureDimension(value, fallback) {
@@ -23,16 +27,19 @@ function configureActorViewRenderCamera(camera, {
   width,
   height,
 }) {
-  camera.fov = fieldOfViewAngleRadians * 180 / Math.PI;
-  camera.aspect = width / height;
-  camera.far = fieldOfViewDistance;
-  camera.updateProjectionMatrix();
-  configureChaserViewCamera(
+  const resolvedCamera = resolveChaseCamera(
+    renderingProfile,
+    { fieldOfViewAngleRadians, fieldOfViewDistance },
+    { width, height },
+  );
+  applyChaseCameraProjection(camera, resolvedCamera);
+  configureChaseActorCamera(
     camera,
     actorPosition,
     actorLookDirection,
-    renderingProfile.camera.mount,
+    resolvedCamera.mount,
   );
+  return resolvedCamera;
 }
 
 export function renderActorViewScene({
@@ -128,12 +135,18 @@ export function createActorViewImageCapture({
     if (!scene || !actorMesh || !actorFieldOfView || !actorPosition || !actorLookDirection) {
       return null;
     }
-    const imageWidth = normalizeCaptureDimension(width, 640);
-    const imageHeight = normalizeCaptureDimension(height, 480);
+    const imageWidth = normalizeCaptureDimension(
+      width,
+      renderingProfile.camera.projection.imageWidth,
+    );
+    const imageHeight = normalizeCaptureDimension(
+      height,
+      renderingProfile.camera.projection.imageHeight,
+    );
     const resources = ensureResources();
     resources.renderer.setSize(imageWidth, imageHeight, false);
     applyRenderingEnvironment({ renderer: resources.renderer }, renderingProfile);
-    configureActorViewRenderCamera(resources.camera, {
+    const resolvedCamera = configureActorViewRenderCamera(resources.camera, {
       actorPosition,
       actorLookDirection,
       fieldOfViewAngleRadians,
@@ -156,6 +169,7 @@ export function createActorViewImageCapture({
       rendererId: ACTOR_VIEW_IMAGE_RENDERER_ID,
       width: imageWidth,
       height: imageHeight,
+      camera: resolvedCamera,
       dataUrl: resources.renderer.domElement.toDataURL(contentType),
     };
   };
@@ -219,8 +233,17 @@ export function createActorViewController({
     const viewWidth = Math.max(1, mountedView.frame.mount.clientWidth);
     const viewHeight = Math.max(1, mountedView.frame.mount.clientHeight);
     mountedView.renderer.setSize(viewWidth, viewHeight, false);
-    mountedView.camera.aspect = viewWidth / viewHeight;
-    mountedView.camera.updateProjectionMatrix();
+    applyChaseCameraProjection(
+      mountedView.camera,
+      resolveChaseCamera(
+        getRenderingProfile(),
+        {
+          fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
+          fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
+        },
+        { width: viewWidth, height: viewHeight },
+      ),
+    );
   };
 
   const scheduleMountedViewResize = () => {
@@ -260,15 +283,23 @@ export function createActorViewController({
     if (mountedView || typeof createFloatingFrame !== "function") {
       return;
     }
+    const initialCamera = resolveChaseCamera(
+      getRenderingProfile(),
+      {
+        fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
+        fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
+      },
+    );
+    const defaultWidth = Math.round(DEFAULT_ACTOR_VIEW_HEIGHT * initialCamera.projection.aspect);
     const frame = createFloatingFrame({
       id: frameId,
       title,
       bounds: "viewport",
       defaultPosition: {
-        x: Math.max(16, window.innerWidth - DEFAULT_ACTOR_VIEW_WIDTH - 24),
+        x: Math.max(16, window.innerWidth - defaultWidth - 24),
         y: 72,
       },
-      defaultSize: { width: DEFAULT_ACTOR_VIEW_WIDTH, height: 210 },
+      defaultSize: { width: defaultWidth, height: DEFAULT_ACTOR_VIEW_HEIGHT },
       minSize: { width: 180, height: 140 },
       minimizable: true,
       resizable: true,
@@ -290,10 +321,10 @@ export function createActorViewController({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     const lostTargetLabel = document.createElement("div");
     const camera = new THREE.PerspectiveCamera(
-      vehicleSettings.fieldOfViewAngleRadians * 180 / Math.PI,
-      4 / 3,
-      0.04,
-      vehicleSettings.fieldOfViewDistance,
+      initialCamera.projection.verticalFovDegrees,
+      initialCamera.projection.aspect,
+      initialCamera.projection.near,
+      initialCamera.projection.far,
     );
     const resizeObserver = new ResizeObserver(scheduleMountedViewResize);
 
@@ -344,22 +375,6 @@ export function createActorViewController({
     mountedView.frame.close();
   };
 
-  const setFieldOfViewAngleRadians = (fieldOfViewAngleRadians) => {
-    if (!mountedView) {
-      return;
-    }
-    mountedView.camera.fov = fieldOfViewAngleRadians * 180 / Math.PI;
-    mountedView.camera.updateProjectionMatrix();
-  };
-
-  const setFieldOfViewDistance = (fieldOfViewDistance) => {
-    if (!mountedView) {
-      return;
-    }
-    mountedView.camera.far = fieldOfViewDistance;
-    mountedView.camera.updateProjectionMatrix();
-  };
-
   const setTrackedActorVisible = (visible) => {
     if (!mountedView) {
       return;
@@ -384,13 +399,18 @@ export function createActorViewController({
     }
     syncControlWindow();
     const renderingProfile = getRenderingProfile();
+    const viewWidth = Math.max(1, mountedView.frame.mount.clientWidth);
+    const viewHeight = Math.max(1, mountedView.frame.mount.clientHeight);
     applyRenderingEnvironment({ renderer: mountedView.renderer }, renderingProfile);
-    configureChaserViewCamera(
-      mountedView.camera,
+    configureActorViewRenderCamera(mountedView.camera, {
       actorPosition,
       actorLookDirection,
-      renderingProfile.camera.mount,
-    );
+      fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
+      fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
+      renderingProfile,
+      width: viewWidth,
+      height: viewHeight,
+    });
     renderActorViewScene({
       renderer: mountedView.renderer,
       camera: mountedView.camera,
@@ -407,8 +427,6 @@ export function createActorViewController({
     dispose: () => close({ notifyVisibilityChange: false }),
     getRenderWindow,
     resize: resizeMountedView,
-    setFieldOfViewAngleRadians,
-    setFieldOfViewDistance,
     setTrackedActorVisible,
     render,
     isOpen: () => mountedView !== null,

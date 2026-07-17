@@ -14,6 +14,24 @@ export type ChaseRenderingMaterial = Readonly<{
   metalness: number;
 }>;
 
+/** Physical placement of the rendered camera relative to its vehicle. */
+export type ChaseCameraMount = Readonly<{
+  height: number;
+  pitchDownRadians: number;
+  yawRadians: number;
+  lookDistance: number;
+}>;
+
+/** Projection settings before they are resolved against a concrete image size. */
+export type ChaseCameraProjection = Readonly<{
+  source: "perception" | "profile";
+  verticalFovDegrees: number | null;
+  near: number;
+  far: number | null;
+  imageWidth: number;
+  imageHeight: number;
+}>;
+
 /**
  * Immutable visual input shared by the main scene, actor views, and captures.
  *
@@ -68,7 +86,8 @@ export type ChaseRenderingProfile = Readonly<{
     }>;
   }>;
   camera: Readonly<{
-    mount: Readonly<{ height: number; lookDistance: number }>;
+    mount: ChaseCameraMount;
+    projection: ChaseCameraProjection;
     lensModel: "pinhole";
   }>;
   sensor: Readonly<{

@@ -1,0 +1,101 @@
+{
+  "scope": "Camera mount and projection calibration",
+  "scenario": {
+    "id": "piracer-room-sketch",
+    "actorId": "chaser",
+    "pose": {
+      "position": { "x": 0, "z": -2.92 },
+      "direction": { "x": 0, "z": 1 }
+    },
+    "perception": {
+      "fieldOfViewDegrees": 86,
+      "fieldOfViewDistance": 14,
+      "invariant": "The rendering profile changes neither decision-model perception nor vehicle dynamics."
+    }
+  },
+  "physicalReference": {
+    "repository": "GeorgeLuo/auto-driving",
+    "sourcePath": "lab/runs/steps/two-box-motion-5-20260609-110159/images-only/step_00.jpg",
+    "localArtifact": "piracer-physical-frame-0.jpg",
+    "image": { "width": 640, "height": 480 },
+    "sha256": "367b92873e84aef400df0cf3dbd5d36665c8bf850a25ce318e207a7a5aa50cef"
+  },
+  "calibration": {
+    "selectionMethod": "Fixed-pose visual composition against the physical two-box frame.",
+    "rcIndoor": {
+      "mount": {
+        "height": 0.16,
+        "pitchDownDegrees": 2.8,
+        "yawDegrees": 0,
+        "lookDistance": 2
+      },
+      "projection": {
+        "lensModel": "pinhole",
+        "horizontalFovDegrees": 86,
+        "verticalFovDegrees": 69.93683003268463,
+        "near": 0.04,
+        "far": 14,
+        "image": { "width": 640, "height": 480 }
+      },
+      "rationale": "The archived calibration script exposes 62.2 by 48.8 degrees only as a default FOV prior. At the matched scenario pose that narrow pinhole crop pushed both boxes against the frame edges. An 86 degree horizontal pinhole equivalent preserves the physical frame's two-box composition while lens distortion remains deferred."
+    },
+    "simulationBaseline": {
+      "mount": {
+        "height": 0.42,
+        "pitchDownDegrees": 6.654425046006596,
+        "yawDegrees": 0,
+        "lookDistance": 3
+      },
+      "projection": {
+        "source": "perception",
+        "verticalFovDegrees": 86,
+        "horizontalFovDegrees": 102.38219248963944,
+        "near": 0.04,
+        "far": 14,
+        "image": { "width": 640, "height": 480 }
+      }
+    }
+  },
+  "captures": [
+    {
+      "profileId": "rc-indoor",
+      "artifact": "rc-indoor-calibrated.png",
+      "sha256": "b95b66d2768e4c7f1e87dda4c41c6848e000f93e5951538bbcc3da5b078a8f53",
+      "frameIndex": 616,
+      "image": { "width": 640, "height": 480 },
+      "cameraProjectionSource": "profile"
+    },
+    {
+      "profileId": "simulation",
+      "artifact": "simulation-baseline.png",
+      "sha256": "d63bfa17ce7f0ffb743dfd7e72843f71564ae127f7a490a444340f09f419b000",
+      "frameIndex": 1481,
+      "image": { "width": 640, "height": 480 },
+      "cameraProjectionSource": "perception"
+    }
+  ],
+  "frameIndexNote": "The runtime continues to advance empty simulation frames during capture setup. Both evidence captures retain the identical initial chaser pose recorded above, with no evader and no movement input.",
+  "determinism": {
+    "repeatArtifactFrameIndex": 11084,
+    "repeatSha256": "b95b66d2768e4c7f1e87dda4c41c6848e000f93e5951538bbcc3da5b078a8f53",
+    "result": "The repeated RC-indoor capture has the same pose, resolved camera metadata, and byte-identical PNG hash as the committed RC evidence image."
+  },
+  "observation": {
+    "improved": [
+      "RC indoor places the rendered camera near vehicle height instead of the elevated debugging mount.",
+      "The calibrated pinhole view keeps both boxes within the 640 by 480 physical-frame composition.",
+      "WebSocket snapshot metadata now records the fully resolved mount, near/far clipping, FOV, aspect, and image size."
+    ],
+    "remainingGaps": [
+      "The physical camera has visible barrel distortion; this pinhole-only package does not model it.",
+      "The physical room contains a door, trim, artwork, furniture, and real carpet texture that the simplified Chase geometry does not reproduce.",
+      "The mount height and pitch are explicit visual estimates, not independently measured physical extrinsics."
+    ]
+  },
+  "reproduction": [
+    "simeval ui subapp --app play --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id scenario-select --value '\"piracer-room-sketch\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id rendering-profile --value '\"PROFILE_ID\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-front-view-snapshot --actor chaser --width 640 --height 480 --out-dir /tmp/chase-camera-PROFILE_ID --ui ws://localhost:5050/ws/control"
+  ]
+}

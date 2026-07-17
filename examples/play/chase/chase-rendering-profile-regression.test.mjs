@@ -23,11 +23,14 @@ import {
 } from "./ui/rendering/environment.mjs";
 import { createTexturedFloor } from "./ui/rendering/floor.mjs";
 import {
-  configureChaserViewCamera,
   createWall,
   disposeObject3D,
   getWallMaterialOptions,
 } from "./ui/rendering/world-objects.mjs";
+import {
+  configureChaseActorCamera,
+  resolveChaseCamera,
+} from "./rendering/camera.ts";
 import { createChaseScenarioSession } from "./ui/scenario-session.mjs";
 import { createSidebarActionDescriptors } from "./ui/sidebar-action-descriptors.mjs";
 import { publishSidebarSections } from "./ui/sidebar.mjs";
@@ -95,8 +98,38 @@ test("rendering profiles preserve simulation and resolve distinct RC indoor valu
     rcIndoor.environment.materials.roomWall.fallbackColor,
     rcIndoor.environment.materials.obstacle.fallbackColor,
   );
-  assert.deepEqual(rcIndoor.camera, SIMULATION_RENDERING_PROFILE.camera);
+  assert.equal(SIMULATION_RENDERING_PROFILE.camera.projection.source, "perception");
+  assert.equal(rcIndoor.camera.projection.source, "profile");
+  assert.ok(Math.abs(rcIndoor.camera.projection.verticalFovDegrees - 69.94) < 0.01);
+  assert.equal(rcIndoor.camera.mount.height, 0.16);
+  assert.notDeepEqual(rcIndoor.camera, SIMULATION_RENDERING_PROFILE.camera);
   assert.deepEqual(rcIndoor.sensor, SIMULATION_RENDERING_PROFILE.sensor);
+});
+
+test("camera resolution preserves simulation perception while RC indoor owns calibration", () => {
+  const simulationCamera = resolveChaseCamera(
+    SIMULATION_RENDERING_PROFILE,
+    { fieldOfViewAngleRadians: Math.PI / 3, fieldOfViewDistance: 18 },
+    { width: 640, height: 480 },
+  );
+  const rcIndoorCamera = resolveChaseCamera(
+    resolveChaseRenderingProfile("rc-indoor"),
+    { fieldOfViewAngleRadians: 86 * Math.PI / 180, fieldOfViewDistance: 30 },
+    { width: 640, height: 480 },
+  );
+
+  assert.equal(simulationCamera.projection.source, "perception");
+  assert.ok(Math.abs(simulationCamera.projection.verticalFovDegrees - 60) < 0.0001);
+  assert.equal(simulationCamera.projection.far, 18);
+  assert.equal(rcIndoorCamera.projection.source, "profile");
+  assert.ok(Math.abs(rcIndoorCamera.projection.verticalFovDegrees - 69.94) < 0.01);
+  assert.ok(Math.abs(rcIndoorCamera.projection.horizontalFovDegrees - 86) < 0.01);
+  assert.equal(rcIndoorCamera.projection.near, 0.04);
+  assert.equal(rcIndoorCamera.projection.far, 14);
+  assert.deepEqual(
+    [rcIndoorCamera.projection.imageWidth, rcIndoorCamera.projection.imageHeight],
+    [640, 480],
+  );
 });
 
 test("scenario session retains a rendering override across reset and clears it on load", () => {
@@ -137,6 +170,9 @@ test("simulation state and manual snapshots expose the resolved rendering profil
   assert.equal(state.renderingProfile, scenario.rendering);
   assert.equal(snapshot.renderingProfile.id, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
   assert.equal(snapshot.renderingProfile.seed, 17);
+  assert.equal(snapshot.camera.projection.source, "profile");
+  assert.ok(Math.abs(snapshot.camera.projection.verticalFovDegrees - 69.94) < 0.01);
+  assert.ok(Math.abs(snapshot.camera.projection.horizontalFovDegrees - 86) < 0.01);
 });
 
 test("environment, materials, and camera consume resolved profile values", () => {
@@ -177,7 +213,12 @@ test("environment, materials, and camera consume resolved profile values", () =>
     edgeColor: 0x778899,
     edgeOpacity: 0.6,
   };
-  profile.camera.mount = { height: 1.25, lookDistance: 2.5 };
+  profile.camera.mount = {
+    height: 1.25,
+    pitchDownRadians: Math.atan(0.5 / 2.5),
+    yawRadians: Math.PI / 2,
+    lookDistance: 2.5,
+  };
 
   let clearColor = null;
   const renderer = {
@@ -218,12 +259,12 @@ test("environment, materials, and camera consume resolved profile values", () =>
   assert.equal(wall.receiveShadow, true);
 
   const cameraCalls = { position: null, lookAt: null };
-  configureChaserViewCamera({
+  configureChaseActorCamera({
     position: { set: (...values) => { cameraCalls.position = values; } },
     lookAt: (...values) => { cameraCalls.lookAt = values; },
   }, { x: 4, z: 5 }, { x: 1, z: 0 }, profile.camera.mount);
   assert.deepEqual(cameraCalls.position, [4, 1.25, 5]);
-  assert.deepEqual(cameraCalls.lookAt, [6.5, 0.07, 5]);
+  assert.deepEqual(cameraCalls.lookAt, [4, 0.75, 2.5]);
 
   disposeObject3D(floor);
   disposeObject3D(wall);
@@ -270,8 +311,21 @@ test("RC indoor materials generate deterministic carpet and cardboard textures",
 test("offscreen actor capture consumes profile clear color and camera mount", () => {
   const profile = structuredClone(SIMULATION_RENDERING_PROFILE);
   profile.environment.clear = { color: 0xabcdef, alpha: 0.25 };
-  profile.camera.mount = { height: 1.1, lookDistance: 2 };
-  const observations = { clear: null, position: null, lookAt: null };
+  profile.camera.mount = {
+    height: 1.1,
+    pitchDownRadians: Math.atan(0.2 / 2),
+    yawRadians: 0,
+    lookDistance: 2,
+  };
+  profile.camera.projection = {
+    source: "profile",
+    verticalFovDegrees: 48.8,
+    near: 0.06,
+    far: 12,
+    imageWidth: 640,
+    imageHeight: 480,
+  };
+  const observations = { clear: null, position: null, lookAt: null, camera: null };
   const captureSession = createActorViewImageCapture({
     createRenderer: () => ({
       domElement: { toDataURL: () => "data:image/png;base64,dGVzdA==" },
@@ -284,6 +338,10 @@ test("offscreen actor capture consumes profile clear color and camera mount", ()
       setSize() {},
     }),
     createCamera: () => ({
+      set fov(value) { observations.camera = { ...(observations.camera ?? {}), fov: value }; },
+      set aspect(value) { observations.camera = { ...(observations.camera ?? {}), aspect: value }; },
+      set near(value) { observations.camera = { ...(observations.camera ?? {}), near: value }; },
+      set far(value) { observations.camera = { ...(observations.camera ?? {}), far: value }; },
       position: { set: (...values) => { observations.position = values; } },
       lookAt: (...values) => { observations.lookAt = values; },
       updateProjectionMatrix() {},
@@ -302,7 +360,15 @@ test("offscreen actor capture consumes profile clear color and camera mount", ()
 
   assert.deepEqual(observations.clear, [0xabcdef, 0.25]);
   assert.deepEqual(observations.position, [3, 1.1, 4]);
-  assert.deepEqual(observations.lookAt, [3, 0.07, 6]);
+  assert.equal(observations.lookAt[0], 3);
+  assert.ok(Math.abs(observations.lookAt[1] - 0.9) < 0.0001);
+  assert.equal(observations.lookAt[2], 6);
+  assert.deepEqual(observations.camera, {
+    fov: 48.8,
+    aspect: 4 / 3,
+    near: 0.06,
+    far: 12,
+  });
   captureSession.dispose();
 });
 

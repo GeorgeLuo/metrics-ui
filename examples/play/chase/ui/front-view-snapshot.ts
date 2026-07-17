@@ -12,6 +12,10 @@ import {
   SIMULATION_RENDERING_PROFILE,
 } from "../rendering/profiles.ts";
 import type { ChaseRenderingProfile } from "../rendering/profile-contract.ts";
+import {
+  resolveChaseCamera,
+  type ResolvedChaseCamera,
+} from "../rendering/camera.ts";
 
 type ActorId = "chaser" | "evader";
 type RuntimeRecord = Record<string, any>;
@@ -38,6 +42,7 @@ export type ManualFrontViewSnapshot = {
   actorId: ActorId;
   frameIndex: number | null;
   renderingProfile: ChaseRenderingProfile;
+  camera: ResolvedChaseCamera;
   referenceable: false;
   persistence: {
     storedInActorMemory: false;
@@ -46,9 +51,6 @@ export type ManualFrontViewSnapshot = {
   record: VehicleFrontViewCaptureRecord;
   image: ManualFrontViewSnapshotImage;
 };
-
-const DEFAULT_WIDTH = 640;
-const DEFAULT_HEIGHT = 480;
 
 function normalizeActorId(actorId: unknown): ActorId {
   return actorId === "evader" ? "evader" : "chaser";
@@ -63,12 +65,13 @@ function normalizeImageSize(value: unknown, fallback: number): number {
 
 function normalizeRenderedImage(
   value: ManualFrontViewSnapshotImage | null | undefined,
+  { width: fallbackWidth, height: fallbackHeight }: Readonly<{ width: number; height: number }>,
 ): ManualFrontViewSnapshotImage | null {
   if (!value || typeof value !== "object") {
     return null;
   }
-  const width = normalizeImageSize(value.width, DEFAULT_WIDTH);
-  const height = normalizeImageSize(value.height, DEFAULT_HEIGHT);
+  const width = normalizeImageSize(value.width, fallbackWidth);
+  const height = normalizeImageSize(value.height, fallbackHeight);
   return {
     contentType: typeof value.contentType === "string" && value.contentType
       ? value.contentType
@@ -131,8 +134,9 @@ export function buildManualFrontViewSnapshot(
     throw new Error("Cannot snapshot evader front view because the evader does not exist.");
   }
 
-  const width = normalizeImageSize(options.width, DEFAULT_WIDTH);
-  const height = normalizeImageSize(options.height, DEFAULT_HEIGHT);
+  const renderingProfile = simulationState.renderingProfile ?? SIMULATION_RENDERING_PROFILE;
+  const width = normalizeImageSize(options.width, renderingProfile.camera.projection.imageWidth);
+  const height = normalizeImageSize(options.height, renderingProfile.camera.projection.imageHeight);
   const pose = getActorPose(simulationState, actorId);
   const record = createVehicleFrontViewCaptureRecord({
     actorId,
@@ -152,7 +156,7 @@ export function buildManualFrontViewSnapshot(
     throw new Error(`Cannot snapshot ${actorId} front view because the actor pose is unavailable.`);
   }
 
-  const renderedImage = normalizeRenderedImage(options.renderedImage);
+  const renderedImage = normalizeRenderedImage(options.renderedImage, { width, height });
   const fallbackSvg = renderedImage
     ? null
     : renderVehicleFrontViewCaptureSvg(record, { width, height });
@@ -170,13 +174,22 @@ export function buildManualFrontViewSnapshot(
     width: image.width,
     height: image.height,
   };
+  const camera = resolveChaseCamera(
+    renderingProfile,
+    {
+      fieldOfViewAngleRadians: simulationState.vehicleSettings?.fieldOfViewAngleRadians,
+      fieldOfViewDistance: simulationState.vehicleSettings?.fieldOfViewDistance,
+    },
+    { width: image.width, height: image.height },
+  );
 
   return {
     gameId: "chase",
     snapshotType: "manual-front-view",
     actorId,
     frameIndex: record.frameIndex,
-    renderingProfile: simulationState.renderingProfile ?? SIMULATION_RENDERING_PROFILE,
+    renderingProfile,
+    camera,
     referenceable: false,
     persistence: {
       storedInActorMemory: false,

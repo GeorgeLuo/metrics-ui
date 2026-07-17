@@ -1,4 +1,5 @@
 import {
+  CAR_HEIGHT,
   CHASER_VIEW_CAMERA_HEIGHT,
   CHASER_VIEW_LOOK_DISTANCE,
 } from "../config/constants.mjs";
@@ -10,6 +11,19 @@ import {
 
 const PROFILE_ID_SET = new Set<string>(Object.values(CHASE_RENDERING_PROFILE_IDS));
 const MAX_SEED = 0xffffffff;
+const CAMERA_NEAR_DISTANCE = 0.04;
+const CAMERA_IMAGE_WIDTH = 640;
+const CAMERA_IMAGE_HEIGHT = 480;
+const RC_INDOOR_COMPOSITION_HORIZONTAL_FOV_DEGREES = 86;
+const RC_INDOOR_REFERENCE_ASPECT = CAMERA_IMAGE_WIDTH / CAMERA_IMAGE_HEIGHT;
+const RC_INDOOR_COMPOSITION_VERTICAL_FOV_DEGREES = 2 * Math.atan(
+  Math.tan(RC_INDOOR_COMPOSITION_HORIZONTAL_FOV_DEGREES * Math.PI / 360)
+  / RC_INDOOR_REFERENCE_ASPECT,
+) * 180 / Math.PI;
+const SIMULATION_CAMERA_PITCH_DOWN_RADIANS = Math.atan2(
+  CHASER_VIEW_CAMERA_HEIGHT - CAR_HEIGHT / 2,
+  CHASER_VIEW_LOOK_DISTANCE,
+);
 
 function deepFreeze<T>(value: T): T {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) {
@@ -85,7 +99,17 @@ function createBaselineProfile(id: ChaseRenderingProfileId): ChaseRenderingProfi
     camera: {
       mount: {
         height: CHASER_VIEW_CAMERA_HEIGHT,
+        pitchDownRadians: SIMULATION_CAMERA_PITCH_DOWN_RADIANS,
+        yawRadians: 0,
         lookDistance: CHASER_VIEW_LOOK_DISTANCE,
+      },
+      projection: {
+        source: "perception",
+        verticalFovDegrees: null,
+        near: CAMERA_NEAR_DISTANCE,
+        far: null,
+        imageWidth: CAMERA_IMAGE_WIDTH,
+        imageHeight: CAMERA_IMAGE_HEIGHT,
       },
       lensModel: "pinhole",
     },
@@ -152,6 +176,23 @@ function createRcIndoorProfile(): ChaseRenderingProfile {
           edgeColor: 0x8c8a82,
           edgeOpacity: 0.72,
         },
+      },
+    },
+    camera: {
+      ...baseline.camera,
+      mount: {
+        height: 0.16,
+        pitchDownRadians: 2.8 * Math.PI / 180,
+        yawRadians: 0,
+        lookDistance: 2,
+      },
+      projection: {
+        source: "profile",
+        verticalFovDegrees: RC_INDOOR_COMPOSITION_VERTICAL_FOV_DEGREES,
+        near: CAMERA_NEAR_DISTANCE,
+        far: 14,
+        imageWidth: CAMERA_IMAGE_WIDTH,
+        imageHeight: CAMERA_IMAGE_HEIGHT,
       },
     },
   });

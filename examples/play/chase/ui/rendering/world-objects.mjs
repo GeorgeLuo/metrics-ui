@@ -238,17 +238,3 @@ export function configureCamera(camera, columns, rows, width, height) {
   camera.bottom = -viewHeight / 2;
   camera.updateProjectionMatrix();
 }
-
-export function configureChaserViewCamera(
-  camera,
-  chaserPosition,
-  lookDirection,
-  mount = SIMULATION_RENDERING_PROFILE.camera.mount,
-) {
-  camera.position.set(chaserPosition.x, mount.height, chaserPosition.z);
-  camera.lookAt(
-    chaserPosition.x + lookDirection.x * mount.lookDistance,
-    CAR_HEIGHT / 2,
-    chaserPosition.z + lookDirection.z * mount.lookDistance,
-  );
-}
