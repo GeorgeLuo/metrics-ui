@@ -92,6 +92,10 @@ test("chase play usage documents CLI flow and game command ids", () => {
     usage.cli.some((group) => group.commands.some((command) => command.command.includes("play-chaser-control"))),
     "expected usage CLI examples to include chaser control",
   );
+  assert.ok(
+    usage.cli.some((group) => group.commands.some((command) => command.command.includes("rendering-seed"))),
+    "expected usage CLI examples to include deterministic rendering variation",
+  );
 });
 
 test("keyboard chaser input can relay from a popout window", () => {

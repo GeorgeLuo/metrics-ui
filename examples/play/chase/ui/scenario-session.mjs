@@ -7,6 +7,7 @@ import {
 import {
   CHASE_RENDERING_PROFILE_OPTIONS,
   normalizeChaseRenderingProfileId,
+  normalizeChaseRenderingSeed,
 } from "../rendering/profiles.ts";
 
 export function createScenarioDefinitionWithEvaderOverride(scenarioDefinition, evaderExists) {
@@ -24,11 +25,13 @@ export function createScenarioDefinitionWithEvaderOverride(scenarioDefinition, e
 export function createScenarioDefinitionWithRenderingProfileOverride(
   scenarioDefinition,
   renderingProfileId,
+  renderingSeed,
 ) {
   const nextDefinition = structuredClone(scenarioDefinition);
   nextDefinition.rendering = {
     ...(nextDefinition.rendering ?? {}),
     profile: normalizeChaseRenderingProfileId(renderingProfileId),
+    seed: normalizeChaseRenderingSeed(renderingSeed),
   };
   return nextDefinition;
 }
@@ -39,6 +42,10 @@ function getScenarioEvaderExists(scenarioDefinition, dimensions) {
 
 function getScenarioRenderingProfileId(scenarioDefinition, dimensions) {
   return resolveChaseScenario(scenarioDefinition, dimensions).rendering.id;
+}
+
+function getScenarioRenderingSeed(scenarioDefinition, dimensions) {
+  return resolveChaseScenario(scenarioDefinition, dimensions).rendering.seed;
 }
 
 function createViewportSpec(scenario) {
@@ -62,11 +69,13 @@ export function createChaseScenarioSession({ columns, rows } = {}) {
     activeScenarioDefinition,
     dimensions,
   );
+  let renderingSeedOverride = getScenarioRenderingSeed(activeScenarioDefinition, dimensions);
 
   const buildScenario = () => resolveChaseScenario(
     createScenarioDefinitionWithRenderingProfileOverride(
       createScenarioDefinitionWithEvaderOverride(activeScenarioDefinition, evaderExistsOverride),
       renderingProfileIdOverride,
+      renderingSeedOverride,
     ),
     dimensions,
   );
@@ -79,6 +88,7 @@ export function createChaseScenarioSession({ columns, rows } = {}) {
       activeScenarioDefinition,
       dimensions,
     );
+    renderingSeedOverride = getScenarioRenderingSeed(activeScenarioDefinition, dimensions);
     return buildScenario();
   };
 
@@ -89,6 +99,14 @@ export function createChaseScenarioSession({ columns, rows } = {}) {
 
   const setRenderingProfile = (renderingProfileId) => {
     renderingProfileIdOverride = normalizeChaseRenderingProfileId(renderingProfileId);
+    if (renderingProfileIdOverride === "randomized" && renderingSeedOverride === null) {
+      renderingSeedOverride = 0;
+    }
+    return buildScenario();
+  };
+
+  const setRenderingSeed = (renderingSeed) => {
+    renderingSeedOverride = normalizeChaseRenderingSeed(renderingSeed, 0);
     return buildScenario();
   };
 
@@ -97,6 +115,7 @@ export function createChaseScenarioSession({ columns, rows } = {}) {
     loadScenario,
     setEvaderExists,
     setRenderingProfile,
+    setRenderingSeed,
     getSidebarControls(simulationState) {
       return {
         activeScenarioId,
@@ -104,6 +123,9 @@ export function createChaseScenarioSession({ columns, rows } = {}) {
         evaderExists: simulationState?.evaderExists !== false,
         renderingProfileId: simulationState?.renderingProfile?.id
           ?? renderingProfileIdOverride,
+        renderingSeed: simulationState?.renderingProfile?.seed
+          ?? renderingSeedOverride
+          ?? 0,
         renderingProfileOptions: CHASE_RENDERING_PROFILE_OPTIONS,
       };
     },

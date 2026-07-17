@@ -23,8 +23,11 @@ import {
   MAX_EVADER_PROJECTION_HORIZON_FRAMES,
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
   MAX_SIMULATION_FRAMES_PER_SECOND,
+  MAX_RENDERING_SEED,
+  MIN_RENDERING_SEED,
   MIN_SIMULATION_FRAMES_PER_SECOND,
   RENDERING_PROFILE_ACTION_ID,
+  RENDERING_SEED_ACTION_ID,
   SCENARIO_SELECT_ACTION_ID,
   SIMULATION_FPS_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
@@ -75,6 +78,7 @@ function createSimulationActionDescriptors(context) {
     getEvaderExists,
     setEvaderExists,
     setRenderingProfile,
+    setRenderingSeed,
   } = context;
   return [
     {
@@ -136,6 +140,15 @@ function createSimulationActionDescriptors(context) {
       handler(value) {
         if (typeof value === "string") {
           setRenderingProfile?.(value);
+        }
+      },
+    },
+    {
+      id: RENDERING_SEED_ACTION_ID,
+      handler(value) {
+        const seed = parseClampedInteger(value, MIN_RENDERING_SEED, MAX_RENDERING_SEED);
+        if (seed !== null) {
+          setRenderingSeed?.(seed);
         }
       },
     },

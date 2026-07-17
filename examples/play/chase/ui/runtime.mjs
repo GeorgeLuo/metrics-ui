@@ -252,6 +252,14 @@ export function createPlayGame({
     refreshSidebarSections();
     publishDebugSnapshot();
   };
+  const setRenderingSeed = (renderingSeed) => {
+    scenario = scenarioSession.setRenderingSeed(renderingSeed);
+    simulationState.scenario = scenario;
+    simulationState.renderingProfile = scenario.rendering;
+    sceneView.updateRenderingProfile();
+    refreshSidebarSections();
+    publishDebugSnapshot();
+  };
 
   updateGreentextDebugOverlay();
   refreshSidebarSections();
@@ -287,6 +295,7 @@ export function createPlayGame({
     getEvaderExists: () => simulationState.evaderExists !== false,
     setEvaderExists,
     setRenderingProfile,
+    setRenderingSeed,
     getActorActionProposalCollections: () => getActorActionProposalCollections(simulationState),
     setActorActionProposalEnabled: (actorId, actionProposalId, enabled) => {
       actorActionProposalOverrides = setActorActionProposalOverride({

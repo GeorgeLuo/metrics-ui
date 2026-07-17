@@ -65,6 +65,19 @@ export function buildChasePlayUsage() {
         ],
       },
       {
+        group: "Rendering variation",
+        commands: [
+          {
+            command: "simeval ui play-game-action --action-id rendering-profile --value '\"randomized\"'",
+            description: "Select the seeded RC indoor variation profile for the current Chase session.",
+          },
+          {
+            command: "simeval ui play-game-action --action-id rendering-seed --value 17",
+            description: "Set the bounded visual variation seed, then reset or capture the same reproducible scene.",
+          },
+        ],
+      },
+      {
         group: "Observation and debugging",
         commands: [
           {

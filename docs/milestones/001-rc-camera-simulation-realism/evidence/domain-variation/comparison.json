@@ -1,0 +1,73 @@
+{
+  "scope": "Seeded bounded variation around the calibrated RC indoor profile",
+  "scenario": {
+    "id": "piracer-room-sketch",
+    "actorId": "chaser",
+    "frameIndex": 0,
+    "image": { "width": 640, "height": 480 },
+    "invariants": [
+      "Chaser pose, world geometry, vehicle dynamics, field-of-view perception, camera mount, and camera projection are unchanged.",
+      "The deterministic simulation profile remains a no-op and the fixed rc-indoor profile remains the physical-comparison center."
+    ]
+  },
+  "variationRanges": {
+    "exposure": [1.05, 1.25],
+    "ambientIntensity": [0.78, 1.02],
+    "keyLightIntensity": [2.15, 2.65],
+    "shadowRadius": [1.6, 2.4],
+    "floorRoughness": [0.94, 0.995],
+    "obstacleRoughness": [0.82, 0.94],
+    "barrelDistortion": [0.08, 0.16],
+    "vignette": [0.06, 0.14]
+  },
+  "captures": [
+    {
+      "seed": 17,
+      "artifact": "randomized-seed-17-frame-0.png",
+      "sha256": "0b57f9f658313322dcd4b18b68f00d3777e2ba01596b8dd81a1a1c0eeb75c38b",
+      "resolved": {
+        "exposure": 1.185430059209466,
+        "ambientIntensity": 0.8262376610934734,
+        "keyLightIntensity": 2.4156919532455503,
+        "shadowRadius": 1.732377851754427,
+        "floorRoughness": 0.9448281847825274,
+        "obstacleRoughness": 0.9112987298797816,
+        "barrelDistortion": 0.10256971199065447,
+        "vignette": 0.10371607251465322
+      }
+    },
+    {
+      "seed": 761,
+      "artifact": "randomized-seed-761-frame-0.png",
+      "sha256": "a54441b63c5e0366eaebcabcd50f4e58a52629e7e18c527564ad87a4dba3bd20",
+      "resolved": {
+        "exposure": 1.0644618420396001,
+        "ambientIntensity": 0.9622426325641573,
+        "keyLightIntensity": 2.361978781153448,
+        "shadowRadius": 2.0812857706099748,
+        "floorRoughness": 0.9884122210997157,
+        "obstacleRoughness": 0.8826400540769099,
+        "barrelDistortion": 0.14656372655183075,
+        "vignette": 0.09153652926906944
+      }
+    }
+  ],
+  "determinism": {
+    "seed": 17,
+    "repeatSha256": "0b57f9f658313322dcd4b18b68f00d3777e2ba01596b8dd81a1a1c0eeb75c38b",
+    "result": "Two frontend snapshots at the same frame and pose with seed 17 produced byte-identical PNGs and equal resolved profile metadata."
+  },
+  "physicalReference": {
+    "centerProfile": "rc-indoor",
+    "artifact": "../camera-calibration/piracer-physical-frame-0.jpg",
+    "relationship": "Variation is bounded around the calibrated RC indoor center. The varied seeds are not independently asserted to match separate physical camera conditions."
+  },
+  "reproduction": [
+    "simeval ui subapp --app play --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id scenario-select --value '\"piracer-room-sketch\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id rendering-profile --value '\"randomized\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id rendering-seed --value 17 --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id simulation-reset --ui ws://localhost:5050/ws/control",
+    "simeval ui play-front-view-snapshot --actor chaser --width 640 --height 480 --out-dir /tmp/chase-variation-seed-17 --ui ws://localhost:5050/ws/control"
+  ]
+}
