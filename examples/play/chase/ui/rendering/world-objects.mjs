@@ -10,6 +10,7 @@ import {
   EVADER_FIELD_OF_VIEW_COLOR,
 } from "../../config/constants.mjs";
 import { SIMULATION_RENDERING_PROFILE } from "../../rendering/profiles.ts";
+import { createWallTexture } from "./textures/wall-texture.mjs";
 
 export function createCar(color) {
   const car = new THREE.Group();
@@ -22,6 +23,8 @@ export function createCar(color) {
     metalness: 0.05,
   });
   const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+  body.castShadow = true;
+  body.receiveShadow = true;
   const wheelGeometry = new THREE.BoxGeometry(CAR_WIDTH * 0.12, CAR_HEIGHT * 0.42, CAR_LENGTH * 0.22);
   const wheelMaterial = new THREE.MeshStandardMaterial({
     color: 0x111827,
@@ -41,6 +44,8 @@ export function createCar(color) {
     { x: wheelX, z: rearZ, steerable: false },
   ].forEach((wheelSpec) => {
     const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel.castShadow = true;
+    wheel.receiveShadow = true;
     wheel.position.set(wheelSpec.x, wheelY, wheelSpec.z);
     wheel.name = wheelSpec.steerable ? "front-wheel" : "rear-wheel";
     if (wheelSpec.steerable) {
@@ -94,6 +99,14 @@ export function disposeObject3D(object) {
   });
 }
 
+/** Selects visual material values without changing obstacle geometry semantics. */
+export function getWallMaterialOptions(
+  wall,
+  materials = SIMULATION_RENDERING_PROFILE.environment.materials,
+) {
+  return wall?.boundary ? materials.roomWall : materials.obstacle;
+}
+
 export function createWall(
   wall,
   materialOptions = SIMULATION_RENDERING_PROFILE.environment.materials.obstacle,
@@ -102,12 +115,18 @@ export function createWall(
     ? wall.height
     : OBSTACLE_PRISM_HEIGHT;
   const geometry = new THREE.BoxGeometry(wall.width, wallHeight, wall.depth);
+  const texture = createWallTexture({ ...wall, height: wallHeight }, materialOptions);
   const material = new THREE.MeshStandardMaterial({
-    color: materialOptions.color,
+    color: texture
+      ? materialOptions.color
+      : materialOptions.fallbackColor ?? materialOptions.color,
+    map: texture,
     roughness: materialOptions.roughness,
     metalness: materialOptions.metalness,
   });
   const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   mesh.position.set(wall.x, wallHeight / 2, wall.z);
   mesh.rotation.y = Number(wall.rotationRadians) || 0;
   const edgeGeometry = new THREE.EdgesGeometry(geometry, 18);
@@ -139,6 +158,7 @@ export function createSurfacePatch(
     depthWrite: false,
   });
   const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
   mesh.position.set(surface.x, 0.003, surface.z);
   mesh.rotation.y = Number(surface.rotationRadians) || 0;
   return mesh;

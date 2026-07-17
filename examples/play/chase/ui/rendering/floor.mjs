@@ -1,71 +1,10 @@
 import * as THREE from "three";
 import { SIMULATION_RENDERING_PROFILE } from "../../rendering/profiles.ts";
+import { createFloorTexture } from "./textures/floor-texture.mjs";
 
-const FLOOR_TEXTURE_SIZE = 256;
 const FLOOR_CELL_UNITS = 0.5;
 const FLOOR_Y = -0.003;
 const GRID_Y = 0.008;
-
-function createFloorCanvas() {
-  if (typeof document === "undefined" || typeof document.createElement !== "function") {
-    return null;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = FLOOR_TEXTURE_SIZE;
-  canvas.height = FLOOR_TEXTURE_SIZE;
-  const context = canvas.getContext("2d");
-  if (!context) {
-    return null;
-  }
-
-  context.fillStyle = "#eee9dc";
-  context.fillRect(0, 0, FLOOR_TEXTURE_SIZE, FLOOR_TEXTURE_SIZE);
-
-  for (let row = 0; row < FLOOR_TEXTURE_SIZE; row += 2) {
-    const alpha = 0.024 + ((row % 17) / 17) * 0.016;
-    context.fillStyle = `rgba(112, 104, 91, ${alpha.toFixed(3)})`;
-    context.fillRect(0, row, FLOOR_TEXTURE_SIZE, 1);
-  }
-
-  for (let index = 0; index < 900; index += 1) {
-    const x = (index * 37) % FLOOR_TEXTURE_SIZE;
-    const y = (index * 91) % FLOOR_TEXTURE_SIZE;
-    const shade = index % 3 === 0 ? 255 : 104;
-    const alpha = index % 3 === 0 ? 0.04 : 0.026;
-    context.fillStyle = `rgba(${shade}, ${shade}, ${shade}, ${alpha})`;
-    context.fillRect(x, y, 1, 1);
-  }
-
-  context.strokeStyle = "rgba(134, 125, 108, 0.08)";
-  context.lineWidth = 1;
-  for (let x = -FLOOR_TEXTURE_SIZE; x < FLOOR_TEXTURE_SIZE * 2; x += 32) {
-    context.beginPath();
-    context.moveTo(x, 0);
-    context.lineTo(x + 42, FLOOR_TEXTURE_SIZE);
-    context.stroke();
-  }
-
-  return canvas;
-}
-
-function createFloorTexture(columns, rows) {
-  const canvas = createFloorCanvas();
-  if (!canvas) {
-    return null;
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(
-    Math.max(1, columns / 2),
-    Math.max(1, rows / 2),
-  );
-  texture.needsUpdate = true;
-  return texture;
-}
 
 export function createTexturedFloor(
   columns,
@@ -74,7 +13,7 @@ export function createTexturedFloor(
 ) {
   const safeColumns = Math.max(0.1, Number(columns) || 1);
   const safeRows = Math.max(0.1, Number(rows) || 1);
-  const texture = createFloorTexture(safeColumns, safeRows);
+  const texture = createFloorTexture(safeColumns, safeRows, materialOptions);
   const material = new THREE.MeshStandardMaterial({
     color: texture ? materialOptions.color : materialOptions.fallbackColor,
     map: texture,

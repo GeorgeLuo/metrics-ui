@@ -2,56 +2,11 @@ import {
   CHASER_VIEW_CAMERA_HEIGHT,
   CHASER_VIEW_LOOK_DISTANCE,
 } from "../config/constants.mjs";
-
-export const CHASE_RENDERING_PROFILE_IDS = {
-  SIMULATION: "simulation",
-  RC_INDOOR: "rc-indoor",
-  RANDOMIZED: "randomized",
-} as const;
-
-export type ChaseRenderingProfileId =
-  typeof CHASE_RENDERING_PROFILE_IDS[keyof typeof CHASE_RENDERING_PROFILE_IDS];
-
-/** Material values already resolved for direct Three.js consumption. */
-export type ChaseRenderingMaterial = Readonly<{
-  color: number;
-  roughness: number;
-  metalness: number;
-}>;
-
-/**
- * Immutable visual input shared by the main scene, actor views, and captures.
- *
- * Renderer modules consume this shape and never select a preset themselves.
- */
-export type ChaseRenderingProfile = Readonly<{
-  id: ChaseRenderingProfileId;
-  seed: number | null;
-  environment: Readonly<{
-    clear: Readonly<{ color: number; alpha: number }>;
-    ambientLight: Readonly<{ color: number; intensity: number }>;
-    keyLight: Readonly<{
-      color: number;
-      intensity: number;
-      position: Readonly<{ x: number; y: number; z: number }>;
-    }>;
-    materials: Readonly<{
-      floor: ChaseRenderingMaterial & Readonly<{ fallbackColor: number }>;
-      obstacle: ChaseRenderingMaterial & Readonly<{
-        edgeColor: number;
-        edgeOpacity: number;
-      }>;
-      surface: ChaseRenderingMaterial & Readonly<{ opacity: number }>;
-    }>;
-  }>;
-  camera: Readonly<{
-    mount: Readonly<{ height: number; lookDistance: number }>;
-    lensModel: "pinhole";
-  }>;
-  sensor: Readonly<{
-    imageProcessing: "none";
-  }>;
-}>;
+import {
+  CHASE_RENDERING_PROFILE_IDS,
+  type ChaseRenderingProfile,
+  type ChaseRenderingProfileId,
+} from "./profile-contract.ts";
 
 const PROFILE_ID_SET = new Set<string>(Object.values(CHASE_RENDERING_PROFILE_IDS));
 const MAX_SEED = 0xffffffff;
@@ -69,12 +24,26 @@ function createBaselineProfile(id: ChaseRenderingProfileId): ChaseRenderingProfi
     id,
     seed: id === CHASE_RENDERING_PROFILE_IDS.RANDOMIZED ? 0 : null,
     environment: {
+      renderer: {
+        toneMapping: "none",
+        exposure: 1,
+        shadows: {
+          enabled: false,
+          mapSize: 1024,
+          bias: 0,
+          normalBias: 0,
+          radius: 1,
+          cameraPadding: 1,
+          cameraFar: 30,
+        },
+      },
       clear: { color: 0x000000, alpha: 0 },
       ambientLight: { color: 0xffffff, intensity: 1.8 },
       keyLight: {
         color: 0xffffff,
         intensity: 1.2,
         position: { x: 3, y: 8, z: 4 },
+        target: { x: 0, y: 0, z: 0 },
       },
       materials: {
         floor: {
@@ -82,11 +51,26 @@ function createBaselineProfile(id: ChaseRenderingProfileId): ChaseRenderingProfi
           fallbackColor: 0xeee9dc,
           roughness: 0.94,
           metalness: 0,
+          texture: "simulation-floor",
+          textureRepeatUnits: 2,
         },
         obstacle: {
           color: 0xffffff,
+          fallbackColor: 0xffffff,
           roughness: 0.58,
           metalness: 0.02,
+          texture: "none",
+          textureRepeatUnits: 1,
+          edgeColor: 0x334155,
+          edgeOpacity: 0.9,
+        },
+        roomWall: {
+          color: 0xffffff,
+          fallbackColor: 0xffffff,
+          roughness: 0.58,
+          metalness: 0.02,
+          texture: "none",
+          textureRepeatUnits: 1,
           edgeColor: 0x334155,
           edgeOpacity: 0.9,
         },
@@ -111,14 +95,74 @@ function createBaselineProfile(id: ChaseRenderingProfileId): ChaseRenderingProfi
   });
 }
 
+function createRcIndoorProfile(): ChaseRenderingProfile {
+  const baseline = createBaselineProfile(CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  return deepFreeze({
+    ...baseline,
+    environment: {
+      ...baseline.environment,
+      renderer: {
+        toneMapping: "aces-filmic",
+        exposure: 1.15,
+        shadows: {
+          enabled: true,
+          mapSize: 1024,
+          bias: -0.00035,
+          normalBias: 0.018,
+          radius: 2,
+          cameraPadding: 1,
+          cameraFar: 30,
+        },
+      },
+      clear: { color: 0xd8d6cf, alpha: 1 },
+      ambientLight: { color: 0xfff3e2, intensity: 0.9 },
+      keyLight: {
+        color: 0xffdfb5,
+        intensity: 2.4,
+        position: { x: -3, y: 6, z: 1.5 },
+        target: { x: 0, y: 0, z: 0 },
+      },
+      materials: {
+        ...baseline.environment.materials,
+        floor: {
+          color: 0xffffff,
+          fallbackColor: 0xd6cec2,
+          roughness: 0.98,
+          metalness: 0,
+          texture: "carpet-light",
+          textureRepeatUnits: 1.25,
+        },
+        obstacle: {
+          color: 0xffffff,
+          fallbackColor: 0xb88752,
+          roughness: 0.88,
+          metalness: 0,
+          texture: "cardboard-kraft",
+          textureRepeatUnits: 0.8,
+          edgeColor: 0x6d4b2d,
+          edgeOpacity: 0.42,
+        },
+        roomWall: {
+          color: 0xf3f0e8,
+          fallbackColor: 0xf3f0e8,
+          roughness: 0.9,
+          metalness: 0,
+          texture: "none",
+          textureRepeatUnits: 2,
+          edgeColor: 0x8c8a82,
+          edgeOpacity: 0.72,
+        },
+      },
+    },
+  });
+}
+
 /** Named, fully resolved profiles available to scenario and session settings. */
 export const CHASE_RENDERING_PROFILES = deepFreeze({
   [CHASE_RENDERING_PROFILE_IDS.SIMULATION]: createBaselineProfile(
     CHASE_RENDERING_PROFILE_IDS.SIMULATION,
   ),
-  [CHASE_RENDERING_PROFILE_IDS.RC_INDOOR]: createBaselineProfile(
-    CHASE_RENDERING_PROFILE_IDS.RC_INDOOR,
-  ),
+  [CHASE_RENDERING_PROFILE_IDS.RC_INDOOR]: createRcIndoorProfile(),
   [CHASE_RENDERING_PROFILE_IDS.RANDOMIZED]: createBaselineProfile(
     CHASE_RENDERING_PROFILE_IDS.RANDOMIZED,
   ),
@@ -151,9 +195,7 @@ function normalizeSeed(value: unknown, fallback: number | null): number | null {
 /**
  * Resolves scenario-facing profile selection into one immutable renderer input.
  *
- * All named profiles intentionally retain baseline visual values in this
- * contract delivery. Later work packages can change presets without changing
- * renderer ownership or the scenario/session interface.
+ * Named profiles own values; renderer modules only consume the resolved shape.
  */
 export function resolveChaseRenderingProfile(value: unknown): ChaseRenderingProfile {
   const record = value && typeof value === "object" && !Array.isArray(value)

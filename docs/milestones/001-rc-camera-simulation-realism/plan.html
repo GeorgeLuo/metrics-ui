@@ -98,6 +98,9 @@
     .filters button[aria-pressed="true"] { border-color: var(--blue); color: var(--blue); font-weight: 700; }
     .progress-track { height: 10px; margin-top: 14px; overflow: hidden; border-radius: 5px; background: var(--neutral); }
     .progress-fill { width: 0; height: 100%; background: var(--green); }
+    figure { margin: 0; }
+    .evidence-image { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; border: 1px solid var(--line); background: #000000; }
+    figcaption { margin-top: 8px; color: var(--muted); font-size: 13px; }
     @media (max-width: 860px) {
       main { width: min(100% - 20px, 1180px); padding-top: 18px; }
       h1 { font-size: 34px; }
@@ -118,7 +121,7 @@
         debugging, regression, and geometry inspection.
       </p>
       <div class="meta">
-        <span class="pill">Status: active - planning</span>
+        <span class="pill">Status: active - implementation</span>
         <span class="pill">Started: 2026-07-16</span>
         <span class="pill">Default profile: simulation</span>
         <span class="pill">Capture overlays: off</span>
@@ -157,17 +160,16 @@
         <div class="card interface">
           <h3>Select A Rendering Profile</h3>
           <p><strong>Starting state:</strong> Chase is loaded with a scenario.</p>
-          <p><strong>Proposed execution:</strong> select <code>Simulation</code>, <code>RC indoor</code>, or <code>Randomized</code> from the Game settings and reset the scenario.</p>
+          <p><strong>Available execution:</strong> select <code>Simulation</code>, <code>RC indoor</code>, or <code>Randomized</code> from the Game settings and reset the scenario.</p>
           <p><strong>Success signal:</strong> the main scene and actor view use the selected profile, and reset retains the session override while restoring world state.</p>
         </div>
         <div class="card goal">
           <h3>Declare Scenario Appearance</h3>
           <p><strong>Starting state:</strong> a Chase scenario definition is being authored.</p>
-          <p><strong>Proposed execution:</strong></p>
+          <p><strong>Available execution:</strong></p>
           <pre>rendering: {
   profile: "rc-indoor",
-  seed: 42,
-  overrides: { camera: { calibration: "piracer-v1" } }
+  seed: 42
 }</pre>
           <p><strong>Success signal:</strong> scenario resolution reports one validated effective profile and all render entry points consume it.</p>
         </div>
@@ -218,20 +220,20 @@
       </details>
       <div class="grid two" style="margin-top: 14px;">
         <div class="card goal">
-          <h3>Current: Normalize The Rendering Profile Contract</h3>
-          <p><span class="status active">Active</span> <strong>Review shape:</strong> deep and narrow implementation stacked on milestone tracker PR #134.</p>
-          <p><strong>Deliverable:</strong> scenario and session profile values normalize into one immutable rendering input consumed by the main view, popout, and snapshot renderer while preserving current visuals.</p>
-          <p><strong>Review question:</strong> Can every render entry point consume one profile without importing scenario-specific policy or duplicating defaults?</p>
-          <p><strong>Files:</strong> modify scenario normalization, scene construction, actor-view construction, runtime settings, snapshot metadata, sidebar controls, and focused regressions.</p>
-          <p><strong>Non-goals:</strong> carpet, cardboard, shadows, lens effects, sensor noise, or randomized values.</p>
+          <h3>Current: Implement Materials, Lighting, And Shadows</h3>
+          <p><span class="status active">Active in PR #136</span> <strong>Review shape:</strong> deep and narrow renderer implementation.</p>
+          <p><strong>Deliverable:</strong> named carpet, cardboard, room-wall, light, tone-mapping, and shadow values flow through the normalized profile and shared renderer factories.</p>
+          <p><strong>Review question:</strong> Does <code>rc-indoor</code> add useful depth and material cues in every front-view path while <code>simulation</code> remains stable?</p>
+          <p><strong>Files:</strong> modify profile values, scene environment, floor and wall factories, focused regressions, and fixed-frame visual evidence.</p>
+          <p><strong>Non-goals:</strong> camera calibration, lens effects, sensor noise, or seeded domain variation.</p>
         </div>
         <div class="card interface">
-          <h3>Next: Implement Materials, Lighting, And Shadows</h3>
+          <h3>Next: Calibrate Camera Mount And Projection</h3>
           <p><span class="status pending">Queued, not started</span> <strong>Expected shape:</strong> deep and narrow.</p>
-          <p><strong>Expected deliverable:</strong> named carpet, cardboard, room-wall, light, and shadow values flow through the normalized profile and shared renderer factories.</p>
-          <p><strong>Review question:</strong> Does <code>rc-indoor</code> add physically useful depth and material cues while <code>simulation</code> remains visually stable?</p>
-          <p><strong>Proposed ownership:</strong> profile values, shared material factories, lighting and shadow setup, representative scenarios, and visual regression evidence.</p>
-          <p><strong>Non-goals:</strong> camera calibration, lens effects, sensor noise, or seeded domain variation.</p>
+          <p><strong>Expected deliverable:</strong> measured or explicit camera height, pitch, yaw, FOV, image dimensions, and clipping values shared by live and captured views.</p>
+          <p><strong>Review question:</strong> Do the configured camera values explain the physical PiRacer framing without changing perception geometry?</p>
+          <p><strong>Proposed ownership:</strong> camera profile contract, camera construction, calibration evidence, and fixed-pose image comparison.</p>
+          <p><strong>Non-goals:</strong> lens distortion, sensor noise, image compression, or domain variation.</p>
         </div>
       </div>
       <div class="table-wrap" style="margin-top: 16px;">
@@ -248,11 +250,40 @@
       </div>
     </section>
 
+    <section class="panel">
+      <h2>Current Evidence: Materials, Lighting, And Shadows</h2>
+      <p>Both captures use <code>piracer-room-sketch</code>, chaser frame 0, a 640 by 480 image, and the same pose and geometry. Only the resolved rendering profile changes.</p>
+      <div class="grid two" style="margin-top: 14px;">
+        <figure>
+          <img class="evidence-image" src="evidence/materials-lighting/simulation-frame-0.png" alt="Simulation profile front-view capture at frame zero">
+          <figcaption><strong>simulation:</strong> original procedural floor, white geometry, fixed baseline lights, no shadows, and no tone mapping.</figcaption>
+        </figure>
+        <figure>
+          <img class="evidence-image" src="evidence/materials-lighting/rc-indoor-frame-0.png" alt="RC indoor profile front-view capture at frame zero">
+          <figcaption><strong>rc-indoor:</strong> deterministic carpet and cardboard textures, matte room walls, warm directional light, soft contact shadows, and ACES tone mapping.</figcaption>
+        </figure>
+      </div>
+      <div class="table-wrap" style="margin-top: 16px;">
+        <table>
+          <thead><tr><th>Signal</th><th>simulation</th><th>rc-indoor</th></tr></thead>
+          <tbody>
+            <tr><td>Floor</td><td><code>simulation-floor</code>, roughness 0.94</td><td><code>carpet-light</code>, roughness 0.98</td></tr>
+            <tr><td>Obstacles</td><td>white, untextured</td><td><code>cardboard-kraft</code>, roughness 0.88</td></tr>
+            <tr><td>Room walls</td><td>same material as obstacles</td><td>independent matte off-white material</td></tr>
+            <tr><td>Lighting</td><td>white ambient 1.8, white key 1.2</td><td>warm ambient 0.9, warm key 2.4</td></tr>
+            <tr><td>Output</td><td>no tone mapping; shadows disabled</td><td>ACES exposure 1.15; 1024px soft shadow map</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note"><strong>Runtime check:</strong> isolated 600-sample windows at 60 FPS, after a 12-second profile settling period, measured p95 total/render time of 2/1 ms for both profiles, below the 24 ms warning threshold. Twenty-five sequential 320 by 240 RC-indoor WS captures completed through the reusable renderer without a reported lost context or blank result.</p>
+      <p class="small" style="margin-top: 12px;">Capture hashes and reproduction details are recorded in <a href="evidence/materials-lighting/comparison.json"><code>comparison.json</code></a>.</p>
+    </section>
+
     <section class="panel" data-milestone-contract>
       <h2>Rendering Contract</h2>
       <pre>interface ChaseRenderingProfile {
   id: "simulation" | "rc-indoor" | "randomized";
-  environment: LightingOptions &amp; MaterialOptions;
+  environment: RendererOutputOptions &amp; LightingOptions &amp; MaterialOptions;
   camera: CameraMountOptions &amp; CameraOpticsOptions;
   sensor: SensorImageOptions;
   seed?: number;
@@ -281,17 +312,17 @@
         <button type="button" data-filter="pending" aria-pressed="false">Pending</button>
         <button type="button" data-filter="done" aria-pressed="false">Done</button>
       </div>
-      <details class="work-item" data-status="active" open>
-        <summary><span>1. Establish Milestone Tracking And Scope</span><span class="status active">In review</span></summary>
+      <details class="work-item" data-status="done">
+        <summary><span>1. Establish Milestone Tracking And Scope</span><span class="status done">Done</span></summary>
         <div class="work-body"><p>PR #134 creates the planning contract, active plan, completion workflows, validation, and documentation discovery. Complete when the review accepts the milestone boundary and repository checks enforce the plan.</p></div>
       </details>
-      <details class="work-item" data-status="active" open>
-        <summary><span>2. Settle Rendering Profile Values And Ownership</span><span class="status active">Active</span></summary>
+      <details class="work-item" data-status="done">
+        <summary><span>2. Settle Rendering Profile Values And Ownership</span><span class="status done">Done</span></summary>
         <div class="work-body"><p>PR #135 defines normalized scenario and session values, immutable renderer input, profile selection, metadata shape, and fallback behavior without changing baseline output.</p></div>
       </details>
-      <details class="work-item" data-status="pending">
-        <summary><span>3. Implement Materials, Lighting, And Shadows</span><span class="status pending">Pending</span></summary>
-        <div class="work-body"><p>Add named carpet, cardboard, and room-wall appearance plus calibrated indoor lights and shadows through shared factories. Preserve the simulation profile exactly.</p></div>
+      <details class="work-item" data-status="active" open>
+        <summary><span>3. Implement Materials, Lighting, And Shadows</span><span class="status active">Active</span></summary>
+        <div class="work-body"><p>PR #136 adds named carpet, cardboard, and room-wall appearance plus explicit indoor lights and shadows through shared factories. Preserve the simulation profile exactly; physical calibration remains a later evidence task.</p></div>
       </details>
       <details class="work-item" data-status="pending">
         <summary><span>4. Calibrate Camera Mount And Projection</span><span class="status pending">Pending</span></summary>
@@ -309,7 +340,7 @@
         <summary><span>7. Validate, Document, And Close</span><span class="status pending">Pending</span></summary>
         <div class="work-body"><p>Record regression, snapshot stress, frame-time, deterministic replay, and physical comparison evidence. Freeze the plan and write the closeout and completed ledger entry.</p></div>
       </details>
-      <div class="progress-track" aria-label="Milestone work packages completed: 0 of 7"><div class="progress-fill" style="width: 0%;"></div></div>
+      <div class="progress-track" aria-label="Milestone work packages completed: 2 of 7"><div class="progress-fill" style="width: 28.57%;"></div></div>
       <p class="small">Progress counts completed work packages, not commits or pull requests.</p>
     </section>
 
@@ -388,6 +419,7 @@
             <tr><td>2026-07-16</td><td>Require physical evidence before retaining optical effects.</td><td>Uncalibrated distortion and noise add complexity without necessarily improving transfer to the PiRacer camera.</td></tr>
             <tr><td>2026-07-16</td><td>Adopt the auto-driving rolling milestone model in this repository.</td><td>Stable outcomes and a concrete next review unit provide continuity without prematurely fixing the implementation sequence.</td></tr>
             <tr><td>2026-07-16</td><td>Keep named profiles baseline-equivalent in the contract package.</td><td>The first implementation review should settle ownership and renderer consistency before material or lighting changes make pixel output harder to compare.</td></tr>
+            <tr><td>2026-07-16</td><td>Use deterministic generated textures for the first material package.</td><td>Procedural carpet and cardboard provide stable visual cues without asset licensing, network dependencies, or unreported randomness; physical texture calibration remains possible later.</td></tr>
           </tbody>
         </table>
       </div>

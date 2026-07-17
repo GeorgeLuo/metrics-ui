@@ -1,0 +1,72 @@
+{
+  "scenarioId": "piracer-room-sketch",
+  "actorId": "chaser",
+  "frameIndex": 0,
+  "image": {
+    "width": 640,
+    "height": 480,
+    "contentType": "image/png",
+    "rendererId": "chase-actor-view-threejs-v1"
+  },
+  "invariant": "The scenario, actor pose, frame, geometry, and camera values are identical. Only the session rendering profile changes.",
+  "captures": [
+    {
+      "profileId": "simulation",
+      "file": "simulation-frame-0.png",
+      "sha256": "dda2ddd52762c055a9a93126572d9e5bc259e55bed69107222912175f9426f30",
+      "resolved": {
+        "toneMapping": "none",
+        "exposure": 1,
+        "shadowsEnabled": false,
+        "floorTexture": "simulation-floor",
+        "obstacleTexture": "none",
+        "cameraHeight": 0.42,
+        "cameraLookDistance": 3
+      }
+    },
+    {
+      "profileId": "rc-indoor",
+      "file": "rc-indoor-frame-0.png",
+      "sha256": "44f4aed2ab6a12a35f8442960bfe9171dff020764a64258e4dd77b316389a395",
+      "resolved": {
+        "toneMapping": "aces-filmic",
+        "exposure": 1.15,
+        "shadowsEnabled": true,
+        "shadowMapSize": 1024,
+        "floorTexture": "carpet-light",
+        "obstacleTexture": "cardboard-kraft",
+        "cameraHeight": 0.42,
+        "cameraLookDistance": 3
+      }
+    }
+  ],
+  "runtimeValidation": {
+    "framesPerSecond": 60,
+    "sampleWindow": 600,
+    "profileSettlingMs": 12000,
+    "warningThresholdMs": 24,
+    "simulation": {
+      "p95TotalMs": 2,
+      "p95RenderMs": 1
+    },
+    "rcIndoor": {
+      "p95TotalMs": 2,
+      "p95RenderMs": 1
+    },
+    "sequentialRcIndoorCaptures": 25,
+    "captureDimensions": {
+      "width": 320,
+      "height": 240
+    },
+    "lostContexts": 0,
+    "blankCaptures": 0
+  },
+  "reproduction": [
+    "simeval ui subapp --app play --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id scenario-select --value '\"piracer-room-sketch\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id simulation-pause-before-actions --enabled false --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id simulation-reset --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id rendering-profile --value '\"PROFILE_ID\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-front-view-snapshot --actor chaser --width 640 --height 480 --out-dir /tmp/chase-PROFILE_ID --ui ws://localhost:5050/ws/control"
+  ]
+}

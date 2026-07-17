@@ -10,8 +10,8 @@ import type {
 } from "../decision-model/memory/vehicle/front-view-captures.ts";
 import {
   SIMULATION_RENDERING_PROFILE,
-  type ChaseRenderingProfile,
 } from "../rendering/profiles.ts";
+import type { ChaseRenderingProfile } from "../rendering/profile-contract.ts";
 
 type ActorId = "chaser" | "evader";
 type RuntimeRecord = Record<string, any>;
