@@ -8,6 +8,7 @@ import {
   type ChaseRenderingProfile,
   type ChaseRenderingProfileId,
 } from "./profile-contract.ts";
+import { createSeededRcIndoorVariation } from "./variation.ts";
 
 const PROFILE_ID_SET = new Set<string>(Object.values(CHASE_RENDERING_PROFILE_IDS));
 const MAX_SEED = 0xffffffff;
@@ -206,15 +207,17 @@ function createRcIndoorProfile(): ChaseRenderingProfile {
   });
 }
 
+function createRandomizedProfile(seed: number): ChaseRenderingProfile {
+  return deepFreeze(createSeededRcIndoorVariation(createRcIndoorProfile(), seed));
+}
+
 /** Named, fully resolved profiles available to scenario and session settings. */
 export const CHASE_RENDERING_PROFILES = deepFreeze({
   [CHASE_RENDERING_PROFILE_IDS.SIMULATION]: createBaselineProfile(
     CHASE_RENDERING_PROFILE_IDS.SIMULATION,
   ),
   [CHASE_RENDERING_PROFILE_IDS.RC_INDOOR]: createRcIndoorProfile(),
-  [CHASE_RENDERING_PROFILE_IDS.RANDOMIZED]: createBaselineProfile(
-    CHASE_RENDERING_PROFILE_IDS.RANDOMIZED,
-  ),
+  [CHASE_RENDERING_PROFILE_IDS.RANDOMIZED]: createRandomizedProfile(0),
 });
 
 export const SIMULATION_RENDERING_PROFILE =
@@ -234,7 +237,11 @@ export function normalizeChaseRenderingProfileId(value: unknown): ChaseRendering
     : CHASE_RENDERING_PROFILE_IDS.SIMULATION;
 }
 
-function normalizeSeed(value: unknown, fallback: number | null): number | null {
+/** Normalizes a scenario or session rendering seed into an unsigned integer. */
+export function normalizeChaseRenderingSeed(
+  value: unknown,
+  fallback: number | null = null,
+): number | null {
   const numericValue = Number(value);
   return Number.isFinite(numericValue)
     ? Math.round(Math.max(0, Math.min(MAX_SEED, numericValue)))
@@ -252,7 +259,10 @@ export function resolveChaseRenderingProfile(value: unknown): ChaseRenderingProf
     : {};
   const id = normalizeChaseRenderingProfileId(record.profile ?? record.id ?? value);
   const preset = CHASE_RENDERING_PROFILES[id];
-  const seed = normalizeSeed(record.seed, preset.seed);
+  const seed = normalizeChaseRenderingSeed(record.seed, preset.seed);
+  if (id === CHASE_RENDERING_PROFILE_IDS.RANDOMIZED) {
+    return createRandomizedProfile(seed ?? 0);
+  }
   return seed === preset.seed
     ? preset
     : deepFreeze({ ...preset, seed });

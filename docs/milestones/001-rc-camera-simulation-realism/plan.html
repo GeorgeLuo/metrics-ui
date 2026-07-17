@@ -220,20 +220,20 @@
       </details>
       <div class="grid two" style="margin-top: 14px;">
         <div class="card goal">
-          <h3>Current: Qualify Optical And Sensor Effects</h3>
-          <p><span class="status active">In review: PR #138</span> <strong>Review shape:</strong> one bounded postprocessing pass.</p>
-          <p><strong>Deliverable:</strong> an explicit sensor profile resolved into the same reusable render-target pass for live actor views and PNG captures.</p>
-          <p><strong>Review question:</strong> Do fixed radial distortion and vignette improve the physical camera character without hiding room geometry?</p>
-          <p><strong>Files:</strong> sensor profile contract, reusable pass ownership, snapshot metadata, capture disposal coverage, and fixed-pose evidence.</p>
-          <p><strong>Non-goals:</strong> blur, grain, compression, or seeded domain variation.</p>
+          <h3>Current: Add Seeded Variation And Comparison Evidence</h3>
+          <p><span class="status active">In review: PR #139</span> <strong>Review shape:</strong> one deterministic profile derivation.</p>
+          <p><strong>Deliverable:</strong> bounded RC-indoor lighting, material, shadow, and sensor variation derived entirely from a session seed and retained in snapshots.</p>
+          <p><strong>Review question:</strong> Can a reviewer recreate a varied image exactly while preserving the fixed RC-indoor physical-comparison center?</p>
+          <p><strong>Files:</strong> seeded profile derivation, Game seed control, CLI usage, focused regressions, and two fixed-pose seed artifacts.</p>
+          <p><strong>Non-goals:</strong> camera-geometry variation, world randomization, unseeded noise, or changing decision-model inputs.</p>
         </div>
         <div class="card interface">
-          <h3>Next: Qualify Optical And Sensor Effects</h3>
+          <h3>Next: Validate, Document, And Close</h3>
           <p><span class="status pending">Queued, not started</span> <strong>Expected shape:</strong> deep and narrow.</p>
-          <p><strong>Expected deliverable:</strong> independently qualified lens distortion, exposure, vignette, blur, noise, and compression values with bounded resource ownership.</p>
-          <p><strong>Review question:</strong> Which optical effects make physical-frame geometry more legible rather than merely cosmetic?</p>
-          <p><strong>Proposed ownership:</strong> profile sensor contract, reusable postprocessing resources, physical evidence, and repeated-capture checks.</p>
-          <p><strong>Non-goals:</strong> seeded variation or unbounded photorealistic reconstruction.</p>
+          <p><strong>Expected deliverable:</strong> closeout validation for deterministic replay, repeated capture resource ownership, interactive frame time, and all physical comparison evidence.</p>
+          <p><strong>Review question:</strong> Does the complete observation profile preserve simulation debugging while documenting remaining real-camera gaps?</p>
+          <p><strong>Proposed ownership:</strong> milestone ledger, regression records, performance samples, and resolved snapshot evidence.</p>
+          <p><strong>Non-goals:</strong> new visual effects or vehicle-dynamics changes.</p>
         </div>
       </div>
       <div class="table-wrap" style="margin-top: 16px;">
@@ -334,6 +334,35 @@
       <p class="small" style="margin-top: 12px;">The resolved values, image hashes, repeated-capture result, and reproduction commands are recorded in <a href="evidence/sensor-optics/comparison.json"><code>comparison.json</code></a>.</p>
     </section>
 
+    <section class="panel">
+      <h2>Current Evidence: Seeded Domain Variation</h2>
+      <p>Both captures use <code>piracer-room-sketch</code>, chaser frame 0, the same calibrated camera geometry, and the <code>randomized</code> profile. A seed changes only bounded visual values; the fixed <code>rc-indoor</code> profile remains the physical-comparison center.</p>
+      <div class="grid two" style="margin-top: 14px;">
+        <figure>
+          <img class="evidence-image" src="evidence/domain-variation/randomized-seed-17-frame-0.png" alt="Randomized RC indoor front view using seed 17">
+          <figcaption><strong>seed 17:</strong> exposure 1.1854, ambient 0.8262, key light 2.4157, radial distortion 0.1026, and vignette 0.1037.</figcaption>
+        </figure>
+        <figure>
+          <img class="evidence-image" src="evidence/domain-variation/randomized-seed-761-frame-0.png" alt="Randomized RC indoor front view using seed 761">
+          <figcaption><strong>seed 761:</strong> exposure 1.0645, ambient 0.9622, key light 2.3620, radial distortion 0.1466, and vignette 0.0915.</figcaption>
+        </figure>
+      </div>
+      <div class="table-wrap" style="margin-top: 14px;">
+        <table>
+          <thead><tr><th>Resolved concern</th><th>Bounded range</th><th>Invariant</th></tr></thead>
+          <tbody>
+            <tr><td>ACES exposure</td><td>1.05 to 1.25</td><td>RC-indoor tone mapping and named materials remain selected.</td></tr>
+            <tr><td>Ambient / key light intensity</td><td>0.78 to 1.02 / 2.15 to 2.65</td><td>Light colors, positions, and targets remain calibrated.</td></tr>
+            <tr><td>Shadow radius</td><td>1.6 to 2.4</td><td>Shadow enablement, map size, bias, and room geometry remain fixed.</td></tr>
+            <tr><td>Floor / obstacle roughness</td><td>0.94 to 0.995 / 0.82 to 0.94</td><td>Carpet and cardboard texture identity and repeat remain fixed.</td></tr>
+            <tr><td>Barrel distortion / vignette</td><td>0.08 to 0.16 / 0.06 to 0.14</td><td>Camera mount, FOV, clipping, field-of-view perception, and world state remain fixed.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note"><strong>Determinism decision:</strong> the Game section exposes a rendering seed, and the generic Play CLI exposes the same action. Repeating seed 17 at the fixed frame produced the same PNG hash. Seeded artifacts broaden visual training or inspection inputs around the calibrated center; they are not separately asserted to be new physical calibrations.</p>
+      <p class="small" style="margin-top: 12px;">Resolved values, hashes, seed commands, and the fixed physical-reference relationship are recorded in <a href="evidence/domain-variation/comparison.json"><code>comparison.json</code></a>.</p>
+    </section>
+
     <section class="panel" data-milestone-contract>
       <h2>Rendering Contract</h2>
       <pre>interface ChaseRenderingProfile {
@@ -383,19 +412,19 @@
         <summary><span>4. Calibrate Camera Mount And Projection</span><span class="status done">Done</span></summary>
         <div class="work-body"><p>PR #137 makes mount height, pitch, yaw, FOV, image dimensions, and clipping behavior explicit. It resolves the same numeric values for live actor views and captures, retains them in WS snapshot metadata, and confirms that perception geometry remains separate.</p></div>
       </details>
-      <details class="work-item" data-status="active" open>
-        <summary><span>5. Qualify Optical And Sensor Effects</span><span class="status active">In review: PR #138</span></summary>
+      <details class="work-item" data-status="done">
+        <summary><span>5. Qualify Optical And Sensor Effects</span><span class="status done">Done</span></summary>
         <div class="work-body"><p>PR #138 evaluates lens distortion, exposure, vignette, blur, noise, and compression independently. It retains only fixed radial barrel distortion and vignette in a reusable actor-view pass; blur, grain, and compression remain rejected pending stronger physical evidence.</p></div>
       </details>
-      <details class="work-item" data-status="pending">
-        <summary><span>6. Add Seeded Variation And Comparison Evidence</span><span class="status pending">Pending</span></summary>
-        <div class="work-body"><p>Define defensible variation ranges, deterministic seed behavior, capture metadata, and fixed physical-reference comparisons for the PiRacer room scenario.</p></div>
+      <details class="work-item" data-status="active" open>
+        <summary><span>6. Add Seeded Variation And Comparison Evidence</span><span class="status active">In review: PR #139</span></summary>
+        <div class="work-body"><p>PR #139 defines bounded RC-indoor variation ranges, deterministic Game and CLI seed behavior, fully resolved snapshot metadata, and fixed-pose PiRacer room artifacts. The calibrated RC-indoor profile remains the physical-comparison center.</p></div>
       </details>
       <details class="work-item" data-status="pending">
         <summary><span>7. Validate, Document, And Close</span><span class="status pending">Pending</span></summary>
         <div class="work-body"><p>Record regression, snapshot stress, frame-time, deterministic replay, and physical comparison evidence. Freeze the plan and write the closeout and completed ledger entry.</p></div>
       </details>
-      <div class="progress-track" aria-label="Milestone work packages completed: 4 of 7"><div class="progress-fill" style="width: 57.14%;"></div></div>
+      <div class="progress-track" aria-label="Milestone work packages completed: 5 of 7"><div class="progress-fill" style="width: 71.43%;"></div></div>
       <p class="small">Progress counts completed work packages, not commits or pull requests.</p>
     </section>
 
@@ -477,6 +506,7 @@
             <tr><td>2026-07-16</td><td>Use deterministic generated textures for the first material package.</td><td>Procedural carpet and cardboard provide stable visual cues without asset licensing, network dependencies, or unreported randomness; physical texture calibration remains possible later.</td></tr>
             <tr><td>2026-07-17</td><td>Calibrate RC indoor composition from the physical frame rather than the unmeasured FOV prior.</td><td>The archived 62.2 by 48.8 degree values are default priors. Their narrow pinhole equivalent cropped both simulated boxes, while an 86 degree horizontal equivalent better retained the physical two-box composition. Barrel distortion remains explicitly unmodeled.</td></tr>
             <tr><td>2026-07-17</td><td>Retain only a fixed radial-vignette sensor pass.</td><td>The physical frame visibly supports a modest wide-angle character and edge falloff. Blur, grain, and compression have no defensible calibration from the available reference and would reduce geometric interpretability.</td></tr>
+            <tr><td>2026-07-17</td><td>Vary only appearance around the calibrated RC indoor center.</td><td>Seeded exposure, light intensity, roughness, shadow softness, and sensor strength broaden inputs without moving the camera, changing world geometry, or changing perception and action behavior.</td></tr>
           </tbody>
         </table>
       </div>

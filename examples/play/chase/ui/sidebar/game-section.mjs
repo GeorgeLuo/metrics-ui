@@ -3,6 +3,7 @@ import {
   CHASER_CONTROL_SOURCES,
   EVADER_EXISTS_ACTION_ID,
   RENDERING_PROFILE_ACTION_ID,
+  RENDERING_SEED_ACTION_ID,
   SCENARIO_SELECT_ACTION_ID,
   SIMULATION_FPS_ACTION_ID,
   SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
@@ -67,6 +68,12 @@ function buildRenderingProfileRow(scenarioControls) {
       value: renderingProfileId,
       options,
       hint: "Select the resolved visual profile used by the main scene, actor views, and snapshots.",
+    }, {
+      kind: "editableValue",
+      id: RENDERING_SEED_ACTION_ID,
+      label: "Rendering seed",
+      value: formatEditableNumber(Number(scenarioControls.renderingSeed) || 0, 0),
+      hint: "Set the deterministic visual variation seed used by the randomized rendering profile.",
     }]
     : [];
 }

@@ -5,6 +5,7 @@ import * as THREE from "three";
 
 import {
   RENDERING_PROFILE_ACTION_ID,
+  RENDERING_SEED_ACTION_ID,
 } from "./config/constants.mjs";
 import {
   CHASE_RENDERING_PROFILE_OPTIONS,
@@ -147,6 +148,33 @@ test("camera resolution preserves simulation perception while RC indoor owns cal
   );
 });
 
+test("randomized rendering resolves reproducible bounded RC indoor variation", () => {
+  const first = resolveChaseRenderingProfile({ profile: "randomized", seed: 91 });
+  const repeat = resolveChaseRenderingProfile({ profile: "randomized", seed: 91 });
+  const differentSeed = resolveChaseRenderingProfile({ profile: "randomized", seed: 92 });
+  const rcIndoor = resolveChaseRenderingProfile("rc-indoor");
+
+  assert.deepEqual(first, repeat);
+  assert.notDeepEqual(first.environment.renderer.exposure, differentSeed.environment.renderer.exposure);
+  assert.equal(first.id, CHASE_RENDERING_PROFILE_IDS.RANDOMIZED);
+  assert.equal(first.seed, 91);
+  assert.deepEqual(first.camera, rcIndoor.camera);
+  assert.ok(first.environment.renderer.exposure >= 1.05);
+  assert.ok(first.environment.renderer.exposure <= 1.25);
+  assert.ok(first.environment.ambientLight.intensity >= 0.78);
+  assert.ok(first.environment.ambientLight.intensity <= 1.02);
+  assert.ok(first.environment.keyLight.intensity >= 2.15);
+  assert.ok(first.environment.keyLight.intensity <= 2.65);
+  assert.ok(first.environment.materials.floor.roughness >= 0.94);
+  assert.ok(first.environment.materials.floor.roughness <= 0.995);
+  assert.ok(first.environment.materials.obstacle.roughness >= 0.82);
+  assert.ok(first.environment.materials.obstacle.roughness <= 0.94);
+  assert.ok(first.sensor.barrelDistortion >= 0.08);
+  assert.ok(first.sensor.barrelDistortion <= 0.16);
+  assert.ok(first.sensor.vignette >= 0.06);
+  assert.ok(first.sensor.vignette <= 0.14);
+});
+
 test("scenario session retains a rendering override across reset and clears it on load", () => {
   const session = createChaseScenarioSession(GRID);
   const initial = session.buildScenario();
@@ -154,7 +182,11 @@ test("scenario session retains a rendering override across reset and clears it o
 
   const selected = session.setRenderingProfile(CHASE_RENDERING_PROFILE_IDS.RANDOMIZED);
   assert.equal(selected.rendering.id, CHASE_RENDERING_PROFILE_IDS.RANDOMIZED);
+  const seeded = session.setRenderingSeed(2468);
+  assert.equal(seeded.rendering.seed, 2468);
+  assert.equal(seeded.rendering.environment.renderer.toneMapping, "aces-filmic");
   assert.equal(session.buildScenario().rendering.id, CHASE_RENDERING_PROFILE_IDS.RANDOMIZED);
+  assert.equal(session.buildScenario().rendering.seed, 2468);
 
   const piracer = session.loadScenario("piracer-room-sketch");
   assert.equal(piracer.rendering.id, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
@@ -163,6 +195,7 @@ test("scenario session retains a rendering override across reset and clears it o
     ...GRID,
   }));
   assert.equal(controls.renderingProfileId, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  assert.equal(controls.renderingSeed, 0);
   assert.deepEqual(controls.renderingProfileOptions, CHASE_RENDERING_PROFILE_OPTIONS);
 });
 
@@ -417,12 +450,22 @@ test("Game settings expose and dispatch the rendering profile selector", () => {
     renderingRow?.options.map((option) => option.value),
     Object.values(CHASE_RENDERING_PROFILE_IDS),
   );
+  const renderingSeedRow = sections
+    .find((section) => section.id === "game")
+    ?.rows.find((row) => row.id === RENDERING_SEED_ACTION_ID);
+  assert.equal(renderingSeedRow?.kind, "editableValue");
+  assert.equal(renderingSeedRow?.value, "0");
 
   let selectedProfile = null;
+  let selectedSeed = null;
   const descriptor = createSidebarActionDescriptors({
     setRenderingProfile: (value) => { selectedProfile = value; },
+    setRenderingSeed: (value) => { selectedSeed = value; },
     getActorActionProposalCollections: () => ({}),
-  }).find((entry) => entry.id === RENDERING_PROFILE_ACTION_ID);
-  descriptor?.handler(CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  });
+  descriptor.find((entry) => entry.id === RENDERING_PROFILE_ACTION_ID)
+    ?.handler(CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  descriptor.find((entry) => entry.id === RENDERING_SEED_ACTION_ID)?.handler("1234");
   assert.equal(selectedProfile, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  assert.equal(selectedSeed, 1234);
 });
