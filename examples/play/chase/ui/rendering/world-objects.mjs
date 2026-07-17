@@ -4,13 +4,12 @@ import {
   CAR_LENGTH,
   CAR_WIDTH,
   CHASER_FIELD_OF_VIEW_COLOR,
-  CHASER_VIEW_CAMERA_HEIGHT,
-  CHASER_VIEW_LOOK_DISTANCE,
   FIELD_OF_VIEW_DISTANCE,
   FIELD_OF_VIEW_SEGMENTS,
   OBSTACLE_PRISM_HEIGHT,
   EVADER_FIELD_OF_VIEW_COLOR,
 } from "../../config/constants.mjs";
+import { SIMULATION_RENDERING_PROFILE } from "../../rendering/profiles.ts";
 
 export function createCar(color) {
   const car = new THREE.Group();
@@ -95,24 +94,27 @@ export function disposeObject3D(object) {
   });
 }
 
-export function createWall(wall) {
+export function createWall(
+  wall,
+  materialOptions = SIMULATION_RENDERING_PROFILE.environment.materials.obstacle,
+) {
   const wallHeight = Number.isFinite(wall?.height) && wall.height > 0
     ? wall.height
     : OBSTACLE_PRISM_HEIGHT;
   const geometry = new THREE.BoxGeometry(wall.width, wallHeight, wall.depth);
   const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.58,
-    metalness: 0.02,
+    color: materialOptions.color,
+    roughness: materialOptions.roughness,
+    metalness: materialOptions.metalness,
   });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.position.set(wall.x, wallHeight / 2, wall.z);
   mesh.rotation.y = Number(wall.rotationRadians) || 0;
   const edgeGeometry = new THREE.EdgesGeometry(geometry, 18);
   const edgeMaterial = new THREE.LineBasicMaterial({
-    color: 0x334155,
+    color: materialOptions.edgeColor,
     transparent: true,
-    opacity: 0.9,
+    opacity: materialOptions.edgeOpacity,
     depthWrite: false,
   });
   const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial);
@@ -123,14 +125,17 @@ export function createWall(wall) {
   return mesh;
 }
 
-export function createSurfacePatch(surface) {
+export function createSurfacePatch(
+  surface,
+  materialOptions = SIMULATION_RENDERING_PROFILE.environment.materials.surface,
+) {
   const geometry = new THREE.BoxGeometry(surface.width, 0.006, surface.depth);
   const material = new THREE.MeshStandardMaterial({
-    color: Number.isFinite(surface.color) ? surface.color : 0x94a3b8,
+    color: Number.isFinite(surface.color) ? surface.color : materialOptions.color,
     transparent: true,
-    opacity: Number.isFinite(surface.opacity) ? surface.opacity : 0.18,
-    roughness: 0.82,
-    metalness: 0,
+    opacity: Number.isFinite(surface.opacity) ? surface.opacity : materialOptions.opacity,
+    roughness: materialOptions.roughness,
+    metalness: materialOptions.metalness,
     depthWrite: false,
   });
   const mesh = new THREE.Mesh(geometry, material);
@@ -214,11 +219,16 @@ export function configureCamera(camera, columns, rows, width, height) {
   camera.updateProjectionMatrix();
 }
 
-export function configureChaserViewCamera(camera, chaserPosition, lookDirection) {
-  camera.position.set(chaserPosition.x, CHASER_VIEW_CAMERA_HEIGHT, chaserPosition.z);
+export function configureChaserViewCamera(
+  camera,
+  chaserPosition,
+  lookDirection,
+  mount = SIMULATION_RENDERING_PROFILE.camera.mount,
+) {
+  camera.position.set(chaserPosition.x, mount.height, chaserPosition.z);
   camera.lookAt(
-    chaserPosition.x + lookDirection.x * CHASER_VIEW_LOOK_DISTANCE,
+    chaserPosition.x + lookDirection.x * mount.lookDistance,
     CAR_HEIGHT / 2,
-    chaserPosition.z + lookDirection.z * CHASER_VIEW_LOOK_DISTANCE,
+    chaserPosition.z + lookDirection.z * mount.lookDistance,
   );
 }

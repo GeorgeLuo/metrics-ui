@@ -218,20 +218,20 @@
       </details>
       <div class="grid two" style="margin-top: 14px;">
         <div class="card goal">
-          <h3>Current: Establish Trackable Milestone Scope</h3>
-          <p><span class="status active">Active</span> <strong>Review shape:</strong> deep and narrow documentation contract.</p>
-          <p><strong>Deliverable:</strong> repository-local planning contract, active plan, generated rendering, progress validation, and documentation entry point.</p>
-          <p><strong>Review question:</strong> Do completion usage and exit criteria define useful RC-camera realism without committing to speculative visual techniques?</p>
-          <p><strong>Files:</strong> create milestone documentation and validation; modify package checks and root documentation discovery.</p>
-          <p><strong>Non-goals:</strong> rendering behavior, scenario schema, UI controls, or visual assets.</p>
+          <h3>Current: Normalize The Rendering Profile Contract</h3>
+          <p><span class="status active">Active</span> <strong>Review shape:</strong> deep and narrow implementation stacked on milestone tracker PR #134.</p>
+          <p><strong>Deliverable:</strong> scenario and session profile values normalize into one immutable rendering input consumed by the main view, popout, and snapshot renderer while preserving current visuals.</p>
+          <p><strong>Review question:</strong> Can every render entry point consume one profile without importing scenario-specific policy or duplicating defaults?</p>
+          <p><strong>Files:</strong> modify scenario normalization, scene construction, actor-view construction, runtime settings, snapshot metadata, sidebar controls, and focused regressions.</p>
+          <p><strong>Non-goals:</strong> carpet, cardboard, shadows, lens effects, sensor noise, or randomized values.</p>
         </div>
         <div class="card interface">
-          <h3>Next: Normalize The Rendering Profile Contract</h3>
+          <h3>Next: Implement Materials, Lighting, And Shadows</h3>
           <p><span class="status pending">Queued, not started</span> <strong>Expected shape:</strong> deep and narrow.</p>
-          <p><strong>Expected deliverable:</strong> scenario and session profile values normalize into one immutable rendering input consumed by the main view, popout, and snapshot renderer while preserving current visuals.</p>
-          <p><strong>Review question:</strong> Can every render entry point consume one profile without importing scenario-specific policy or duplicating defaults?</p>
-          <p><strong>Proposed ownership:</strong> scenario normalization, rendering contracts, scene construction, actor-view construction, sidebar setting, and focused regression coverage.</p>
-          <p><strong>Non-goals:</strong> carpet, cardboard, shadows, lens effects, sensor noise, or randomized values.</p>
+          <p><strong>Expected deliverable:</strong> named carpet, cardboard, room-wall, light, and shadow values flow through the normalized profile and shared renderer factories.</p>
+          <p><strong>Review question:</strong> Does <code>rc-indoor</code> add physically useful depth and material cues while <code>simulation</code> remains visually stable?</p>
+          <p><strong>Proposed ownership:</strong> profile values, shared material factories, lighting and shadow setup, representative scenarios, and visual regression evidence.</p>
+          <p><strong>Non-goals:</strong> camera calibration, lens effects, sensor noise, or seeded domain variation.</p>
         </div>
       </div>
       <div class="table-wrap" style="margin-top: 16px;">
@@ -282,12 +282,12 @@
         <button type="button" data-filter="done" aria-pressed="false">Done</button>
       </div>
       <details class="work-item" data-status="active" open>
-        <summary><span>1. Establish Milestone Tracking And Scope</span><span class="status active">Active</span></summary>
-        <div class="work-body"><p>Create the planning contract, active plan, completion workflows, validation, and documentation discovery. Complete when the review accepts the milestone boundary and repository checks enforce the plan.</p></div>
+        <summary><span>1. Establish Milestone Tracking And Scope</span><span class="status active">In review</span></summary>
+        <div class="work-body"><p>PR #134 creates the planning contract, active plan, completion workflows, validation, and documentation discovery. Complete when the review accepts the milestone boundary and repository checks enforce the plan.</p></div>
       </details>
-      <details class="work-item" data-status="pending" open>
-        <summary><span>2. Settle Rendering Profile Values And Ownership</span><span class="status pending">Pending</span></summary>
-        <div class="work-body"><p>Define normalized scenario and session values, immutable renderer input, profile selection, metadata shape, and fallback behavior without changing baseline output.</p></div>
+      <details class="work-item" data-status="active" open>
+        <summary><span>2. Settle Rendering Profile Values And Ownership</span><span class="status active">Active</span></summary>
+        <div class="work-body"><p>PR #135 defines normalized scenario and session values, immutable renderer input, profile selection, metadata shape, and fallback behavior without changing baseline output.</p></div>
       </details>
       <details class="work-item" data-status="pending">
         <summary><span>3. Implement Materials, Lighting, And Shadows</span><span class="status pending">Pending</span></summary>
@@ -387,6 +387,7 @@
             <tr><td>2026-07-16</td><td>Keep vehicle dynamics outside this milestone.</td><td>Drivetrain behavior changes world evolution; this milestone concerns how an unchanged world is observed.</td></tr>
             <tr><td>2026-07-16</td><td>Require physical evidence before retaining optical effects.</td><td>Uncalibrated distortion and noise add complexity without necessarily improving transfer to the PiRacer camera.</td></tr>
             <tr><td>2026-07-16</td><td>Adopt the auto-driving rolling milestone model in this repository.</td><td>Stable outcomes and a concrete next review unit provide continuity without prematurely fixing the implementation sequence.</td></tr>
+            <tr><td>2026-07-16</td><td>Keep named profiles baseline-equivalent in the contract package.</td><td>The first implementation review should settle ownership and renderer consistency before material or lighting changes make pixel output harder to compare.</td></tr>
           </tbody>
         </table>
       </div>

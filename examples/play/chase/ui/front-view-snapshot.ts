@@ -8,6 +8,10 @@ import { CAR_BOUND_RADIUS } from "../config/constants.mjs";
 import type {
   VehicleFrontViewCaptureRecord,
 } from "../decision-model/memory/vehicle/front-view-captures.ts";
+import {
+  SIMULATION_RENDERING_PROFILE,
+  type ChaseRenderingProfile,
+} from "../rendering/profiles.ts";
 
 type ActorId = "chaser" | "evader";
 type RuntimeRecord = Record<string, any>;
@@ -33,6 +37,7 @@ export type ManualFrontViewSnapshot = {
   snapshotType: "manual-front-view";
   actorId: ActorId;
   frameIndex: number | null;
+  renderingProfile: ChaseRenderingProfile;
   referenceable: false;
   persistence: {
     storedInActorMemory: false;
@@ -171,6 +176,7 @@ export function buildManualFrontViewSnapshot(
     snapshotType: "manual-front-view",
     actorId,
     frameIndex: record.frameIndex,
+    renderingProfile: simulationState.renderingProfile ?? SIMULATION_RENDERING_PROFILE,
     referenceable: false,
     persistence: {
       storedInActorMemory: false,
