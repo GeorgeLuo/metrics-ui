@@ -18,6 +18,7 @@ import {
   disposeMapKnowledgeOverlayDisplayState,
   disposeMapRecencyOverlayDisplayState,
   disposePredictionDebugDisplayState,
+  getWallMaterialOptions,
   setCarWheelSteeringAngle,
   syncProjectionFrames,
   updateChaserActionPathDebugDisplay,
@@ -60,7 +61,7 @@ export function createChaseSceneView({
   camera.lookAt(0, 0, 0);
 
   const lighting = createSceneLighting();
-  scene.add(lighting.ambientLight, lighting.keyLight);
+  scene.add(lighting.ambientLight, lighting.keyLight, lighting.keyLightTarget);
 
   const chaserFieldOfView = createFieldOfViewCone(
     vehicleSettings.fieldOfViewAngleRadians,
@@ -98,32 +99,44 @@ export function createChaseSceneView({
   let renderedObstacles = null;
   let renderedSurfaces = null;
   let renderedProfile = null;
+  let renderedProfileColumns = null;
+  let renderedProfileRows = null;
 
   const getRenderingProfile = () =>
     simulationState.renderingProfile ?? SIMULATION_RENDERING_PROFILE;
 
+  const getFieldDimensions = () => ({
+    columns: Number.isFinite(simulationState.columns) ? simulationState.columns : columns,
+    rows: Number.isFinite(simulationState.rows) ? simulationState.rows : rows,
+  });
+
   const syncRenderingProfile = () => {
     const nextProfile = getRenderingProfile();
-    if (nextProfile === renderedProfile) {
+    const dimensions = getFieldDimensions();
+    const profileChanged = nextProfile !== renderedProfile;
+    if (
+      !profileChanged
+      && dimensions.columns === renderedProfileColumns
+      && dimensions.rows === renderedProfileRows
+    ) {
       return nextProfile;
     }
     renderedProfile = nextProfile;
-    applyRenderingEnvironment({ renderer, lighting }, renderedProfile);
-    renderedFloorKey = null;
-    renderedObstacles = null;
-    renderedSurfaces = null;
+    renderedProfileColumns = dimensions.columns;
+    renderedProfileRows = dimensions.rows;
+    applyRenderingEnvironment({ renderer, lighting, ...dimensions }, renderedProfile);
+    if (profileChanged) {
+      renderedFloorKey = null;
+      renderedObstacles = null;
+      renderedSurfaces = null;
+    }
     return renderedProfile;
   };
 
   const disposeObstacleMesh = (mesh) => disposeObject3D(mesh);
 
   const getFloorKey = () => {
-    const fieldColumns = Number.isFinite(simulationState.columns)
-      ? simulationState.columns
-      : columns;
-    const fieldRows = Number.isFinite(simulationState.rows)
-      ? simulationState.rows
-      : rows;
+    const { columns: fieldColumns, rows: fieldRows } = getFieldDimensions();
     return `${fieldColumns}:${fieldRows}`;
   };
 
@@ -158,7 +171,11 @@ export function createChaseSceneView({
       disposeObstacleMesh(mesh);
     });
     (simulationState.obstacles?.walls ?? []).forEach((wall) => {
-      const mesh = createWall(wall, renderedProfile.environment.materials.obstacle);
+      const materialOptions = getWallMaterialOptions(
+        wall,
+        renderedProfile.environment.materials,
+      );
+      const mesh = createWall(wall, materialOptions);
       obstacleMeshes.push(mesh);
       obstacleGroup.add(mesh);
     });
