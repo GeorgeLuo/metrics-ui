@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { FIELD_OF_VIEW_DISTANCE } from "../config/constants.mjs";
+import { SIMULATION_RENDERING_PROFILE } from "../rendering/profiles.ts";
 import { configureChaserViewCamera } from "./rendering.mjs";
+import { applyRenderingEnvironment } from "./rendering/environment.mjs";
 
 const DEFAULT_ACTOR_VIEW_WIDTH = 280;
 const ACTOR_VIEW_IMAGE_RENDERER_ID = "chase-actor-view-threejs-v1";
@@ -17,6 +19,7 @@ function configureActorViewRenderCamera(camera, {
   actorLookDirection,
   fieldOfViewAngleRadians,
   fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
+  renderingProfile = SIMULATION_RENDERING_PROFILE,
   width,
   height,
 }) {
@@ -24,7 +27,12 @@ function configureActorViewRenderCamera(camera, {
   camera.aspect = width / height;
   camera.far = fieldOfViewDistance;
   camera.updateProjectionMatrix();
-  configureChaserViewCamera(camera, actorPosition, actorLookDirection);
+  configureChaserViewCamera(
+    camera,
+    actorPosition,
+    actorLookDirection,
+    renderingProfile.camera.mount,
+  );
 }
 
 export function renderActorViewScene({
@@ -111,6 +119,7 @@ export function createActorViewImageCapture({
     actorLookDirection,
     fieldOfViewAngleRadians,
     fieldOfViewDistance = FIELD_OF_VIEW_DISTANCE,
+    renderingProfile = SIMULATION_RENDERING_PROFILE,
     excludedObjects = [],
     width,
     height,
@@ -123,11 +132,13 @@ export function createActorViewImageCapture({
     const imageHeight = normalizeCaptureDimension(height, 480);
     const resources = ensureResources();
     resources.renderer.setSize(imageWidth, imageHeight, false);
+    applyRenderingEnvironment({ renderer: resources.renderer }, renderingProfile);
     configureActorViewRenderCamera(resources.camera, {
       actorPosition,
       actorLookDirection,
       fieldOfViewAngleRadians,
       fieldOfViewDistance,
+      renderingProfile,
       width: imageWidth,
       height: imageHeight,
     });
@@ -161,6 +172,7 @@ export function createActorViewImageCapture({
 export function createActorViewController({
   createFloatingFrame,
   vehicleSettings,
+  getRenderingProfile = () => SIMULATION_RENDERING_PROFILE,
   onVisibilityChange,
   onControlWindowChange,
   onRenderWindowChange,
@@ -286,7 +298,7 @@ export function createActorViewController({
     const resizeObserver = new ResizeObserver(scheduleMountedViewResize);
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setClearColor(0x000000, 0);
+    applyRenderingEnvironment({ renderer }, getRenderingProfile());
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.domElement.style.display = "block";
     renderer.domElement.style.width = "100%";
@@ -371,7 +383,14 @@ export function createActorViewController({
       return;
     }
     syncControlWindow();
-    configureChaserViewCamera(mountedView.camera, actorPosition, actorLookDirection);
+    const renderingProfile = getRenderingProfile();
+    applyRenderingEnvironment({ renderer: mountedView.renderer }, renderingProfile);
+    configureChaserViewCamera(
+      mountedView.camera,
+      actorPosition,
+      actorLookDirection,
+      renderingProfile.camera.mount,
+    );
     renderActorViewScene({
       renderer: mountedView.renderer,
       camera: mountedView.camera,
@@ -399,6 +418,7 @@ export function createActorViewController({
 export function createChaserViewController({
   createFloatingFrame,
   vehicleSettings,
+  getRenderingProfile,
   onVisibilityChange,
   onControlWindowChange,
   onRenderWindowChange,
@@ -406,6 +426,7 @@ export function createChaserViewController({
   return createActorViewController({
     createFloatingFrame,
     vehicleSettings,
+    getRenderingProfile,
     onVisibilityChange,
     onControlWindowChange,
     onRenderWindowChange,
@@ -418,12 +439,14 @@ export function createChaserViewController({
 export function createEvaderViewController({
   createFloatingFrame,
   vehicleSettings,
+  getRenderingProfile,
   onVisibilityChange,
   onRenderWindowChange,
 }) {
   return createActorViewController({
     createFloatingFrame,
     vehicleSettings,
+    getRenderingProfile,
     onVisibilityChange,
     onRenderWindowChange,
     frameId: "evader-view",

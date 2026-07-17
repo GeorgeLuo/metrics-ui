@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { SIMULATION_RENDERING_PROFILE } from "../../rendering/profiles.ts";
 
 const FLOOR_TEXTURE_SIZE = 256;
 const FLOOR_CELL_UNITS = 0.5;
@@ -66,15 +67,19 @@ function createFloorTexture(columns, rows) {
   return texture;
 }
 
-export function createTexturedFloor(columns, rows) {
+export function createTexturedFloor(
+  columns,
+  rows,
+  materialOptions = SIMULATION_RENDERING_PROFILE.environment.materials.floor,
+) {
   const safeColumns = Math.max(0.1, Number(columns) || 1);
   const safeRows = Math.max(0.1, Number(rows) || 1);
   const texture = createFloorTexture(safeColumns, safeRows);
   const material = new THREE.MeshStandardMaterial({
-    color: texture ? 0xffffff : 0xeee9dc,
+    color: texture ? materialOptions.color : materialOptions.fallbackColor,
     map: texture,
-    roughness: 0.94,
-    metalness: 0,
+    roughness: materialOptions.roughness,
+    metalness: materialOptions.metalness,
   });
   const geometry = new THREE.BoxGeometry(safeColumns, 0.006, safeRows);
   const mesh = new THREE.Mesh(geometry, material);

@@ -3,19 +3,14 @@ import {
   CHASER_ACTION_PATH_RATE_ACTION_ID,
   CHASER_ACTION_PATH_VIEW_ACTION_ID,
   CHASER_ACTION_PATH_VIEW_MODES,
-  CHASER_CONTROL_SOURCE_ACTION_ID,
-  CHASER_CONTROL_SOURCES,
   CHASER_MAP_OVERLAY_ACTION_ID,
   CHASER_MAP_OVERLAY_VIEW_MODES,
   CHASER_VIEW_ACTION_ID,
   CHASER_SPEED_ACTION_ID,
   DEFAULT_CHASER_ACTION_PATH_HORIZON_FRAMES,
   DEFAULT_CHASER_ACTION_PATH_SPACING_FRAMES,
-  EVADER_EXISTS_ACTION_ID,
-  SCENARIO_SELECT_ACTION_ID,
   EVADER_VIEW_ACTION_ID,
   IDAE_DEBUG_ACTION_ID,
-  SIMULATION_FPS_ACTION_ID,
   EVADER_PROJECTION_HORIZON_ACTION_ID,
   EVADER_PROJECTION_RATE_ACTION_ID,
   EVADER_PROJECTION_VIEW_ACTION_ID,
@@ -26,19 +21,10 @@ import {
   VEHICLE_FOV_DISTANCE_ACTION_ID,
   VEHICLE_MAX_STEERING_ANGLE_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
-  SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
-  SIMULATION_RESET_ACTION_ID,
 } from "../config/constants.mjs";
 import { CHASER_ACTION_PROPOSAL_MOTIVE_GROUPS } from "../config/decision-ids.mjs";
 import { formatEditableNumber, radiansToDegrees } from "../decision-model/core/math.ts";
-
-function formatRunMetric(value, digits = 0) {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return "0";
-  }
-  return formatEditableNumber(numericValue, digits);
-}
+import { buildGameRows } from "./sidebar/game-section.mjs";
 
 function formatActorLabel(actorId) {
   const value = String(actorId ?? "").trim();
@@ -127,23 +113,6 @@ function buildActorActionProposalRows(actorActionProposalCollections = {}) {
   ];
 }
 
-function buildChaserControlSourceRow(chaserControlSource) {
-  return {
-    kind: "select",
-    id: CHASER_CONTROL_SOURCE_ACTION_ID,
-    label: "Chaser control",
-    value: Object.values(CHASER_CONTROL_SOURCES).includes(chaserControlSource)
-      ? chaserControlSource
-      : CHASER_CONTROL_SOURCES.PROGRAMMATIC,
-    options: [
-      { value: CHASER_CONTROL_SOURCES.PROGRAMMATIC, label: "decision model" },
-      { value: CHASER_CONTROL_SOURCES.KEYBOARD, label: "keyboard" },
-      { value: CHASER_CONTROL_SOURCES.WS, label: "WS" },
-    ],
-    hint: "Choose the single control source consumed by the chaser each simulation frame.",
-  };
-}
-
 function getEvaderProjectionViewMode(projectionSettings = {}, predictionDebugState = {}) {
   if (predictionDebugState.visible) {
     return EVADER_PROJECTION_VIEW_MODES.PREDICTION_PATHS;
@@ -181,43 +150,6 @@ function getPositiveFrameCount(value, fallback) {
     : fallback;
 }
 
-function buildScenarioRows(scenarioControls = {}) {
-  const options = Array.isArray(scenarioControls.options)
-    ? scenarioControls.options
-      .filter((option) => option?.value && option?.label)
-      .map((option) => ({
-        value: String(option.value),
-        label: String(option.label),
-      }))
-    : [];
-  const activeScenarioId = String(scenarioControls.activeScenarioId ?? "");
-
-  if (options.length === 0 || !activeScenarioId) {
-    return [];
-  }
-
-  return [
-    { kind: "header", label: "Scenario" },
-    {
-      kind: "select",
-      id: SCENARIO_SELECT_ACTION_ID,
-      label: "Loaded",
-      value: activeScenarioId,
-      options,
-      hint: "Switch the scenario config used by the Chase simulation.",
-    },
-    {
-      kind: "toggle",
-      id: EVADER_EXISTS_ACTION_ID,
-      label: "Evader",
-      enabled: scenarioControls.evaderExists !== false,
-      enabledLabel: "present",
-      disabledLabel: "absent",
-      hint: "Override whether the active scenario includes the evader.",
-    },
-  ];
-}
-
 export function publishSidebarSections(
   setSidebarSections,
   chaserControlSource,
@@ -237,51 +169,12 @@ export function publishSidebarSections(
   }
 
   const evaderExists = scenarioControls.evaderExists !== false;
-  const gameRows = [
-    { kind: "header", label: "Score" },
-    {
-      kind: "value",
-      label: "Touches",
-      value: formatRunMetric(runMetrics.touchCount, 0),
-    },
-    {
-      kind: "value",
-      label: "Frames",
-      value: formatRunMetric(runMetrics.elapsedFrames, 0),
-    },
-    {
-      kind: "value",
-      label: "Touches / 1k frames",
-      value: formatRunMetric(runMetrics.touchRatePerThousandFrames, 2),
-    },
-    ...buildScenarioRows(scenarioControls),
-    { kind: "header", label: "Simulation" },
-    {
-      kind: "editableValue",
-      id: SIMULATION_FPS_ACTION_ID,
-      label: "FPS",
-      value: formatEditableNumber(simulationSettings.framesPerSecond, 0),
-      suffix: "frames/s",
-      hint: "How many simulation frames to advance per real-time second while watching the run.",
-    },
-    {
-      kind: "toggle",
-      id: SIMULATION_PAUSE_BEFORE_ACTIONS_ID,
-      label: "Playback",
-      enabled: !Boolean(simulationSettings.pauseBeforeActions),
-      enabledLabel: "playing",
-      disabledLabel: "paused",
-      tone: "playback",
-      hint: "Freeze after all actor reasoning has run for the current frame, before actions update the world.",
-    },
-    buildChaserControlSourceRow(chaserControlSource),
-    {
-      kind: "action",
-      id: SIMULATION_RESET_ACTION_ID,
-      label: "Reset",
-      hint: "Reset the Chase run to a fresh initial state.",
-    },
-  ];
+  const gameRows = buildGameRows({
+    chaserControlSource,
+    simulationSettings,
+    runMetrics,
+    scenarioControls,
+  });
   const sections = [
     {
       id: "game",

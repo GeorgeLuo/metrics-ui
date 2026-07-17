@@ -32,3 +32,5 @@ Then open:
 ## Docs
 
 See [USAGE.md](./USAGE.md) for HTTP/WS protocol details and example automation flows.
+Use [docs/README.md](./docs/README.md) for active milestone work, planning status,
+and durable milestone history.

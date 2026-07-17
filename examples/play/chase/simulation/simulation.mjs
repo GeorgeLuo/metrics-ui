@@ -400,6 +400,7 @@ export function createChaseSimulationState({
     simulationSettings: {
       ...(scenario?.simulation ?? {}),
     },
+    renderingProfile: scenario?.rendering,
     obstacles: scenario?.map?.obstacles ?? { walls: [] },
     surfaces: scenario?.map?.surfaces ?? [],
     vehicleSettings: {

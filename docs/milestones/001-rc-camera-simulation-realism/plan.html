@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 001: RC Camera Simulation Realism</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f7f8;
+      --surface: #ffffff;
+      --surface-alt: #eef3f5;
+      --text: #182126;
+      --muted: #58666d;
+      --line: #cbd5d9;
+      --blue: #176b87;
+      --blue-soft: #dceff5;
+      --green: #2d7650;
+      --green-soft: #dff1e7;
+      --amber: #8a5b12;
+      --amber-soft: #f7e9ca;
+      --red: #a44343;
+      --red-soft: #f7dfdf;
+      --violet: #68539a;
+      --violet-soft: #ebe5f7;
+      --neutral: #dce3e6;
+      --shadow: 0 8px 24px rgba(20, 35, 42, 0.08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111619;
+        --surface: #192126;
+        --surface-alt: #202b31;
+        --text: #edf3f5;
+        --muted: #afbdc3;
+        --line: #35444b;
+        --blue: #69b7d0;
+        --blue-soft: #173b47;
+        --green: #77c699;
+        --green-soft: #173a29;
+        --amber: #e5b55f;
+        --amber-soft: #463515;
+        --red: #ed9090;
+        --red-soft: #482323;
+        --violet: #b9a5e8;
+        --violet-soft: #33294c;
+        --neutral: #2b373d;
+        --shadow: none;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.55; }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 32px 0 64px; }
+    header { padding: 28px 0 18px; }
+    h1, h2, h3 { margin: 0; line-height: 1.2; letter-spacing: 0; }
+    h1 { max-width: 920px; font-size: 46px; }
+    h2 { margin-bottom: 14px; font-size: 24px; }
+    h3 { font-size: 17px; }
+    p { margin: 0; }
+    a { color: var(--blue); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { overflow-wrap: anywhere; }
+    .lead { max-width: 920px; margin-top: 14px; color: var(--muted); font-size: 18px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+    .pill, .status { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; font-weight: 700; }
+    .pill { background: var(--surface-alt); }
+    .status.done { color: var(--green); background: var(--green-soft); border-color: var(--green); }
+    .status.active { color: var(--blue); background: var(--blue-soft); border-color: var(--blue); }
+    .status.pending { color: var(--amber); background: var(--amber-soft); border-color: var(--amber); }
+    .status.blocked { color: var(--red); background: var(--red-soft); border-color: var(--red); }
+    .status.global { color: var(--violet); background: var(--violet-soft); border-color: var(--violet); }
+    .panel { margin-top: 20px; padding: 22px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card { min-width: 0; padding: 16px; border-left: 4px solid var(--line); background: var(--surface-alt); }
+    .card p, .card ul, .card pre { margin-top: 9px; }
+    .card.goal { border-color: var(--blue); }
+    .card.interface { border-color: var(--violet); }
+    .card.constraint { border-color: var(--green); }
+    .card.risk { border-color: var(--red); }
+    .note { margin-top: 14px; padding: 14px 16px; border-left: 4px solid var(--amber); background: var(--amber-soft); }
+    .small { color: var(--muted); font-size: 13px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 11px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--surface-alt); }
+    ul, ol { margin: 10px 0 0; padding-left: 22px; }
+    li + li { margin-top: 6px; }
+    pre { margin: 12px 0 0; padding: 15px; overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-alt); font-size: 13px; line-height: 1.5; }
+    details { border: 1px solid var(--line); background: var(--surface); }
+    details + details { margin-top: 10px; }
+    summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; cursor: pointer; font-weight: 700; }
+    .work-body, .reference-body { padding: 0 15px 15px; }
+    .reference-item { margin-top: 14px; }
+    .reference-frame { width: 100%; min-height: 720px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .filters button { min-height: 36px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-alt); color: var(--text); cursor: pointer; font: inherit; }
+    .filters button[aria-pressed="true"] { border-color: var(--blue); color: var(--blue); font-weight: 700; }
+    .progress-track { height: 10px; margin-top: 14px; overflow: hidden; border-radius: 5px; background: var(--neutral); }
+    .progress-fill { width: 0; height: 100%; background: var(--green); }
+    @media (max-width: 860px) {
+      main { width: min(100% - 20px, 1180px); padding-top: 18px; }
+      h1 { font-size: 34px; }
+      .panel { padding: 16px; }
+      .grid, .grid.two { grid-template-columns: 1fr; }
+      th, td { min-width: 180px; }
+      summary { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Milestone 001: RC Camera Simulation Realism</h1>
+      <p class="lead">
+        Make Chase front-view images approximate a camera mounted on an indoor
+        RC vehicle while preserving deterministic simulation rendering for
+        debugging, regression, and geometry inspection.
+      </p>
+      <div class="meta">
+        <span class="pill">Status: active - planning</span>
+        <span class="pill">Started: 2026-07-16</span>
+        <span class="pill">Default profile: simulation</span>
+        <span class="pill">Capture overlays: off</span>
+        <span class="pill">Randomness: seeded</span>
+        <span class="pill">Delivery: rolling PR horizon</span>
+      </div>
+    </header>
+
+    <section class="panel">
+      <h2>High-Level Objective</h2>
+      <div class="grid">
+        <div class="card goal">
+          <h3>Physical Appearance</h3>
+          <p>Represent carpet, cardboard obstacles, room lighting, shadows, and bounded surface variation through explicit scenario rendering data.</p>
+        </div>
+        <div class="card interface">
+          <h3>Camera Parity</h3>
+          <p>Model camera mount geometry, lens characteristics, and selected sensor artifacts without changing perception geometry or vehicle dynamics.</p>
+        </div>
+        <div class="card constraint">
+          <h3>Controlled Realism</h3>
+          <p>Apply one normalized profile to the app view, popout, and WS snapshots while retaining a stable simulation profile and reproducible seeds.</p>
+        </div>
+      </div>
+      <p class="note">
+        Success is not photorealism. Success is a reproducible observation
+        environment whose differences from the physical PiRacer camera are
+        explicit, configurable, and measurable from frame-matched evidence.
+      </p>
+    </section>
+
+    <section class="panel" data-completion-usage>
+      <h2>Completion Usage</h2>
+      <p>These are proposed interfaces unless identified as available. Exact names may sharpen, but changing the workflow set requires a decision-log entry.</p>
+      <div class="grid two" style="margin-top: 14px;">
+        <div class="card interface">
+          <h3>Select A Rendering Profile</h3>
+          <p><strong>Starting state:</strong> Chase is loaded with a scenario.</p>
+          <p><strong>Proposed execution:</strong> select <code>Simulation</code>, <code>RC indoor</code>, or <code>Randomized</code> from the Game settings and reset the scenario.</p>
+          <p><strong>Success signal:</strong> the main scene and actor view use the selected profile, and reset retains the session override while restoring world state.</p>
+        </div>
+        <div class="card goal">
+          <h3>Declare Scenario Appearance</h3>
+          <p><strong>Starting state:</strong> a Chase scenario definition is being authored.</p>
+          <p><strong>Proposed execution:</strong></p>
+          <pre>rendering: {
+  profile: "rc-indoor",
+  seed: 42,
+  overrides: { camera: { calibration: "piracer-v1" } }
+}</pre>
+          <p><strong>Success signal:</strong> scenario resolution reports one validated effective profile and all render entry points consume it.</p>
+        </div>
+        <div class="card constraint">
+          <h3>Capture Reproducible Front-View Evidence</h3>
+          <p><strong>Starting state:</strong> the frontend is running and the desired scenario, profile, and actor pose are selected.</p>
+          <p><strong>Available execution:</strong></p>
+          <pre>simeval ui play-front-view-snapshot \
+  --actor chaser \
+  --out-dir /tmp/chase-realism</pre>
+          <p><strong>Success signal:</strong> the PNG and metadata identify the frame, scenario, resolved profile, seed, camera parameters, and image-effect parameters; repeating the same state and seed reproduces the resolved values and passes a documented same-renderer pixel tolerance.</p>
+        </div>
+        <div class="card goal">
+          <h3>Compare Simulation With A Physical Frame</h3>
+          <p><strong>Starting state:</strong> a physical PiRacer reference image and corresponding Chase scenario are available.</p>
+          <p><strong>Proposed execution:</strong> capture the fixed scenario under <code>simulation</code> and <code>rc-indoor</code>, then record both beside the source image.</p>
+          <p><strong>Success signal:</strong> one review artifact pairs all images with resolved parameters and states what improved, regressed, or remains unmodeled.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Baseline</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Area</th><th>Observed State</th><th>Gap</th></tr></thead>
+          <tbody>
+            <tr><td>Floor</td><td><a href="../../../examples/play/chase/ui/rendering/floor.mjs"><code>floor.mjs</code></a> creates one procedural light floor texture and an independently toggleable grid.</td><td>Scenarios cannot identify carpet or select material parameters.</td></tr>
+            <tr><td>Obstacles</td><td>Walls support position, dimensions, rotation, and height. All use one white standard material with dark geometry edges.</td><td>Cardboard boxes and room walls cannot carry distinct appearance.</td></tr>
+            <tr><td>Lighting</td><td><a href="../../../examples/play/chase/ui/scene-view.mjs"><code>scene-view.mjs</code></a> uses fixed high-intensity ambient and directional lights.</td><td>There is no lighting profile, calibrated exposure, or functioning cast-shadow path.</td></tr>
+            <tr><td>Camera</td><td>Front views use perspective FOV and range from vehicle settings with fixed mount assumptions.</td><td>Mount height, pitch, yaw, lens distortion, and sensor response are not explicit configuration.</td></tr>
+            <tr><td>Capture</td><td>App, popout, and WS snapshots render the shared world; snapshots omit debug projections by default and reuse WebGL capture resources.</td><td>Capture metadata does not identify a rendering profile or calibration.</td></tr>
+            <tr><td>Evidence</td><td><a href="../../../examples/play/chase/scenarios/piracer-room-sketch.scenario.mjs"><code>piracer-room-sketch</code></a> approximates a physical two-box room geometry.</td><td>No repeatable side-by-side artifact evaluates simulated appearance against its source frame.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Current Delivery Horizon</h2>
+      <p>This milestone follows the shared planning contract. Only the current and queued review units are concrete.</p>
+      <details class="reference-item" data-shared-planning-contract>
+        <summary><span>Shared Planning And Delivery Contract</span><span class="status global">Global</span></summary>
+        <div class="reference-body">
+          <p>Rendered from the canonical <a href="../README.md">Markdown source</a>. Regenerate it rather than editing the embedded document.</p>
+          <iframe class="reference-frame" src="../planning-contract.html" title="Shared milestone planning and delivery contract" loading="lazy"></iframe>
+        </div>
+      </details>
+      <div class="grid two" style="margin-top: 14px;">
+        <div class="card goal">
+          <h3>Current: Normalize The Rendering Profile Contract</h3>
+          <p><span class="status active">Active</span> <strong>Review shape:</strong> deep and narrow implementation stacked on milestone tracker PR #134.</p>
+          <p><strong>Deliverable:</strong> scenario and session profile values normalize into one immutable rendering input consumed by the main view, popout, and snapshot renderer while preserving current visuals.</p>
+          <p><strong>Review question:</strong> Can every render entry point consume one profile without importing scenario-specific policy or duplicating defaults?</p>
+          <p><strong>Files:</strong> modify scenario normalization, scene construction, actor-view construction, runtime settings, snapshot metadata, sidebar controls, and focused regressions.</p>
+          <p><strong>Non-goals:</strong> carpet, cardboard, shadows, lens effects, sensor noise, or randomized values.</p>
+        </div>
+        <div class="card interface">
+          <h3>Next: Implement Materials, Lighting, And Shadows</h3>
+          <p><span class="status pending">Queued, not started</span> <strong>Expected shape:</strong> deep and narrow.</p>
+          <p><strong>Expected deliverable:</strong> named carpet, cardboard, room-wall, light, and shadow values flow through the normalized profile and shared renderer factories.</p>
+          <p><strong>Review question:</strong> Does <code>rc-indoor</code> add physically useful depth and material cues while <code>simulation</code> remains visually stable?</p>
+          <p><strong>Proposed ownership:</strong> profile values, shared material factories, lighting and shadow setup, representative scenarios, and visual regression evidence.</p>
+          <p><strong>Non-goals:</strong> camera calibration, lens effects, sensor noise, or seeded domain variation.</p>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top: 16px;">
+        <table>
+          <thead><tr><th>Preparation Horizon</th><th>Known End-State Need</th><th>Must Be Learned First</th></tr></thead>
+          <tbody>
+            <tr><td>Material and light profile</td><td>Carpet, cardboard, room walls, directional lighting, and shadows.</td><td>Which properties belong to named materials versus scenario overrides.</td></tr>
+            <tr><td>Camera calibration</td><td>Mount height, pitch, yaw, FOV, near/far range, and image dimensions.</td><td>Which values can be measured from the PiRacer and which remain scenario-dependent.</td></tr>
+            <tr><td>Optics and sensor</td><td>Lens distortion, exposure, vignette, blur, noise, and compression.</td><td>Which effects produce measurable parity rather than cosmetic complexity.</td></tr>
+            <tr><td>Domain variation</td><td>Seeded bounded variation for lighting, materials, and image response.</td><td>Which calibrated center values and ranges are defensible from physical evidence.</td></tr>
+            <tr><td>Closeout evidence</td><td>Repeatable images, metadata, performance, and physical comparison.</td><td>Which profile improves VLM-relevant observations without obscuring geometry.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" data-milestone-contract>
+      <h2>Rendering Contract</h2>
+      <pre>interface ChaseRenderingProfile {
+  id: "simulation" | "rc-indoor" | "randomized";
+  environment: LightingOptions &amp; MaterialOptions;
+  camera: CameraMountOptions &amp; CameraOpticsOptions;
+  sensor: SensorImageOptions;
+  seed?: number;
+}</pre>
+      <div class="table-wrap" style="margin-top: 14px;">
+        <table>
+          <thead><tr><th>Concern</th><th>Required Direction</th></tr></thead>
+          <tbody>
+            <tr><td>Ownership</td><td>Scenario and session inputs normalize once; renderer modules consume resolved values and do not choose profiles.</td></tr>
+            <tr><td>Consistency</td><td>The app scene, popout, and snapshot path receive the same effective profile for a frame.</td></tr>
+            <tr><td>Separation</td><td>Visual realism does not change collision geometry, surface friction, field-of-view perception, or action behavior.</td></tr>
+            <tr><td>Determinism</td><td>Every randomized value derives from an explicit seed and is included in capture metadata.</td></tr>
+            <tr><td>Inspection</td><td>Snapshots record resolved parameters rather than only a preset name.</td></tr>
+            <tr><td>Debugging</td><td>The simulation profile remains stable, and debug overlays remain absent from front-view captures by default.</td></tr>
+            <tr><td>Resources</td><td>Materials, textures, render targets, and WebGL resources have explicit reuse and disposal ownership.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Work Plan</h2>
+      <div class="filters" aria-label="Filter work packages">
+        <button type="button" data-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-filter="active" aria-pressed="false">Active</button>
+        <button type="button" data-filter="pending" aria-pressed="false">Pending</button>
+        <button type="button" data-filter="done" aria-pressed="false">Done</button>
+      </div>
+      <details class="work-item" data-status="active" open>
+        <summary><span>1. Establish Milestone Tracking And Scope</span><span class="status active">In review</span></summary>
+        <div class="work-body"><p>PR #134 creates the planning contract, active plan, completion workflows, validation, and documentation discovery. Complete when the review accepts the milestone boundary and repository checks enforce the plan.</p></div>
+      </details>
+      <details class="work-item" data-status="active" open>
+        <summary><span>2. Settle Rendering Profile Values And Ownership</span><span class="status active">Active</span></summary>
+        <div class="work-body"><p>PR #135 defines normalized scenario and session values, immutable renderer input, profile selection, metadata shape, and fallback behavior without changing baseline output.</p></div>
+      </details>
+      <details class="work-item" data-status="pending">
+        <summary><span>3. Implement Materials, Lighting, And Shadows</span><span class="status pending">Pending</span></summary>
+        <div class="work-body"><p>Add named carpet, cardboard, and room-wall appearance plus calibrated indoor lights and shadows through shared factories. Preserve the simulation profile exactly.</p></div>
+      </details>
+      <details class="work-item" data-status="pending">
+        <summary><span>4. Calibrate Camera Mount And Projection</span><span class="status pending">Pending</span></summary>
+        <div class="work-body"><p>Measure or explicitly estimate camera height, pitch, yaw, FOV, image dimensions, and clipping behavior. Apply identical projection values to live and captured views.</p></div>
+      </details>
+      <details class="work-item" data-status="pending">
+        <summary><span>5. Qualify Optical And Sensor Effects</span><span class="status pending">Pending</span></summary>
+        <div class="work-body"><p>Evaluate lens distortion, exposure, vignette, blur, noise, and compression independently. Retain only effects supported by physical comparison and bounded performance.</p></div>
+      </details>
+      <details class="work-item" data-status="pending">
+        <summary><span>6. Add Seeded Variation And Comparison Evidence</span><span class="status pending">Pending</span></summary>
+        <div class="work-body"><p>Define defensible variation ranges, deterministic seed behavior, capture metadata, and fixed physical-reference comparisons for the PiRacer room scenario.</p></div>
+      </details>
+      <details class="work-item" data-status="pending">
+        <summary><span>7. Validate, Document, And Close</span><span class="status pending">Pending</span></summary>
+        <div class="work-body"><p>Record regression, snapshot stress, frame-time, deterministic replay, and physical comparison evidence. Freeze the plan and write the closeout and completed ledger entry.</p></div>
+      </details>
+      <div class="progress-track" aria-label="Milestone work packages completed: 0 of 7"><div class="progress-fill" style="width: 0%;"></div></div>
+      <p class="small">Progress counts completed work packages, not commits or pull requests.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Scope Boundaries</h2>
+      <div class="grid two">
+        <div class="card constraint">
+          <h3>In Scope</h3>
+          <ul>
+            <li>Named rendering profiles and scenario/session overrides.</li>
+            <li>Floor, wall, obstacle, and surface visual materials.</li>
+            <li>Indoor lighting, shadows, exposure, and color response.</li>
+            <li>Camera mount, projection, lens, and bounded image effects.</li>
+            <li>Seeded domain variation and resolved capture metadata.</li>
+            <li>UI selection, snapshot consistency, and physical comparison evidence.</li>
+          </ul>
+        </div>
+        <div class="card risk">
+          <h3>Out Of Scope</h3>
+          <ul>
+            <li>Acceleration, wheel slip, steering latency, or other drivetrain physics.</li>
+            <li>Changes to collision, friction, perception, memory, or decision behavior.</li>
+            <li>VLM integration, semantic recognition, or model training.</li>
+            <li>High-poly vehicle or room reconstruction.</li>
+            <li>Ray tracing or an unbounded photorealism goal.</li>
+            <li>Randomness without explicit seed and parameter reporting.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Risks And Controls</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Risk</th><th>Control</th></tr></thead>
+          <tbody>
+            <tr><td>Realism makes geometry harder to debug.</td><td>Keep the current simulation profile first-class and independently selectable.</td></tr>
+            <tr><td>Main, popout, and snapshot views diverge.</td><td>Normalize one profile and share material, light, camera, and postprocessing construction.</td></tr>
+            <tr><td>Postprocessing recreates the WebGL resource leak.</td><td>Reuse bounded render targets and explicitly test repeated capture and disposal.</td></tr>
+            <tr><td>Randomization makes failures irreproducible.</td><td>Require a seed and record every resolved value in snapshot metadata.</td></tr>
+            <tr><td>Visual effects are aesthetic but not physically useful.</td><td>Promote effects only with side-by-side physical evidence and a stated observation benefit.</td></tr>
+            <tr><td>Realistic rendering changes simulation behavior.</td><td>Keep visual profiles outside world geometry, collision, friction, perception, and action contracts.</td></tr>
+            <tr><td>Rendering cost degrades interactive control.</td><td>Record a baseline and require normal simulation frame time to remain within 10% of it.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Exit Criteria</h2>
+      <ol>
+        <li>Scenario and session configuration resolve into one documented rendering profile consumed by the app view, popout, and snapshot path.</li>
+        <li>The deterministic <code>simulation</code> profile preserves current geometry-focused rendering and remains the default.</li>
+        <li>The <code>rc-indoor</code> profile visibly distinguishes carpet, cardboard obstacles, room walls, directional lighting, and shadows.</li>
+        <li>Camera mount, projection, lens, and retained sensor effects are explicit configuration rather than hidden constants.</li>
+        <li>Every randomized value is seeded, reproducible, and present in snapshot metadata.</li>
+        <li>WS and SimEval snapshots remain free of debug overlays by default and identify the effective scenario, frame, profile, and camera values.</li>
+        <li>Repeated front-view capture produces no lost WebGL contexts or unbounded GPU-resource growth.</li>
+        <li>The simulation profile's measured interactive frame time regresses by no more than 10% from the pre-milestone baseline.</li>
+        <li>A fixed PiRacer room artifact compares the physical frame, simulation profile, and RC-indoor profile with parameters and stated remaining gaps.</li>
+        <li>Regression tests cover profile normalization, view consistency, deterministic seeds, metadata, resource lifecycle, and scenario reset behavior.</li>
+        <li>A closeout records delivered workflows, evidence, rejected effects, unresolved parity gaps, and any justified follow-on milestone.</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>Decision Log</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Decision</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td>2026-07-16</td><td>Treat visual realism as one observation-focused milestone.</td><td>Materials, lighting, camera calibration, and image effects jointly shape the same front-view evidence and share one evaluation boundary.</td></tr>
+            <tr><td>2026-07-16</td><td>Preserve deterministic simulation as a first-class profile.</td><td>Debugging and geometry regressions need a stable representation independent of physical appearance.</td></tr>
+            <tr><td>2026-07-16</td><td>Keep vehicle dynamics outside this milestone.</td><td>Drivetrain behavior changes world evolution; this milestone concerns how an unchanged world is observed.</td></tr>
+            <tr><td>2026-07-16</td><td>Require physical evidence before retaining optical effects.</td><td>Uncalibrated distortion and noise add complexity without necessarily improving transfer to the PiRacer camera.</td></tr>
+            <tr><td>2026-07-16</td><td>Adopt the auto-driving rolling milestone model in this repository.</td><td>Stable outcomes and a concrete next review unit provide continuity without prematurely fixing the implementation sequence.</td></tr>
+            <tr><td>2026-07-16</td><td>Keep named profiles baseline-equivalent in the contract package.</td><td>The first implementation review should settle ownership and renderer consistency before material or lighting changes make pixel output harder to compare.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const workItems = [...document.querySelectorAll(".work-item")];
+    const filterButtons = [...document.querySelectorAll("[data-filter]")];
+
+    function applyFilter(status) {
+      workItems.forEach((item) => {
+        item.hidden = status !== "all" && item.dataset.status !== status;
+      });
+      filterButtons.forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.filter === status));
+      });
+    }
+
+    filterButtons.forEach((button) => {
+      button.addEventListener("click", () => applyFilter(button.dataset.filter));
+    });
+  </script>
+</body>
+</html>

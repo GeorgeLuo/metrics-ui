@@ -28,6 +28,7 @@ import {
 import { CHASE_TRACE_SINKS } from "./trace-recorder.mjs";
 import { CHASER_PATTERN_IDS, CHASER_ACTION_PROPOSAL_IDS, EVADER_ACTION_PROPOSAL_IDS } from "../config/decision-ids.mjs";
 import { getFieldObstacleLayout } from "../world/world.mjs";
+import { resolveChaseRenderingProfile } from "../rendering/profiles.ts";
 
 function asRecord(value) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -386,6 +387,7 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
     description: typeof root.description === "string" && root.description.trim()
       ? root.description.trim()
       : "Baseline chase scenario.",
+    rendering: resolveChaseRenderingProfile(root.rendering),
     map,
     actors: {
       chaser: {

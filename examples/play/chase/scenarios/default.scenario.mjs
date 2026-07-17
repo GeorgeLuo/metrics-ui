@@ -2,6 +2,9 @@ const defaultScenarioDefinition = {
   id: "default",
   label: "Default Chase",
   description: "Baseline chase setup with a central square obstacle, programmatic chaser control, and default movement parameters.",
+  rendering: {
+    profile: "simulation",
+  },
   map: {
     layout: "center-square-default",
   },
