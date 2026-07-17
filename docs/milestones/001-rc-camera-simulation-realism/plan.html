@@ -121,7 +121,7 @@
         debugging, regression, and geometry inspection.
       </p>
       <div class="meta">
-        <span class="pill">Status: active - implementation</span>
+        <span class="pill">Status: closed 2026-07-17</span>
         <span class="pill">Started: 2026-07-16</span>
         <span class="pill">Default profile: simulation</span>
         <span class="pill">Capture overlays: off</span>
@@ -220,20 +220,16 @@
       </details>
       <div class="grid two" style="margin-top: 14px;">
         <div class="card goal">
-          <h3>Current: Add Seeded Variation And Comparison Evidence</h3>
-          <p><span class="status active">In review: PR #139</span> <strong>Review shape:</strong> one deterministic profile derivation.</p>
-          <p><strong>Deliverable:</strong> bounded RC-indoor lighting, material, shadow, and sensor variation derived entirely from a session seed and retained in snapshots.</p>
-          <p><strong>Review question:</strong> Can a reviewer recreate a varied image exactly while preserving the fixed RC-indoor physical-comparison center?</p>
-          <p><strong>Files:</strong> seeded profile derivation, Game seed control, CLI usage, focused regressions, and two fixed-pose seed artifacts.</p>
-          <p><strong>Non-goals:</strong> camera-geometry variation, world randomization, unseeded noise, or changing decision-model inputs.</p>
+          <h3>Closed: RC Camera Simulation Realism</h3>
+          <p><span class="status done">Validated and frozen</span> <strong>Delivered:</strong> named deterministic and RC-indoor profiles, explicit camera and sensor contracts, bounded seeded variation, and reproducible front-view evidence.</p>
+          <p><strong>Validation:</strong> 72 Chase regressions passed; the final simulation p95 was 5.3 ms versus 5.6 ms on the same pre-milestone revision and host; 25 sequential captures completed without blank output.</p>
+          <p><strong>Record:</strong> <a href="closeout.md"><code>closeout.md</code></a> and <a href="evidence/closeout/validation.json"><code>validation.json</code></a>.</p>
         </div>
         <div class="card interface">
-          <h3>Next: Validate, Document, And Close</h3>
-          <p><span class="status pending">Queued, not started</span> <strong>Expected shape:</strong> deep and narrow.</p>
-          <p><strong>Expected deliverable:</strong> closeout validation for deterministic replay, repeated capture resource ownership, interactive frame time, and all physical comparison evidence.</p>
-          <p><strong>Review question:</strong> Does the complete observation profile preserve simulation debugging while documenting remaining real-camera gaps?</p>
-          <p><strong>Proposed ownership:</strong> milestone ledger, regression records, performance samples, and resolved snapshot evidence.</p>
-          <p><strong>Non-goals:</strong> new visual effects or vehicle-dynamics changes.</p>
+          <h3>Successor: Chaser Observation Interpretation</h3>
+          <p><span class="status pending">Planned separately</span> <strong>Direction:</strong> map visual and sensor outputs into an observer-world contract before the decision model consumes them.</p>
+          <p><strong>Boundary:</strong> retain the completed renderer as an evidence producer; do not move perception processing into the generic decision model.</p>
+          <p><strong>Active plan:</strong> <a href="../002-chaser-observation-interpretation/plan.html"><code>Milestone 002</code></a>.</p>
         </div>
       </div>
       <div class="table-wrap" style="margin-top: 16px;">
@@ -389,6 +385,26 @@
     </section>
 
     <section class="panel">
+      <h2>Closeout Evidence</h2>
+      <p>Final validation uses the same <code>piracer-room-sketch</code> scenario, 60 FPS setting, temporary local Chrome profile, and SimEval control workflow for historical and final comparison.</p>
+      <div class="table-wrap" style="margin-top: 14px;">
+        <table>
+          <thead><tr><th>Check</th><th>Observed result</th></tr></thead>
+          <tbody>
+            <tr><td>Pre-milestone simulation p95</td><td>5.6 ms total at commit <code>404bacd</code>.</td></tr>
+            <tr><td>Final simulation / RC-indoor p95</td><td>5.3 / 5.3 ms total. The final simulation profile is 5.4% faster than the comparable historical result.</td></tr>
+            <tr><td>Final randomized seed 17 p95</td><td>6.6 ms total, below the 24 ms visual threshold; visual variation has a measured cost and is opt-in.</td></tr>
+            <tr><td>Capture stress</td><td>25 sequential 320 by 240 RC-derived captures produced 25 PNGs and 25 metadata files, with no empty output or failed command. First and last PNG hashes matched for the static pose.</td></tr>
+            <tr><td>Deterministic replay</td><td>Two reset-based 640 by 480 seed-17 snapshots at frame 3 had equal pose, profile, sensor metadata, and SHA-256.</td></tr>
+            <tr><td>Regression and type safety</td><td>72/72 Chase regressions, Chase typecheck, TypeScript, milestone documentation, JSON, and whitespace checks passed.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note"><strong>Environment note:</strong> automated Chrome had approximately 34 ms RAF gaps and catch-up stepping across both revisions. No profile reported an over-visual-budget or slow-tick count; the comparison uses p95 total work on the same machine and browser setup.</p>
+      <p class="small" style="margin-top: 12px;">Commands, revisions, exact hashes, profile samples, and limitations are recorded in <a href="evidence/closeout/validation.json"><code>validation.json</code></a>. The full delivered and unresolved-work record is <a href="closeout.md"><code>closeout.md</code></a>.</p>
+    </section>
+
+    <section class="panel">
       <h2>Work Plan</h2>
       <div class="filters" aria-label="Filter work packages">
         <button type="button" data-filter="all" aria-pressed="true">All</button>
@@ -416,15 +432,15 @@
         <summary><span>5. Qualify Optical And Sensor Effects</span><span class="status done">Done</span></summary>
         <div class="work-body"><p>PR #138 evaluates lens distortion, exposure, vignette, blur, noise, and compression independently. It retains only fixed radial barrel distortion and vignette in a reusable actor-view pass; blur, grain, and compression remain rejected pending stronger physical evidence.</p></div>
       </details>
-      <details class="work-item" data-status="active" open>
-        <summary><span>6. Add Seeded Variation And Comparison Evidence</span><span class="status active">In review: PR #139</span></summary>
+      <details class="work-item" data-status="done">
+        <summary><span>6. Add Seeded Variation And Comparison Evidence</span><span class="status done">Done</span></summary>
         <div class="work-body"><p>PR #139 defines bounded RC-indoor variation ranges, deterministic Game and CLI seed behavior, fully resolved snapshot metadata, and fixed-pose PiRacer room artifacts. The calibrated RC-indoor profile remains the physical-comparison center.</p></div>
       </details>
-      <details class="work-item" data-status="pending">
-        <summary><span>7. Validate, Document, And Close</span><span class="status pending">Pending</span></summary>
-        <div class="work-body"><p>Record regression, snapshot stress, frame-time, deterministic replay, and physical comparison evidence. Freeze the plan and write the closeout and completed ledger entry.</p></div>
+      <details class="work-item" data-status="done" open>
+        <summary><span>7. Validate, Document, And Close</span><span class="status done">Done</span></summary>
+        <div class="work-body"><p>Closeout validation records the exact historical performance comparison, 25-capture stress result, reset-based deterministic replay, physical comparison artifacts, and full regression evidence. This frozen plan is summarized in <a href="closeout.md"><code>closeout.md</code></a> and the completed ledger.</p></div>
       </details>
-      <div class="progress-track" aria-label="Milestone work packages completed: 5 of 7"><div class="progress-fill" style="width: 71.43%;"></div></div>
+      <div class="progress-track" aria-label="Milestone work packages completed: 7 of 7"><div class="progress-fill" style="width: 100%;"></div></div>
       <p class="small">Progress counts completed work packages, not commits or pull requests.</p>
     </section>
 
@@ -507,6 +523,7 @@
             <tr><td>2026-07-17</td><td>Calibrate RC indoor composition from the physical frame rather than the unmeasured FOV prior.</td><td>The archived 62.2 by 48.8 degree values are default priors. Their narrow pinhole equivalent cropped both simulated boxes, while an 86 degree horizontal equivalent better retained the physical two-box composition. Barrel distortion remains explicitly unmodeled.</td></tr>
             <tr><td>2026-07-17</td><td>Retain only a fixed radial-vignette sensor pass.</td><td>The physical frame visibly supports a modest wide-angle character and edge falloff. Blur, grain, and compression have no defensible calibration from the available reference and would reduce geometric interpretability.</td></tr>
             <tr><td>2026-07-17</td><td>Vary only appearance around the calibrated RC indoor center.</td><td>Seeded exposure, light intensity, roughness, shadow softness, and sensor strength broaden inputs without moving the camera, changing world geometry, or changing perception and action behavior.</td></tr>
+            <tr><td>2026-07-17</td><td>Close the milestone against an exact historical revision.</td><td>The pre-milestone commit was run in the same PiRacer scenario and browser environment, avoiding an invalid comparison with earlier measurements from a different session.</td></tr>
           </tbody>
         </table>
       </div>

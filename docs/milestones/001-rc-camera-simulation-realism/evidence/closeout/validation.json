@@ -1,0 +1,97 @@
+{
+  "scope": "Milestone 001 RC camera simulation realism closeout",
+  "scenario": {
+    "id": "piracer-room-sketch",
+    "actorId": "chaser",
+    "settings": {
+      "framesPerSecond": 60,
+      "visualWarningThresholdMs": 24
+    }
+  },
+  "performance": {
+    "method": "Five SimEval play-perf samples after a 1000 ms settle period in the same temporary local Chrome environment.",
+    "historicalSimulation": {
+      "revision": "404bacda809877ce5d967f8a44a705dbc43d9f83",
+      "p95TotalMs": 5.6,
+      "p95RenderMs": 0.6,
+      "p95RafGapMs": 34.2,
+      "overVisualBudget": 0,
+      "slowTick": 0
+    },
+    "finalSimulation": {
+      "revision": "0df4c3f",
+      "p95TotalMs": 5.3,
+      "p95RenderMs": 0.7,
+      "p95RafGapMs": 34.3,
+      "overVisualBudget": 0,
+      "slowTick": 0,
+      "totalDeltaPercentFromHistorical": -5.36
+    },
+    "rcIndoor": {
+      "p95TotalMs": 5.3,
+      "p95RenderMs": 0.8,
+      "p95RafGapMs": 34.3,
+      "overVisualBudget": 0,
+      "slowTick": 0
+    },
+    "randomizedSeed17": {
+      "p95TotalMs": 6.6,
+      "p95RenderMs": 0.8,
+      "p95RafGapMs": 34.2,
+      "overVisualBudget": 0,
+      "slowTick": 0,
+      "note": "Seeded variation is opt-in and remained below the 24 ms visual threshold."
+    },
+    "environmentNote": "Automated Chrome produced approximately 34 ms RAF gaps and catch-up stepping in both historical and final sessions; p95 total work is the comparable metric."
+  },
+  "captureStress": {
+    "profileId": "randomized",
+    "seed": 17,
+    "captureCount": 25,
+    "dimensions": { "width": 320, "height": 240 },
+    "pngCount": 25,
+    "metadataCount": 25,
+    "emptyFileCount": 0,
+    "firstFrameIndex": 1388,
+    "lastFrameIndex": 1516,
+    "firstAndLastSha256": "1568994a607fe44d516a994778bd162b4b3a041e2a62caf7b978760dc519af02",
+    "result": "Every SimEval capture command succeeded, generated image and metadata output, and produced no blank image. The static keyboard-controlled pose kept the first and last image bytes identical while the runtime frame counter advanced."
+  },
+  "deterministicReplay": {
+    "profileId": "randomized",
+    "seed": 17,
+    "frameIndex": 3,
+    "pose": {
+      "position": { "x": 0, "z": -2.92 },
+      "direction": { "x": 0, "z": 1 }
+    },
+    "sensor": {
+      "imageProcessing": "radial-vignette",
+      "barrelDistortion": 0.10256971199065447,
+      "vignette": 0.10371607251465322
+    },
+    "sha256": "4380bc5fc9184512f84cb4ad74a4753c09725226c8cde5545d25dfbebd323857",
+    "result": "Two reset-based 640 by 480 snapshots had matching frame, pose, profile, sensor metadata, and PNG hash."
+  },
+  "staticEvidence": {
+    "physicalReference": "../camera-calibration/piracer-physical-frame-0.jpg",
+    "comparison": "../camera-calibration/comparison.json",
+    "sensor": "../sensor-optics/comparison.json",
+    "variation": "../domain-variation/comparison.json"
+  },
+  "repositoryValidation": {
+    "playChaseRegressions": "72 passed",
+    "typeScript": "passed",
+    "milestoneDocumentation": "passed",
+    "jsonAndWhitespace": "passed",
+    "fileSizeLint": "Existing unrelated violations remain; no changed Chase file exceeds its configured limit."
+  },
+  "reproduction": [
+    "simeval ui subapp --app play --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id scenario-select --value '\"piracer-room-sketch\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id rendering-profile --value '\"randomized\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id rendering-seed --value 17 --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id simulation-reset --ui ws://localhost:5050/ws/control",
+    "simeval ui play-front-view-snapshot --actor chaser --width 640 --height 480 --out-dir /tmp/chase-realism-replay --ui ws://localhost:5050/ws/control"
+  ]
+}

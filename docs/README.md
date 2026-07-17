@@ -5,9 +5,10 @@ Read this file before beginning milestone-scoped work.
 
 ## Active Work
 
-Milestone 001, [RC Camera Simulation Realism](milestones/001-rc-camera-simulation-realism/plan.html),
-is active. It establishes configurable, reproducible RC-camera rendering for
-Chase while preserving the deterministic simulation view used for debugging.
+Milestone 002, [Chaser Observation Interpretation](milestones/002-chaser-observation-interpretation/plan.html),
+is active. It will define the boundary that turns rendered or sensed evidence
+into observer-world inputs without moving perception processing into the
+generic decision model.
 
 ## Reading Order
 
