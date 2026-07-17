@@ -1,0 +1,55 @@
+{
+  "scope": "Bounded RC indoor optical and sensor effects",
+  "scenario": {
+    "id": "piracer-room-sketch",
+    "actorId": "chaser",
+    "radialVignetteFrameIndex": 0,
+    "image": { "width": 640, "height": 480 },
+    "invariant": "The simulation world, fixed initial chaser pose, calibrated mount, and camera projection remain unchanged. The pre-sensor capture advanced empty runtime frames during setup; only the resolved sensor pass differs visually."
+  },
+  "sensor": {
+    "profileId": "rc-indoor",
+    "imageProcessing": "radial-vignette",
+    "barrelDistortion": 0.12,
+    "vignette": 0.1,
+    "implementation": "One reusable WebGL render target and fullscreen shader pass per actor-view renderer. The deterministic simulation profile bypasses the pass."
+  },
+  "captures": [
+    {
+      "artifact": "rc-indoor-radial-vignette-frame-0.png",
+      "sha256": "91e3c2aa0cd467f78a5dc65c24760c87169b0182c68b938e6799e9160bf9310b",
+      "rendererId": "chase-actor-view-threejs-v1",
+      "sensorMetadata": {
+        "imageProcessing": "radial-vignette",
+        "barrelDistortion": 0.12,
+        "vignette": 0.1
+      }
+    },
+    {
+      "artifact": "../camera-calibration/rc-indoor-calibrated.png",
+      "sha256": "b95b66d2768e4c7f1e87dda4c41c6848e000f93e5951538bbcc3da5b078a8f53",
+      "frameIndex": 616,
+      "role": "Pre-sensor calibrated pinhole reference"
+    }
+  ],
+  "determinism": {
+    "repeatSha256": "91e3c2aa0cd467f78a5dc65c24760c87169b0182c68b938e6799e9160bf9310b",
+    "result": "Two RC indoor snapshots at the same frame and pose produced byte-identical PNGs with the same sensor metadata."
+  },
+  "qualifiedEffects": [
+    "Fixed radial barrel distortion: retained as a low-strength visual estimate of the physical wide-angle camera.",
+    "Fixed vignette: retained as a low-strength edge falloff that does not obscure the obstacles or floor."
+  ],
+  "rejectedEffects": [
+    "Blur: no measured focus, motion, or shutter evidence.",
+    "Grain/noise: no exposure-series evidence and no deterministic physical noise model.",
+    "Compression: front-view evidence remains PNG so observations are not degraded by an artificial codec."
+  ],
+  "reproduction": [
+    "simeval ui subapp --app play --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id scenario-select --value '\"piracer-room-sketch\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id rendering-profile --value '\"rc-indoor\"' --ui ws://localhost:5050/ws/control",
+    "simeval ui play-game-action --action-id simulation-reset --ui ws://localhost:5050/ws/control",
+    "simeval ui play-front-view-snapshot --actor chaser --width 640 --height 480 --out-dir /tmp/chase-sensor-optics --ui ws://localhost:5050/ws/control"
+  ]
+}

@@ -115,6 +115,8 @@ function createBaselineProfile(id: ChaseRenderingProfileId): ChaseRenderingProfi
     },
     sensor: {
       imageProcessing: "none",
+      barrelDistortion: 0,
+      vignette: 0,
     },
   });
 }
@@ -194,6 +196,12 @@ function createRcIndoorProfile(): ChaseRenderingProfile {
         imageWidth: CAMERA_IMAGE_WIDTH,
         imageHeight: CAMERA_IMAGE_HEIGHT,
       },
+    },
+    sensor: {
+      imageProcessing: "radial-vignette",
+      // Composition estimate only: the physical reference has visible barrel distortion.
+      barrelDistortion: 0.12,
+      vignette: 0.1,
     },
   });
 }

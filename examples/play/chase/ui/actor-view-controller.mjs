@@ -6,6 +6,11 @@ import {
   configureChaseActorCamera,
   resolveChaseCamera,
 } from "../rendering/camera.ts";
+import {
+  createChaseSensorPipeline,
+  hasChaseSensorProcessing,
+  resolveChaseSensor,
+} from "../rendering/sensor.ts";
 import { applyRenderingEnvironment } from "./rendering/environment.mjs";
 
 const DEFAULT_ACTOR_VIEW_HEIGHT = 210;
@@ -50,6 +55,7 @@ export function renderActorViewScene({
   actorFieldOfView,
   otherActorFieldOfView,
   excludedObjects = [],
+  renderScene,
 }) {
   const hiddenObjects = [
     actorMesh,
@@ -62,7 +68,7 @@ export function renderActorViewScene({
     object.visible = false;
   });
   try {
-    renderer.render(scene, camera);
+    (renderScene ?? ((nextScene, nextCamera) => renderer.render(nextScene, nextCamera)))(scene, camera);
   } finally {
     priorVisibility.forEach(([object, visible]) => {
       object.visible = visible;
@@ -86,9 +92,11 @@ function createCaptureCamera() {
 export function createActorViewImageCapture({
   createRenderer = createCaptureRenderer,
   createCamera = createCaptureCamera,
+  createSensorPipeline = createChaseSensorPipeline,
 } = {}) {
   let renderer = null;
   let camera = null;
+  let sensorPipeline = null;
 
   const disposeRenderer = () => {
     if (!renderer) {
@@ -96,6 +104,8 @@ export function createActorViewImageCapture({
     }
     const activeRenderer = renderer;
     renderer = null;
+    sensorPipeline?.dispose();
+    sensorPipeline = null;
     const context = activeRenderer.getContext?.();
     activeRenderer.dispose?.();
     if (!context?.isContextLost?.()) {
@@ -155,6 +165,7 @@ export function createActorViewImageCapture({
       width: imageWidth,
       height: imageHeight,
     });
+    const sensor = resolveChaseSensor(renderingProfile);
     renderActorViewScene({
       renderer: resources.renderer,
       camera: resources.camera,
@@ -163,6 +174,14 @@ export function createActorViewImageCapture({
       actorFieldOfView,
       otherActorFieldOfView,
       excludedObjects,
+      renderScene: (nextScene, nextCamera) => {
+        if (!hasChaseSensorProcessing(sensor)) {
+          resources.renderer.render(nextScene, nextCamera);
+          return;
+        }
+        sensorPipeline ??= createSensorPipeline(resources.renderer);
+        sensorPipeline.render(nextScene, nextCamera, sensor, imageWidth, imageHeight);
+      },
     });
     return {
       contentType,
@@ -170,6 +189,7 @@ export function createActorViewImageCapture({
       width: imageWidth,
       height: imageHeight,
       camera: resolvedCamera,
+      sensor,
       dataUrl: resources.renderer.domElement.toDataURL(contentType),
     };
   };
@@ -265,6 +285,7 @@ export function createActorViewController({
       resizeFrame = 0;
     }
     mountedView.resizeObserver.disconnect();
+    mountedView.sensorPipeline?.dispose();
     mountedView.renderer.dispose();
     mountedView = null;
     clearControlWindow();
@@ -357,6 +378,7 @@ export function createActorViewController({
       lostTargetLabel,
       camera,
       resizeObserver,
+      sensorPipeline: null,
     };
     resizeObserver.observe(frame.mount);
     resizeMountedView();
@@ -411,6 +433,7 @@ export function createActorViewController({
       width: viewWidth,
       height: viewHeight,
     });
+    const sensor = resolveChaseSensor(renderingProfile);
     renderActorViewScene({
       renderer: mountedView.renderer,
       camera: mountedView.camera,
@@ -418,6 +441,21 @@ export function createActorViewController({
       actorMesh,
       actorFieldOfView,
       otherActorFieldOfView,
+      renderScene: (nextScene, nextCamera) => {
+        if (!hasChaseSensorProcessing(sensor)) {
+          mountedView.renderer.render(nextScene, nextCamera);
+          return;
+        }
+        mountedView.sensorPipeline ??= createChaseSensorPipeline(mountedView.renderer);
+        const pixelRatio = mountedView.renderer.getPixelRatio?.() ?? 1;
+        mountedView.sensorPipeline.render(
+          nextScene,
+          nextCamera,
+          sensor,
+          viewWidth * pixelRatio,
+          viewHeight * pixelRatio,
+        );
+      },
     });
   };
 

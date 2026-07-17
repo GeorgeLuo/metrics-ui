@@ -31,6 +31,10 @@ import {
   configureChaseActorCamera,
   resolveChaseCamera,
 } from "./rendering/camera.ts";
+import {
+  hasChaseSensorProcessing,
+  resolveChaseSensor,
+} from "./rendering/sensor.ts";
 import { createChaseScenarioSession } from "./ui/scenario-session.mjs";
 import { createSidebarActionDescriptors } from "./ui/sidebar-action-descriptors.mjs";
 import { publishSidebarSections } from "./ui/sidebar.mjs";
@@ -103,7 +107,18 @@ test("rendering profiles preserve simulation and resolve distinct RC indoor valu
   assert.ok(Math.abs(rcIndoor.camera.projection.verticalFovDegrees - 69.94) < 0.01);
   assert.equal(rcIndoor.camera.mount.height, 0.16);
   assert.notDeepEqual(rcIndoor.camera, SIMULATION_RENDERING_PROFILE.camera);
-  assert.deepEqual(rcIndoor.sensor, SIMULATION_RENDERING_PROFILE.sensor);
+  assert.deepEqual(SIMULATION_RENDERING_PROFILE.sensor, {
+    imageProcessing: "none",
+    barrelDistortion: 0,
+    vignette: 0,
+  });
+  assert.deepEqual(resolveChaseSensor(rcIndoor), {
+    imageProcessing: "radial-vignette",
+    barrelDistortion: 0.12,
+    vignette: 0.1,
+  });
+  assert.equal(hasChaseSensorProcessing(resolveChaseSensor(rcIndoor)), true);
+  assert.equal(hasChaseSensorProcessing(resolveChaseSensor(SIMULATION_RENDERING_PROFILE)), false);
 });
 
 test("camera resolution preserves simulation perception while RC indoor owns calibration", () => {
@@ -173,6 +188,11 @@ test("simulation state and manual snapshots expose the resolved rendering profil
   assert.equal(snapshot.camera.projection.source, "profile");
   assert.ok(Math.abs(snapshot.camera.projection.verticalFovDegrees - 69.94) < 0.01);
   assert.ok(Math.abs(snapshot.camera.projection.horizontalFovDegrees - 86) < 0.01);
+  assert.deepEqual(snapshot.sensor, {
+    imageProcessing: "radial-vignette",
+    barrelDistortion: 0.12,
+    vignette: 0.1,
+  });
 });
 
 test("environment, materials, and camera consume resolved profile values", () => {

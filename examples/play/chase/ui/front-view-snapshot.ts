@@ -16,6 +16,10 @@ import {
   resolveChaseCamera,
   type ResolvedChaseCamera,
 } from "../rendering/camera.ts";
+import {
+  resolveChaseSensor,
+  type ResolvedChaseSensor,
+} from "../rendering/sensor.ts";
 
 type ActorId = "chaser" | "evader";
 type RuntimeRecord = Record<string, any>;
@@ -43,6 +47,7 @@ export type ManualFrontViewSnapshot = {
   frameIndex: number | null;
   renderingProfile: ChaseRenderingProfile;
   camera: ResolvedChaseCamera;
+  sensor: ResolvedChaseSensor;
   referenceable: false;
   persistence: {
     storedInActorMemory: false;
@@ -182,6 +187,7 @@ export function buildManualFrontViewSnapshot(
     },
     { width: image.width, height: image.height },
   );
+  const sensor = resolveChaseSensor(renderingProfile);
 
   return {
     gameId: "chase",
@@ -190,6 +196,7 @@ export function buildManualFrontViewSnapshot(
     frameIndex: record.frameIndex,
     renderingProfile,
     camera,
+    sensor,
     referenceable: false,
     persistence: {
       storedInActorMemory: false,
