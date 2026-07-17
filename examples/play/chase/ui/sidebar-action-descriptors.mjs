@@ -24,6 +24,7 @@ import {
   MAX_EVADER_PROJECTION_SPACING_FRAMES,
   MAX_SIMULATION_FRAMES_PER_SECOND,
   MIN_SIMULATION_FRAMES_PER_SECOND,
+  RENDERING_PROFILE_ACTION_ID,
   SCENARIO_SELECT_ACTION_ID,
   SIMULATION_FPS_ACTION_ID,
   SIMULATION_GREENTEXT_DEBUG_ACTION_ID,
@@ -73,6 +74,7 @@ function createSimulationActionDescriptors(context) {
     loadScenario,
     getEvaderExists,
     setEvaderExists,
+    setRenderingProfile,
   } = context;
   return [
     {
@@ -127,6 +129,14 @@ function createSimulationActionDescriptors(context) {
       handler(value) {
         const nextExists = typeof value === "boolean" ? value : !getEvaderExists?.();
         setEvaderExists?.(nextExists);
+      },
+    },
+    {
+      id: RENDERING_PROFILE_ACTION_ID,
+      handler(value) {
+        if (typeof value === "string") {
+          setRenderingProfile?.(value);
+        }
       },
     },
   ];

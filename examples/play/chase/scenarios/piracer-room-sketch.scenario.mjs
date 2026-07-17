@@ -28,6 +28,9 @@ const piracerRoomSketchScenarioDefinition = {
   id: "piracer-room-sketch",
   label: "PiRacer Room Sketch",
   description: "Approximate room reconstructed from the PiRacer two-box camera burst, with rotated box obstacles.",
+  rendering: {
+    profile: "rc-indoor",
+  },
   map: {
     layout: "piracer-room-sketch-two-boxes",
     columns: COLUMNS,

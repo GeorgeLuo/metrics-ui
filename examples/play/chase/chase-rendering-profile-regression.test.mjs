@@ -1,0 +1,222 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import * as THREE from "three";
+
+import {
+  RENDERING_PROFILE_ACTION_ID,
+} from "./config/constants.mjs";
+import {
+  CHASE_RENDERING_PROFILE_IDS,
+  CHASE_RENDERING_PROFILE_OPTIONS,
+  SIMULATION_RENDERING_PROFILE,
+  resolveChaseRenderingProfile,
+} from "./rendering/profiles.ts";
+import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
+import { resolveChaseScenario } from "./simulation/scenario.mjs";
+import { createChaseSimulationState } from "./simulation/simulation.mjs";
+import { createActorViewImageCapture } from "./ui/actor-view-controller.mjs";
+import { buildManualFrontViewSnapshot } from "./ui/front-view-snapshot.ts";
+import {
+  applyRenderingEnvironment,
+  createSceneLighting,
+} from "./ui/rendering/environment.mjs";
+import { createTexturedFloor } from "./ui/rendering/floor.mjs";
+import {
+  configureChaserViewCamera,
+  createWall,
+  disposeObject3D,
+} from "./ui/rendering/world-objects.mjs";
+import { createChaseScenarioSession } from "./ui/scenario-session.mjs";
+import { createSidebarActionDescriptors } from "./ui/sidebar-action-descriptors.mjs";
+import { publishSidebarSections } from "./ui/sidebar.mjs";
+
+const GRID = Object.freeze({ columns: 9, rows: 6 });
+
+test("rendering profiles normalize into immutable baseline-compatible values", () => {
+  const fallback = resolveChaseRenderingProfile({ profile: "unsupported" });
+  const rcIndoor = resolveChaseRenderingProfile({ profile: "rc-indoor", seed: 42.4 });
+  const randomized = resolveChaseRenderingProfile("randomized");
+
+  assert.equal(fallback, SIMULATION_RENDERING_PROFILE);
+  assert.equal(rcIndoor.id, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  assert.equal(rcIndoor.seed, 42);
+  assert.equal(randomized.id, CHASE_RENDERING_PROFILE_IDS.RANDOMIZED);
+  assert.equal(randomized.seed, 0);
+  assert.equal(Object.isFrozen(rcIndoor), true);
+  assert.equal(Object.isFrozen(rcIndoor.environment.materials.floor), true);
+  assert.deepEqual(rcIndoor.environment, SIMULATION_RENDERING_PROFILE.environment);
+  assert.deepEqual(rcIndoor.camera, SIMULATION_RENDERING_PROFILE.camera);
+  assert.deepEqual(rcIndoor.sensor, SIMULATION_RENDERING_PROFILE.sensor);
+});
+
+test("scenario session retains a rendering override across reset and clears it on load", () => {
+  const session = createChaseScenarioSession(GRID);
+  const initial = session.buildScenario();
+  assert.equal(initial.rendering.id, CHASE_RENDERING_PROFILE_IDS.SIMULATION);
+
+  const selected = session.setRenderingProfile(CHASE_RENDERING_PROFILE_IDS.RANDOMIZED);
+  assert.equal(selected.rendering.id, CHASE_RENDERING_PROFILE_IDS.RANDOMIZED);
+  assert.equal(session.buildScenario().rendering.id, CHASE_RENDERING_PROFILE_IDS.RANDOMIZED);
+
+  const piracer = session.loadScenario("piracer-room-sketch");
+  assert.equal(piracer.rendering.id, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  const controls = session.getSidebarControls(createChaseSimulationState({
+    scenario: piracer,
+    ...GRID,
+  }));
+  assert.equal(controls.renderingProfileId, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  assert.deepEqual(controls.renderingProfileOptions, CHASE_RENDERING_PROFILE_OPTIONS);
+});
+
+test("simulation state and manual snapshots expose the resolved rendering profile", () => {
+  const scenario = resolveChaseScenario({
+    ...defaultScenarioDefinition,
+    rendering: { profile: "rc-indoor", seed: 17 },
+  }, GRID);
+  const state = createChaseSimulationState({ scenario, ...GRID });
+  const snapshot = buildManualFrontViewSnapshot(state, {
+    renderedImage: {
+      contentType: "image/png",
+      rendererId: "test-renderer",
+      width: 320,
+      height: 240,
+      dataUrl: "data:image/png;base64,dGVzdA==",
+    },
+  });
+
+  assert.equal(state.renderingProfile, scenario.rendering);
+  assert.equal(snapshot.renderingProfile.id, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  assert.equal(snapshot.renderingProfile.seed, 17);
+});
+
+test("environment, materials, and camera consume resolved profile values", () => {
+  const profile = structuredClone(SIMULATION_RENDERING_PROFILE);
+  profile.environment.clear = { color: 0x123456, alpha: 0.4 };
+  profile.environment.ambientLight = { color: 0x223344, intensity: 0.7 };
+  profile.environment.keyLight = {
+    color: 0x556677,
+    intensity: 0.9,
+    position: { x: 1, y: 2, z: 3 },
+  };
+  profile.environment.materials.floor = {
+    color: 0x112233,
+    fallbackColor: 0x334455,
+    roughness: 0.4,
+    metalness: 0.1,
+  };
+  profile.environment.materials.obstacle = {
+    color: 0x445566,
+    roughness: 0.5,
+    metalness: 0.2,
+    edgeColor: 0x778899,
+    edgeOpacity: 0.6,
+  };
+  profile.camera.mount = { height: 1.25, lookDistance: 2.5 };
+
+  let clearColor = null;
+  const lighting = createSceneLighting();
+  applyRenderingEnvironment({
+    renderer: { setClearColor: (...values) => { clearColor = values; } },
+    lighting,
+  }, profile);
+  assert.deepEqual(clearColor, [0x123456, 0.4]);
+  assert.equal(lighting.ambientLight.color.getHex(), 0x223344);
+  assert.equal(lighting.ambientLight.intensity, 0.7);
+  assert.deepEqual(lighting.keyLight.position.toArray(), [1, 2, 3]);
+
+  const floor = createTexturedFloor(9, 6, profile.environment.materials.floor);
+  const wall = createWall(
+    { width: 1, depth: 1, x: 0, z: 0, rotationRadians: 0 },
+    profile.environment.materials.obstacle,
+  );
+  assert.equal(floor.material.color.getHex(), 0x334455);
+  assert.equal(floor.material.roughness, 0.4);
+  assert.equal(wall.material.color.getHex(), 0x445566);
+  assert.equal(wall.children[0].material.color.getHex(), 0x778899);
+
+  const cameraCalls = { position: null, lookAt: null };
+  configureChaserViewCamera({
+    position: { set: (...values) => { cameraCalls.position = values; } },
+    lookAt: (...values) => { cameraCalls.lookAt = values; },
+  }, { x: 4, z: 5 }, { x: 1, z: 0 }, profile.camera.mount);
+  assert.deepEqual(cameraCalls.position, [4, 1.25, 5]);
+  assert.deepEqual(cameraCalls.lookAt, [6.5, 0.07, 5]);
+
+  disposeObject3D(floor);
+  disposeObject3D(wall);
+});
+
+test("offscreen actor capture consumes profile clear color and camera mount", () => {
+  const profile = structuredClone(SIMULATION_RENDERING_PROFILE);
+  profile.environment.clear = { color: 0xabcdef, alpha: 0.25 };
+  profile.camera.mount = { height: 1.1, lookDistance: 2 };
+  const observations = { clear: null, position: null, lookAt: null };
+  const captureSession = createActorViewImageCapture({
+    createRenderer: () => ({
+      domElement: { toDataURL: () => "data:image/png;base64,dGVzdA==" },
+      dispose() {},
+      forceContextLoss() {},
+      getContext: () => ({ isContextLost: () => false }),
+      render() {},
+      setClearColor: (...values) => { observations.clear = values; },
+      setPixelRatio() {},
+      setSize() {},
+    }),
+    createCamera: () => ({
+      position: { set: (...values) => { observations.position = values; } },
+      lookAt: (...values) => { observations.lookAt = values; },
+      updateProjectionMatrix() {},
+    }),
+  });
+
+  captureSession.capture({
+    scene: {},
+    actorMesh: { visible: true },
+    actorFieldOfView: { visible: true },
+    actorPosition: { x: 3, z: 4 },
+    actorLookDirection: { x: 0, z: 1 },
+    fieldOfViewAngleRadians: Math.PI / 3,
+    renderingProfile: profile,
+  });
+
+  assert.deepEqual(observations.clear, [0xabcdef, 0.25]);
+  assert.deepEqual(observations.position, [3, 1.1, 4]);
+  assert.deepEqual(observations.lookAt, [3, 0.07, 6]);
+  captureSession.dispose();
+});
+
+test("Game settings expose and dispatch the rendering profile selector", () => {
+  const session = createChaseScenarioSession(GRID);
+  const scenario = session.buildScenario();
+  const state = createChaseSimulationState({ scenario, ...GRID });
+  let sections = [];
+  publishSidebarSections(
+    (nextSections) => { sections = nextSections; },
+    state.chaserControlSource,
+    { chaserViewVisible: false, evaderViewVisible: false, idaeDebugVisible: false },
+    state.simulationSettings,
+    state.vehicleSettings,
+    state.projectionSettings,
+    {},
+    state.runMetrics,
+    session.getSidebarControls(state),
+  );
+  const renderingRow = sections
+    .find((section) => section.id === "game")
+    ?.rows.find((row) => row.id === RENDERING_PROFILE_ACTION_ID);
+  assert.equal(renderingRow?.kind, "select");
+  assert.equal(renderingRow?.value, CHASE_RENDERING_PROFILE_IDS.SIMULATION);
+  assert.deepEqual(
+    renderingRow?.options.map((option) => option.value),
+    Object.values(CHASE_RENDERING_PROFILE_IDS),
+  );
+
+  let selectedProfile = null;
+  const descriptor = createSidebarActionDescriptors({
+    setRenderingProfile: (value) => { selectedProfile = value; },
+    getActorActionProposalCollections: () => ({}),
+  }).find((entry) => entry.id === RENDERING_PROFILE_ACTION_ID);
+  descriptor?.handler(CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+  assert.equal(selectedProfile, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
+});

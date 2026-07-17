@@ -31,6 +31,11 @@ import {
   isMapRecencyOverlayVisible,
 } from "./settings.mjs";
 import { createActorViewImageCapture } from "./actor-view-controller.mjs";
+import { SIMULATION_RENDERING_PROFILE } from "../rendering/profiles.ts";
+import {
+  applyRenderingEnvironment,
+  createSceneLighting,
+} from "./rendering/environment.mjs";
 
 export function createChaseSceneView({
   container,
@@ -44,7 +49,6 @@ export function createChaseSceneView({
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   const actorViewImageCapture = createActorViewImageCapture();
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setClearColor(0x000000, 0);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.domElement.className = "block h-full w-full";
   container.appendChild(renderer.domElement);
@@ -55,10 +59,8 @@ export function createChaseSceneView({
   camera.up.set(0, 0, -1);
   camera.lookAt(0, 0, 0);
 
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
-  keyLight.position.set(3, 8, 4);
-  scene.add(ambientLight, keyLight);
+  const lighting = createSceneLighting();
+  scene.add(lighting.ambientLight, lighting.keyLight);
 
   const chaserFieldOfView = createFieldOfViewCone(
     vehicleSettings.fieldOfViewAngleRadians,
@@ -95,11 +97,25 @@ export function createChaseSceneView({
   ];
   let renderedObstacles = null;
   let renderedSurfaces = null;
+  let renderedProfile = null;
 
-  const disposeObstacleMesh = (mesh) => {
-    mesh.geometry.dispose();
-    mesh.material.dispose();
+  const getRenderingProfile = () =>
+    simulationState.renderingProfile ?? SIMULATION_RENDERING_PROFILE;
+
+  const syncRenderingProfile = () => {
+    const nextProfile = getRenderingProfile();
+    if (nextProfile === renderedProfile) {
+      return nextProfile;
+    }
+    renderedProfile = nextProfile;
+    applyRenderingEnvironment({ renderer, lighting }, renderedProfile);
+    renderedFloorKey = null;
+    renderedObstacles = null;
+    renderedSurfaces = null;
+    return renderedProfile;
   };
+
+  const disposeObstacleMesh = (mesh) => disposeObject3D(mesh);
 
   const getFloorKey = () => {
     const fieldColumns = Number.isFinite(simulationState.columns)
@@ -119,7 +135,11 @@ export function createChaseSceneView({
       disposeObject3D(floorMesh);
       disposeObject3D(floorGrid);
       const [fieldColumns, fieldRows] = floorKey.split(":").map(Number);
-      floorMesh = createTexturedFloor(fieldColumns, fieldRows);
+      floorMesh = createTexturedFloor(
+        fieldColumns,
+        fieldRows,
+        renderedProfile.environment.materials.floor,
+      );
       floorGrid = createFloorGrid(fieldColumns, fieldRows);
       floorGroup.add(floorMesh, floorGrid);
     }
@@ -127,7 +147,6 @@ export function createChaseSceneView({
       floorGrid.visible = Boolean(simulationState.simulationSettings?.floorGridVisible);
     }
   };
-  syncFloorMeshes();
 
   const syncObstacleMeshes = () => {
     if (simulationState.obstacles === renderedObstacles) {
@@ -139,12 +158,11 @@ export function createChaseSceneView({
       disposeObstacleMesh(mesh);
     });
     (simulationState.obstacles?.walls ?? []).forEach((wall) => {
-      const mesh = createWall(wall);
+      const mesh = createWall(wall, renderedProfile.environment.materials.obstacle);
       obstacleMeshes.push(mesh);
       obstacleGroup.add(mesh);
     });
   };
-  syncObstacleMeshes();
 
   const syncSurfaceMeshes = () => {
     if (simulationState.surfaces === renderedSurfaces) {
@@ -156,11 +174,14 @@ export function createChaseSceneView({
       disposeObstacleMesh(mesh);
     });
     (simulationState.surfaces ?? []).forEach((surface) => {
-      const mesh = createSurfacePatch(surface);
+      const mesh = createSurfacePatch(surface, renderedProfile.environment.materials.surface);
       surfaceMeshes.push(mesh);
       surfaceGroup.add(mesh);
     });
   };
+  syncRenderingProfile();
+  syncFloorMeshes();
+  syncObstacleMeshes();
   syncSurfaceMeshes();
 
   const getSteeringAngle = (action) => {
@@ -265,6 +286,7 @@ export function createChaseSceneView({
       evaderDirection,
       lastStep,
     } = simulationState;
+    syncRenderingProfile();
     syncFloorMeshes();
     syncObstacleMeshes();
     syncSurfaceMeshes();
@@ -389,6 +411,7 @@ export function createChaseSceneView({
     height,
     includeDebugVisualizations = false,
   } = {}) => {
+    syncRenderingProfile();
     syncFloorMeshes();
     syncObstacleMeshes();
     syncSurfaceMeshes();
@@ -406,6 +429,7 @@ export function createChaseSceneView({
         actorLookDirection: simulationState.evaderDirection,
         fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
         fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
+        renderingProfile: renderedProfile,
         excludedObjects: includeDebugVisualizations ? [] : frontViewCaptureDebugObjects,
         width,
         height,
@@ -420,6 +444,7 @@ export function createChaseSceneView({
       actorLookDirection: simulationState.chaserLookDirection,
       fieldOfViewAngleRadians: vehicleSettings.fieldOfViewAngleRadians,
       fieldOfViewDistance: vehicleSettings.fieldOfViewDistance,
+      renderingProfile: renderedProfile,
       excludedObjects: includeDebugVisualizations ? [] : frontViewCaptureDebugObjects,
       width,
       height,
@@ -451,6 +476,12 @@ export function createChaseSceneView({
   };
 
   return {
+    updateRenderingProfile() {
+      syncRenderingProfile();
+      syncFloorMeshes();
+      syncObstacleMeshes();
+      syncSurfaceMeshes();
+    },
     updateFieldOfView,
     renderFrame,
     captureActorView,

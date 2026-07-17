@@ -120,6 +120,7 @@ export function createPlayGame({
   const chaserView = createChaserViewController({
     createFloatingFrame,
     vehicleSettings,
+    getRenderingProfile: () => simulationState.renderingProfile,
     onControlWindowChange: (targetWindow) => {
       inputTracker.setKeyboardRelayWindow(targetWindow);
     },
@@ -135,6 +136,7 @@ export function createPlayGame({
   const evaderView = createEvaderViewController({
     createFloatingFrame,
     vehicleSettings,
+    getRenderingProfile: () => simulationState.renderingProfile,
     onVisibilityChange: (visible) => {
       evaderViewVisible = visible;
       runtimeLoop?.rescheduleAnimationFrameSource?.();
@@ -215,6 +217,7 @@ export function createPlayGame({
     inputTracker.clearKeyboard();
     runtimeLoop?.resetTiming();
     performanceTracker.reset();
+    sceneView.updateRenderingProfile();
     sceneView.updateFieldOfView();
     sceneView.resize();
     setViewportSpec?.(scenarioSession.getViewportSpec(nextScenario));
@@ -240,6 +243,14 @@ export function createPlayGame({
     if (shouldCloseEvaderView(simulationState, evaderViewVisible)) {
       evaderView.close();
     }
+  };
+  const setRenderingProfile = (renderingProfileId) => {
+    scenario = scenarioSession.setRenderingProfile(renderingProfileId);
+    simulationState.scenario = scenario;
+    simulationState.renderingProfile = scenario.rendering;
+    sceneView.updateRenderingProfile();
+    refreshSidebarSections();
+    publishDebugSnapshot();
   };
 
   updateGreentextDebugOverlay();
@@ -275,6 +286,7 @@ export function createPlayGame({
     loadScenario,
     getEvaderExists: () => simulationState.evaderExists !== false,
     setEvaderExists,
+    setRenderingProfile,
     getActorActionProposalCollections: () => getActorActionProposalCollections(simulationState),
     setActorActionProposalEnabled: (actorId, actionProposalId, enabled) => {
       actorActionProposalOverrides = setActorActionProposalOverride({

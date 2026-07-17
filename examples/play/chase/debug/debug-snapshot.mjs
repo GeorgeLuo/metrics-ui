@@ -120,6 +120,7 @@ export function buildChaseDebugSnapshot(simulationState, {
       simulationSettings: cloneSerializable(simulationState?.simulationSettings ?? {}),
       vehicleSettings: cloneSerializable(simulationState?.vehicleSettings ?? {}),
       projectionSettings: cloneSerializable(simulationState?.projectionSettings ?? {}),
+      renderingProfile: cloneSerializable(simulationState?.renderingProfile ?? null),
       runMetrics: cloneSerializable(simulationState?.runMetrics ?? {}),
     },
     actions: {
