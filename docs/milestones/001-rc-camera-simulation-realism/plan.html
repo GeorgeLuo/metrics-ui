@@ -220,12 +220,12 @@
       </details>
       <div class="grid two" style="margin-top: 14px;">
         <div class="card goal">
-          <h3>Current: Calibrate Camera Mount And Projection</h3>
-          <p><span class="status active">In review: PR #137</span> <strong>Review shape:</strong> deep and narrow camera implementation.</p>
-          <p><strong>Deliverable:</strong> explicit mount height, pitch, yaw, FOV, clipping, and reference image size flow through one resolved camera path for live views and captures.</p>
-          <p><strong>Review question:</strong> Does the calibrated <code>rc-indoor</code> camera better explain the physical PiRacer frame while the simulation profile remains tied to perception FOV?</p>
-          <p><strong>Files:</strong> camera profile contract, camera construction, snapshot metadata, focused regressions, and fixed-pose comparison evidence.</p>
-          <p><strong>Non-goals:</strong> lens distortion, sensor noise, image compression, or domain variation.</p>
+          <h3>Current: Qualify Optical And Sensor Effects</h3>
+          <p><span class="status active">In review: PR #138</span> <strong>Review shape:</strong> one bounded postprocessing pass.</p>
+          <p><strong>Deliverable:</strong> an explicit sensor profile resolved into the same reusable render-target pass for live actor views and PNG captures.</p>
+          <p><strong>Review question:</strong> Do fixed radial distortion and vignette improve the physical camera character without hiding room geometry?</p>
+          <p><strong>Files:</strong> sensor profile contract, reusable pass ownership, snapshot metadata, capture disposal coverage, and fixed-pose evidence.</p>
+          <p><strong>Non-goals:</strong> blur, grain, compression, or seeded domain variation.</p>
         </div>
         <div class="card interface">
           <h3>Next: Qualify Optical And Sensor Effects</h3>
@@ -308,6 +308,32 @@
       <p class="small" style="margin-top: 12px;">The physical source, baseline simulator image, exact hashes, resolved metadata, remaining gaps, and reproduction commands are recorded in <a href="evidence/camera-calibration/comparison.json"><code>comparison.json</code></a>. The <a href="evidence/camera-calibration/simulation-baseline.png"><code>simulation</code> baseline capture</a> remains available for direct comparison.</p>
     </section>
 
+    <section class="panel">
+      <h2>Current Evidence: Optical And Sensor Effects</h2>
+      <p>Both views use <code>piracer-room-sketch</code>, the same fixed initial chaser pose, the calibrated RC indoor camera, and a 640 by 480 PNG. The right image is frame 0 and adds only the resolved <code>radial-vignette</code> sensor pass; the earlier pinhole evidence advanced empty runtime frames during setup.</p>
+      <div class="grid two" style="margin-top: 14px;">
+        <figure>
+          <img class="evidence-image" src="evidence/camera-calibration/rc-indoor-calibrated.png" alt="Calibrated RC indoor pinhole capture before sensor processing">
+          <figcaption><strong>calibrated pinhole:</strong> the pre-sensor RC indoor camera establishes the matched composition and materials.</figcaption>
+        </figure>
+        <figure>
+          <img class="evidence-image" src="evidence/sensor-optics/rc-indoor-radial-vignette-frame-0.png" alt="RC indoor capture with radial barrel distortion and vignette">
+          <figcaption><strong>radial-vignette:</strong> 0.12 radial barrel coefficient and 0.10 edge vignette; the effect is modest enough to preserve the box and boundary geometry.</figcaption>
+        </figure>
+      </div>
+      <div class="table-wrap" style="margin-top: 14px;">
+        <table>
+          <thead><tr><th>Effect</th><th>Decision</th><th>Reason</th></tr></thead>
+          <tbody>
+            <tr><td>Radial barrel distortion</td><td>Retain, fixed coefficient 0.12.</td><td>The physical frame has visible wide-angle edge expansion; this bounded transform adds that character without changing the simulation camera or world geometry.</td></tr>
+            <tr><td>Vignette</td><td>Retain, fixed strength 0.10.</td><td>A low-strength edge falloff separates the image boundary from the bright room without obscuring boxes or floor texture.</td></tr>
+            <tr><td>Blur, grain, compression</td><td>Reject for this package.</td><td>The one available reference cannot distinguish physical optics from motion, exposure, or JPEG artifacts. Adding them would lower geometric evidence quality without a defensible calibration.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small" style="margin-top: 12px;">The resolved values, image hashes, repeated-capture result, and reproduction commands are recorded in <a href="evidence/sensor-optics/comparison.json"><code>comparison.json</code></a>.</p>
+    </section>
+
     <section class="panel" data-milestone-contract>
       <h2>Rendering Contract</h2>
       <pre>interface ChaseRenderingProfile {
@@ -353,13 +379,13 @@
         <summary><span>3. Implement Materials, Lighting, And Shadows</span><span class="status done">Done</span></summary>
         <div class="work-body"><p>PR #136 adds named carpet, cardboard, and room-wall appearance plus explicit indoor lights and shadows through shared factories. Preserve the simulation profile exactly; physical calibration remains a later evidence task.</p></div>
       </details>
-      <details class="work-item" data-status="active" open>
-        <summary><span>4. Calibrate Camera Mount And Projection</span><span class="status active">In review: PR #137</span></summary>
+      <details class="work-item" data-status="done">
+        <summary><span>4. Calibrate Camera Mount And Projection</span><span class="status done">Done</span></summary>
         <div class="work-body"><p>PR #137 makes mount height, pitch, yaw, FOV, image dimensions, and clipping behavior explicit. It resolves the same numeric values for live actor views and captures, retains them in WS snapshot metadata, and confirms that perception geometry remains separate.</p></div>
       </details>
-      <details class="work-item" data-status="pending">
-        <summary><span>5. Qualify Optical And Sensor Effects</span><span class="status pending">Pending</span></summary>
-        <div class="work-body"><p>Evaluate lens distortion, exposure, vignette, blur, noise, and compression independently. Retain only effects supported by physical comparison and bounded performance.</p></div>
+      <details class="work-item" data-status="active" open>
+        <summary><span>5. Qualify Optical And Sensor Effects</span><span class="status active">In review: PR #138</span></summary>
+        <div class="work-body"><p>PR #138 evaluates lens distortion, exposure, vignette, blur, noise, and compression independently. It retains only fixed radial barrel distortion and vignette in a reusable actor-view pass; blur, grain, and compression remain rejected pending stronger physical evidence.</p></div>
       </details>
       <details class="work-item" data-status="pending">
         <summary><span>6. Add Seeded Variation And Comparison Evidence</span><span class="status pending">Pending</span></summary>
@@ -369,7 +395,7 @@
         <summary><span>7. Validate, Document, And Close</span><span class="status pending">Pending</span></summary>
         <div class="work-body"><p>Record regression, snapshot stress, frame-time, deterministic replay, and physical comparison evidence. Freeze the plan and write the closeout and completed ledger entry.</p></div>
       </details>
-      <div class="progress-track" aria-label="Milestone work packages completed: 3 of 7"><div class="progress-fill" style="width: 42.86%;"></div></div>
+      <div class="progress-track" aria-label="Milestone work packages completed: 4 of 7"><div class="progress-fill" style="width: 57.14%;"></div></div>
       <p class="small">Progress counts completed work packages, not commits or pull requests.</p>
     </section>
 
@@ -427,7 +453,7 @@
         <li>The <code>rc-indoor</code> profile visibly distinguishes carpet, cardboard obstacles, room walls, directional lighting, and shadows.</li>
         <li>Camera mount, projection, lens, and retained sensor effects are explicit configuration rather than hidden constants.</li>
         <li>Every randomized value is seeded, reproducible, and present in snapshot metadata.</li>
-        <li>WS and SimEval snapshots remain free of debug overlays by default and identify the effective scenario, frame, profile, and camera values.</li>
+        <li>WS and SimEval snapshots remain free of debug overlays by default and identify the effective scenario, frame, profile, camera, and sensor values.</li>
         <li>Repeated front-view capture produces no lost WebGL contexts or unbounded GPU-resource growth.</li>
         <li>The simulation profile's measured interactive frame time regresses by no more than 10% from the pre-milestone baseline.</li>
         <li>A fixed PiRacer room artifact compares the physical frame, simulation profile, and RC-indoor profile with parameters and stated remaining gaps.</li>
@@ -450,6 +476,7 @@
             <tr><td>2026-07-16</td><td>Keep named profiles baseline-equivalent in the contract package.</td><td>The first implementation review should settle ownership and renderer consistency before material or lighting changes make pixel output harder to compare.</td></tr>
             <tr><td>2026-07-16</td><td>Use deterministic generated textures for the first material package.</td><td>Procedural carpet and cardboard provide stable visual cues without asset licensing, network dependencies, or unreported randomness; physical texture calibration remains possible later.</td></tr>
             <tr><td>2026-07-17</td><td>Calibrate RC indoor composition from the physical frame rather than the unmeasured FOV prior.</td><td>The archived 62.2 by 48.8 degree values are default priors. Their narrow pinhole equivalent cropped both simulated boxes, while an 86 degree horizontal equivalent better retained the physical two-box composition. Barrel distortion remains explicitly unmodeled.</td></tr>
+            <tr><td>2026-07-17</td><td>Retain only a fixed radial-vignette sensor pass.</td><td>The physical frame visibly supports a modest wide-angle character and edge falloff. Blur, grain, and compression have no defensible calibration from the available reference and would reduce geometric interpretability.</td></tr>
           </tbody>
         </table>
       </div>

@@ -201,3 +201,60 @@ test("front-view captures reuse one WebGL renderer until scene disposal", () => 
   assert.equal(disposeCount, 1);
   assert.equal(contextLossCount, 1);
 });
+
+test("RC indoor captures reuse one sensor pipeline and retain resolved settings", () => {
+  let pipelineCount = 0;
+  let pipelineRenderCount = 0;
+  let pipelineDisposeCount = 0;
+  const captureSession = createActorViewImageCapture({
+    createRenderer: () => ({
+      domElement: { toDataURL: () => "data:image/png;base64,dGVzdA==" },
+      dispose() {},
+      forceContextLoss() {},
+      getContext: () => ({ isContextLost: () => false }),
+      render() {},
+      setClearColor() {},
+      setPixelRatio() {},
+      setSize() {},
+    }),
+    createCamera: () => ({
+      position: { set() {} },
+      lookAt() {},
+      updateProjectionMatrix() {},
+    }),
+    createSensorPipeline: () => {
+      pipelineCount += 1;
+      return {
+        render() { pipelineRenderCount += 1; },
+        dispose() { pipelineDisposeCount += 1; },
+      };
+    },
+  });
+  const renderingProfile = {
+    ...structuredClone(BASE_SCENARIO.rendering),
+    sensor: {
+      imageProcessing: "radial-vignette",
+      barrelDistortion: 0.12,
+      vignette: 0.1,
+    },
+  };
+  const captureOptions = {
+    scene: {},
+    actorMesh: { visible: true },
+    actorFieldOfView: { visible: true },
+    actorPosition: { x: 0, z: 0 },
+    actorLookDirection: { x: 1, z: 0 },
+    fieldOfViewAngleRadians: Math.PI / 3,
+    renderingProfile,
+  };
+
+  const first = captureSession.capture(captureOptions);
+  const second = captureSession.capture(captureOptions);
+
+  assert.equal(first.sensor.imageProcessing, "radial-vignette");
+  assert.deepEqual(first.sensor, second.sensor);
+  assert.equal(pipelineCount, 1);
+  assert.equal(pipelineRenderCount, 2);
+  captureSession.dispose();
+  assert.equal(pipelineDisposeCount, 1);
+});

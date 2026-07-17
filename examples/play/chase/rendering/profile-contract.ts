@@ -91,6 +91,8 @@ export type ChaseRenderingProfile = Readonly<{
     lensModel: "pinhole";
   }>;
   sensor: Readonly<{
-    imageProcessing: "none";
+    imageProcessing: "none" | "radial-vignette";
+    barrelDistortion: number;
+    vignette: number;
   }>;
 }>;
