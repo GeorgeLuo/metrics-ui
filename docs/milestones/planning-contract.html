@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="source-sha256" content="6befb2373748ea50fca102a1410a443ff197f595180c73c1ecfaffa1b3a9ac68">
+  <meta name="source-sha256" content="b218c7c984d9359f375809891e411774d03ba8f75eca941aba7ab754e32f0222">
   <base target="_blank">
   <title>Milestone Planning Contract</title>
   <style>
@@ -34,77 +34,102 @@
     <div class="source">Canonical source: <a href="README.md">README.md</a></div>
     <h1>Milestone Planning Contract</h1>
 <p>This file defines the planning and delivery format for every active and future
-milestone. Individual plans own their goals, evidence, work, and decisions;
-they link here rather than restating these general rules. Closed plans are
-frozen historical records.</p>
+milestone. Individual milestone plans contain their own goals, evidence, work,
+and decisions; they should link here instead of restating these general rules.
+Closed milestone plans are frozen historical records and are not required to be
+retrofitted.</p>
 <h2>Planning Model</h2>
 <p>A milestone has a stable objective and exit criteria, but not a fixed schedule
-of pull requests. Keep the current review unit concrete and let evidence from
-each merge determine the next one.</p>
-<p>Every plan distinguishes:</p>
+of pull requests. Keep the next review unit concrete and let evidence from each
+merge determine the next one. This prevents early implementation assumptions
+from becoming commitments while still making the direction and stopping
+conditions explicit.</p>
+<p>The plan must distinguish:</p>
 <ul>
 <li><strong>Observed state:</strong> verified repository behavior, measurements, and gaps.</li>
 <li><strong>Current delivery:</strong> implemented or actively changing work with one review
 question.</li>
 <li><strong>Queued delivery:</strong> the one likely next review unit, defined but not started.</li>
 <li><strong>Preparation horizon:</strong> ordered needs that remain provisional until promoted.</li>
-<li><strong>Completion usage:</strong> the small, stable set of human workflows the completed
-milestone must make possible.</li>
-<li><strong>Exit criteria:</strong> fixed outcomes independent of one implementation path.</li>
+<li><strong>Completion usage:</strong> the small, stable set of new human workflows the
+completed milestone must make possible.</li>
+<li><strong>Exit criteria:</strong> fixed milestone outcomes that do not depend on a particular
+implementation path.</li>
 </ul>
 <h3>Completion Usage Contract</h3>
 <p>Every active milestone enumerates the straightforward usage that should be
-possible after closeout. Describe each workflow from the user&#39;s perspective and
-label interfaces that do not exist yet as proposed.</p>
-<p>The workflow set is milestone scope. Adding or removing a workflow requires an
-explicit decision-log entry. Exact names, schemas, and presentation may evolve
-as long as the original usage remains apparent and executable.</p>
+possible after closeout. Describe each workflow from the user&#39;s perspective:
+the starting context, a proposed command, API, or UI execution path, and the
+observable result that tells them it worked. The proposal must be concrete
+enough for a reviewer to understand how the completed behavior will be run,
+while remaining free of internal implementation steps. Clearly label commands
+or interfaces that do not exist yet as proposed rather than observed behavior.</p>
+<p>The workflow set is part of milestone scope and should not drift casually.
+Adding or removing a workflow requires an explicit scope decision in the plan&#39;s
+decision log. Exact command spelling, flags, schemas, limits, and presentation
+may evolve during implementation as long as the original usage remains apparent
+and executable. Update the proposal when those details settle. Every completion
+workflow must be supported by exit criteria and closeout evidence; otherwise it
+is aspiration rather than delivered usage.</p>
 <p>Each completion workflow records:</p>
 <ul>
 <li><strong>Starting state:</strong> what must already be available or selected.</li>
-<li><strong>Proposed execution:</strong> the shortest expected path through a public interface.</li>
-<li><strong>Success signal:</strong> the output or state change that proves it worked.</li>
-<li><strong>Automation path, when needed:</strong> structured output suitable for tests.</li>
+<li><strong>Proposed execution:</strong> the shortest expected human path through the public
+interface.</li>
+<li><strong>Success signal:</strong> the concise output or state change that proves it worked.</li>
+<li><strong>Automation path, when needed:</strong> structured output suitable for tests without
+making machine-oriented flags the default human experience.</li>
 </ul>
 <h2>Common Plan Format</h2>
-<p>Each active milestone uses a standalone <code>plan.html</code>. Keep it portable, readable
-without a server, responsive on narrow screens, and free of external assets.</p>
+<p>Each active milestone uses a standalone <code>plan.html</code> with the same high-level
+shape as the active plan linked from <a href="../README.md"><code>../README.md</code></a>. Keep it
+portable, readable without a server, responsive on narrow screens, and free of
+external assets.</p>
 <p>Use these sections in this order unless one is genuinely irrelevant:</p>
 <ol>
-<li><strong>Header:</strong> number, literal title, objective, status, date, constraints, and
-delivery model.</li>
-<li><strong>High-Level Objective:</strong> outcome cards and a concise success statement.</li>
-<li><strong>Completion Usage:</strong> implementation-agnostic workflows and success signals.</li>
-<li><strong>Baseline:</strong> observed status, evidence, and gaps.</li>
-<li><strong>Current Delivery Horizon:</strong> current review unit, queued unit, preparation
-horizon, and delivery state.</li>
-<li><strong>Milestone-Specific Contracts:</strong> architecture and policy needed to evaluate
-the milestone.</li>
-<li><strong>Work Plan:</strong> packages with <code>pending</code>, <code>active</code>, <code>blocked</code>, or <code>done</code> status
-and an accurate aggregate progress indicator.</li>
+<li><strong>Header:</strong> milestone number, literal title, objective summary, status,
+start date, important operating constraints, and delivery model.</li>
+<li><strong>High-Level Objective:</strong> a small set of outcome cards and a concise statement
+of what success means.</li>
+<li><strong>Completion Usage:</strong> an implementation-agnostic enumeration of the new
+workflows a human can run after closeout, proposed public execution paths,
+and the result each workflow exposes.</li>
+<li><strong>Baseline:</strong> observed status, evidence, and remaining gap for each major area.</li>
+<li><strong>Current Delivery Horizon:</strong> current PR, next-after-review candidate,
+preparation horizon, and current delivery state.</li>
+<li><strong>Milestone-Specific Contracts:</strong> architecture, interfaces, output policies,
+target structures, or other rules needed to evaluate the milestone.</li>
+<li><strong>Work Plan:</strong> expandable work packages with <code>pending</code>, <code>active</code>, <code>blocked</code>,
+or <code>done</code> status and an accurate aggregate progress indicator.</li>
 <li><strong>Scope Boundaries:</strong> explicit in-scope and out-of-scope work.</li>
-<li><strong>Risks And Controls:</strong> likely failures paired with controls.</li>
-<li><strong>Exit Criteria:</strong> observable conditions required for closeout.</li>
-<li><strong>Decision Log:</strong> dated decisions and reasons.</li>
+<li><strong>Risks And Controls:</strong> likely failure modes paired with concrete controls.</li>
+<li><strong>Exit Criteria:</strong> observable conditions required before closeout.</li>
+<li><strong>Decision Log:</strong> dated decisions and reasons, including assumptions that
+changed during implementation.</li>
 </ol>
-<p>Plans should support quick scanning. Use compact tables, status labels, and
-expandable work packages where they improve navigation. Plan text describes
-outcomes, evidence, and decisions rather than narrating every edit.</p>
+<p>Plans should support quick scanning. Use status pills, compact tables, cards for
+distinct concepts, and expandable work packages when they improve navigation.
+Do not add interactive elements that merely decorate the page. Plan text should
+describe outcomes, evidence, and decisions rather than narrating every code edit.</p>
 <h3>Shared Contract Visibility</h3>
-<p>Every active plan embeds the generated version of this contract in a collapsed
-section. This Markdown file remains canonical.</p>
+<p>Every active plan embeds the rendered version of this contract in a collapsed,
+expandable section. The canonical content remains this Markdown file; do not
+copy its rules into individual plans or edit <code>planning-contract.html</code> directly.</p>
 <p>Refresh and validate it with:</p>
 <pre><code class="language-sh">npm run docs:milestones
 npm run docs:milestones:check
 </code></pre>
 <p>The repository check verifies the source digest, active-plan link, required
-sections, completion workflows, valid work statuses, and progress count.</p>
+sections, completion workflows, valid work statuses, and progress count. The
+repository-native npm commands remain authoritative; shared policy does not
+require every repository to use the same rendering implementation.</p>
 <h2>Pull Request Delivery Contract</h2>
 <p>Every pull request is one complete, reviewable deliverable. Review size is a
 logical-complexity budget, not a line-count target.</p>
 <h3>Deep And Narrow</h3>
 <p>Introduce or settle one policy, abstraction, or behavioral contract in a small
-number of owning files. The reviewer should answer one primary question.</p>
+number of owning files. The reviewer should be able to reason deeply about one
+question without also auditing a repository-wide rollout.</p>
 <h3>Broad And Mechanical</h3>
 <p>Apply an already-reviewed pattern across many files without introducing new
 behavior, abstractions, or unrelated cleanup.</p>
@@ -117,43 +142,189 @@ behavior, abstractions, or unrelated cleanup.</p>
 <li>validation performed and its result; and</li>
 <li>user, operator, or developer impact.</li>
 </ul>
+<p>List file impacts at ownership granularity with one purpose per path. The list
+should make the shape of the change inspectable before implementation without
+becoming a line-by-line design. Reconcile meaningful deviations in the final PR
+description.</p>
 <p>Every pull request leaves the repository complete. Do not define a pattern and
-roll it out broadly in the same review unit. Merge each deliverable before
-branching the next by default.</p>
+roll it out broadly in the same review unit. Land the pattern first, merge each
+deliverable before branching the next by default, and split work when the
+primary review question stops being singular.</p>
+<h2>Milestone Git Isolation</h2>
+<p>Use one integration branch per active milestone so the complete milestone can
+be reviewed as one cumulative change without making its individual pull
+requests too large. The branch topology for the next planned milestone is:</p>
+<pre><code class="language-text">main
+└── milestone/002-atomic-chase-evaluation-capture
+    ├── m002/01-same-state-bundle
+    ├── m002/02-play-transport
+    └── m002/03-live-validation
+</code></pre>
+<p>The branch roles are fixed:</p>
+<ul>
+<li><strong><code>main</code>:</strong> completed milestones and explicitly approved maintenance only.</li>
+<li><strong><code>milestone/&lt;number&gt;-&lt;slug&gt;</code>:</strong> all accepted changes for one active
+milestone, including its plan, evidence, and closeout.</li>
+<li><strong><code>m&lt;number&gt;/&lt;review-unit&gt;-&lt;slug&gt;</code>:</strong> one review-sized deliverable targeting
+the milestone branch, never <code>main</code>.</li>
+</ul>
+<p>Do not mix two milestones on one integration branch. Do not merge a milestone
+work-block pull request directly into <code>main</code>. A review repair branches from the
+milestone branch and targets that same milestone branch, so the cumulative
+milestone pull request updates automatically.</p>
+<h3>Start A Milestone</h3>
+<p>Start from current remote <code>main</code>, create the integration branch, and make the
+plan bootstrap its first commit:</p>
+<pre><code class="language-sh">git switch main
+git pull --ff-only
+git switch -c milestone/002-atomic-chase-evaluation-capture
+git push -u origin milestone/002-atomic-chase-evaluation-capture
+</code></pre>
+<p>After the plan commit is pushed, open a <strong>draft</strong> cumulative pull request from
+the milestone branch to <code>main</code>. Keep it open for the milestone&#39;s lifetime. Its
+diff is the authoritative whole-milestone review surface; its description links
+the plan, current exit-criteria status, and accepted work-block pull requests.</p>
+<pre><code class="language-sh">gh pr create \
+  --draft \
+  --base main \
+  --head milestone/002-atomic-chase-evaluation-capture \
+  --title &quot;Milestone 002: Atomic Chase Evaluation Capture&quot;
+</code></pre>
+<h3>Deliver A Review Unit</h3>
+<p>Branch each review unit from the updated milestone branch:</p>
+<pre><code class="language-sh">git switch milestone/002-atomic-chase-evaluation-capture
+git pull --ff-only
+git switch -c m002/01-same-state-bundle
+</code></pre>
+<p>Push it and open its pull request against the milestone branch:</p>
+<pre><code class="language-sh">git push -u origin m002/01-same-state-bundle
+gh pr create \
+  --base milestone/002-atomic-chase-evaluation-capture \
+  --head m002/01-same-state-bundle
+</code></pre>
+<p>The pull request title starts with <code>M002 / 01</code>, and the description states its
+base branch explicitly. Prefer squash-merging each work-block pull request so
+the milestone branch contains one commit per accepted review unit. Start the
+next branch only after the prior pull request merges and the local milestone
+branch is updated.</p>
+<h3>Close A Milestone</h3>
+<p>The closeout, completed-milestone ledger update, and final evidence belong on
+the milestone branch. When every exit criterion is met, mark the cumulative
+pull request ready for review. That final review answers whether the milestone
+objective, usage contract, evidence, code organization, and unresolved-risk
+accounting are complete as a whole.</p>
+<p>Merge the cumulative pull request into <code>main</code> with a merge commit so its
+reviewed work-unit commits remain visible. Tag the resulting mainline merge
+<code>milestone-&lt;number&gt;</code>, then delete the milestone and work branches. GitHub keeps
+the individual pull request discussions after branch deletion.</p>
+<pre><code class="language-sh">gh pr ready &lt;cumulative-pr-number&gt;
+gh pr merge &lt;cumulative-pr-number&gt; --merge --delete-branch
+git switch main
+git pull --ff-only
+git tag milestone-002
+git push origin milestone-002
+</code></pre>
+<p>If approved maintenance reaches <code>main</code> during an active milestone, merge the
+updated <code>main</code> into the milestone branch before starting another review unit.
+Do not rebase or force-push a published milestone branch. CI must run for pull
+requests whose base is a milestone branch as well as for the cumulative pull
+request to <code>main</code>.</p>
+<p>This branching model is repository-development infrastructure. A future helper
+may automate these exact steps, but it must fail visibly on uncommitted changes,
+a stale base, an existing branch, or an incorrect pull request target rather
+than hiding Git state.</p>
 <h2>Rolling Delivery Horizon</h2>
-<p>Only the current review unit is committed in detail. The plan also names one
-likely next unit so current work can prepare a clean boundary. Everything later
-stays in the preparation horizon.</p>
-<p>The current delivery records status, review shape, deliverable, review question,
-file impacts, non-goals, and measured validation. The queued delivery records a
-bounded expected outcome, review question, likely file ownership, and non-goals.</p>
+<p>Only the current pull request is committed in detail. A milestone plan also
+names one likely next review unit so current work can prepare a clean boundary,
+but that next unit remains unstarted until the current one is accepted.
+Everything beyond it stays in the preparation horizon.</p>
+<p>The current pull request records:</p>
+<ul>
+<li>status and review shape;</li>
+<li>deliverable and review question;</li>
+<li>expected or actual file impacts;</li>
+<li>non-goals; and</li>
+<li>measured validation evidence.</li>
+</ul>
+<p>The next-after-review entry records:</p>
+<ul>
+<li>the expected review shape and question;</li>
+<li>a bounded expected deliverable;</li>
+<li>proposed file impacts when they are known; and</li>
+<li>non-goals that prevent work from leaking forward.</li>
+</ul>
 <p>After each merge:</p>
 <ol>
 <li>Re-read the milestone objective and exit criteria.</li>
 <li>Record what changed, what was learned, and which assumptions failed.</li>
 <li>Update baseline evidence and work-package status.</li>
-<li>Promote one preparation-horizon item into the next concrete review unit.</li>
-<li>Leave later work provisional.</li>
+<li>Promote one preparation-horizon item into the next concrete pull request.</li>
+<li>Leave later work provisional rather than constructing a detailed schedule.</li>
 </ol>
 <h2>Status And Evidence</h2>
 <p>Use <code>pending</code>, <code>active</code>, <code>blocked</code>, and <code>done</code> consistently. A work package is
-<code>done</code> only when all acceptance conditions are met; merging one pull request
-inside it does not necessarily complete it.</p>
-<p>Evidence must be reproducible and appropriately scoped. Record test counts,
-timings, artifacts, or live observations when they support a conclusion. Do not
-present planned behavior as observed behavior or a skipped check as a pass.</p>
+<code>done</code> only when all of its acceptance conditions are met; completing one pull
+request inside it does not complete the whole package.</p>
+<p>Evidence should be reproducible and appropriately scoped. Record test counts,
+timings, artifacts, or live-system observations when they support a conclusion.
+Do not present planned behavior as observed behavior, a skipped check as a pass,
+or an unlabeled visual result as an accuracy claim.</p>
 <h2>Milestone Lifecycle</h2>
 <ol>
+<li>Create the milestone integration branch from current remote <code>main</code>.</li>
 <li>Create one numbered directory and a <code>plan.html</code> following this contract.</li>
-<li>Define completion usage, fixed exit criteria, a concrete first delivery, and
-a preparation horizon.</li>
-<li>Merge one deliverable at a time and update the plan after each accepted unit.</li>
+<li>Define completion usage, fixed exit criteria, a concrete first pull request,
+and a preparation horizon; push the plan and open the draft cumulative pull
+request to <code>main</code>.</li>
+<li>Merge one review-unit pull request into the milestone branch at a time and
+update the plan after each accepted unit.</li>
 <li>At closeout, freeze the plan and write <code>closeout.md</code> with outcomes,
 decisions, validation, unresolved work, and durable references.</li>
-<li>Append a concise entry to <a href="completed.md"><code>completed.md</code></a>.</li>
-<li>Create the next milestone and update the active-work link in
-<a href="../README.md"><code>../README.md</code></a>.</li>
+<li>Append a concise entry to <a href="completed.md"><code>completed.md</code></a>, update the
+active-work link in <a href="../README.md"><code>../README.md</code></a>, and make the cumulative
+pull request ready for whole-milestone review.</li>
+<li>Merge the cumulative pull request, tag the mainline merge, remove milestone
+branches, then make the next milestone active or promote its pre-plan.</li>
 </ol>
+<p>Closeouts preserve durable context; they do not duplicate source-level details.
+Settled architecture belongs in durable documentation, while future-facing
+research remains explicitly noncommittal until it supports a bounded milestone.</p>
+<h2>Immediate Deferred Work And Pre-Plans</h2>
+<p>Closeouts may leave residual work. That residual is not a free-form backlog.
+Route it into exactly one of these places:</p>
+<ol>
+<li><strong>Durable documentation:</strong> settled current behavior and architecture.</li>
+<li><strong>Research synthesis:</strong> evidence and candidate approaches without a delivery
+commitment.</li>
+<li><strong>At most one pre-plan</strong> after the active milestone: the single most
+immediate next problem that is already known and would block a named later
+capability.</li>
+</ol>
+<h3>What Counts As Immediate Deferred Work</h3>
+<p>Immediate deferred work is the smallest next milestone-shaped question already
+forced by evidence. It is not a wishlist, a long-range roadmap, or a growing
+list of possible enhancements.</p>
+<h3>Pre-Plan Rules</h3>
+<ul>
+<li>A pre-plan lives at <code>milestones/&lt;number&gt;-&lt;slug&gt;/plan.html</code> with status such as
+<code>pre-plan - queued after NNN</code>.</li>
+<li>It has a fixed objective, explicit non-goals, a stop condition, and
+provisional packages: the same honesty as an active plan without competing
+for implementation attention.</li>
+<li>Pre-plans are <strong>not active work</strong>. Do not implement them while another
+milestone is active unless the active plan&#39;s decision log explicitly allows
+a narrow parallel exception.</li>
+<li>Prefer <strong>one</strong> written pre-plan for the work immediately after the active
+milestone. Do not stack many future milestone drafts.</li>
+<li>Revise a pre-plan only when prerequisite closeout evidence changes the bounded
+question, not to absorb every new idea found during active work.</li>
+<li>On activation, promote the pre-plan to active status, name the first review
+unit, and update the documentation guide. On abandonment, record why.</li>
+</ul>
+<h3>Stop Expanding</h3>
+<p>If a residual cannot be stated as a single milestone objective with a stop
+condition, it is not ready for a pre-plan. Leave it as research synthesis or
+omit it until evidence forces a sharper question.</p>
 
   </main>
 </body>
