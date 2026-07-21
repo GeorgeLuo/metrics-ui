@@ -5,10 +5,13 @@ Read this file before beginning milestone-scoped work.
 
 ## Active Work
 
-Milestone 002, [Chaser Observation Interpretation](milestones/002-chaser-observation-interpretation/plan.html),
-is active. It will define the boundary that turns rendered or sensed evidence
-into observer-world inputs without moving perception processing into the
-generic decision model.
+Milestone 002, [Atomic Chase Evaluation Capture](milestones/002-atomic-chase-evaluation-capture/plan.html),
+is active. It will provide one playback-neutral request whose camera frame and
+bounded evaluator shadow come from the same simulation state, without leaking
+simulator geometry into an external controller's sensor path.
+
+Milestone 003, [Chaser Observation Interpretation](milestones/003-chaser-observation-interpretation/plan.html),
+is queued behind this identity and privilege-boundary prerequisite.
 
 ## Reading Order
 
