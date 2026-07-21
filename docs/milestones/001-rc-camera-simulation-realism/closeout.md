@@ -66,6 +66,8 @@ Exact measurements, revisions, hashes, and commands are in
 
 ## Follow-On
 
-Milestone 002, [Chaser Observation Interpretation](../002-chaser-observation-interpretation/plan.html),
-will establish the layer that maps captured visual evidence into observer-world
-inputs before generic decision-model processing begins.
+Milestone 002, [Atomic Chase Evaluation Capture](../002-atomic-chase-evaluation-capture/plan.html),
+will first establish exact camera/evaluator frame identity and privilege
+separation. Milestone 003, Chaser Observation Interpretation, will then map
+captured visual evidence into observer-world inputs before generic
+decision-model processing begins.
