@@ -9,7 +9,7 @@ The chase example keeps decision logic grouped by IDAE stage, with the RC chase 
 - `decision-model/projections/` contains future-state inference modules. Core projection contracts and confidence helpers live in `core/`; chaser-owned evader motion projection lives under `projections/chaser/`.
 - `decision-model/actions/` contains action proposal and action selection modules. Generic action envelopes, proposal metadata, and motive signal contracts live in `core/`; shared vehicle capability shapes live in `vehicle/`; actor-specific plans, motives, mutable mixing policies, and debug payloads live with the actor-owned action modules.
 - `simulation/` advances world state. It applies actor actions to positions, resolves collisions, updates metrics, records traces, and coordinates the chaser and evader decision models.
-- `evaluation/` owns externally useful, playback-neutral evaluation envelopes. It converts a frozen visible-only capture into a camera sensor artifact plus separately labeled, bounded evaluator data; it does not own transport or controller behavior.
+- `evaluation/` owns externally useful, playback-neutral evaluation envelopes. It converts a frozen visible-only capture through a local structural input contract into a camera sensor artifact plus separately labeled, count-only evaluator data; it does not depend on decision-model memory or own transport and controller behavior.
 - `actors/` contains RC chase actor shells, perception helpers, vehicle controllers, and IDAE adapters that wire the stage modules together.
 - `world/` contains chase field geometry, obstacle layout, bounds, and collision helpers.
 - `ui/` contains browser runtime, rendering, sidebar controls, stored settings, and keyboard input.

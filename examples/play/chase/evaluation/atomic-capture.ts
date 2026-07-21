@@ -1,7 +1,3 @@
-import type {
-  VehicleFrontViewCaptureRecord,
-} from "../decision-model/memory/vehicle/front-view-captures.ts";
-
 export const ATOMIC_EVALUATION_CAPTURE_CONTRACT_VERSION = 1;
 
 /** Encoded camera artifact that an external controller may treat as perception. */
@@ -14,10 +10,16 @@ export type AtomicEvaluationCaptureImage = {
   svg?: string;
 };
 
+/** Stable identity for one frame within one simulation run. */
+export type AtomicEvaluationFrameIdentity = {
+  gameId: string;
+  simulationEpoch: string;
+  frameIndex: number;
+};
+
 /** Count-only evaluation facts derived from a visible-only front-view record. */
 export type BoundedEvaluatorShadow = {
   kind: "visible-observation-summary";
-  visibleActorIds: readonly string[];
   visibleActorCount: number;
   visibleWallCount: number;
   visibleAreaCellCount: number;
@@ -28,7 +30,7 @@ export type BoundedEvaluatorShadow = {
 export type AtomicEvaluationCaptureSource = {
   captureId: string;
   actorId: string;
-  frameIndex: number;
+  frameIdentity: AtomicEvaluationFrameIdentity;
   image: AtomicEvaluationCaptureImage;
   evaluatorShadow: BoundedEvaluatorShadow;
 };
@@ -38,7 +40,7 @@ export type AtomicEvaluationCapture = {
   contractVersion: typeof ATOMIC_EVALUATION_CAPTURE_CONTRACT_VERSION;
   captureId: string;
   actorId: string;
-  frameIndex: number;
+  frameIdentity: AtomicEvaluationFrameIdentity;
   playback: {
     advanced: false;
   };
@@ -53,13 +55,30 @@ export type AtomicEvaluationCapture = {
 
 /** Snapshot fields required to establish a same-state evaluation capture. */
 export type AtomicEvaluationCaptureSnapshot = {
+  gameId: string;
   actorId: string;
   frameIndex: number | null;
   image: AtomicEvaluationCaptureImage;
-  record: Pick<
-    VehicleFrontViewCaptureRecord,
-    "actorId" | "frameIndex" | "map" | "visibleActors"
-  >;
+  record: {
+    actorId: string;
+    frameIndex: number | null;
+    map: {
+      visibleWalls: readonly unknown[];
+      visibleArea: {
+        cells: readonly unknown[];
+      };
+      observationCount: number;
+    };
+    visibleActors: readonly {
+      actorId: string;
+      visible: boolean;
+    }[];
+  };
+};
+
+/** Runtime identity that remains stable for the lifetime of one simulation run. */
+export type AtomicEvaluationCaptureRunContext = {
+  simulationEpoch: string;
 };
 
 function cloneImage(image: AtomicEvaluationCaptureImage): AtomicEvaluationCaptureImage {
@@ -73,11 +92,18 @@ function cloneImage(image: AtomicEvaluationCaptureImage): AtomicEvaluationCaptur
   };
 }
 
-function cloneShadow(shadow: BoundedEvaluatorShadow): BoundedEvaluatorShadow {
+function cloneFrameIdentity(
+  frameIdentity: AtomicEvaluationFrameIdentity,
+): AtomicEvaluationFrameIdentity {
   return {
-    ...shadow,
-    visibleActorIds: [...shadow.visibleActorIds],
+    gameId: frameIdentity.gameId,
+    simulationEpoch: frameIdentity.simulationEpoch,
+    frameIndex: frameIdentity.frameIndex,
   };
+}
+
+function cloneShadow(shadow: BoundedEvaluatorShadow): BoundedEvaluatorShadow {
+  return { ...shadow };
 }
 
 function requireFrameIndex(frameIndex: number | null | undefined): number {
@@ -87,12 +113,11 @@ function requireFrameIndex(frameIndex: number | null | undefined): number {
   return Number(frameIndex);
 }
 
-function requireActorId(actorId: string): string {
-  const normalizedActorId = actorId.trim();
-  if (!normalizedActorId) {
-    throw new Error("Atomic evaluation capture requires an actor id.");
+function requireIdentifier(value: string, label: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`Atomic evaluation capture requires ${label}.`);
   }
-  return normalizedActorId;
+  return value.trim();
 }
 
 function requireImage(image: AtomicEvaluationCaptureImage): AtomicEvaluationCaptureImage {
@@ -112,17 +137,16 @@ function requireImage(image: AtomicEvaluationCaptureImage): AtomicEvaluationCapt
 function buildEvaluatorShadow(
   record: AtomicEvaluationCaptureSnapshot["record"],
 ): BoundedEvaluatorShadow {
-  const visibleActorIds = [...new Set(
+  const visibleActorCount = new Set(
     record.visibleActors
       .filter((actor) => actor.visible)
       .map((actor) => actor.actorId)
       .filter(Boolean),
-  )].sort();
+  ).size;
   const visibleArea = record.map.visibleArea;
   return {
     kind: "visible-observation-summary",
-    visibleActorIds,
-    visibleActorCount: visibleActorIds.length,
+    visibleActorCount,
     visibleWallCount: record.map.visibleWalls.length,
     visibleAreaCellCount: visibleArea.cells.length,
     observationCount: record.map.observationCount,
@@ -138,23 +162,37 @@ function buildEvaluatorShadow(
  */
 export function createAtomicEvaluationCaptureSource(
   snapshot: AtomicEvaluationCaptureSnapshot,
+  runContext: AtomicEvaluationCaptureRunContext,
 ): AtomicEvaluationCaptureSource {
-  const actorId = requireActorId(snapshot.actorId);
+  const gameId = requireIdentifier(snapshot.gameId, "a game id");
+  const simulationEpoch = requireIdentifier(
+    runContext.simulationEpoch,
+    "a simulation epoch",
+  );
+  const actorId = requireIdentifier(snapshot.actorId, "an actor id");
   const frameIndex = requireFrameIndex(snapshot.frameIndex);
   if (snapshot.record.actorId !== actorId || snapshot.record.frameIndex !== frameIndex) {
     throw new Error("Atomic evaluation capture snapshot identity does not match its capture record.");
   }
 
+  const frameIdentity = Object.freeze({
+    gameId,
+    simulationEpoch,
+    frameIndex,
+  });
   const evaluatorShadow = buildEvaluatorShadow(snapshot.record);
   return Object.freeze({
-    captureId: `chase:evaluation:${actorId}:${frameIndex}`,
+    captureId: [
+      encodeURIComponent(gameId),
+      "evaluation",
+      encodeURIComponent(simulationEpoch),
+      encodeURIComponent(actorId),
+      frameIndex,
+    ].join(":"),
     actorId,
-    frameIndex,
+    frameIdentity,
     image: Object.freeze(requireImage(snapshot.image)),
-    evaluatorShadow: Object.freeze({
-      ...evaluatorShadow,
-      visibleActorIds: Object.freeze(evaluatorShadow.visibleActorIds),
-    }),
+    evaluatorShadow: Object.freeze(evaluatorShadow),
   });
 }
 
@@ -171,7 +209,7 @@ export function buildAtomicEvaluationCapture(
     contractVersion: ATOMIC_EVALUATION_CAPTURE_CONTRACT_VERSION,
     captureId: source.captureId,
     actorId: source.actorId,
-    frameIndex: source.frameIndex,
+    frameIdentity: cloneFrameIdentity(source.frameIdentity),
     playback: { advanced: false },
     sensor: {
       image: cloneImage(source.image),
@@ -186,17 +224,25 @@ export function buildAtomicEvaluationCapture(
 /** Creates a public atomic response directly from one manual front-view snapshot. */
 export function buildAtomicEvaluationCaptureFromSnapshot(
   snapshot: AtomicEvaluationCaptureSnapshot,
+  runContext: AtomicEvaluationCaptureRunContext,
 ): AtomicEvaluationCapture {
-  return buildAtomicEvaluationCapture(createAtomicEvaluationCaptureSource(snapshot));
+  return buildAtomicEvaluationCapture(
+    createAtomicEvaluationCaptureSource(snapshot, runContext),
+  );
 }
 
 export const ATOMIC_EVALUATION_CAPTURE_SENSOR_FIELDS = Object.freeze([
   "image",
 ]);
 
+export const ATOMIC_EVALUATION_FRAME_IDENTITY_FIELDS = Object.freeze([
+  "gameId",
+  "simulationEpoch",
+  "frameIndex",
+]);
+
 export const BOUNDED_EVALUATOR_SHADOW_FIELDS = Object.freeze([
   "kind",
-  "visibleActorIds",
   "visibleActorCount",
   "visibleWallCount",
   "visibleAreaCellCount",
