@@ -4,6 +4,8 @@ export type {
   PlayFrontViewSnapshotRequest,
   PlayGameCommand,
   PlayGameCommandHandler,
+  PlayGameQuery,
+  PlayGameQueryHandler,
   PlayGameUsageHandler,
   PlayGameHostProps,
   PlaySidebarActionHandler,

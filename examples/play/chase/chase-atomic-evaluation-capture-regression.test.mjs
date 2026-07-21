@@ -9,6 +9,7 @@ import {
   buildAtomicEvaluationCaptureFromSnapshot,
   createAtomicEvaluationCaptureSource,
 } from "./evaluation/atomic-capture.ts";
+import { createChaseSimulationEpochOwner } from "./evaluation/runtime-identity.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
 const BASE_SCENARIO = Object.freeze(resolveChaseScenario(defaultScenarioDefinition, GRID));
@@ -132,4 +133,17 @@ test("atomic evaluation frame identity remains distinct across simulation resets
   assert.equal(second.frameIdentity.frameIndex, 0);
   assert.notEqual(first.captureId, second.captureId);
   assert.notDeepEqual(first.frameIdentity, second.frameIdentity);
+});
+
+test("Chase runtime identity advances its epoch for each simulation run", () => {
+  const epochs = ["run-initial", "run-after-reset", "run-after-load"];
+  const owner = createChaseSimulationEpochOwner({
+    generateEpoch: () => epochs.shift(),
+  });
+
+  assert.equal(owner.current(), "run-initial");
+  assert.equal(owner.beginRun(), "run-after-reset");
+  assert.equal(owner.current(), "run-after-reset");
+  assert.equal(owner.beginRun(), "run-after-load");
+  assert.equal(owner.current(), "run-after-load");
 });

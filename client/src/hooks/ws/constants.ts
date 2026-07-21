@@ -18,6 +18,7 @@ export const RESPONSE_TYPES = new Set<ControlResponse["type"]>([
   "ui_debug",
   "play_debug",
   "play_game_usage",
+  "play_game_query_result",
   "play_front_view_snapshot",
   "ui_notice",
   "ui_error",

@@ -27,6 +27,10 @@ type PlayGameCommandInput = Pick<
   Extract<ControlCommand, { type: "play_game_command" }>,
   "commandId" | "payload"
 >;
+type PlayGameQueryInput = Pick<
+  Extract<ControlCommand, { type: "play_game_query" }>,
+  "queryId" | "payload"
+>;
 
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
@@ -79,6 +83,7 @@ interface UseWebSocketControlProps {
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
   onPlayGameCommand?: (command: PlayGameCommandInput) => boolean;
+  onPlayGameQuery?: (query: PlayGameQueryInput) => unknown;
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
@@ -219,6 +224,7 @@ export function useWebSocketControl({
   onLiveStop,
   onPlayGameAction,
   onPlayGameCommand,
+  onPlayGameQuery,
   onCaptureInit,
   onCaptureComponents,
   onCaptureAppend,
@@ -497,6 +503,7 @@ export function useWebSocketControl({
       onLiveSourceChange,
       onPlayGameAction,
       onPlayGameCommand,
+      onPlayGameQuery,
       onLiveStart,
       onLiveStop,
       onCaptureInit,
@@ -584,6 +591,7 @@ export function useWebSocketControl({
     onLiveSourceChange,
     onPlayGameAction,
     onPlayGameCommand,
+    onPlayGameQuery,
     onLiveStart,
     onLiveStop,
     onCaptureInit,

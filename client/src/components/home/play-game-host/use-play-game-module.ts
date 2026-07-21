@@ -27,6 +27,9 @@ type UsePlayGameModuleOptions = {
   setGameCommandHandler: (
     handler: PlayGameInstance["handleCommand"] | null,
   ) => void;
+  setGameQueryHandler: (
+    handler: PlayGameInstance["handleQuery"] | null,
+  ) => void;
   setGameUsageHandler: (
     handler: PlayGameInstance["getUsage"] | null,
   ) => void;
@@ -52,6 +55,7 @@ export function usePlayGameModule({
   setViewportSpec,
   setFrontViewSnapshotHandler,
   setGameCommandHandler,
+  setGameQueryHandler,
   setGameUsageHandler,
 }: UsePlayGameModuleOptions) {
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -65,6 +69,7 @@ export function usePlayGameModule({
     setViewportSpec(null);
     setFrontViewSnapshotHandler(null);
     setGameCommandHandler(null);
+    setGameQueryHandler(null);
     setGameUsageHandler(null);
   }, [
     clearFloatingFrames,
@@ -73,6 +78,7 @@ export function usePlayGameModule({
     setDebugSnapshot,
     setFrontViewSnapshotHandler,
     setGameCommandHandler,
+    setGameQueryHandler,
     setGameUsageHandler,
     setSidebarSections,
     setViewportSpec,
@@ -116,6 +122,7 @@ export function usePlayGameModule({
         });
         setFrontViewSnapshotHandler(gameInstance?.getFrontViewSnapshot ?? null);
         setGameCommandHandler(gameInstance?.handleCommand ?? null);
+        setGameQueryHandler(gameInstance?.handleQuery ?? null);
         setGameUsageHandler(gameInstance?.getUsage ?? null);
       })
       .catch((error: unknown) => {
@@ -144,6 +151,7 @@ export function usePlayGameModule({
     setDebugSnapshot,
     setFrontViewSnapshotHandler,
     setGameCommandHandler,
+    setGameQueryHandler,
     setGameUsageHandler,
     setSidebarActionHandler,
     setSidebarSections,

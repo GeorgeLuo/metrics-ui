@@ -242,6 +242,49 @@ export function handleQueryCommand(
       context.sendAck(requestId, command.type);
       return true;
     }
+    case "play_game_query": {
+      const queryId = typeof command.queryId === "string" ? command.queryId.trim() : "";
+      if (!queryId) {
+        context.sendError(requestId, "play_game_query requires a non-empty queryId.");
+        return true;
+      }
+      if (!context.onPlayGameQuery) {
+        context.sendError(requestId, "Play game querying is not available. Activate the Play sub-app and wait for the game to load.", {
+          queryId,
+        });
+        return true;
+      }
+      let result: unknown;
+      try {
+        result = context.onPlayGameQuery({
+          queryId,
+          payload: command.payload,
+        });
+      } catch (error) {
+        context.sendError(
+          requestId,
+          error instanceof Error ? error.message : "Failed to query the active Play game.",
+          { command: "play_game_query", queryId },
+        );
+        return true;
+      }
+      if (result === undefined) {
+        context.sendError(requestId, `Play game query is not supported: ${queryId}`, {
+          queryId,
+        });
+        return true;
+      }
+      context.sendMessage({
+        type: "play_game_query_result",
+        request_id: requestId,
+        payload: {
+          queryId,
+          result,
+        },
+      });
+      context.sendAck(requestId, command.type);
+      return true;
+    }
     case "get_play_front_view_snapshot": {
       if (!context.getPlayFrontViewSnapshot) {
         context.sendError(requestId, "Play front-view snapshotting is not available.");
