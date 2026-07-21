@@ -10,8 +10,8 @@ is active. It will provide one playback-neutral request whose camera frame and
 bounded evaluator shadow come from the same simulation state, without leaking
 simulator geometry into an external controller's sensor path.
 
-Milestone 003, Chaser Observation Interpretation, is queued behind this
-identity and privilege-boundary prerequisite.
+Milestone 003, [Chaser Observation Interpretation](milestones/003-chaser-observation-interpretation/plan.html),
+is queued behind this identity and privilege-boundary prerequisite.
 
 ## Reading Order
 
