@@ -886,6 +886,11 @@ export type ControlCommand =
       payload?: unknown;
     } & ControlRequestBase)
   | ({
+      type: "play_game_query";
+      queryId: string;
+      payload?: unknown;
+    } & ControlRequestBase)
+  | ({
       type: "sync_capture_sources";
       sources: Array<{
         captureId: string;
@@ -990,6 +995,7 @@ export interface ControlResponse {
     | "ui_debug"
     | "play_debug"
     | "play_game_usage"
+    | "play_game_query_result"
     | "play_front_view_snapshot"
     | "ui_notice"
     | "ui_error"

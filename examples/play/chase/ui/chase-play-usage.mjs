@@ -1,4 +1,5 @@
 import { CHASE_PLAY_COMMAND_IDS } from "./chase-play-commands.mjs";
+import { CHASE_PLAY_QUERY_IDS } from "./chase-play-queries.mjs";
 
 export function buildChasePlayUsage() {
   return {
@@ -92,6 +93,10 @@ export function buildChasePlayUsage() {
             command: "simeval ui play-front-view-snapshot --actor chaser --out-dir /tmp/chase-snapshot",
             description: "Write a rendered chaser front-view image and metadata snapshot.",
           },
+          {
+            command: `simeval ui trace --request-id chase-evaluation-1 --send '{"type":"play_game_query","request_id":"chase-evaluation-1","queryId":"${CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE}","payload":{"actorId":"chaser"}}'`,
+            description: "Request one same-state camera artifact and separately labeled evaluator shadow without advancing playback.",
+          },
         ],
       },
     ],
@@ -118,6 +123,9 @@ export function buildChasePlayUsage() {
     ],
     protocol: {
       envelopeType: "play_game_command",
+      queryEnvelopeType: "play_game_query",
+      queryResponseType: "play_game_query_result",
+      evaluationCaptureQueryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
       usageQueryType: "get_play_game_usage",
       usageResponseType: "play_game_usage",
     },
@@ -125,6 +133,7 @@ export function buildChasePlayUsage() {
       "This usage is returned by the loaded Play game. It requires an active frontend session with the Play sub-app loaded.",
       "With the default play catalog, Chase is the active game. If multiple games are added later, select the Chase game before using these commands.",
       "Timeline commands are shell-level UI controls; chaser commands are game-level commands routed through the generic play_game_command envelope.",
+      "Read-only game data uses the generic play_game_query envelope. Unsupported query IDs fail explicitly instead of returning an empty result.",
     ],
   };
 }

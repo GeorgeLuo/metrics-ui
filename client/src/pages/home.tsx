@@ -14,6 +14,7 @@ import { PlayMainPanel } from "@/components/home/play-main-panel";
 import type {
   PlayFrontViewSnapshotHandler,
   PlayGameCommandHandler,
+  PlayGameQueryHandler,
   PlayGameUsageHandler,
   PlaySidebarActionHandler,
 } from "@/components/home/play-game-host";
@@ -626,6 +627,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const playDebugSnapshotRef = useRef<unknown>(null);
   const playFrontViewSnapshotHandlerRef = useRef<PlayFrontViewSnapshotHandler | null>(null);
   const playGameCommandHandlerRef = useRef<PlayGameCommandHandler | null>(null);
+  const playGameQueryHandlerRef = useRef<PlayGameQueryHandler | null>(null);
   const playGameUsageHandlerRef = useRef<PlayGameUsageHandler | null>(null);
   const equationsProtocolHandlersRef = useRef<EquationsProtocolHandlers>({});
   const [playFrameGridDebugSnapshot, setPlayFrameGridDebugSnapshot] =
@@ -663,6 +665,11 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   ) => {
     playGameCommandHandlerRef.current = handler;
   }, []);
+  const handlePlayGameQueryHandlerChange = useCallback((
+    handler: PlayGameQueryHandler | null,
+  ) => {
+    playGameQueryHandlerRef.current = handler;
+  }, []);
   const handlePlayGameUsageHandlerChange = useCallback((
     handler: PlayGameUsageHandler | null,
   ) => {
@@ -682,6 +689,9 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handlePlayGameCommand = useCallback((
     command: Parameters<PlayGameCommandHandler>[0],
   ) => playGameCommandHandlerRef.current?.(command) === true, []);
+  const handlePlayGameQuery = useCallback((
+    query: Parameters<PlayGameQueryHandler>[0],
+  ) => playGameQueryHandlerRef.current?.(query), []);
   const getPlayGameUsage = useCallback(() => playGameUsageHandlerRef.current?.() ?? null, []);
   const handleSetEquationsTopicCommand = useCallback((topicId: string, options?: { preserveViewMode?: boolean }) =>
     equationsProtocolHandlersRef.current.setTopic?.(topicId, options) === true, []);
@@ -5541,6 +5551,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     onDeleteEquationsHighlight: handleDeleteEquationsHighlightCommand,
     onPlayGameAction: handlePlayGameAction,
     onPlayGameCommand: handlePlayGameCommand,
+    onPlayGameQuery: handlePlayGameQuery,
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,
@@ -6760,6 +6771,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onDebugSnapshotChange={handlePlayDebugSnapshotChange}
               onFrontViewSnapshotHandlerChange={handlePlayFrontViewSnapshotHandlerChange}
               onGameCommandHandlerChange={handlePlayGameCommandHandlerChange}
+              onGameQueryHandlerChange={handlePlayGameQueryHandlerChange}
               onGameUsageHandlerChange={handlePlayGameUsageHandlerChange}
             />
           )}
