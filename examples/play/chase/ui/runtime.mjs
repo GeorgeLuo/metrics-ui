@@ -10,6 +10,7 @@ import { createChasePerformanceTracker } from "../debug/performance-debug.mjs";
 import { buildChaseDebugSnapshot } from "../debug/debug-snapshot.mjs";
 import { buildManualFrontViewSnapshot } from "./front-view-snapshot.ts";
 import { buildAtomicEvaluationCaptureFromSnapshot } from "../evaluation/atomic-capture.ts";
+import { buildActorControlReference } from "../evaluation/actor-control-reference.ts";
 import { createChaseSimulationEpochOwner } from "../evaluation/runtime-identity.mjs";
 import {
   createChaserViewController,
@@ -189,12 +190,16 @@ export function createPlayGame({
       renderedImage,
     });
   };
-  const getAtomicEvaluationCapture = (options = {}) => (
-    buildAtomicEvaluationCaptureFromSnapshot(
-      getFrontViewSnapshot(options),
+  const getAtomicEvaluationCapture = (options = {}) => {
+    const snapshot = getFrontViewSnapshot(options);
+    return buildAtomicEvaluationCaptureFromSnapshot(
+      {
+        ...snapshot,
+        evaluatorReference: buildActorControlReference(simulationState, snapshot.actorId),
+      },
       { simulationEpoch: simulationEpochOwner.current() },
-    )
-  );
+    );
+  };
   const greentextDebugOverlay = createGreentextDebugOverlay(container);
   const updateGreentextDebugOverlay = () => {
     greentextDebugOverlay.update({

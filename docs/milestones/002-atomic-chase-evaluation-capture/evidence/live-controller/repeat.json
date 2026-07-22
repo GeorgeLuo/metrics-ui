@@ -1,10 +1,10 @@
 {
   "contractVersion": 1,
-  "captureId": "chase:evaluation:chase-run%3Abc235b9b-d8d3-4c56-9813-626767dba543:chaser:0",
+  "captureId": "chase:evaluation:chase-run%3Ac95724c7-e5e1-43e0-8398-2b31b729ca6e:chaser:0",
   "actorId": "chaser",
   "frameIdentity": {
     "gameId": "chase",
-    "simulationEpoch": "chase-run:bc235b9b-d8d3-4c56-9813-626767dba543",
+    "simulationEpoch": "chase-run:c95724c7-e5e1-43e0-8398-2b31b729ca6e",
     "frameIndex": 0
   },
   "playback": {
@@ -27,6 +27,26 @@
       "visibleWallCount": 3,
       "visibleAreaCellCount": 205,
       "observationCount": 208
+    },
+    "reference": {
+      "kind": "actor-control-reference",
+      "scenarioId": "chaser-depth-obstacles",
+      "controlSource": "ws",
+      "phase": "before-actions",
+      "actionFrameIndex": 0,
+      "input": {
+        "source": "ws",
+        "forward": false,
+        "reverse": false,
+        "steering": 0
+      },
+      "action": {
+        "source": "ws",
+        "forward": false,
+        "reverse": false,
+        "steering": 0,
+        "selectedActionProposalId": null
+      }
     }
   },
   "files": {

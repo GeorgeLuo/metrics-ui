@@ -10,6 +10,7 @@ function writeCapture(directory, name, {
   frameIndex = 3,
   image = "image-a",
   sensorExtension = {},
+  referenceExtension = {},
 } = {}) {
   const imageFile = `${name}.png`;
   fs.writeFileSync(path.join(directory, imageFile), image);
@@ -42,6 +43,27 @@ function writeCapture(directory, name, {
         visibleAreaCellCount: 3,
         observationCount: 4,
       },
+      reference: {
+        kind: "actor-control-reference",
+        scenarioId: "chaser-depth-obstacles",
+        controlSource: "ws",
+        phase: frameIndex === 0 ? "initial" : "after-actions",
+        actionFrameIndex: Math.max(0, frameIndex - 1),
+        input: {
+          source: "human",
+          forward: false,
+          reverse: false,
+          steering: 0,
+        },
+        action: {
+          source: "human",
+          forward: false,
+          reverse: false,
+          steering: 0,
+          selectedActionProposalId: null,
+        },
+        ...referenceExtension,
+      },
     },
     files: { metadata: `${name}.json`, image: imageFile },
   }, null, 2)}\n`);
@@ -65,6 +87,23 @@ test("validates repeatability, movement, reset identity, and privilege boundarie
   assert.ok(report.checks.some((check) => check.id === "same-state:image" && check.passed));
   assert.ok(report.checks.some((check) => check.id === "movement:later-frame" && check.passed));
   assert.ok(report.checks.some((check) => check.id === "reset:new-epoch" && check.passed));
+  assert.ok(report.checks.some(
+    (check) => check.id === "movement:controller-reference" && check.passed,
+  ));
+});
+
+test("rejects simulator geometry added to the evaluator control reference", (t) => {
+  const directory = createEvidenceDirectory(t);
+  writeCapture(directory, "before", {
+    referenceExtension: { actorPosition: { x: 1, z: 2 } },
+  });
+
+  const report = validateEvidenceDirectory(directory);
+  const referenceCheck = report.checks.find(
+    (check) => check.id === "before:evaluator-reference",
+  );
+  assert.equal(report.status, "fail");
+  assert.equal(referenceCheck?.passed, false);
 });
 
 test("rejects simulator-only fields added to the sensor branch", (t) => {

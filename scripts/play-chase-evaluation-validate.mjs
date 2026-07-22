@@ -22,13 +22,32 @@ const FRAME_IDENTITY_KEYS = Object.freeze([
   "gameId",
   "simulationEpoch",
 ]);
-const EVALUATOR_KEYS = Object.freeze(["classification", "shadow"]);
+const EVALUATOR_KEYS = Object.freeze(["classification", "reference", "shadow"]);
 const EVALUATOR_SHADOW_KEYS = Object.freeze([
   "kind",
   "observationCount",
   "visibleActorCount",
   "visibleAreaCellCount",
   "visibleWallCount",
+]);
+const EVALUATOR_REFERENCE_KEYS = Object.freeze([
+  "action",
+  "actionFrameIndex",
+  "controlSource",
+  "input",
+  "kind",
+  "phase",
+  "scenarioId",
+]);
+const CONTROL_INPUT_KEYS = Object.freeze([
+  "forward",
+  "reverse",
+  "source",
+  "steering",
+]);
+const CONTROL_ACTION_KEYS = Object.freeze([
+  ...CONTROL_INPUT_KEYS,
+  "selectedActionProposalId",
 ]);
 
 function parseArgs(argv) {
@@ -61,6 +80,17 @@ function sameIdentity(left, right) {
   return left.gameId === right.gameId
     && left.simulationEpoch === right.simulationEpoch
     && left.frameIndex === right.frameIndex;
+}
+
+function validControl(value, expectedKeys) {
+  return sameKeys(value, expectedKeys)
+    && typeof value.source === "string"
+    && value.source.length > 0
+    && typeof value.forward === "boolean"
+    && typeof value.reverse === "boolean"
+    && Number.isFinite(value.steering)
+    && value.steering >= -1
+    && value.steering <= 1;
 }
 
 function readCapture(directory, name) {
@@ -144,6 +174,26 @@ export function validateEvidenceDirectory(directoryInput) {
         && metadata.evaluator.shadow.kind === "visible-observation-summary",
       `classification=${metadata.evaluator?.classification ?? "missing"}`,
     );
+    const reference = metadata.evaluator?.reference;
+    check(
+      `${capture.name}:evaluator-reference`,
+      sameKeys(reference, EVALUATOR_REFERENCE_KEYS)
+        && reference.kind === "actor-control-reference"
+        && typeof reference.scenarioId === "string"
+        && reference.scenarioId.length > 0
+        && typeof reference.controlSource === "string"
+        && reference.controlSource.length > 0
+        && typeof reference.phase === "string"
+        && reference.phase.length > 0
+        && Number.isInteger(reference.actionFrameIndex)
+        && reference.actionFrameIndex >= 0
+        && reference.actionFrameIndex <= metadata.frameIdentity.frameIndex
+        && validControl(reference.input, CONTROL_INPUT_KEYS)
+        && validControl(reference.action, CONTROL_ACTION_KEYS)
+        && (reference.action.selectedActionProposalId === null
+          || typeof reference.action.selectedActionProposalId === "string"),
+      `scenario=${reference?.scenarioId ?? "missing"} controlSource=${reference?.controlSource ?? "missing"} actionFrame=${reference?.actionFrameIndex ?? "missing"}`,
+    );
   }
 
   check(
@@ -158,6 +208,12 @@ export function validateEvidenceDirectory(directoryInput) {
     `${before.imageSha256} vs ${repeat.imageSha256}`,
   );
   check(
+    "same-state:evaluator-reference",
+    JSON.stringify(before.metadata.evaluator.reference)
+      === JSON.stringify(repeat.metadata.evaluator.reference),
+    "repeated same-frame captures must retain the same bounded control reference",
+  );
+  check(
     "movement:later-frame",
     before.metadata.frameIdentity.gameId === afterMove.metadata.frameIdentity.gameId
       && before.metadata.frameIdentity.simulationEpoch === afterMove.metadata.frameIdentity.simulationEpoch
@@ -168,6 +224,11 @@ export function validateEvidenceDirectory(directoryInput) {
     "movement:image-changed",
     before.imageSha256 !== afterMove.imageSha256,
     `${before.imageSha256} vs ${afterMove.imageSha256}`,
+  );
+  check(
+    "movement:controller-reference",
+    afterMove.metadata.evaluator?.reference?.controlSource === "ws",
+    `controlSource=${afterMove.metadata.evaluator?.reference?.controlSource ?? "missing"}`,
   );
   check(
     "reset:new-epoch",

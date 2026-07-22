@@ -9,6 +9,7 @@ import {
   buildAtomicEvaluationCaptureFromSnapshot,
   createAtomicEvaluationCaptureSource,
 } from "./evaluation/atomic-capture.ts";
+import { buildActorControlReference } from "./evaluation/actor-control-reference.ts";
 import { createChaseSimulationEpochOwner } from "./evaluation/runtime-identity.mjs";
 
 const GRID = Object.freeze({ columns: 9, rows: 6 });
@@ -39,6 +40,7 @@ function createSnapshot() {
       dataUrl: "data:image/png;base64,dGVzdA==",
     },
   });
+  snapshot.evaluatorReference = buildActorControlReference(state, snapshot.actorId);
   return { state, snapshot };
 }
 
@@ -76,6 +78,26 @@ test("atomic evaluation capture keeps camera and evaluator data on one frozen fr
       visibleAreaCellCount: snapshot.record.map.visibleArea.cells.length,
       observationCount: snapshot.record.map.observationCount,
     },
+    reference: {
+      kind: "actor-control-reference",
+      scenarioId: "default",
+      controlSource: "keyboard",
+      phase: "initial",
+      actionFrameIndex: 0,
+      input: {
+        source: "human",
+        forward: false,
+        reverse: false,
+        steering: 0,
+      },
+      action: {
+        source: "human",
+        forward: false,
+        reverse: false,
+        steering: 0,
+        selectedActionProposalId: null,
+      },
+    },
   });
 });
 
@@ -87,12 +109,16 @@ test("atomic evaluation source discards mutable geometry before public serializa
   snapshot.image.dataUrl = "data:image/png;base64,bXV0YXRlZA==";
   snapshot.record.visibleActors[0].position.x = 999;
   snapshot.record.map.visibleArea.cells.length = 0;
+  snapshot.evaluatorReference.controlSource = "mutated";
+  snapshot.evaluatorReference.action.steering = 1;
 
   const response = buildAtomicEvaluationCapture(source);
   assert.equal(response.frameIdentity.simulationEpoch, "test-run-1");
   assert.equal(response.sensor.image.dataUrl, "data:image/png;base64,dGVzdA==");
   assert.equal(response.evaluator.shadow.visibleActorCount, 1);
   assert.ok(response.evaluator.shadow.visibleAreaCellCount > 0);
+  assert.equal(response.evaluator.reference.controlSource, "keyboard");
+  assert.equal(response.evaluator.reference.action.steering, 0);
   assert.deepEqual(Object.keys(response.evaluator.shadow), [
     "kind",
     "visibleActorCount",
@@ -101,10 +127,22 @@ test("atomic evaluation source discards mutable geometry before public serializa
     "observationCount",
   ]);
   assert.deepEqual(Object.keys(response.sensor), ["image"]);
+  assert.deepEqual(Object.keys(response.evaluator.reference), [
+    "kind",
+    "scenarioId",
+    "controlSource",
+    "phase",
+    "actionFrameIndex",
+    "input",
+    "action",
+  ]);
   assert.equal("record" in response, false);
   assert.equal("map" in response.sensor, false);
   assert.equal("position" in response.sensor, false);
   assert.equal("obstacles" in response.sensor, false);
+  assert.equal("world" in response.evaluator.reference, false);
+  assert.equal("position" in response.evaluator.reference, false);
+  assert.equal("actionProposals" in response.evaluator.reference.action, false);
 });
 
 test("atomic evaluation capture rejects a snapshot whose frame identity drifts", () => {
@@ -117,6 +155,47 @@ test("atomic evaluation capture rejects a snapshot whose frame identity drifts",
     }),
     /identity does not match/i,
   );
+});
+
+test("atomic evaluation capture rejects a control reference from a future frame", () => {
+  const { snapshot } = createSnapshot();
+  snapshot.evaluatorReference.actionFrameIndex = 1;
+
+  assert.throws(
+    () => createAtomicEvaluationCaptureSource(snapshot, {
+      simulationEpoch: "test-run-1",
+    }),
+    /future frame/i,
+  );
+});
+
+test("bounded control reference reports runtime authority without geometry", () => {
+  const scenario = structuredClone(BASE_SCENARIO);
+  scenario.runtime.chaserControlSource = "ws";
+  scenario.runtime.programmaticChaserEnabled = false;
+  const state = createChaseSimulationState({
+    scenario,
+    columns: GRID.columns,
+    rows: GRID.rows,
+  });
+  const reference = buildActorControlReference(state, "chaser");
+
+  assert.equal(reference.scenarioId, "default");
+  assert.equal(reference.controlSource, "ws");
+  assert.equal(reference.input.source, "human");
+  assert.equal(reference.action.source, "human");
+  assert.deepEqual(Object.keys(reference), [
+    "kind",
+    "scenarioId",
+    "controlSource",
+    "phase",
+    "actionFrameIndex",
+    "input",
+    "action",
+  ]);
+  assert.equal("scenario" in reference, false);
+  assert.equal("position" in reference, false);
+  assert.equal("obstacles" in reference, false);
 });
 
 test("atomic evaluation frame identity remains distinct across simulation resets", () => {

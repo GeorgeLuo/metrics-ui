@@ -26,6 +26,28 @@ export type BoundedEvaluatorShadow = {
   observationCount: number;
 };
 
+export type BoundedEvaluatorControlInput = {
+  source: string;
+  forward: boolean;
+  reverse: boolean;
+  steering: number;
+};
+
+export type BoundedEvaluatorControlAction = BoundedEvaluatorControlInput & {
+  selectedActionProposalId: string | null;
+};
+
+/** Evaluator-only control facts captured synchronously with the sensor image. */
+export type BoundedEvaluatorControlReference = {
+  kind: "actor-control-reference";
+  scenarioId: string;
+  controlSource: string;
+  phase: string;
+  actionFrameIndex: number;
+  input: BoundedEvaluatorControlInput;
+  action: BoundedEvaluatorControlAction;
+};
+
 /** Immutable, non-public source used to build one atomic evaluation response. */
 export type AtomicEvaluationCaptureSource = {
   captureId: string;
@@ -33,6 +55,7 @@ export type AtomicEvaluationCaptureSource = {
   frameIdentity: AtomicEvaluationFrameIdentity;
   image: AtomicEvaluationCaptureImage;
   evaluatorShadow: BoundedEvaluatorShadow;
+  evaluatorReference: BoundedEvaluatorControlReference;
 };
 
 /** Public response shape for a camera frame and its separately labeled evaluator data. */
@@ -50,6 +73,7 @@ export type AtomicEvaluationCapture = {
   evaluator: {
     classification: "non-sensor";
     shadow: BoundedEvaluatorShadow;
+    reference: BoundedEvaluatorControlReference;
   };
 };
 
@@ -59,6 +83,7 @@ export type AtomicEvaluationCaptureSnapshot = {
   actorId: string;
   frameIndex: number | null;
   image: AtomicEvaluationCaptureImage;
+  evaluatorReference: BoundedEvaluatorControlReference;
   record: {
     actorId: string;
     frameIndex: number | null;
@@ -106,6 +131,32 @@ function cloneShadow(shadow: BoundedEvaluatorShadow): BoundedEvaluatorShadow {
   return { ...shadow };
 }
 
+function cloneControlInput(
+  input: BoundedEvaluatorControlInput,
+): BoundedEvaluatorControlInput {
+  return { ...input };
+}
+
+function cloneControlAction(
+  action: BoundedEvaluatorControlAction,
+): BoundedEvaluatorControlAction {
+  return { ...action };
+}
+
+function cloneEvaluatorReference(
+  reference: BoundedEvaluatorControlReference,
+): BoundedEvaluatorControlReference {
+  return {
+    kind: reference.kind,
+    scenarioId: reference.scenarioId,
+    controlSource: reference.controlSource,
+    phase: reference.phase,
+    actionFrameIndex: reference.actionFrameIndex,
+    input: cloneControlInput(reference.input),
+    action: cloneControlAction(reference.action),
+  };
+}
+
 function requireFrameIndex(frameIndex: number | null | undefined): number {
   if (!Number.isInteger(frameIndex) || Number(frameIndex) < 0) {
     throw new Error("Atomic evaluation capture requires a non-negative integer frame index.");
@@ -132,6 +183,58 @@ function requireImage(image: AtomicEvaluationCaptureImage): AtomicEvaluationCapt
     throw new Error("Atomic evaluation capture image requires encoded image content.");
   }
   return cloneImage(image);
+}
+
+function requireSteering(value: number, label: string): number {
+  if (!Number.isFinite(value) || value < -1 || value > 1) {
+    throw new Error(`Atomic evaluation capture ${label} must be between -1 and 1.`);
+  }
+  return value;
+}
+
+function requireControlInput(
+  value: BoundedEvaluatorControlInput,
+  label: string,
+): BoundedEvaluatorControlInput {
+  if (!value || typeof value !== "object") {
+    throw new Error(`Atomic evaluation capture requires ${label}.`);
+  }
+  return {
+    source: requireIdentifier(value.source, `${label} source`),
+    forward: Boolean(value.forward),
+    reverse: Boolean(value.reverse),
+    steering: requireSteering(value.steering, `${label} steering`),
+  };
+}
+
+function requireEvaluatorReference(
+  value: BoundedEvaluatorControlReference,
+  frameIndex: number,
+): BoundedEvaluatorControlReference {
+  if (!value || typeof value !== "object" || value.kind !== "actor-control-reference") {
+    throw new Error("Atomic evaluation capture requires an actor control reference.");
+  }
+  const actionFrameIndex = requireFrameIndex(value.actionFrameIndex);
+  if (actionFrameIndex > frameIndex) {
+    throw new Error("Atomic evaluation capture control reference cannot cite a future frame.");
+  }
+  const input = requireControlInput(value.input, "control input");
+  const actionInput = requireControlInput(value.action, "control action");
+  return {
+    kind: "actor-control-reference",
+    scenarioId: requireIdentifier(value.scenarioId, "a scenario id"),
+    controlSource: requireIdentifier(value.controlSource, "a control source"),
+    phase: requireIdentifier(value.phase, "a control phase"),
+    actionFrameIndex,
+    input,
+    action: {
+      ...actionInput,
+      selectedActionProposalId: typeof value.action.selectedActionProposalId === "string"
+        && value.action.selectedActionProposalId.trim()
+        ? value.action.selectedActionProposalId.trim()
+        : null,
+    },
+  };
 }
 
 function buildEvaluatorShadow(
@@ -181,6 +284,10 @@ export function createAtomicEvaluationCaptureSource(
     frameIndex,
   });
   const evaluatorShadow = buildEvaluatorShadow(snapshot.record);
+  const evaluatorReference = requireEvaluatorReference(
+    snapshot.evaluatorReference,
+    frameIndex,
+  );
   return Object.freeze({
     captureId: [
       encodeURIComponent(gameId),
@@ -193,6 +300,11 @@ export function createAtomicEvaluationCaptureSource(
     frameIdentity,
     image: Object.freeze(requireImage(snapshot.image)),
     evaluatorShadow: Object.freeze(evaluatorShadow),
+    evaluatorReference: Object.freeze({
+      ...evaluatorReference,
+      input: Object.freeze(evaluatorReference.input),
+      action: Object.freeze(evaluatorReference.action),
+    }),
   });
 }
 
@@ -217,6 +329,7 @@ export function buildAtomicEvaluationCapture(
     evaluator: {
       classification: "non-sensor",
       shadow: cloneShadow(source.evaluatorShadow),
+      reference: cloneEvaluatorReference(source.evaluatorReference),
     },
   };
 }
@@ -247,4 +360,26 @@ export const BOUNDED_EVALUATOR_SHADOW_FIELDS = Object.freeze([
   "visibleWallCount",
   "visibleAreaCellCount",
   "observationCount",
+]);
+
+export const BOUNDED_EVALUATOR_REFERENCE_FIELDS = Object.freeze([
+  "kind",
+  "scenarioId",
+  "controlSource",
+  "phase",
+  "actionFrameIndex",
+  "input",
+  "action",
+]);
+
+export const BOUNDED_EVALUATOR_CONTROL_INPUT_FIELDS = Object.freeze([
+  "source",
+  "forward",
+  "reverse",
+  "steering",
+]);
+
+export const BOUNDED_EVALUATOR_CONTROL_ACTION_FIELDS = Object.freeze([
+  ...BOUNDED_EVALUATOR_CONTROL_INPUT_FIELDS,
+  "selectedActionProposalId",
 ]);
