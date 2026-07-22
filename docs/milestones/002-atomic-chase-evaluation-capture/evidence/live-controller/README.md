@@ -17,9 +17,12 @@ without reading live simulation state.
   simulation epoch and capture ID.
 - All four captures report `playback.advanced=false`.
 - All four sensor branches contain only the persisted camera image. The
-  count-only evaluator shadow remains under `evaluator.classification=non-sensor`.
-- [`validation.json`](./validation.json) passes all 25 contract, identity,
-  movement, reset, and privilege-boundary checks.
+  count-only observation shadow and bounded control reference remain under
+  `evaluator.classification=non-sensor`.
+- Every control reference records the scenario, control authority, action frame,
+  normalized input, and normalized action without map geometry or actor poses.
+- [`validation.json`](./validation.json) passes all 31 contract, identity,
+  movement, reset, control-reference, and privilege-boundary checks.
 
 ## Reproduce
 
