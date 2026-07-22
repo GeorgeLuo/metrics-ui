@@ -107,8 +107,8 @@ test("chase play usage documents CLI flow and game command ids", () => {
     CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
   );
   assert.ok(
-    usage.cli.some((group) => group.commands.some((command) => command.command.includes("play_game_query"))),
-    "expected usage CLI examples to include the generic Play query envelope",
+    usage.cli.some((group) => group.commands.some((command) => command.command.includes("play-evaluation-capture"))),
+    "expected usage CLI examples to include persisted evaluation capture",
   );
 });
 

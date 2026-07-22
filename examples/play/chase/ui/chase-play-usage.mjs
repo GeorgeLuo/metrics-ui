@@ -94,8 +94,8 @@ export function buildChasePlayUsage() {
             description: "Write a rendered chaser front-view image and metadata snapshot.",
           },
           {
-            command: `simeval ui trace --request-id chase-evaluation-1 --send '{"type":"play_game_query","request_id":"chase-evaluation-1","queryId":"${CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE}","payload":{"actorId":"chaser"}}'`,
-            description: "Request one same-state camera artifact and separately labeled evaluator shadow without advancing playback.",
+            command: "simeval ui play-evaluation-capture --actor chaser --out-dir ./evaluation-captures",
+            description: `Persist one ${CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE} result as a camera file and separately labeled evaluator metadata without advancing playback.`,
           },
         ],
       },

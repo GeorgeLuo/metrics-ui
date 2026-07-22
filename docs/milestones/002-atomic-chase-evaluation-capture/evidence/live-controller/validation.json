@@ -1,0 +1,183 @@
+{
+  "schema": "chase-evaluation-validation-v1",
+  "status": "pass",
+  "evidenceDirectory": "docs/milestones/002-atomic-chase-evaluation-capture/evidence/live-controller",
+  "summary": {
+    "checks": 25,
+    "passed": 25,
+    "failed": 0
+  },
+  "captures": {
+    "before": {
+      "captureId": "chase:evaluation:chase-run%3Abc235b9b-d8d3-4c56-9813-626767dba543:chaser:0",
+      "actorId": "chaser",
+      "frameIdentity": {
+        "gameId": "chase",
+        "simulationEpoch": "chase-run:bc235b9b-d8d3-4c56-9813-626767dba543",
+        "frameIndex": 0
+      },
+      "imageFile": "before.png",
+      "imageSha256": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943"
+    },
+    "repeat": {
+      "captureId": "chase:evaluation:chase-run%3Abc235b9b-d8d3-4c56-9813-626767dba543:chaser:0",
+      "actorId": "chaser",
+      "frameIdentity": {
+        "gameId": "chase",
+        "simulationEpoch": "chase-run:bc235b9b-d8d3-4c56-9813-626767dba543",
+        "frameIndex": 0
+      },
+      "imageFile": "repeat.png",
+      "imageSha256": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943"
+    },
+    "after-move": {
+      "captureId": "chase:evaluation:chase-run%3Abc235b9b-d8d3-4c56-9813-626767dba543:chaser:164",
+      "actorId": "chaser",
+      "frameIdentity": {
+        "gameId": "chase",
+        "simulationEpoch": "chase-run:bc235b9b-d8d3-4c56-9813-626767dba543",
+        "frameIndex": 164
+      },
+      "imageFile": "after-move.png",
+      "imageSha256": "21fb4b85c501cbad4fb9cb3e0b7a333b31e4df8db5d10a5171da4c2298191a54"
+    },
+    "after-reset": {
+      "captureId": "chase:evaluation:chase-run%3A12952a9d-60b0-4448-b4e4-7f1154d5ba9c:chaser:0",
+      "actorId": "chaser",
+      "frameIdentity": {
+        "gameId": "chase",
+        "simulationEpoch": "chase-run:12952a9d-60b0-4448-b4e4-7f1154d5ba9c",
+        "frameIndex": 0
+      },
+      "imageFile": "after-reset.png",
+      "imageSha256": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943"
+    }
+  },
+  "checks": [
+    {
+      "id": "before:contract-version",
+      "passed": true,
+      "detail": "contractVersion=1"
+    },
+    {
+      "id": "before:frame-identity",
+      "passed": true,
+      "detail": "{\"gameId\":\"chase\",\"simulationEpoch\":\"chase-run:bc235b9b-d8d3-4c56-9813-626767dba543\",\"frameIndex\":0}"
+    },
+    {
+      "id": "before:playback-neutral",
+      "passed": true,
+      "detail": "advanced=false"
+    },
+    {
+      "id": "before:sensor-boundary",
+      "passed": true,
+      "detail": "sensorKeys=image imageKeys=contentType,file,height,rendererId,width"
+    },
+    {
+      "id": "before:evaluator-boundary",
+      "passed": true,
+      "detail": "classification=non-sensor"
+    },
+    {
+      "id": "repeat:contract-version",
+      "passed": true,
+      "detail": "contractVersion=1"
+    },
+    {
+      "id": "repeat:frame-identity",
+      "passed": true,
+      "detail": "{\"gameId\":\"chase\",\"simulationEpoch\":\"chase-run:bc235b9b-d8d3-4c56-9813-626767dba543\",\"frameIndex\":0}"
+    },
+    {
+      "id": "repeat:playback-neutral",
+      "passed": true,
+      "detail": "advanced=false"
+    },
+    {
+      "id": "repeat:sensor-boundary",
+      "passed": true,
+      "detail": "sensorKeys=image imageKeys=contentType,file,height,rendererId,width"
+    },
+    {
+      "id": "repeat:evaluator-boundary",
+      "passed": true,
+      "detail": "classification=non-sensor"
+    },
+    {
+      "id": "after-move:contract-version",
+      "passed": true,
+      "detail": "contractVersion=1"
+    },
+    {
+      "id": "after-move:frame-identity",
+      "passed": true,
+      "detail": "{\"gameId\":\"chase\",\"simulationEpoch\":\"chase-run:bc235b9b-d8d3-4c56-9813-626767dba543\",\"frameIndex\":164}"
+    },
+    {
+      "id": "after-move:playback-neutral",
+      "passed": true,
+      "detail": "advanced=false"
+    },
+    {
+      "id": "after-move:sensor-boundary",
+      "passed": true,
+      "detail": "sensorKeys=image imageKeys=contentType,file,height,rendererId,width"
+    },
+    {
+      "id": "after-move:evaluator-boundary",
+      "passed": true,
+      "detail": "classification=non-sensor"
+    },
+    {
+      "id": "after-reset:contract-version",
+      "passed": true,
+      "detail": "contractVersion=1"
+    },
+    {
+      "id": "after-reset:frame-identity",
+      "passed": true,
+      "detail": "{\"gameId\":\"chase\",\"simulationEpoch\":\"chase-run:12952a9d-60b0-4448-b4e4-7f1154d5ba9c\",\"frameIndex\":0}"
+    },
+    {
+      "id": "after-reset:playback-neutral",
+      "passed": true,
+      "detail": "advanced=false"
+    },
+    {
+      "id": "after-reset:sensor-boundary",
+      "passed": true,
+      "detail": "sensorKeys=image imageKeys=contentType,file,height,rendererId,width"
+    },
+    {
+      "id": "after-reset:evaluator-boundary",
+      "passed": true,
+      "detail": "classification=non-sensor"
+    },
+    {
+      "id": "same-state:identity",
+      "passed": true,
+      "detail": "chase:evaluation:chase-run%3Abc235b9b-d8d3-4c56-9813-626767dba543:chaser:0 vs chase:evaluation:chase-run%3Abc235b9b-d8d3-4c56-9813-626767dba543:chaser:0"
+    },
+    {
+      "id": "same-state:image",
+      "passed": true,
+      "detail": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943 vs 9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943"
+    },
+    {
+      "id": "movement:later-frame",
+      "passed": true,
+      "detail": "before=0 after=164"
+    },
+    {
+      "id": "movement:image-changed",
+      "passed": true,
+      "detail": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943 vs 21fb4b85c501cbad4fb9cb3e0b7a333b31e4df8db5d10a5171da4c2298191a54"
+    },
+    {
+      "id": "reset:new-epoch",
+      "passed": true,
+      "detail": "chase-run:bc235b9b-d8d3-4c56-9813-626767dba543 vs chase-run:12952a9d-60b0-4448-b4e4-7f1154d5ba9c"
+    }
+  ]
+}

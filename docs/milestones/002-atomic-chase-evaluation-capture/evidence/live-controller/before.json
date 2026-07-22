@@ -1,0 +1,36 @@
+{
+  "contractVersion": 1,
+  "captureId": "chase:evaluation:chase-run%3Abc235b9b-d8d3-4c56-9813-626767dba543:chaser:0",
+  "actorId": "chaser",
+  "frameIdentity": {
+    "gameId": "chase",
+    "simulationEpoch": "chase-run:bc235b9b-d8d3-4c56-9813-626767dba543",
+    "frameIndex": 0
+  },
+  "playback": {
+    "advanced": false
+  },
+  "sensor": {
+    "image": {
+      "contentType": "image/png",
+      "rendererId": "chase-actor-view-threejs-v1",
+      "width": 640,
+      "height": 480,
+      "file": "before.png"
+    }
+  },
+  "evaluator": {
+    "classification": "non-sensor",
+    "shadow": {
+      "kind": "visible-observation-summary",
+      "visibleActorCount": 0,
+      "visibleWallCount": 3,
+      "visibleAreaCellCount": 205,
+      "observationCount": 208
+    }
+  },
+  "files": {
+    "metadata": "before.json",
+    "image": "before.png"
+  }
+}
