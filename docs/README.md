@@ -6,12 +6,14 @@ Read this file before beginning milestone-scoped work.
 ## Active Work
 
 Milestone 002, [Atomic Chase Evaluation Capture](milestones/002-atomic-chase-evaluation-capture/plan.html),
-is active. It will provide one playback-neutral request whose camera frame and
-bounded evaluator shadow come from the same simulation state, without leaking
-simulator geometry into an external controller's sensor path.
+is active. Its implementation is complete and in final cumulative review. The
+closeout provides one playback-neutral request whose camera frame and bounded
+evaluator shadow come from the same simulation state, without leaking simulator
+geometry into an external controller's sensor path.
 
 Milestone 003, [Chaser Observation Interpretation](milestones/003-chaser-observation-interpretation/plan.html),
-is queued behind this identity and privilege-boundary prerequisite.
+is ready for activation after Milestone 002 merges to `main`. Its pre-plan now
+inherits the settled capture identity and image-only interpretation boundary.
 
 ## Reading Order
 
