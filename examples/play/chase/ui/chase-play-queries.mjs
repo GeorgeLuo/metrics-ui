@@ -8,6 +8,7 @@ function normalizeCaptureOptions(payload) {
   }
   return {
     ...(typeof payload.actorId === "string" ? { actorId: payload.actorId } : {}),
+    ...(typeof payload.cameraId === "string" ? { cameraId: payload.cameraId } : {}),
     ...(Number.isFinite(payload.width) ? { width: Number(payload.width) } : {}),
     ...(Number.isFinite(payload.height) ? { height: Number(payload.height) } : {}),
   };

@@ -63,6 +63,10 @@ import {
 import { registerPlayGameRoutes } from "./routes/play-game-routes";
 import { registerSourceSeriesRoutes } from "./routes/source-series-routes";
 import { registerLiveDebugRoutes } from "./routes/live-debug-routes";
+import {
+  buildFrontendUnavailableResponse,
+  requiresFrontendResponse,
+} from "./routes/frontend-command-routing";
 import { HIGHMIX_BUNDLED_VISUALIZATION_ASSETS } from "./examples/highmix-visualization-assets";
 
 function resolveConfiguredPath(envKey: string, fallback: string) {
@@ -548,22 +552,6 @@ const QUEUEABLE_COMMANDS = new Set<ControlCommand["type"]>([
   "live_start",
   "live_stop",
 ]);
-const RESPONSE_REQUIRED_COMMANDS = new Set<ControlCommand["type"]>([
-  "hello",
-  "get_state",
-  "list_captures",
-  "get_display_snapshot",
-  "get_series_window",
-  "query_components",
-  "get_render_table",
-  "get_render_debug",
-  "get_ui_debug",
-  "get_play_debug",
-  "get_play_front_view_snapshot",
-  "get_memory_stats",
-  "get_metric_coverage",
-]);
-
 type PendingCapture = {
   captureId: string;
   filename?: string;
@@ -5441,7 +5429,7 @@ export async function registerRoutes(
             flushLiteFrameBuffer(captureId);
           }
         }
-        const requiresResponse = RESPONSE_REQUIRED_COMMANDS.has(command.type);
+        const requiresResponse = requiresFrontendResponse(command);
         const canQueue = QUEUEABLE_COMMANDS.has(command.type);
 
         const isCaptureCommand =
@@ -5452,11 +5440,7 @@ export async function registerRoutes(
 
         if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
           if (requiresResponse) {
-            ws.send(JSON.stringify({ 
-              type: "error", 
-              error: "Frontend not connected",
-              request_id: command.request_id,
-            } as ControlResponse));
+            ws.send(JSON.stringify(buildFrontendUnavailableResponse(command)));
             return;
           }
           if (isCaptureCommand) {

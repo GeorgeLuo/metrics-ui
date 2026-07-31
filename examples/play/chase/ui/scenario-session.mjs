@@ -116,6 +116,7 @@ export function createChaseScenarioSession({ columns, rows } = {}) {
     setEvaderExists,
     setRenderingProfile,
     setRenderingSeed,
+    getActiveScenarioId: () => activeScenarioId,
     getSidebarControls(simulationState) {
       return {
         activeScenarioId,

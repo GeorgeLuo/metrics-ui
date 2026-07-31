@@ -14,6 +14,9 @@ import {
 import { createChaseLoop } from "./ui/chase-loop.mjs";
 import { buildChasePlayUsage } from "./ui/chase-play-usage.mjs";
 import { createControlInputTracker } from "./ui/input-tracker.mjs";
+import {
+  buildChasePassiveObservationCapability,
+} from "./evaluation/passive-observation.ts";
 
 function createKeyboardWindowStub() {
   const listeners = new Map();
@@ -84,7 +87,11 @@ test("chase play commands adapt generic host commands to chaser controls", () =>
 });
 
 test("chase play usage documents CLI flow and game command ids", () => {
-  const usage = buildChasePlayUsage();
+  const usage = buildChasePlayUsage({
+    passiveObservation: buildChasePassiveObservationCapability({
+      evaderExists: false,
+    }),
+  });
   const commandIds = new Set((usage.wireCommands ?? []).map((command) => command.commandId));
 
   assert.equal(usage.game.id, "chase");
@@ -110,6 +117,8 @@ test("chase play usage documents CLI flow and game command ids", () => {
     usage.cli.some((group) => group.commands.some((command) => command.command.includes("play-evaluation-capture"))),
     "expected usage CLI examples to include persisted evaluation capture",
   );
+  assert.deepEqual(usage.protocol.passiveObservation.actors, ["chaser"]);
+  assert.deepEqual(usage.protocol.passiveObservation.cameras, ["front_camera"]);
 });
 
 test("chase play queries adapt atomic capture requests without owning transport", () => {
@@ -118,7 +127,13 @@ test("chase play queries adapt atomic capture requests without owning transport"
 
   assert.equal(handleChasePlayQuery({
     queryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
-    payload: { actorId: "chaser", width: 640, height: 480, ignored: true },
+    payload: {
+      actorId: "chaser",
+      cameraId: "front_camera",
+      width: 640,
+      height: 480,
+      ignored: true,
+    },
   }, {
     getAtomicEvaluationCapture: (options) => {
       calls.push(options);
@@ -126,7 +141,12 @@ test("chase play queries adapt atomic capture requests without owning transport"
     },
   }), capture);
   assert.equal(handleChasePlayQuery({ queryId: "unknown" }, {}), undefined);
-  assert.deepEqual(calls, [{ actorId: "chaser", width: 640, height: 480 }]);
+  assert.deepEqual(calls, [{
+    actorId: "chaser",
+    cameraId: "front_camera",
+    width: 640,
+    height: 480,
+  }]);
 });
 
 test("generic Play query transport returns the active game result and an ack", () => {
