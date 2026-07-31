@@ -45,3 +45,45 @@ export function buildFrontendUnavailableResponse(
     },
   };
 }
+
+/** Builds a bounded failure when a registered frontend does not answer. */
+export function buildFrontendUnresponsiveResponse(
+  command: ControlCommand,
+  timeoutMs: number,
+): ControlResponse {
+  return {
+    type: "error",
+    error: "Registered frontend did not respond",
+    request_id: command.request_id,
+    payload: {
+      supported: false,
+      code: "frontend_unresponsive",
+      missing: "frontend_response",
+      command: command.type,
+      timeoutMs,
+      ...("queryId" in command && typeof command.queryId === "string"
+        ? { queryId: command.queryId }
+        : {}),
+    },
+  };
+}
+
+/** Builds a failure when the owning frontend disconnects during a request. */
+export function buildFrontendDisconnectedResponse(
+  command: ControlCommand,
+): ControlResponse {
+  return {
+    type: "error",
+    error: "Frontend disconnected before responding",
+    request_id: command.request_id,
+    payload: {
+      supported: false,
+      code: "frontend_disconnected",
+      missing: "frontend_response",
+      command: command.type,
+      ...("queryId" in command && typeof command.queryId === "string"
+        ? { queryId: command.queryId }
+        : {}),
+    },
+  };
+}

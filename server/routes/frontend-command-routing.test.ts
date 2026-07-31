@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildFrontendDisconnectedResponse,
   buildFrontendUnavailableResponse,
+  buildFrontendUnresponsiveResponse,
   requiresFrontendResponse,
 } from "./frontend-command-routing.ts";
 
@@ -37,4 +39,20 @@ test("missing frontend returns structured unsupported query details", () => {
       queryId: "atomic-evaluation-capture",
     },
   });
+});
+
+test("registered but unresponsive frontend has a distinct structured failure", () => {
+  const command = {
+    type: "play_game_query" as const,
+    request_id: "passive-2",
+    queryId: "atomic-evaluation-capture",
+  };
+  assert.equal(
+    (buildFrontendUnresponsiveResponse(command, 3_000).payload as { code: string }).code,
+    "frontend_unresponsive",
+  );
+  assert.equal(
+    (buildFrontendDisconnectedResponse(command).payload as { code: string }).code,
+    "frontend_disconnected",
+  );
 });

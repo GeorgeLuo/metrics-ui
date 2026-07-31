@@ -67,6 +67,7 @@ import {
   buildFrontendUnavailableResponse,
   requiresFrontendResponse,
 } from "./routes/frontend-command-routing";
+import { FrontendRequestTracker } from "./routes/frontend-request-tracker";
 import { HIGHMIX_BUNDLED_VISUALIZATION_ASSETS } from "./examples/highmix-visualization-assets";
 
 function resolveConfiguredPath(envKey: string, fallback: string) {
@@ -487,6 +488,10 @@ let frontendClient: WebSocket | null = null;
 let frontendInstanceId: string | null = null;
 const clientRoles = new Map<WebSocket, "frontend" | "agent">();
 const pendingClients = new Map<WebSocket, boolean>();
+const FRONTEND_RESPONSE_TIMEOUT_MS = 3_000;
+const frontendRequestTracker = new FrontendRequestTracker<WebSocket, WebSocket>(
+  FRONTEND_RESPONSE_TIMEOUT_MS,
+);
 const activeSockets = new Set<Socket>();
 let shuttingDown = false;
 let lastVisualizationState: VisualizationState | null = null;
@@ -5233,6 +5238,7 @@ export async function registerRoutes(
             const targetId = String(message.captureId ?? "");
             removeCaptureState(targetId);
           }
+          frontendRequestTracker.resolve(ws, message as ControlResponse);
           broadcastToAgents(message as ControlResponse);
           return;
         }
@@ -5498,7 +5504,20 @@ export async function registerRoutes(
             request_id: command.request_id,
           } as ControlResponse));
         }
-        frontendClient.send(JSON.stringify(command));
+        const commandFrontend = frontendClient;
+        commandFrontend.send(JSON.stringify(command));
+        if (requiresResponse && command.request_id) {
+          frontendRequestTracker.track({
+            command,
+            frontend: commandFrontend,
+            agent: ws,
+            respond: (response) => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(response));
+              }
+            },
+          });
+        }
 
         if (command.type === "capture_end" && captureId) {
           const state = captureComponentState.get(captureId);
@@ -5530,6 +5549,7 @@ export async function registerRoutes(
       const role = clientRoles.get(ws);
       clientRoles.delete(ws);
 	      if (role === "frontend") {
+	        frontendRequestTracker.failFrontend(ws);
 	        if (ws === frontendClient) {
 	          frontendClient = null;
 	          frontendInstanceId = null;
@@ -5538,17 +5558,20 @@ export async function registerRoutes(
 	        return;
 	      }
       if (role === "agent") {
+        frontendRequestTracker.removeAgent(ws);
         agentClients.delete(ws);
         console.log("[ws] Agent disconnected, remaining:", agentClients.size);
         return;
       }
 	      if (ws === frontendClient) {
+	        frontendRequestTracker.failFrontend(ws);
 	        frontendClient = null;
 	        frontendInstanceId = null;
 	        console.log("[ws] Frontend disconnected");
 	        return;
 	      }
       agentClients.delete(ws);
+      frontendRequestTracker.removeAgent(ws);
       console.log("[ws] Agent disconnected, remaining:", agentClients.size);
     });
 
