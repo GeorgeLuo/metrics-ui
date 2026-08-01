@@ -166,6 +166,48 @@ test("passive Chase capture returns structured unsupported actor and camera resu
   assert.equal(captureCalls, 0);
 });
 
+test("passive Chase capture rejects malformed actor and camera target types", () => {
+  const capability = buildChasePassiveObservationCapability({ evaderExists: true });
+  let captureCalls = 0;
+  let fingerprintCalls = 0;
+  const handlers = {
+    capability,
+    getFingerprint() {
+      fingerprintCalls += 1;
+      return buildFingerprint();
+    },
+    capture() {
+      captureCalls += 1;
+      return buildCapture();
+    },
+  };
+
+  for (const requested of [123, null, [], {}]) {
+    const actorResult = buildPassiveChaseEvaluationCapture({
+      ...handlers,
+      request: { actorId: requested },
+    });
+    assert.equal(actorResult.passiveObservation.supported, false);
+    assert.equal(actorResult.passiveObservation.reason.code, "actor_invalid");
+    assert.equal(actorResult.passiveObservation.reason.field, "actorId");
+    assert.deepEqual(actorResult.passiveObservation.reason.requested, requested);
+    assert.equal("sensor" in actorResult, false);
+
+    const cameraResult = buildPassiveChaseEvaluationCapture({
+      ...handlers,
+      request: { cameraId: requested },
+    });
+    assert.equal(cameraResult.passiveObservation.supported, false);
+    assert.equal(cameraResult.passiveObservation.reason.code, "camera_invalid");
+    assert.equal(cameraResult.passiveObservation.reason.field, "cameraId");
+    assert.deepEqual(cameraResult.passiveObservation.reason.requested, requested);
+    assert.equal("sensor" in cameraResult, false);
+  }
+
+  assert.equal(captureCalls, 0);
+  assert.equal(fingerprintCalls, 0);
+});
+
 test("passive Chase capability declares the current actor and preserved fields", () => {
   const capability = buildChasePassiveObservationCapability({ evaderExists: false });
 

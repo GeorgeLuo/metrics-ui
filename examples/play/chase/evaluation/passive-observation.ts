@@ -78,8 +78,12 @@ export type ChasePassiveObservationCapture = AtomicEvaluationCapture & {
 };
 
 type PassiveObservationOptions = {
-  actorId?: string;
-  cameraId?: string;
+  // Unknown when present so malformed JSON types are rejected rather than
+  // coerced to the chaser/front_camera defaults.
+  actorId?: unknown;
+  cameraId?: unknown;
+  width?: number;
+  height?: number;
 };
 
 type BuildPassiveObservationCaptureOptions = {
@@ -91,6 +95,23 @@ type BuildPassiveObservationCaptureOptions = {
   ) => ChasePassiveObservationFingerprint | null;
   capture: (actorId: string) => AtomicEvaluationCapture;
 };
+
+function resolveOptionalTargetString(
+  request: PassiveObservationOptions,
+  field: "actorId" | "cameraId",
+  defaultValue: string,
+):
+  | { ok: true; value: string }
+  | { ok: false; requested: unknown } {
+  if (!Object.prototype.hasOwnProperty.call(request, field)) {
+    return { ok: true, value: defaultValue };
+  }
+  const requested = request[field];
+  if (typeof requested === "string" && requested.trim()) {
+    return { ok: true, value: requested.trim() };
+  }
+  return { ok: false, requested };
+}
 
 function cloneControlInput(
   input: ChaseControlInputFingerprint,
@@ -225,12 +246,41 @@ export function buildPassiveChaseEvaluationCapture({
   capture,
 }: BuildPassiveObservationCaptureOptions):
   ChasePassiveObservationCapture | ChasePassiveObservationUnsupported {
-  const actorId = typeof request.actorId === "string" && request.actorId.trim()
-    ? request.actorId.trim()
-    : "chaser";
-  const cameraId = typeof request.cameraId === "string" && request.cameraId.trim()
-    ? request.cameraId.trim()
-    : CHASE_PASSIVE_OBSERVATION_CAMERA_ID;
+  const requestRecord = request && typeof request === "object" ? request : {};
+  const resolvedActor = resolveOptionalTargetString(requestRecord, "actorId", "chaser");
+  if (!resolvedActor.ok) {
+    return buildUnsupported(
+      "actor_invalid",
+      "Requested actorId must be a non-empty string when provided.",
+      {
+        code: "actor_invalid",
+        message: "Requested actorId must be a non-empty string when provided.",
+        field: "actorId",
+        requested: resolvedActor.requested,
+        available: capability.actors,
+      },
+    );
+  }
+  const resolvedCamera = resolveOptionalTargetString(
+    requestRecord,
+    "cameraId",
+    CHASE_PASSIVE_OBSERVATION_CAMERA_ID,
+  );
+  if (!resolvedCamera.ok) {
+    return buildUnsupported(
+      "camera_invalid",
+      "Requested cameraId must be a non-empty string when provided.",
+      {
+        code: "camera_invalid",
+        message: "Requested cameraId must be a non-empty string when provided.",
+        field: "cameraId",
+        requested: resolvedCamera.requested,
+        available: capability.cameras,
+      },
+    );
+  }
+  const actorId = resolvedActor.value;
+  const cameraId = resolvedCamera.value;
 
   if (!capability.actors.includes(actorId)) {
     return buildUnsupported("actor_unavailable", "Requested actor is not available.", {

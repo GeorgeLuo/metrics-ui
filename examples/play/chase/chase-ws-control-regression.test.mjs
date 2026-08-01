@@ -149,6 +149,28 @@ test("chase play queries adapt atomic capture requests without owning transport"
   }]);
 });
 
+test("chase play queries preserve malformed actor and camera types for capture validation", () => {
+  const calls = [];
+  handleChasePlayQuery({
+    queryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
+    payload: {
+      actorId: 123,
+      cameraId: null,
+      width: 640,
+    },
+  }, {
+    getAtomicEvaluationCapture: (options) => {
+      calls.push(options);
+      return { passiveObservation: { supported: false } };
+    },
+  });
+  assert.deepEqual(calls, [{
+    actorId: 123,
+    cameraId: null,
+    width: 640,
+  }]);
+});
+
 test("generic Play query transport returns the active game result and an ack", () => {
   const sent = [];
   const acknowledgements = [];

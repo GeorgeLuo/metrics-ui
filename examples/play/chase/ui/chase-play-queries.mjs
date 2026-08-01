@@ -6,12 +6,22 @@ function normalizeCaptureOptions(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return {};
   }
-  return {
-    ...(typeof payload.actorId === "string" ? { actorId: payload.actorId } : {}),
-    ...(typeof payload.cameraId === "string" ? { cameraId: payload.cameraId } : {}),
-    ...(Number.isFinite(payload.width) ? { width: Number(payload.width) } : {}),
-    ...(Number.isFinite(payload.height) ? { height: Number(payload.height) } : {}),
-  };
+  // Preserve present actor/camera values even when malformed so the capture
+  // boundary can reject them instead of silently defaulting to chaser/front_camera.
+  const options = {};
+  if (Object.prototype.hasOwnProperty.call(payload, "actorId")) {
+    options.actorId = payload.actorId;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, "cameraId")) {
+    options.cameraId = payload.cameraId;
+  }
+  if (Number.isFinite(payload.width)) {
+    options.width = Number(payload.width);
+  }
+  if (Number.isFinite(payload.height)) {
+    options.height = Number(payload.height);
+  }
+  return options;
 }
 
 /** Adapts generic Play queries to Chase-owned read models. */
