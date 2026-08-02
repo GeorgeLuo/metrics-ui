@@ -16,6 +16,7 @@ import type {
 } from "@shared/schema";
 import { RESPONSE_TYPES, QUEUED_COMMAND_TYPES, WS_CLOSE_FRONTEND_BUSY, WS_CLOSE_FRONTEND_REPLACED } from "@/hooks/ws/constants";
 import { dispatchWsCommand } from "@/hooks/ws/command-dispatch";
+import { sendControlSocketMessage } from "@/hooks/ws/socket-send";
 import {
   buildCaptureSourceSyncCommand,
   hasMeaningfulLocalDashboardState,
@@ -251,6 +252,7 @@ export function useWebSocketControl({
   onConnectionUnlock,
 }: UseWebSocketControlProps) {
   const wsRef = useRef<WebSocket | null>(null);
+  const commandResponseSocketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const isRegisteredRef = useRef(false);
   const isBootstrappedRef = useRef(false);
@@ -261,12 +263,22 @@ export function useWebSocketControl({
   const restoreFallbackTimerRef = useRef<number | null>(null);
 
   const sendMessage = useCallback((message: ControlResponse | ControlCommand) => {
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN && isRegisteredRef.current) {
-      ws.send(JSON.stringify(message));
-      return true;
-    }
     const type = (message as { type?: unknown }).type;
+    const isResponse = typeof type === "string"
+      && RESPONSE_TYPES.has(type as ControlResponse["type"]);
+    try {
+      if (sendControlSocketMessage({
+        activeSocket: wsRef.current,
+        responseSocket: commandResponseSocketRef.current,
+        isRegistered: isRegisteredRef.current,
+        isResponse,
+        serializedMessage: JSON.stringify(message),
+      })) {
+        return true;
+      }
+    } catch (error) {
+      console.warn("[ws] Failed to send control message:", error);
+    }
     if (typeof type === "string" && !RESPONSE_TYPES.has(type as ControlResponse["type"])) {
       const commandType = type as ControlCommand["type"];
       if (QUEUED_COMMAND_TYPES.has(commandType)) {
@@ -281,7 +293,8 @@ export function useWebSocketControl({
   }, []);
 
   const sendState = useCallback((requestId?: string) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    const responseSocket = commandResponseSocketRef.current ?? wsRef.current;
+    if (responseSocket?.readyState === WebSocket.OPEN) {
       const state: VisualizationState = {
         captures: captures.map(c => ({
           id: c.id,
@@ -310,7 +323,7 @@ export function useWebSocketControl({
         equationsPane,
         playSidebarSections,
       };
-      wsRef.current.send(JSON.stringify({
+      responseSocket.send(JSON.stringify({
         type: "state_update",
         payload: state,
         request_id: requestId,
@@ -625,14 +638,20 @@ export function useWebSocketControl({
 
   useEffect(() => {
     let isCleanedUp = false;
+    let ownedSocket: WebSocket | null = null;
     
     function connect() {
       if (isCleanedUp) return;
       
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws/control`);
+      ownedSocket = ws;
       
       ws.onopen = () => {
+        if (isCleanedUp || ownedSocket !== ws) {
+          ws.close();
+          return;
+        }
         console.log("[ws] Connected to control server, registering as frontend...");
         isRegisteredRef.current = false;
         if (reconnectDisabledRef.current) {
@@ -680,6 +699,9 @@ export function useWebSocketControl({
       };
 
       ws.onmessage = (event) => {
+        if (isCleanedUp || ownedSocket !== ws) {
+          return;
+        }
         try {
           const message = JSON.parse(event.data);
           if (message.type === "ack") {
@@ -754,15 +776,26 @@ export function useWebSocketControl({
               restoreFallbackTimerRef.current = null;
             }
           }
-          handleCommandRef.current(message as ControlCommand | ControlResponse);
+          commandResponseSocketRef.current = ws;
+          try {
+            handleCommandRef.current(message as ControlCommand | ControlResponse);
+          } finally {
+            if (commandResponseSocketRef.current === ws) {
+              commandResponseSocketRef.current = null;
+            }
+          }
         } catch (e) {
           console.error("[ws] Failed to parse message:", e);
         }
       };
 
       ws.onclose = (event) => {
-        if (isCleanedUp) {
+        if (isCleanedUp || ownedSocket !== ws) {
           return;
+        }
+        ownedSocket = null;
+        if (wsRef.current === ws) {
+          wsRef.current = null;
         }
         isRegisteredRef.current = false;
 
@@ -817,7 +850,12 @@ export function useWebSocketControl({
         window.clearTimeout(restoreFallbackTimerRef.current);
         restoreFallbackTimerRef.current = null;
       }
-      wsRef.current?.close();
+      const socketToClose = ownedSocket;
+      ownedSocket = null;
+      if (wsRef.current === socketToClose) {
+        wsRef.current = null;
+      }
+      socketToClose?.close();
     };
   }, []);
 

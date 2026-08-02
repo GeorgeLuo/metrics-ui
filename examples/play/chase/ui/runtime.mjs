@@ -13,6 +13,11 @@ import { buildAtomicEvaluationCaptureFromSnapshot } from "../evaluation/atomic-c
 import { buildActorControlReference } from "../evaluation/actor-control-reference.ts";
 import { createChaseSimulationEpochOwner } from "../evaluation/runtime-identity.mjs";
 import {
+  buildChasePassiveObservationCapability,
+  buildChasePassiveObservationFingerprint,
+  buildPassiveChaseEvaluationCapture,
+} from "../evaluation/passive-observation.ts";
+import {
   createChaserViewController,
   createEvaderViewController,
 } from "./actor-view-controller.mjs";
@@ -190,16 +195,46 @@ export function createPlayGame({
       renderedImage,
     });
   };
-  const getAtomicEvaluationCapture = (options = {}) => {
-    const snapshot = getFrontViewSnapshot(options);
-    return buildAtomicEvaluationCaptureFromSnapshot(
-      {
-        ...snapshot,
-        evaluatorReference: buildActorControlReference(simulationState, snapshot.actorId),
+  const getPassiveObservationCapability = () => (
+    buildChasePassiveObservationCapability({
+      evaderExists: simulationState.evaderExists !== false,
+    })
+  );
+  const getCurrentControlInput = () => (
+    simulationState.chaserControlSource === "programmatic"
+      ? null
+      : inputTracker.getChaserInput(simulationState.chaserControlSource)
+  );
+  const getPassiveObservationFingerprint = (actorId, cameraId) => (
+    buildChasePassiveObservationFingerprint({
+      scenarioId: scenarioSession.getActiveScenarioId(),
+      simulationEpoch: simulationEpochOwner.current(),
+      frameIndex: simulationState.frameIndex,
+      pauseBeforeActions: Boolean(simulationSettings.pauseBeforeActions),
+      pendingAction: Boolean(simulationState.pendingActionFrame),
+      controlSource: simulationState.chaserControlSource,
+      controlInput: getCurrentControlInput(),
+      actorId,
+      cameraId,
+    })
+  );
+  const getAtomicEvaluationCapture = (options = {}) => (
+    buildPassiveChaseEvaluationCapture({
+      request: options,
+      capability: getPassiveObservationCapability(),
+      getFingerprint: getPassiveObservationFingerprint,
+      capture: (actorId) => {
+        const snapshot = getFrontViewSnapshot({ ...options, actorId });
+        return buildAtomicEvaluationCaptureFromSnapshot(
+          {
+            ...snapshot,
+            evaluatorReference: buildActorControlReference(simulationState, snapshot.actorId),
+          },
+          { simulationEpoch: simulationEpochOwner.current() },
+        );
       },
-      { simulationEpoch: simulationEpochOwner.current() },
-    );
-  };
+    })
+  );
   const greentextDebugOverlay = createGreentextDebugOverlay(container);
   const updateGreentextDebugOverlay = () => {
     greentextDebugOverlay.update({
@@ -371,7 +406,9 @@ export function createPlayGame({
       return getFrontViewSnapshot(options);
     },
     getUsage() {
-      return buildChasePlayUsage();
+      return buildChasePlayUsage({
+        passiveObservation: getPassiveObservationCapability(),
+      });
     },
     dispose() {
       runtimeLoop?.dispose();
