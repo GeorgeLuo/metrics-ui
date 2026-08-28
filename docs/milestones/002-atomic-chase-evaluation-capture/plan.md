@@ -5,7 +5,7 @@
 | Status | Active |
 | Milestone branch | `milestone/002-atomic-chase-evaluation-capture` |
 | Cumulative PR | [#146](https://github.com/GeorgeLuo/metrics-ui/pull/146) (draft until whole-milestone closeout; transitional complete-milestone delta after #143/#145) |
-| Current frontier | None |
+| Current frontier | Milestone closeout |
 | Contract baseline | `7508289` — M002 mixed review units through PR #151, before compact-contract adoption |
 | Grandfathered PRs | #146 (cumulative draft targeting `main`; keeps whole-milestone review kind) |
 | Cutover | PR #153 merged the compact contract to `main`; this plan replaces the hand-authored `plan.html` as the Markdown source. Later in-milestone review units use `m002/<frontier>-proposal` then `m002/<frontier>` targeting the milestone branch. Do not retarget #146. |
@@ -54,41 +54,30 @@ simulator-only geometry through the sensor interface.
 
 ### Current Frontier
 
-**None**
+**Milestone closeout**
 
-- Reason: PR #151 is accepted. Current is idle until the next proposal selects Milestone closeout from the work order.
-- Revisit when: The operator is ready to open the closeout proposal.
+- Workflow state: proposal_in_review
+- Proposal branch: `m002/closeout-proposal`
+- Implementation branch: `m002/closeout`
+- Proposal path: `docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md`
+- Review kind: Milestone closeout
+- Review question: Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated?
+- Acceptance owner: Whole-milestone closeout judgment
+- Exit criteria affected: M002-09
+- Prerequisite: Every other criterion is Met
+- Milestone-level non-goal: Product-code repair, reopening accepted capture units, VLM interpretation, or changing the accepted sensor/evaluator privilege boundary
 
 ### Next-Frontier Candidate
 
-**Milestone closeout**
+**None**
 
-- Proposal branch: `m002/closeout-proposal`
-- Implementation branch: `m002/closeout`
-- Proposal path: `docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md`
-- Review kind: Milestone closeout
-- Review question: Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated?
-- Acceptance owner: Whole-milestone closeout judgment
-- Exit criteria affected: M002-09
-- Prerequisite: Every other criterion is Met
-- Non-goals: Product-code repair, reopening accepted capture units, VLM interpretation, or changing the accepted sensor/evaluator privilege boundary
+- Reason: Closeout is current; no later in-milestone node is contracted.
+- Revisit when: Cross-milestone activation of 003 happens after closeout Phase C.
 
 ### Frontier Map
 
-- Path: `Milestone closeout`
+- Path: none
 - Cadence: linked-list
-
-#### Node: Milestone closeout
-
-- Proposal branch: `m002/closeout-proposal`
-- Implementation branch: `m002/closeout`
-- Proposal path: `docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md`
-- Review kind: Milestone closeout
-- Review question: Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated?
-- Acceptance owner: Whole-milestone closeout judgment
-- Exit criteria affected: M002-09
-- Prerequisite: Every other criterion is Met
-- Non-goals: Product-code repair, reopening accepted capture units, VLM interpretation, or changing the accepted sensor/evaluator privilege boundary
 
 ## Workflow History
 
@@ -96,6 +85,7 @@ simulator-only geometry through the sensor interface.
 | --- | --- | --- |
 | M002 activation | ready_for_proposal | Historical mixed review units #144, #147, #148, #149, and #151 landed on the milestone branch before compact-contract adoption. |
 | Idle | idle | Plan revision: replace the hand-authored HTML plan with compact Markdown after #153; record mid-milestone cutover; leave current idle; keep Milestone closeout as the remaining work-order node. |
+| Milestone closeout | proposal_in_review | Selected remaining work-order node; proposal at docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md. |
 
 ## Accepted Review Units
 
