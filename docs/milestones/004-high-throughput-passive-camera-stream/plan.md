@@ -5,7 +5,7 @@
 | Status | Active |
 | Milestone branch | `milestone/004-high-throughput-passive-camera-stream` |
 | Cumulative PR | TBD |
-| Current frontier | None |
+| Current frontier | Camera stream contract |
 | Started | 2026-08-28 |
 | Action policy | Playback-neutral camera stream; sensor is image-only; no vehicle-behavior change |
 
@@ -51,41 +51,37 @@ operator session and without exposing evaluator facts as perception.
 
 ### Current Frontier
 
-**None**
+**Camera stream contract**
 
-- Reason: Fresh milestone; the first proposal selects Camera stream contract from the work order.
-- Revisit when: Open the Camera stream contract proposal.
+- Workflow state: proposal_in_review
+- Proposal branch: `m004/camera-stream-contract-proposal`
+- Implementation branch: `m004/camera-stream-contract`
+- Proposal path: `docs/milestones/004-high-throughput-passive-camera-stream/proposals/camera-stream-contract.md`
+- Review kind: Deterministic invariant closure
+- Review question: Can a WS agent subscribe to a read-only Chase camera stream that pairs each image with `gameId + simulationEpoch + frameIndex`, never mutates the session, never includes evaluator facts, and fail-closes without a sensor artifact on unsupported, disconnect, or session-identity drift?
+- Acceptance owner: Chase camera-stream builder (`examples/play/chase/evaluation/camera-stream.ts`) and the dedicated WS subscription registry that forwards frames only to the subscriber
+- Exit criteria affected: M004-01, M004-02, M004-03, M004-04, M004-05, M004-06
+- Prerequisite: M002 closed on `main`; one-shot `atomic-evaluation-capture` and `protocol.passiveObservation` remain the compatibility baseline
+- Milestone-level non-goal: Live 10–30 FPS measurement, VLM/003 interpretation, evaluator-as-perception, lossless buffering, binary WS frames, SimEval CLI, or changing vehicle behavior
 
 ### Next-Frontier Candidate
 
-**Camera stream contract**
+**Live throughput evidence**
 
-- Proposal branch: `m004/camera-stream-contract-proposal`
-- Implementation branch: `m004/camera-stream-contract`
-- Proposal path: `docs/milestones/004-high-throughput-passive-camera-stream/proposals/camera-stream-contract.md`
-- Review kind: Deterministic invariant closure
-- Review question: Can a WS agent subscribe to a read-only Chase camera stream that pairs each image with `gameId + simulationEpoch + frameIndex`, never mutates the session, never includes evaluator facts, and fail-closes without a sensor artifact on unsupported, disconnect, or session-identity drift?
-- Acceptance owner: Chase camera-stream builder (`examples/play/chase/evaluation/camera-stream.ts`) and the dedicated WS subscription registry that forwards frames only to the subscriber
-- Exit criteria affected: M004-01, M004-02, M004-03, M004-04, M004-05, M004-06
-- Prerequisite: M002 closed on `main`; one-shot `atomic-evaluation-capture` and `protocol.passiveObservation` remain the compatibility baseline
-- Non-goals: Live 10–30 FPS measurement, VLM/003 interpretation, evaluator-as-perception, lossless buffering, binary WS frames, SimEval CLI, or changing vehicle behavior
+- Proposal branch: `m004/live-throughput-evidence-proposal`
+- Implementation branch: `m004/live-throughput-evidence`
+- Proposal path: `docs/milestones/004-high-throughput-passive-camera-stream/proposals/live-throughput-evidence.md`
+- Review kind: Live or external evidence
+- Review question: Does a live Play session with an active frontend deliver representative 10–30 FPS on the accepted camera stream without per-frame `get_play_debug` or `atomic-evaluation-capture` polling?
+- Acceptance owner: Recorded live-throughput procedure and artifacts under this milestone's evidence directory
+- Exit criteria affected: M004-07
+- Prerequisite: Accepted Camera stream contract implementation on the milestone branch
+- Non-goals: Redesigning the stream contract, changing one-shot capture, or treating browser-backgrounded-tab stalls as a contract defect
 
 ### Frontier Map
 
-- Path: `Camera stream contract` → `Live throughput evidence` → `Milestone closeout`
+- Path: `Live throughput evidence` → `Milestone closeout`
 - Cadence: linked-list
-
-#### Node: Camera stream contract
-
-- Proposal branch: `m004/camera-stream-contract-proposal`
-- Implementation branch: `m004/camera-stream-contract`
-- Proposal path: `docs/milestones/004-high-throughput-passive-camera-stream/proposals/camera-stream-contract.md`
-- Review kind: Deterministic invariant closure
-- Review question: Can a WS agent subscribe to a read-only Chase camera stream that pairs each image with `gameId + simulationEpoch + frameIndex`, never mutates the session, never includes evaluator facts, and fail-closes without a sensor artifact on unsupported, disconnect, or session-identity drift?
-- Acceptance owner: Chase camera-stream builder (`examples/play/chase/evaluation/camera-stream.ts`) and the dedicated WS subscription registry that forwards frames only to the subscriber
-- Exit criteria affected: M004-01, M004-02, M004-03, M004-04, M004-05, M004-06
-- Prerequisite: M002 closed on `main`; one-shot `atomic-evaluation-capture` and `protocol.passiveObservation` remain the compatibility baseline
-- Non-goals: Live 10–30 FPS measurement, VLM/003 interpretation, evaluator-as-perception, lossless buffering, binary WS frames, SimEval CLI, or changing vehicle behavior
 
 #### Node: Live throughput evidence
 
@@ -117,6 +113,7 @@ operator session and without exposing evaluator facts as perception.
 | --- | --- | --- |
 | M004 activation | ready_for_proposal | Activated from `main` after M002 closeout to deliver GitHub issue #152 as a compact milestone, without hijacking the 003 observation-interpretation pre-plan. |
 | Idle | idle | Fresh compact plan: remaining path is Camera stream contract → Live throughput evidence → Milestone closeout; current stays idle until the first proposal selects Camera stream contract. |
+| Camera stream contract | proposal_in_review | Started m004/camera-stream-contract-proposal. |
 
 ## Accepted Review Units
 
