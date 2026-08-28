@@ -8,3 +8,5 @@ vite.config.ts.*
 .logs/
 .metrics-ui-data/
 server-data/
+__pycache__/
+*.pyc
