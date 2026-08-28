@@ -1,37 +1,55 @@
 # Documentation Guide
 
-This directory is the entry point for current plans and milestone history.
-Read this file before beginning milestone-scoped work.
+This directory separates current reference material, future-facing synthesis,
+agent operating guidance, and milestone history. Use the selective reading
+order below instead of loading the full process contract for every task.
 
-## Active Work
+## Milestone state
 
-Milestone 002, [Chaser Observation Interpretation](milestones/002-chaser-observation-interpretation/plan.html),
-is active. It will define the boundary that turns rendered or sensed evidence
-into observer-world inputs without moving perception processing into the
-generic decision model.
+Canonical status, frontier, and next action live in each
+`docs/milestones/<number>-<slug>/plan.md`. This page is navigation only. Do not
+copy those fields here.
+
+```sh
+python3 docs/milestones/workflow.py status \
+  --plan docs/milestones/<number>-<slug>/plan.md
+```
+
+Plans: [milestones/](milestones/). Closed ledger:
+[completed.md](milestones/completed.md). Contract:
+[README.md](milestones/README.md) ·
+[planning-contract.html](milestones/planning-contract.html).
 
 ## Reading Order
 
-1. Read the shared [`milestones/README.md`](milestones/README.md) planning and
-   pull-request delivery contract, or its
-   [rendered view](milestones/planning-contract.html).
-2. Read the active milestone plan listed above.
-3. Read [`milestones/completed.md`](milestones/completed.md) for durable context
-   from closed work.
-4. Consult source-level documentation only for the area being changed.
+1. Short default [agent surface](guidance/agent-surface.md).
+2. The canonical `plan.md` for the milestone under work; run the status command
+   above rather than reading a copy from this page.
+3. Only the role- or task-specific files selected by the agent surface.
+4. Full [planning and delivery contract](milestones/README.md)
+   ([rendered](milestones/planning-contract.html)) when resolving ambiguity,
+   changing workflow, or directed there by a guidance file.
+5. [completed.md](milestones/completed.md) for durable closed-work context.
+6. Relevant documents under `reference/` for current system behavior.
+7. `synthesis/` for research evidence, not backlog commitments.
 
-Closed plans are frozen historical records. They explain prior decisions but
-do not replace current source code or reference documentation.
+Do not treat closed milestone plans as current architecture.
+The active milestone plan, not this navigation page, owns current workflow and
+frontier state.
 
 ## Structure
 
-- `milestones/README.md` is the shared planning and delivery contract.
-- `milestones/planning-contract.html` is its generated browser rendering.
-- `milestones/<number>-<slug>/plan.html` is one milestone's active plan and
-  status record.
-- `milestones/<number>-<slug>/closeout.md` is written when the milestone closes.
-- `milestones/completed.md` is the append-only ledger of closed milestones.
+| Path | Role |
+| --- | --- |
+| `guidance/` | Short, derived agent operating surface and role guidance |
+| `reference/` | Living architecture and contracts |
+| `synthesis/` | Research evidence without commitment |
+| `milestones/README.md` | Canonical planning and PR delivery contract |
+| `milestones/planning-contract.html` | Generated rendering of the contract |
+| `milestones/<n>-<slug>/plan.md` | Canonical active-milestone plan |
+| `milestones/<n>-<slug>/plan.html` | Generated plan rendering (do not edit by hand) |
+| `milestones/<n>-<slug>/closeout.md` | Durable summary at closeout |
+| `milestones/completed.md` | Append-only closed-milestone ledger |
 
-Run `npm run docs:milestones` after changing the shared contract. Run
-`npm run docs:milestones:check` to validate the generated contract, active plan
-sections, workflow markers, work statuses, and aggregate progress.
+Historical closed milestones may retain hand-authored `plan.html` files without
+a `plan.md`. Active milestones use Markdown as the source of truth.

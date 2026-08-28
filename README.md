@@ -32,5 +32,7 @@ Then open:
 ## Docs
 
 See [USAGE.md](./USAGE.md) for HTTP/WS protocol details and example automation flows.
-Use [docs/README.md](./docs/README.md) for active milestone work, planning status,
-and durable milestone history.
+Use [docs/README.md](./docs/README.md) for documentation navigation and
+[docs/milestones/completed.md](./docs/milestones/completed.md) for closed
+milestone history. Current milestone status lives in `plan.md`; inspect it with
+`python3 docs/milestones/workflow.py status --plan <plan>`.
