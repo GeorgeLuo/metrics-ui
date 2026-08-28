@@ -4428,12 +4428,12 @@ def _git_text_at(ref: str, path: str, *, repo_root: Path = ROOT) -> str:
     return result.stdout
 
 
-def _plan_at_branch(
+def _find_plan_for_milestone(
     ref: str,
     *,
     milestone_branch: str,
     repo_root: Path = ROOT,
-) -> tuple[str, str]:
+) -> tuple[str, str] | None:
     listing = _run_git(
         ["ls-tree", "-r", "--name-only", ref, "--", "docs/milestones"],
         cwd=repo_root,
@@ -4448,9 +4448,25 @@ def _plan_at_branch(
             continue
         if state.milestone_branch == milestone_branch:
             return path, text
-    raise PlanContractError(
-        f"no canonical plan at {ref} owns milestone branch {milestone_branch}"
+    return None
+
+
+def _plan_at_branch(
+    ref: str,
+    *,
+    milestone_branch: str,
+    repo_root: Path = ROOT,
+) -> tuple[str, str]:
+    found = _find_plan_for_milestone(
+        ref,
+        milestone_branch=milestone_branch,
+        repo_root=repo_root,
     )
+    if found is None:
+        raise PlanContractError(
+            f"no canonical plan at {ref} owns milestone branch {milestone_branch}"
+        )
+    return found
 
 
 def _plan_at_implementation_branch(
@@ -4576,6 +4592,65 @@ def _validate_implementation_adjunct_git_diff(
     return "implementation_adjunct"
 
 
+def _validate_canonical_plan_adoption(
+    *,
+    base_ref: str,
+    head_ref: str,
+    base_sha: str,
+    head_sha: str,
+    repo_root: Path,
+) -> str:
+    head_plan = _find_plan_for_milestone(
+        head_sha,
+        milestone_branch=base_ref,
+        repo_root=repo_root,
+    )
+    if head_plan is None:
+        raise PlanContractError(
+            f"no canonical plan at {base_sha} owns milestone branch {base_ref}"
+        )
+    plan_path, head_text = head_plan
+    head = validate_plan_text(head_text)
+    if head.status != "Active":
+        raise PlanContractError(
+            "first canonical plan must have Status Active, not "
+            f"{head.status}"
+        )
+    if not _is_plan_revision_branch(head.milestone_number, head_ref):
+        raise PlanContractError(
+            "first canonical plan must use "
+            f"m{head.milestone_number}/plan-<slug>, not {head_ref}"
+        )
+    changed_paths = set(
+        _run_git(
+            ["diff", "--name-only", base_sha, head_sha],
+            cwd=repo_root,
+        ).stdout.splitlines()
+    )
+    plan_html = str(Path(plan_path).with_suffix(".html"))
+    required_paths = {plan_path, plan_html}
+    missing = required_paths - changed_paths
+    if missing:
+        raise PlanContractError(
+            "first canonical plan must add canonical Markdown and generated HTML: "
+            + ", ".join(sorted(missing))
+        )
+    allowed_paths = required_paths | {
+        "docs/milestones/workflow.py",
+    }
+    unexpected = [
+        path
+        for path in sorted(changed_paths)
+        if path not in allowed_paths and not path.startswith("tests/docs/")
+    ]
+    if unexpected:
+        raise PlanContractError(
+            "first canonical plan contains unrelated changes: "
+            + ", ".join(unexpected)
+        )
+    return "canonical_plan_adoption"
+
+
 def validate_review_unit_git_diff(
     *,
     base_ref: str,
@@ -4619,11 +4694,20 @@ def validate_review_unit_git_diff(
             repair_review_metadata=repair_review_metadata,
             repo_root=repo_root,
         )
-    plan_path, base_text = _plan_at_branch(
+    base_plan = _find_plan_for_milestone(
         base_sha,
         milestone_branch=base_ref,
         repo_root=repo_root,
     )
+    if base_plan is None:
+        return _validate_canonical_plan_adoption(
+            base_ref=base_ref,
+            head_ref=head_ref,
+            base_sha=base_sha,
+            head_sha=head_sha,
+            repo_root=repo_root,
+        )
+    plan_path, base_text = base_plan
     head_text = _git_text_at(head_sha, plan_path, repo_root=repo_root)
     changed_paths = set(
         _run_git(

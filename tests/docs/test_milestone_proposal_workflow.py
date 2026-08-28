@@ -2886,6 +2886,148 @@ Plan validation.
 
             self.assertEqual(transition, "plan_revision")
 
+    def test_git_diff_gate_recognizes_first_canonical_plan(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "README.md").write_text("milestone bootstrap\n", encoding="utf-8")
+            self._git(root, "init", "-b", MILESTONE_BRANCH)
+            self._git(root, "add", ".")
+            self._git(
+                root,
+                "-c",
+                "user.name=Milestone Test",
+                "-c",
+                "user.email=milestone@example.invalid",
+                "commit",
+                "-m",
+                "milestone branch without a plan",
+            )
+            base_sha = self._git(root, "rev-parse", "HEAD")
+            self._git(root, "switch", "-c", PLAN_REVISION_BRANCH)
+            plan = root / PLAN_RELATIVE
+            plan.parent.mkdir(parents=True)
+            plan.write_text(ready_plan_text(), encoding="utf-8")
+            plan.with_suffix(".html").write_text("rendered", encoding="utf-8")
+            self._git(root, "add", ".")
+            self._git(
+                root,
+                "-c",
+                "user.name=Milestone Test",
+                "-c",
+                "user.email=milestone@example.invalid",
+                "commit",
+                "-m",
+                "introduce canonical plan",
+            )
+            head_sha = self._git(root, "rev-parse", "HEAD")
+
+            transition = validate_review_unit_git_diff(
+                base_ref=MILESTONE_BRANCH,
+                head_ref=PLAN_REVISION_BRANCH,
+                base_sha=base_sha,
+                head_sha=head_sha,
+                repo_root=root,
+            )
+
+            self.assertEqual(transition, "canonical_plan_adoption")
+
+    def test_first_canonical_plan_requires_plan_revision_branch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "README.md").write_text("milestone bootstrap\n", encoding="utf-8")
+            self._git(root, "init", "-b", MILESTONE_BRANCH)
+            self._git(root, "add", ".")
+            self._git(
+                root,
+                "-c",
+                "user.name=Milestone Test",
+                "-c",
+                "user.email=milestone@example.invalid",
+                "commit",
+                "-m",
+                "milestone branch without a plan",
+            )
+            base_sha = self._git(root, "rev-parse", "HEAD")
+            self._git(root, "switch", "-c", IMPLEMENTATION_BRANCH)
+            plan = root / PLAN_RELATIVE
+            plan.parent.mkdir(parents=True)
+            plan.write_text(ready_plan_text(), encoding="utf-8")
+            plan.with_suffix(".html").write_text("rendered", encoding="utf-8")
+            self._git(root, "add", ".")
+            self._git(
+                root,
+                "-c",
+                "user.name=Milestone Test",
+                "-c",
+                "user.email=milestone@example.invalid",
+                "commit",
+                "-m",
+                "introduce canonical plan on the wrong branch",
+            )
+            head_sha = self._git(root, "rev-parse", "HEAD")
+
+            with self.assertRaisesRegex(
+                PlanContractError,
+                r"first canonical plan must use m900/plan-<slug>",
+            ):
+                validate_review_unit_git_diff(
+                    base_ref=MILESTONE_BRANCH,
+                    head_ref=IMPLEMENTATION_BRANCH,
+                    base_sha=base_sha,
+                    head_sha=head_sha,
+                    repo_root=root,
+                )
+
+    def test_first_canonical_plan_rejects_product_code(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "README.md").write_text("milestone bootstrap\n", encoding="utf-8")
+            self._git(root, "init", "-b", MILESTONE_BRANCH)
+            self._git(root, "add", ".")
+            self._git(
+                root,
+                "-c",
+                "user.name=Milestone Test",
+                "-c",
+                "user.email=milestone@example.invalid",
+                "commit",
+                "-m",
+                "milestone branch without a plan",
+            )
+            base_sha = self._git(root, "rev-parse", "HEAD")
+            self._git(root, "switch", "-c", PLAN_REVISION_BRANCH)
+            plan = root / PLAN_RELATIVE
+            plan.parent.mkdir(parents=True)
+            plan.write_text(ready_plan_text(), encoding="utf-8")
+            plan.with_suffix(".html").write_text("rendered", encoding="utf-8")
+            product = root / "client" / "src" / "App.tsx"
+            product.parent.mkdir(parents=True)
+            product.write_text("export {}\n", encoding="utf-8")
+            self._git(root, "add", ".")
+            self._git(
+                root,
+                "-c",
+                "user.name=Milestone Test",
+                "-c",
+                "user.email=milestone@example.invalid",
+                "commit",
+                "-m",
+                "introduce plan with product code",
+            )
+            head_sha = self._git(root, "rev-parse", "HEAD")
+
+            with self.assertRaisesRegex(
+                PlanContractError,
+                "unrelated changes",
+            ):
+                validate_review_unit_git_diff(
+                    base_ref=MILESTONE_BRANCH,
+                    head_ref=PLAN_REVISION_BRANCH,
+                    base_sha=base_sha,
+                    head_sha=head_sha,
+                    repo_root=root,
+                )
+
     def test_git_diff_gate_recognizes_proposal_amendment(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -4,6 +4,7 @@ import {
   PlayGameHost,
   type PlayFrontViewSnapshotHandler,
   type PlayGameCommandHandler,
+  type PlayGameQueryHandler,
   type PlayGameUsageHandler,
   type PlaySidebarActionHandler,
   type PlayViewportSpec,
@@ -31,6 +32,7 @@ type PlayMainPanelProps = {
   onDebugSnapshotChange?: (snapshot: unknown) => void;
   onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
   onGameCommandHandlerChange?: (handler: PlayGameCommandHandler | null) => void;
+  onGameQueryHandlerChange?: (handler: PlayGameQueryHandler | null) => void;
   onGameUsageHandlerChange?: (handler: PlayGameUsageHandler | null) => void;
 };
 
@@ -55,6 +57,7 @@ export function PlayMainPanel({
   onDebugSnapshotChange,
   onFrontViewSnapshotHandlerChange,
   onGameCommandHandlerChange,
+  onGameQueryHandlerChange,
   onGameUsageHandlerChange,
 }: PlayMainPanelProps) {
   const [games, setGames] = useState<PlayGameCatalogEntry[]>([]);
@@ -141,6 +144,7 @@ export function PlayMainPanel({
               onDebugSnapshotChange={onDebugSnapshotChange}
               onFrontViewSnapshotHandlerChange={onFrontViewSnapshotHandlerChange}
               onGameCommandHandlerChange={onGameCommandHandlerChange}
+              onGameQueryHandlerChange={onGameQueryHandlerChange}
               onGameUsageHandlerChange={onGameUsageHandlerChange}
             />
           )}

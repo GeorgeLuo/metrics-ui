@@ -18,6 +18,10 @@ export type PlayGameCommandInput = Pick<
   Extract<ControlCommand, { type: "play_game_command" }>,
   "commandId" | "payload"
 >;
+export type PlayGameQueryInput = Pick<
+  Extract<ControlCommand, { type: "play_game_query" }>,
+  "queryId" | "payload"
+>;
 
 export type UiNotice = {
   message: string;
@@ -106,6 +110,7 @@ export interface WsCommandDispatchContext {
   onLiveSourceChange: (source: string, captureId?: string) => void;
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
   onPlayGameCommand?: (command: PlayGameCommandInput) => boolean;
+  onPlayGameQuery?: (query: PlayGameQueryInput) => unknown;
   onLiveStart: (options: {
     source?: string;
     pollIntervalMs?: number;

@@ -29,6 +29,12 @@ export type PlayGameCommand = {
 };
 
 export type PlayGameCommandHandler = (command: PlayGameCommand) => boolean;
+export type PlayGameQuery = {
+  queryId: string;
+  payload?: unknown;
+};
+/** Returns game-owned query data, or undefined when the query id is unsupported. */
+export type PlayGameQueryHandler = (query: PlayGameQuery) => unknown;
 export type PlayGameUsageHandler = () => unknown;
 export type PlaySidebarActionHandler = (
   actionId: string,
@@ -46,6 +52,7 @@ export type PlayGameHostProps = {
   onDebugSnapshotChange?: (snapshot: unknown) => void;
   onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
   onGameCommandHandlerChange?: (handler: PlayGameCommandHandler | null) => void;
+  onGameQueryHandlerChange?: (handler: PlayGameQueryHandler | null) => void;
   onGameUsageHandlerChange?: (handler: PlayGameUsageHandler | null) => void;
 };
 
@@ -77,6 +84,7 @@ export type PlayGameInstance = {
   dispose?: () => void;
   getFrontViewSnapshot?: PlayFrontViewSnapshotHandler;
   handleCommand?: PlayGameCommandHandler;
+  handleQuery?: PlayGameQueryHandler;
   getUsage?: PlayGameUsageHandler;
 };
 

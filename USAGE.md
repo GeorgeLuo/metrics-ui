@@ -497,7 +497,7 @@ Play sub-app:
 - `{"type":"set_sidebar_app","app":"play"}`
 - `{"type":"play_game_action","actionId":"target-projection-debug","value":true}`
 - The Play sub-app hosts browser-game surfaces in a FrameGrid. Games are loaded from the file-backed catalog at `examples/play/play-game-catalog.json` by default.
-- Each catalog entry points to an `.mjs` game module, for example `examples/play/chase-game.mjs`. A module exports `createPlayGame({ container, columns, rows, createFloatingFrame, setSidebarSections, setSidebarActionHandler })` and returns an optional `{ dispose() }` cleanup object.
+- Each catalog entry points to an `.mjs` game module, for example `examples/play/chase-game.mjs`. A module exports `createPlayGame({ container, columns, rows, createFloatingFrame, setSidebarSections, setSidebarActionHandler })` and returns an optional runtime object with capabilities such as `handleCommand`, `handleQuery`, `getUsage`, and `dispose`.
 - `createFloatingFrame({ id, title, bounds, defaultPosition, defaultSize })` lets a game request webapp-managed floating-frame chrome and returns `{ mount, close, setTitle }`; game code renders only into `mount`. Use `bounds: "viewport"` for whole-webapp movement or omit it to dock within the Play area.
 - `setSidebarSections([{ id, title, hint, rows }])` lets a game populate left-pane sections with serializable rows: text rows, label/value rows, editable values like `{ kind: "editableValue", id, label, value, suffix }`, short lists, or toggle rows like `{ kind: "toggle", id, label, enabled }`.
 - `setSidebarActionHandler(id, handler)` lets a game attach behavior to a sidebar toggle/action row. Editable rows call `handler(value)` with the committed string. Keep the visual state in `setSidebarSections`; handlers should update game state and re-publish the section data.
@@ -505,6 +505,9 @@ Play sub-app:
 - `get_state` / `state_update` now include `playSidebarSections`, which mirror the current Play left-pane controls exactly: section titles, row labels, action ids, current values, and toggle states.
 - Agents should inspect `playSidebarSections` before sending `play_game_action` instead of assuming hardcoded action ids or units. Play controls are game-defined.
 - `{"type":"get_play_debug","request_id":"play-debug-1"}` returns the current game-published debug snapshot as `play_debug`. For Chase, this includes the current/frozen frame, actor IDAE snapshots, pattern prediction units, and the chaser Kuramoto prediction consensus path.
+- `{"type":"play_game_query","request_id":"evaluation-1","queryId":"atomic-evaluation-capture","payload":{"actorId":"chaser","cameraId":"front_camera"}}` invokes a read-only query published by the active game. Inspect `get_play_game_usage` at runtime for `protocol.passiveObservation`, including supported actors, cameras, and preserved session fields. The `play_game_query_result` response repeats the `queryId` and places game-owned data under `result`; unknown actors, cameras, and query IDs return explicit structured errors.
+- Persist one Chase atomic evaluation response: `simeval ui play-evaluation-capture --actor chaser --out-dir ./evaluation-captures --ui ws://localhost:5050/ws/control`. SimEval writes the camera artifact separately from referenceable metadata containing the capture ID, frame identity, explicitly non-sensor evaluator shadow, and a before/after preservation receipt. The query does not change scenario, simulation epoch, frame, playback phase, control source/input, actor, or camera. Read requests fail immediately with `frontend_not_connected` when no frontend owns the active session and with `frontend_unresponsive` when a registered frontend does not answer within three seconds.
+- Exercise and validate the complete before/repeat/move/reset flow: `npm run play:chase:evaluation:capture -- --ui ws://localhost:5050/ws/control --out-dir /tmp/chase-evaluation-capture`. Keep the Play frontend tab active because Chase advances on browser animation frames; the fixture fails when no movement frame is observed.
 - Simeval CLI helper: `simeval ui play-debug --summary --ui ws://localhost:5050/ws/control` prints a compact interpretation of the current Chase debug frame; omit `--summary` to dump the full JSON payload.
 - Chase performance helper: `simeval ui play-perf --ui ws://localhost:5050/ws/control` prints the current Chase runtime timing summary. Add `--open-debug`, `--open-views`, or `--fps 60` to configure the run before sampling.
 - FrameGrid layout check: `simeval ui framegrid-check --scope equations --ui ws://localhost:5050/ws/control` validates the active Equations FrameGrid debug geometry.
@@ -517,6 +520,7 @@ Query/debug commands:
 - `{"type":"get_render_debug","captureId":"abc"}`
 - `{"type":"get_ui_debug","scope":"visualization"}`
 - `{"type":"get_play_debug","request_id":"play-debug-1"}`
+- `{"type":"play_game_query","request_id":"evaluation-1","queryId":"atomic-evaluation-capture","payload":{"actorId":"chaser"}}`
 - `{"type":"get_memory_stats"}`
 
 Presentation commands:
@@ -707,6 +711,8 @@ Capture streaming (push records over WS):
 - `set_source_mode`
 - `set_live_source`
 - `play_game_action`
+- `play_game_command`
+- `play_game_query`
 - `sync_capture_sources`
 - `live_start`
 - `live_stop`
@@ -722,6 +728,8 @@ Capture streaming (push records over WS):
 - `get_render_debug`
 - `get_ui_debug`
 - `get_play_debug`
+- `get_play_game_usage`
+- `get_play_front_view_snapshot`
 - `get_memory_stats`
 - `get_metric_coverage`
 <!-- WS:COMMANDS:END -->
@@ -763,6 +771,9 @@ Common responses include:
 - `render_debug`
 - `ui_debug`
 - `play_debug`
+- `play_game_usage`
+- `play_game_query_result`
+- `play_front_view_snapshot`
 - `ui_notice`
 - `ui_error`
 - `memory_stats`

@@ -1,0 +1,213 @@
+{
+  "schema": "chase-evaluation-validation-v1",
+  "status": "pass",
+  "evidenceDirectory": "/tmp/chase-evaluation-capture-m002-04-active",
+  "summary": {
+    "checks": 31,
+    "passed": 31,
+    "failed": 0
+  },
+  "captures": {
+    "before": {
+      "captureId": "chase:evaluation:chase-run%3Ac95724c7-e5e1-43e0-8398-2b31b729ca6e:chaser:0",
+      "actorId": "chaser",
+      "frameIdentity": {
+        "gameId": "chase",
+        "simulationEpoch": "chase-run:c95724c7-e5e1-43e0-8398-2b31b729ca6e",
+        "frameIndex": 0
+      },
+      "imageFile": "before.png",
+      "imageSha256": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943"
+    },
+    "repeat": {
+      "captureId": "chase:evaluation:chase-run%3Ac95724c7-e5e1-43e0-8398-2b31b729ca6e:chaser:0",
+      "actorId": "chaser",
+      "frameIdentity": {
+        "gameId": "chase",
+        "simulationEpoch": "chase-run:c95724c7-e5e1-43e0-8398-2b31b729ca6e",
+        "frameIndex": 0
+      },
+      "imageFile": "repeat.png",
+      "imageSha256": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943"
+    },
+    "after-move": {
+      "captureId": "chase:evaluation:chase-run%3Ac95724c7-e5e1-43e0-8398-2b31b729ca6e:chaser:164",
+      "actorId": "chaser",
+      "frameIdentity": {
+        "gameId": "chase",
+        "simulationEpoch": "chase-run:c95724c7-e5e1-43e0-8398-2b31b729ca6e",
+        "frameIndex": 164
+      },
+      "imageFile": "after-move.png",
+      "imageSha256": "21fb4b85c501cbad4fb9cb3e0b7a333b31e4df8db5d10a5171da4c2298191a54"
+    },
+    "after-reset": {
+      "captureId": "chase:evaluation:chase-run%3Ad8d2ec6a-0257-445e-a1f5-d6b861cb290b:chaser:0",
+      "actorId": "chaser",
+      "frameIdentity": {
+        "gameId": "chase",
+        "simulationEpoch": "chase-run:d8d2ec6a-0257-445e-a1f5-d6b861cb290b",
+        "frameIndex": 0
+      },
+      "imageFile": "after-reset.png",
+      "imageSha256": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943"
+    }
+  },
+  "checks": [
+    {
+      "id": "before:contract-version",
+      "passed": true,
+      "detail": "contractVersion=1"
+    },
+    {
+      "id": "before:frame-identity",
+      "passed": true,
+      "detail": "{\"gameId\":\"chase\",\"simulationEpoch\":\"chase-run:c95724c7-e5e1-43e0-8398-2b31b729ca6e\",\"frameIndex\":0}"
+    },
+    {
+      "id": "before:playback-neutral",
+      "passed": true,
+      "detail": "advanced=false"
+    },
+    {
+      "id": "before:sensor-boundary",
+      "passed": true,
+      "detail": "sensorKeys=image imageKeys=contentType,file,height,rendererId,width"
+    },
+    {
+      "id": "before:evaluator-boundary",
+      "passed": true,
+      "detail": "classification=non-sensor"
+    },
+    {
+      "id": "before:evaluator-reference",
+      "passed": true,
+      "detail": "scenario=chaser-depth-obstacles controlSource=ws actionFrame=0"
+    },
+    {
+      "id": "repeat:contract-version",
+      "passed": true,
+      "detail": "contractVersion=1"
+    },
+    {
+      "id": "repeat:frame-identity",
+      "passed": true,
+      "detail": "{\"gameId\":\"chase\",\"simulationEpoch\":\"chase-run:c95724c7-e5e1-43e0-8398-2b31b729ca6e\",\"frameIndex\":0}"
+    },
+    {
+      "id": "repeat:playback-neutral",
+      "passed": true,
+      "detail": "advanced=false"
+    },
+    {
+      "id": "repeat:sensor-boundary",
+      "passed": true,
+      "detail": "sensorKeys=image imageKeys=contentType,file,height,rendererId,width"
+    },
+    {
+      "id": "repeat:evaluator-boundary",
+      "passed": true,
+      "detail": "classification=non-sensor"
+    },
+    {
+      "id": "repeat:evaluator-reference",
+      "passed": true,
+      "detail": "scenario=chaser-depth-obstacles controlSource=ws actionFrame=0"
+    },
+    {
+      "id": "after-move:contract-version",
+      "passed": true,
+      "detail": "contractVersion=1"
+    },
+    {
+      "id": "after-move:frame-identity",
+      "passed": true,
+      "detail": "{\"gameId\":\"chase\",\"simulationEpoch\":\"chase-run:c95724c7-e5e1-43e0-8398-2b31b729ca6e\",\"frameIndex\":164}"
+    },
+    {
+      "id": "after-move:playback-neutral",
+      "passed": true,
+      "detail": "advanced=false"
+    },
+    {
+      "id": "after-move:sensor-boundary",
+      "passed": true,
+      "detail": "sensorKeys=image imageKeys=contentType,file,height,rendererId,width"
+    },
+    {
+      "id": "after-move:evaluator-boundary",
+      "passed": true,
+      "detail": "classification=non-sensor"
+    },
+    {
+      "id": "after-move:evaluator-reference",
+      "passed": true,
+      "detail": "scenario=chaser-depth-obstacles controlSource=ws actionFrame=164"
+    },
+    {
+      "id": "after-reset:contract-version",
+      "passed": true,
+      "detail": "contractVersion=1"
+    },
+    {
+      "id": "after-reset:frame-identity",
+      "passed": true,
+      "detail": "{\"gameId\":\"chase\",\"simulationEpoch\":\"chase-run:d8d2ec6a-0257-445e-a1f5-d6b861cb290b\",\"frameIndex\":0}"
+    },
+    {
+      "id": "after-reset:playback-neutral",
+      "passed": true,
+      "detail": "advanced=false"
+    },
+    {
+      "id": "after-reset:sensor-boundary",
+      "passed": true,
+      "detail": "sensorKeys=image imageKeys=contentType,file,height,rendererId,width"
+    },
+    {
+      "id": "after-reset:evaluator-boundary",
+      "passed": true,
+      "detail": "classification=non-sensor"
+    },
+    {
+      "id": "after-reset:evaluator-reference",
+      "passed": true,
+      "detail": "scenario=chaser-depth-obstacles controlSource=ws actionFrame=0"
+    },
+    {
+      "id": "same-state:identity",
+      "passed": true,
+      "detail": "chase:evaluation:chase-run%3Ac95724c7-e5e1-43e0-8398-2b31b729ca6e:chaser:0 vs chase:evaluation:chase-run%3Ac95724c7-e5e1-43e0-8398-2b31b729ca6e:chaser:0"
+    },
+    {
+      "id": "same-state:image",
+      "passed": true,
+      "detail": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943 vs 9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943"
+    },
+    {
+      "id": "same-state:evaluator-reference",
+      "passed": true,
+      "detail": "repeated same-frame captures must retain the same bounded control reference"
+    },
+    {
+      "id": "movement:later-frame",
+      "passed": true,
+      "detail": "before=0 after=164"
+    },
+    {
+      "id": "movement:image-changed",
+      "passed": true,
+      "detail": "9108b73ce9aac8a239c2d1043f68478fa2367a23a06573179bbd525697b6b943 vs 21fb4b85c501cbad4fb9cb3e0b7a333b31e4df8db5d10a5171da4c2298191a54"
+    },
+    {
+      "id": "movement:controller-reference",
+      "passed": true,
+      "detail": "controlSource=ws"
+    },
+    {
+      "id": "reset:new-epoch",
+      "passed": true,
+      "detail": "chase-run:c95724c7-e5e1-43e0-8398-2b31b729ca6e vs chase-run:d8d2ec6a-0257-445e-a1f5-d6b861cb290b"
+    }
+  ]
+}

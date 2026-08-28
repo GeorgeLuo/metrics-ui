@@ -9,6 +9,14 @@ import { setChaserControlSource } from "../simulation/chaser-control-source.mjs"
 import { createChasePerformanceTracker } from "../debug/performance-debug.mjs";
 import { buildChaseDebugSnapshot } from "../debug/debug-snapshot.mjs";
 import { buildManualFrontViewSnapshot } from "./front-view-snapshot.ts";
+import { buildAtomicEvaluationCaptureFromSnapshot } from "../evaluation/atomic-capture.ts";
+import { buildActorControlReference } from "../evaluation/actor-control-reference.ts";
+import { createChaseSimulationEpochOwner } from "../evaluation/runtime-identity.mjs";
+import {
+  buildChasePassiveObservationCapability,
+  buildChasePassiveObservationFingerprint,
+  buildPassiveChaseEvaluationCapture,
+} from "../evaluation/passive-observation.ts";
 import {
   createChaserViewController,
   createEvaderViewController,
@@ -33,6 +41,7 @@ import {
   setActorActionProposalOverride,
 } from "./action-proposal-overrides.mjs";
 import { handleChasePlayCommand } from "./chase-play-commands.mjs";
+import { handleChasePlayQuery } from "./chase-play-queries.mjs";
 import { buildChasePlayUsage } from "./chase-play-usage.mjs";
 
 function copyInto(target, source) {
@@ -65,6 +74,7 @@ export function createPlayGame({
   setViewportSpec,
 }) {
   const scenarioSession = createChaseScenarioSession({ columns, rows });
+  const simulationEpochOwner = createChaseSimulationEpochOwner();
   let scenario = scenarioSession.buildScenario();
   const simulationState = createChaseSimulationState({ scenario, columns, rows });
   let actorActionProposalOverrides = cloneActorActionProposalCollections(
@@ -178,6 +188,53 @@ export function createPlayGame({
     chaserView,
     evaderView,
   });
+  const getFrontViewSnapshot = (options = {}) => {
+    const renderedImage = sceneView.captureActorView?.(options) ?? null;
+    return buildManualFrontViewSnapshot(simulationState, {
+      ...options,
+      renderedImage,
+    });
+  };
+  const getPassiveObservationCapability = () => (
+    buildChasePassiveObservationCapability({
+      evaderExists: simulationState.evaderExists !== false,
+    })
+  );
+  const getCurrentControlInput = () => (
+    simulationState.chaserControlSource === "programmatic"
+      ? null
+      : inputTracker.getChaserInput(simulationState.chaserControlSource)
+  );
+  const getPassiveObservationFingerprint = (actorId, cameraId) => (
+    buildChasePassiveObservationFingerprint({
+      scenarioId: scenarioSession.getActiveScenarioId(),
+      simulationEpoch: simulationEpochOwner.current(),
+      frameIndex: simulationState.frameIndex,
+      pauseBeforeActions: Boolean(simulationSettings.pauseBeforeActions),
+      pendingAction: Boolean(simulationState.pendingActionFrame),
+      controlSource: simulationState.chaserControlSource,
+      controlInput: getCurrentControlInput(),
+      actorId,
+      cameraId,
+    })
+  );
+  const getAtomicEvaluationCapture = (options = {}) => (
+    buildPassiveChaseEvaluationCapture({
+      request: options,
+      capability: getPassiveObservationCapability(),
+      getFingerprint: getPassiveObservationFingerprint,
+      capture: (actorId) => {
+        const snapshot = getFrontViewSnapshot({ ...options, actorId });
+        return buildAtomicEvaluationCaptureFromSnapshot(
+          {
+            ...snapshot,
+            evaluatorReference: buildActorControlReference(simulationState, snapshot.actorId),
+          },
+          { simulationEpoch: simulationEpochOwner.current() },
+        );
+      },
+    })
+  );
   const greentextDebugOverlay = createGreentextDebugOverlay(container);
   const updateGreentextDebugOverlay = () => {
     greentextDebugOverlay.update({
@@ -194,6 +251,7 @@ export function createPlayGame({
       projectionSettings: { ...projectionSettings },
     } : null;
     const freshState = createChaseSimulationState({ scenario: nextScenario, columns, rows });
+    simulationEpochOwner.beginRun();
     const nextSimulationSettings = preservedSettings?.simulationSettings
       ?? { ...freshState.simulationSettings };
     const nextVehicleSettings = preservedSettings?.vehicleSettings
@@ -339,15 +397,18 @@ export function createPlayGame({
         },
       });
     },
-    getFrontViewSnapshot(options = {}) {
-      const renderedImage = sceneView.captureActorView?.(options) ?? null;
-      return buildManualFrontViewSnapshot(simulationState, {
-        ...options,
-        renderedImage,
+    handleQuery(query = {}) {
+      return handleChasePlayQuery(query, {
+        getAtomicEvaluationCapture,
       });
     },
+    getFrontViewSnapshot(options = {}) {
+      return getFrontViewSnapshot(options);
+    },
     getUsage() {
-      return buildChasePlayUsage();
+      return buildChasePlayUsage({
+        passiveObservation: getPassiveObservationCapability(),
+      });
     },
     dispose() {
       runtimeLoop?.dispose();

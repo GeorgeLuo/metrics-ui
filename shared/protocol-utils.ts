@@ -660,7 +660,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
   });
 
   return {
-    protocolVersion: "1.2.0",
+    protocolVersion: "1.3.0",
     commands: [
       "hello",
       "get_state",
@@ -720,6 +720,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "set_live_source",
       "play_game_action",
       "play_game_command",
+      "play_game_query",
       "sync_capture_sources",
       "live_start",
       "live_stop",
@@ -754,6 +755,7 @@ export function buildCapabilitiesPayload(): CapabilitiesPayload {
       "ui_debug",
       "play_debug",
       "play_game_usage",
+      "play_game_query_result",
       "play_front_view_snapshot",
       "ui_notice",
       "ui_error",

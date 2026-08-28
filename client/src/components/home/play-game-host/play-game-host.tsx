@@ -8,6 +8,7 @@ import { usePlaySidebarBridge } from "./use-play-sidebar-bridge";
 import type {
   PlayFrontViewSnapshotHandler,
   PlayGameCommandHandler,
+  PlayGameQueryHandler,
   PlayGameUsageHandler,
   PlayGameHostProps,
   PlayViewportSpec,
@@ -24,6 +25,7 @@ export function PlayGameHost({
   onDebugSnapshotChange,
   onFrontViewSnapshotHandlerChange,
   onGameCommandHandlerChange,
+  onGameQueryHandlerChange,
   onGameUsageHandlerChange,
 }: PlayGameHostProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -59,6 +61,11 @@ export function PlayGameHost({
   ) => {
     onGameCommandHandlerChange?.(handler ?? null);
   }, [onGameCommandHandlerChange]);
+  const setGameQueryHandler = useCallback((
+    handler: PlayGameQueryHandler | null | undefined,
+  ) => {
+    onGameQueryHandlerChange?.(handler ?? null);
+  }, [onGameQueryHandlerChange]);
   const setGameUsageHandler = useCallback((
     handler: PlayGameUsageHandler | null | undefined,
   ) => {
@@ -81,6 +88,7 @@ export function PlayGameHost({
     setViewportSpec,
     setFrontViewSnapshotHandler,
     setGameCommandHandler,
+    setGameQueryHandler,
     setGameUsageHandler,
   });
 

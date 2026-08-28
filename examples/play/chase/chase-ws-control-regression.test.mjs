@@ -1,13 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildCapabilitiesPayload } from "../../../shared/protocol-utils.ts";
 import { CHASER_CONTROL_SOURCES } from "./config/constants.mjs";
+import { handleQueryCommand } from "../../../client/src/hooks/ws/handlers/query.ts";
 import {
   CHASE_PLAY_COMMAND_IDS,
   handleChasePlayCommand,
 } from "./ui/chase-play-commands.mjs";
+import {
+  CHASE_PLAY_QUERY_IDS,
+  handleChasePlayQuery,
+} from "./ui/chase-play-queries.mjs";
 import { createChaseLoop } from "./ui/chase-loop.mjs";
 import { buildChasePlayUsage } from "./ui/chase-play-usage.mjs";
 import { createControlInputTracker } from "./ui/input-tracker.mjs";
+import {
+  buildChasePassiveObservationCapability,
+} from "./evaluation/passive-observation.ts";
 
 function createKeyboardWindowStub() {
   const listeners = new Map();
@@ -78,7 +87,11 @@ test("chase play commands adapt generic host commands to chaser controls", () =>
 });
 
 test("chase play usage documents CLI flow and game command ids", () => {
-  const usage = buildChasePlayUsage();
+  const usage = buildChasePlayUsage({
+    passiveObservation: buildChasePassiveObservationCapability({
+      evaderExists: false,
+    }),
+  });
   const commandIds = new Set((usage.wireCommands ?? []).map((command) => command.commandId));
 
   assert.equal(usage.game.id, "chase");
@@ -96,6 +109,148 @@ test("chase play usage documents CLI flow and game command ids", () => {
     usage.cli.some((group) => group.commands.some((command) => command.command.includes("rendering-seed"))),
     "expected usage CLI examples to include deterministic rendering variation",
   );
+  assert.equal(
+    usage.protocol.evaluationCaptureQueryId,
+    CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
+  );
+  assert.ok(
+    usage.cli.some((group) => group.commands.some((command) => command.command.includes("play-evaluation-capture"))),
+    "expected usage CLI examples to include persisted evaluation capture",
+  );
+  assert.deepEqual(usage.protocol.passiveObservation.actors, ["chaser"]);
+  assert.deepEqual(usage.protocol.passiveObservation.cameras, ["front_camera"]);
+});
+
+test("chase play queries adapt atomic capture requests without owning transport", () => {
+  const calls = [];
+  const capture = { captureId: "chase:evaluation:run-1:chaser:7" };
+
+  assert.equal(handleChasePlayQuery({
+    queryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
+    payload: {
+      actorId: "chaser",
+      cameraId: "front_camera",
+      width: 640,
+      height: 480,
+      ignored: true,
+    },
+  }, {
+    getAtomicEvaluationCapture: (options) => {
+      calls.push(options);
+      return capture;
+    },
+  }), capture);
+  assert.equal(handleChasePlayQuery({ queryId: "unknown" }, {}), undefined);
+  assert.deepEqual(calls, [{
+    actorId: "chaser",
+    cameraId: "front_camera",
+    width: 640,
+    height: 480,
+  }]);
+});
+
+test("chase play queries preserve malformed actor and camera types for capture validation", () => {
+  const calls = [];
+  handleChasePlayQuery({
+    queryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
+    payload: {
+      actorId: 123,
+      cameraId: null,
+      width: 640,
+    },
+  }, {
+    getAtomicEvaluationCapture: (options) => {
+      calls.push(options);
+      return { passiveObservation: { supported: false } };
+    },
+  });
+  assert.deepEqual(calls, [{
+    actorId: 123,
+    cameraId: null,
+    width: 640,
+  }]);
+});
+
+test("generic Play query transport returns the active game result and an ack", () => {
+  const sent = [];
+  const acknowledgements = [];
+  const errors = [];
+  const result = { captureId: "chase:evaluation:run-1:chaser:7" };
+  const context = {
+    onPlayGameQuery(query) {
+      assert.deepEqual(query, {
+        queryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
+        payload: { actorId: "chaser" },
+      });
+      return result;
+    },
+    sendMessage(message) {
+      sent.push(message);
+      return true;
+    },
+    sendAck(requestId, command) {
+      acknowledgements.push({ requestId, command });
+    },
+    sendError(requestId, error, details) {
+      errors.push({ requestId, error, details });
+    },
+  };
+
+  assert.equal(handleQueryCommand({
+    type: "play_game_query",
+    request_id: "evaluation-1",
+    queryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
+    payload: { actorId: "chaser" },
+  }, "evaluation-1", context), true);
+  assert.deepEqual(sent, [{
+    type: "play_game_query_result",
+    request_id: "evaluation-1",
+    payload: {
+      queryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
+      result,
+    },
+  }]);
+  assert.deepEqual(acknowledgements, [{
+    requestId: "evaluation-1",
+    command: "play_game_query",
+  }]);
+  assert.deepEqual(errors, []);
+});
+
+test("generic Play query transport is discoverable through protocol capabilities", () => {
+  const capabilities = buildCapabilitiesPayload();
+
+  assert.equal(capabilities.protocolVersion, "1.3.0");
+  assert.ok(capabilities.commands.includes("play_game_query"));
+  assert.ok(capabilities.responses.includes("play_game_query_result"));
+});
+
+test("generic Play query transport rejects unsupported query ids visibly", () => {
+  const errors = [];
+  const context = {
+    onPlayGameQuery() {
+      return undefined;
+    },
+    sendMessage() {
+      return true;
+    },
+    sendAck() {
+      assert.fail("unsupported queries must not be acknowledged");
+    },
+    sendError(requestId, error, details) {
+      errors.push({ requestId, error, details });
+    },
+  };
+
+  assert.equal(handleQueryCommand({
+    type: "play_game_query",
+    queryId: "unknown",
+  }, "query-unsupported", context), true);
+  assert.deepEqual(errors, [{
+    requestId: "query-unsupported",
+    error: "Play game query is not supported: unknown",
+    details: { queryId: "unknown" },
+  }]);
 });
 
 test("keyboard chaser input can relay from a popout window", () => {

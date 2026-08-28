@@ -1,0 +1,56 @@
+{
+  "contractVersion": 1,
+  "captureId": "chase:evaluation:chase-run%3Ad8d2ec6a-0257-445e-a1f5-d6b861cb290b:chaser:0",
+  "actorId": "chaser",
+  "frameIdentity": {
+    "gameId": "chase",
+    "simulationEpoch": "chase-run:d8d2ec6a-0257-445e-a1f5-d6b861cb290b",
+    "frameIndex": 0
+  },
+  "playback": {
+    "advanced": false
+  },
+  "sensor": {
+    "image": {
+      "contentType": "image/png",
+      "rendererId": "chase-actor-view-threejs-v1",
+      "width": 640,
+      "height": 480,
+      "file": "after-reset.png"
+    }
+  },
+  "evaluator": {
+    "classification": "non-sensor",
+    "shadow": {
+      "kind": "visible-observation-summary",
+      "visibleActorCount": 0,
+      "visibleWallCount": 3,
+      "visibleAreaCellCount": 205,
+      "observationCount": 208
+    },
+    "reference": {
+      "kind": "actor-control-reference",
+      "scenarioId": "chaser-depth-obstacles",
+      "controlSource": "ws",
+      "phase": "before-actions",
+      "actionFrameIndex": 0,
+      "input": {
+        "source": "ws",
+        "forward": false,
+        "reverse": false,
+        "steering": 0
+      },
+      "action": {
+        "source": "ws",
+        "forward": false,
+        "reverse": false,
+        "steering": 0,
+        "selectedActionProposalId": null
+      }
+    }
+  },
+  "files": {
+    "metadata": "after-reset.json",
+    "image": "after-reset.png"
+  }
+}
