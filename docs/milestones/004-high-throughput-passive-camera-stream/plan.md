@@ -4,7 +4,7 @@
 | --- | --- |
 | Status | Active |
 | Milestone branch | `milestone/004-high-throughput-passive-camera-stream` |
-| Cumulative PR | TBD |
+| Cumulative PR | [#159](https://github.com/GeorgeLuo/metrics-ui/pull/159) (draft until whole-milestone closeout) |
 | Current frontier | Camera stream contract |
 | Started | 2026-08-28 |
 | Action policy | Playback-neutral camera stream; sensor is image-only; no vehicle-behavior change |
