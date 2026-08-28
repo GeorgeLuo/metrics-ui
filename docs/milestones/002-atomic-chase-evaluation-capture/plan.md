@@ -56,10 +56,11 @@ simulator-only geometry through the sensor interface.
 
 **Milestone closeout**
 
-- Workflow state: proposal_in_review
+- Workflow state: ready_for_implementation
 - Proposal branch: `m002/closeout-proposal`
 - Implementation branch: `m002/closeout`
 - Proposal path: `docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md`
+- Accepted proposal: [#155](https://github.com/GeorgeLuo/metrics-ui/pull/155) at `b4e34636fce58e243d580a374dc0739e9af2f0f0` (reviewed head `8757aae5f18e9e5a9137f42d63a19a029161042a` by `GeorgeLuo` as `OWNER` at `2026-08-28T22:17:07Z`)
 - Review kind: Milestone closeout
 - Review question: Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated?
 - Acceptance owner: Whole-milestone closeout judgment
@@ -86,6 +87,7 @@ simulator-only geometry through the sensor interface.
 | M002 activation | ready_for_proposal | Historical mixed review units #144, #147, #148, #149, and #151 landed on the milestone branch before compact-contract adoption. |
 | Idle | idle | Plan revision: replace the hand-authored HTML plan with compact Markdown after #153; record mid-milestone cutover; leave current idle; keep Milestone closeout as the remaining work-order node. |
 | Milestone closeout | proposal_in_review | Selected remaining work-order node; proposal at docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md. |
+| Milestone closeout | ready_for_implementation | Proposal PR #155 accepted at b4e34636fce58e243d580a374dc0739e9af2f0f0 (reviewed head `8757aae5f18e9e5a9137f42d63a19a029161042a` by `GeorgeLuo` as `OWNER` at `2026-08-28T22:17:07Z`). |
 
 ## Accepted Review Units
 
