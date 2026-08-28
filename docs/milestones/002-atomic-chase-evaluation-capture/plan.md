@@ -56,7 +56,7 @@ simulator-only geometry through the sensor interface.
 
 **Milestone closeout**
 
-- Workflow state: ready_for_implementation
+- Workflow state: implementation_in_review
 - Proposal branch: `m002/closeout-proposal`
 - Implementation branch: `m002/closeout`
 - Proposal path: `docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md`
@@ -88,6 +88,7 @@ simulator-only geometry through the sensor interface.
 | Idle | idle | Plan revision: replace the hand-authored HTML plan with compact Markdown after #153; record mid-milestone cutover; leave current idle; keep Milestone closeout as the remaining work-order node. |
 | Milestone closeout | proposal_in_review | Selected remaining work-order node; proposal at docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md. |
 | Milestone closeout | ready_for_implementation | Proposal PR #155 accepted at b4e34636fce58e243d580a374dc0739e9af2f0f0 (reviewed head `8757aae5f18e9e5a9137f42d63a19a029161042a` by `GeorgeLuo` as `OWNER` at `2026-08-28T22:17:07Z`). |
+| Milestone closeout | implementation_in_review | Started m002/closeout. |
 
 ## Accepted Review Units
 
