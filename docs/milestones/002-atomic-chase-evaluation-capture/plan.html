@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="source-sha256" content="1a7bf2c67618a8e5294bab1c3f14cba8f394d5b6db45ba7270abc385541bc668">
+  <meta name="source-sha256" content="a40b07a347b245c58ab6e8a5deaf8b2dd8666313e97ea5cc99dbc9c9d1e5c66d">
   <base target="_blank">
   <title>Milestone plan — 002-atomic-chase-evaluation-capture</title>
   <style>
@@ -85,7 +85,7 @@
 </tr>
 <tr>
 <td>Current frontier</td>
-<td>None</td>
+<td>Milestone closeout</td>
 </tr>
 <tr>
 <td>Contract baseline</td>
@@ -241,14 +241,9 @@ simulator-only geometry through the sensor interface.</p>
 </table>
 <h2>Current Delivery</h2>
 <h3>Current Frontier</h3>
-<p><strong>None</strong></p>
-<ul>
-<li>Reason: PR #151 is accepted. Current is idle until the next proposal selects Milestone closeout from the work order.</li>
-<li>Revisit when: The operator is ready to open the closeout proposal.</li>
-</ul>
-<h3>Next-Frontier Candidate</h3>
 <p><strong>Milestone closeout</strong></p>
 <ul>
+<li>Workflow state: proposal_in_review</li>
 <li>Proposal branch: <code>m002/closeout-proposal</code></li>
 <li>Implementation branch: <code>m002/closeout</code></li>
 <li>Proposal path: <code>docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md</code></li>
@@ -257,24 +252,18 @@ simulator-only geometry through the sensor interface.</p>
 <li>Acceptance owner: Whole-milestone closeout judgment</li>
 <li>Exit criteria affected: M002-09</li>
 <li>Prerequisite: Every other criterion is Met</li>
-<li>Non-goals: Product-code repair, reopening accepted capture units, VLM interpretation, or changing the accepted sensor/evaluator privilege boundary</li>
+<li>Milestone-level non-goal: Product-code repair, reopening accepted capture units, VLM interpretation, or changing the accepted sensor/evaluator privilege boundary</li>
+</ul>
+<h3>Next-Frontier Candidate</h3>
+<p><strong>None</strong></p>
+<ul>
+<li>Reason: No remaining work-order node is contracted.</li>
+<li>Revisit when: The next proposal may introduce a node.</li>
 </ul>
 <h3>Frontier Map</h3>
 <ul>
-<li>Path: <code>Milestone closeout</code></li>
+<li>Path: none</li>
 <li>Cadence: linked-list</li>
-</ul>
-<h4>Node: Milestone closeout</h4>
-<ul>
-<li>Proposal branch: <code>m002/closeout-proposal</code></li>
-<li>Implementation branch: <code>m002/closeout</code></li>
-<li>Proposal path: <code>docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md</code></li>
-<li>Review kind: Milestone closeout</li>
-<li>Review question: Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated?</li>
-<li>Acceptance owner: Whole-milestone closeout judgment</li>
-<li>Exit criteria affected: M002-09</li>
-<li>Prerequisite: Every other criterion is Met</li>
-<li>Non-goals: Product-code repair, reopening accepted capture units, VLM interpretation, or changing the accepted sensor/evaluator privilege boundary</li>
 </ul>
 <h2>Workflow History</h2>
 <table>
@@ -295,6 +284,11 @@ simulator-only geometry through the sensor interface.</p>
 <td>Idle</td>
 <td>idle</td>
 <td>Plan revision: replace the hand-authored HTML plan with compact Markdown after #153; record mid-milestone cutover; leave current idle; keep Milestone closeout as the remaining work-order node.</td>
+</tr>
+<tr>
+<td>Milestone closeout</td>
+<td>proposal_in_review</td>
+<td>Selected remaining work-order node; proposal at docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md.</td>
 </tr>
 </tbody>
 </table>
