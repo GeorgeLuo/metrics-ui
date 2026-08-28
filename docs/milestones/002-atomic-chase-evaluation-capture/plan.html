@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="source-sha256" content="15f242e3aafc7e8145d2d7afc2c58fd6bc0928a3a7a6a335479d6fedf7e177bf">
+  <meta name="source-sha256" content="7b059ddbc50eade4bdea1cdee4511089077c987d9ab33f1227d275d16dd1b28a">
   <base target="_blank">
   <title>Milestone plan — 002-atomic-chase-evaluation-capture</title>
   <style>
@@ -73,7 +73,7 @@
 <tbody>
 <tr>
 <td>Status</td>
-<td>Active</td>
+<td>closed</td>
 </tr>
 <tr>
 <td>Milestone branch</td>
@@ -85,7 +85,7 @@
 </tr>
 <tr>
 <td>Current frontier</td>
-<td>Milestone closeout</td>
+<td>None (closed)</td>
 </tr>
 <tr>
 <td>Contract baseline</td>
@@ -234,26 +234,17 @@ simulator-only geometry through the sensor interface.</p>
 <tr>
 <td>M002-09</td>
 <td>Closeout records delivered usage, every criterion, residual risk, and whether the 003 pre-plan should be activated</td>
-<td>Unmet</td>
-<td>Closeout is the remaining work-order node</td>
+<td>Met</td>
+<td>Closeout confirms completion usage, maps accepted M002-01–M002-08 evidence, records auto-driving and browser-animation residuals, and activates the 003 pre-plan decision in PR #156</td>
 </tr>
 </tbody>
 </table>
 <h2>Current Delivery</h2>
 <h3>Current Frontier</h3>
-<p><strong>Milestone closeout</strong></p>
+<p><strong>None</strong></p>
 <ul>
-<li>Workflow state: implementation_in_review</li>
-<li>Proposal branch: <code>m002/closeout-proposal</code></li>
-<li>Implementation branch: <code>m002/closeout</code></li>
-<li>Proposal path: <code>docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md</code></li>
-<li>Accepted proposal: <a href="https://github.com/GeorgeLuo/metrics-ui/pull/155">#155</a> at <code>b4e34636fce58e243d580a374dc0739e9af2f0f0</code> (reviewed head <code>8757aae5f18e9e5a9137f42d63a19a029161042a</code> by <code>GeorgeLuo</code> as <code>OWNER</code> at <code>2026-08-28T22:17:07Z</code>)</li>
-<li>Review kind: Milestone closeout</li>
-<li>Review question: Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated?</li>
-<li>Acceptance owner: Whole-milestone closeout judgment</li>
-<li>Exit criteria affected: M002-09</li>
-<li>Prerequisite: Every other criterion is Met</li>
-<li>Milestone-level non-goal: Product-code repair, reopening accepted capture units, VLM interpretation, or changing the accepted sensor/evaluator privilege boundary</li>
+<li>Reason: Milestone closed after PR #156.</li>
+<li>Revisit when: No in-milestone work remains.</li>
 </ul>
 <h3>Next-Frontier Candidate</h3>
 <p><strong>None</strong></p>
@@ -300,6 +291,11 @@ simulator-only geometry through the sensor interface.</p>
 <td>Milestone closeout</td>
 <td>implementation_in_review</td>
 <td>Started m002/closeout.</td>
+</tr>
+<tr>
+<td>Milestone closeout</td>
+<td>accepted</td>
+<td>Implementation PR #156 merged at e18eb3166ee0bcc4698030d1edd37203c8bc442f.</td>
 </tr>
 </tbody>
 </table>
@@ -357,6 +353,13 @@ simulator-only geometry through the sensor interface.</p>
 <td>M002-02, M002-03, M002-04</td>
 <td>Passive-observation capability, fingerprint, and fail-closed unsupported/drift responses</td>
 </tr>
+<tr>
+<td>#156</td>
+<td>Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated?</td>
+<td>Accepted</td>
+<td>M002-09</td>
+<td>M002 closeout judgment in closeout.md; completed.md 002 entry; accepted capture, transport, live-controller, control-reference, and passive-observation evidence mapped; auto-driving remainder and browser-animation limits recorded; 003 activate decision recorded; cumulative PR #146 prepared for post-handoff whole-milestone review in implementation PR #156</td>
+</tr>
 </tbody>
 </table>
 <p>The baseline row is the explicit adoption boundary; post-baseline rows restated
@@ -372,14 +375,9 @@ the already-merged mixed units for auditability.</p>
 </thead>
 <tbody>
 <tr>
-<td>Auto-driving still needs an atomic-response adapter and live Chase alignment before <em>its</em> memory work is unblocked</td>
-<td>Closeout could either treat that as a 002 obligation or as an external residual</td>
-<td>Closeout must choose explicitly; do not hide it inside M002-09</td>
-</tr>
-<tr>
-<td>Live movement evidence depends on an active browser animation frame</td>
-<td>A backgrounded frontend can fail validation without a capture-contract defect</td>
-<td>Keep the fixture fail-closed on unchanged movement evidence; do not weaken the capture contract</td>
+<td></td>
+<td></td>
+<td></td>
 </tr>
 </tbody>
 </table>

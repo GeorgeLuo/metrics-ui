@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Active |
+| Status | closed |
 | Milestone branch | `milestone/002-atomic-chase-evaluation-capture` |
 | Cumulative PR | [#146](https://github.com/GeorgeLuo/metrics-ui/pull/146) (draft until whole-milestone closeout; transitional complete-milestone delta after #143/#145) |
-| Current frontier | Milestone closeout |
+| Current frontier | None (closed) |
 | Contract baseline | `7508289` — M002 mixed review units through PR #151, before compact-contract adoption |
 | Grandfathered PRs | #146 (cumulative draft targeting `main`; keeps whole-milestone review kind) |
 | Cutover | PR #153 merged the compact contract to `main`; this plan replaces the hand-authored `plan.html` as the Markdown source. Later in-milestone review units use `m002/<frontier>-proposal` then `m002/<frontier>` targeting the milestone branch. Do not retarget #146. |
@@ -48,32 +48,23 @@ simulator-only geometry through the sensor interface.
 | M002-06 | Evaluator output contains only documented count and control-reference fields, with no map geometry, poses, reasoning snapshots, or proposal collections | Met | Bounded control reference in #149 |
 | M002-07 | SimEval can persist the artifact and structured metadata for an external-controller run | Met | Persistence path and live fixture in #148 |
 | M002-08 | Regression and live evidence prove before/after controller behavior without identity drift, including across simulation resets | Met | `evidence/live-controller/`; 31/31 checks in #148/#149 |
-| M002-09 | Closeout records delivered usage, every criterion, residual risk, and whether the 003 pre-plan should be activated | Unmet | Closeout is the remaining work-order node |
+| M002-09 | Closeout records delivered usage, every criterion, residual risk, and whether the 003 pre-plan should be activated | Met | Closeout confirms completion usage, maps accepted M002-01–M002-08 evidence, records auto-driving and browser-animation residuals, and activates the 003 pre-plan decision in PR #156 |
 
 ## Current Delivery
 
 ### Current Frontier
 
-**Milestone closeout**
+**None**
 
-- Workflow state: implementation_in_review
-- Proposal branch: `m002/closeout-proposal`
-- Implementation branch: `m002/closeout`
-- Proposal path: `docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md`
-- Accepted proposal: [#155](https://github.com/GeorgeLuo/metrics-ui/pull/155) at `b4e34636fce58e243d580a374dc0739e9af2f0f0` (reviewed head `8757aae5f18e9e5a9137f42d63a19a029161042a` by `GeorgeLuo` as `OWNER` at `2026-08-28T22:17:07Z`)
-- Review kind: Milestone closeout
-- Review question: Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated?
-- Acceptance owner: Whole-milestone closeout judgment
-- Exit criteria affected: M002-09
-- Prerequisite: Every other criterion is Met
-- Milestone-level non-goal: Product-code repair, reopening accepted capture units, VLM interpretation, or changing the accepted sensor/evaluator privilege boundary
+- Reason: Milestone closed after PR #156.
+- Revisit when: No in-milestone work remains.
 
 ### Next-Frontier Candidate
 
 **None**
 
-- Reason: Closeout is current; no later in-milestone node is contracted.
-- Revisit when: Cross-milestone activation of 003 happens after closeout Phase C.
+- Reason: No remaining work-order node is contracted.
+- Revisit when: The next proposal may introduce a node.
 
 ### Frontier Map
 
@@ -89,6 +80,7 @@ simulator-only geometry through the sensor interface.
 | Milestone closeout | proposal_in_review | Selected remaining work-order node; proposal at docs/milestones/002-atomic-chase-evaluation-capture/proposals/closeout.md. |
 | Milestone closeout | ready_for_implementation | Proposal PR #155 accepted at b4e34636fce58e243d580a374dc0739e9af2f0f0 (reviewed head `8757aae5f18e9e5a9137f42d63a19a029161042a` by `GeorgeLuo` as `OWNER` at `2026-08-28T22:17:07Z`). |
 | Milestone closeout | implementation_in_review | Started m002/closeout. |
+| Milestone closeout | accepted | Implementation PR #156 merged at e18eb3166ee0bcc4698030d1edd37203c8bc442f. |
 
 ## Accepted Review Units
 
@@ -100,6 +92,7 @@ simulator-only geometry through the sensor interface.
 | #148 | Do SimEval persistence, a bounded live fixture, and strict offline validation prove the public path including movement and reset identity? | Accepted | M002-07, M002-08 | `evidence/live-controller/` before the control-reference extension |
 | #149 | Does atomic capture include a same-state evaluator-only control reference without map geometry or debug dumps? | Accepted | M002-01, M002-06, M002-08 | `evidence/live-controller/validation.json` 31/31 |
 | #151 | Can an external observer discover Chase capture support and receive an image only when scenario, epoch, frame, playback phase, control state, actor, and camera remain unchanged? | Accepted | M002-02, M002-03, M002-04 | Passive-observation capability, fingerprint, and fail-closed unsupported/drift responses |
+| #156 | Is Milestone 002 complete as a whole—every exit criterion Met, completion usage supported, residual risk stated—and should the 003 observation-interpretation pre-plan be activated? | Accepted | M002-09 | M002 closeout judgment in closeout.md; completed.md 002 entry; accepted capture, transport, live-controller, control-reference, and passive-observation evidence mapped; auto-driving remainder and browser-animation limits recorded; 003 activate decision recorded; cumulative PR #146 prepared for post-handoff whole-milestone review in implementation PR #156 |
 
 The baseline row is the explicit adoption boundary; post-baseline rows restated
 the already-merged mixed units for auditability.
@@ -108,8 +101,6 @@ the already-merged mixed units for auditability.
 
 | Risk or assumption | Consequence | Resolution path |
 | --- | --- | --- |
-| Auto-driving still needs an atomic-response adapter and live Chase alignment before *its* memory work is unblocked | Closeout could either treat that as a 002 obligation or as an external residual | Closeout must choose explicitly; do not hide it inside M002-09 |
-| Live movement evidence depends on an active browser animation frame | A backgrounded frontend can fail validation without a capture-contract defect | Keep the fixture fail-closed on unchanged movement evidence; do not weaken the capture contract |
 
 ## Milestone Decisions
 
