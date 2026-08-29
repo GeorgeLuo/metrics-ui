@@ -128,6 +128,8 @@ test("registry forwards a camera frame only to the mapped agent, never to a seco
       actorId: "chaser",
       cameraId: "front_camera",
       frameIdentity: { gameId: "chase", simulationEpoch: "run-1", frameIndex: 3 },
+      sourceTimestampUs: 123_000,
+      publishedAtUs: 124_000,
       playback: { advanced: false },
       droppedFrameCount: 0,
       sensor: { image: { contentType: "image/jpeg" } },
@@ -140,6 +142,12 @@ test("registry forwards a camera frame only to the mapped agent, never to a seco
   ]);
   assert.equal(secondAgent.sent.length, 0);
   assert.equal(registry.getAgentForSubscription(subscriptionId), subscriber);
+  assert.equal(agentMessages[0]?.message.payload && "sourceTimestampUs" in agentMessages[0].message.payload
+    ? (agentMessages[0].message.payload as { sourceTimestampUs: number }).sourceTimestampUs
+    : undefined, 123_000);
+  assert.equal(agentMessages[0]?.message.payload && "publishedAtUs" in agentMessages[0].message.payload
+    ? (agentMessages[0].message.payload as { publishedAtUs: number }).publishedAtUs
+    : undefined, 124_000);
 });
 
 test("agent disconnect removes the camera stream mapping and asks the frontend to unsubscribe", () => {

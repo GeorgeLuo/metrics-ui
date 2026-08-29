@@ -2,8 +2,13 @@ import type { ControlCommand, ControlResponse } from "@shared/schema";
 import type {
   CameraStreamPushMessage,
   CameraStreamResultPayload,
+  CameraStreamResultPayloadDraft,
   CameraStreamSubscribeRequest,
   CameraStreamUnsubscribeRequest,
+} from "@shared/play-camera-stream";
+import {
+  stampCameraStreamResultPublished,
+  toCameraStreamTimestampUs,
 } from "@shared/play-camera-stream";
 import type { WsCommandDispatchContext } from "@/hooks/ws/dispatch-context";
 
@@ -20,15 +25,51 @@ function copyPresentFields(
   return request;
 }
 
+function readPublishTimestampUs(): number | null {
+  if (typeof globalThis.performance?.now !== "function") {
+    return null;
+  }
+  try {
+    return toCameraStreamTimestampUs(globalThis.performance.now());
+  } catch {
+    return null;
+  }
+}
+
 function sendResult(
   context: WsCommandDispatchContext,
   requestId: string | undefined,
-  result: CameraStreamResultPayload,
+  result: CameraStreamResultPayloadDraft,
 ): void {
+  let wireResult: CameraStreamResultPayload;
+  if (result.event === "subscribed") {
+    const publishedAtUs = readPublishTimestampUs();
+    wireResult = stampCameraStreamResultPublished(result, publishedAtUs)
+      ?? {
+        event: "unsupported",
+        cameraStream: {
+          supported: false,
+          reason: {
+            code: "source_timestamp_invalid",
+            message: "Camera stream publish timestamp was unavailable or invalid.",
+            field: "publishedAtUs",
+          },
+        },
+      };
+    if (wireResult.event === "unsupported") {
+      try {
+        context.onPlayCameraStreamUnsubscribe?.({ subscriptionId: result.subscriptionId });
+      } catch {
+        // The runtime may already be closing; the unsupported result is still sent.
+      }
+    }
+  } else {
+    wireResult = result;
+  }
   context.sendMessage({
     type: "play_camera_stream_result",
     request_id: requestId,
-    payload: result,
+    payload: wireResult,
   });
 }
 
@@ -54,8 +95,9 @@ export function handleCameraStreamCommand(
         "imageFormat",
         "quality",
         "maxRateHz",
+        "dropPolicy",
       ]) as CameraStreamSubscribeRequest;
-      let result: CameraStreamResultPayload;
+      let result: CameraStreamResultPayloadDraft;
       try {
         result = context.onPlayCameraStreamSubscribe(
           request,
@@ -89,7 +131,7 @@ export function handleCameraStreamCommand(
       const request = copyPresentFields(command as unknown as Record<string, unknown>, [
         "subscriptionId",
       ]) as CameraStreamUnsubscribeRequest;
-      let result: CameraStreamResultPayload;
+      let result: CameraStreamResultPayloadDraft;
       try {
         result = context.onPlayCameraStreamUnsubscribe(request);
       } catch (error) {
