@@ -14,6 +14,12 @@ import type {
   MemoryStatsResponse,
   UiDebugResponse,
 } from "@shared/schema";
+import type {
+  CameraStreamPushMessage,
+  CameraStreamResultPayload,
+  CameraStreamSubscribeRequest,
+  CameraStreamUnsubscribeRequest,
+} from "@shared/play-camera-stream";
 import { RESPONSE_TYPES, QUEUED_COMMAND_TYPES, WS_CLOSE_FRONTEND_BUSY, WS_CLOSE_FRONTEND_REPLACED } from "@/hooks/ws/constants";
 import { dispatchWsCommand } from "@/hooks/ws/command-dispatch";
 import { sendControlSocketMessage } from "@/hooks/ws/socket-send";
@@ -32,6 +38,13 @@ type PlayGameQueryInput = Pick<
   Extract<ControlCommand, { type: "play_game_query" }>,
   "queryId" | "payload"
 >;
+type PlayCameraStreamSubscribeHandler = (
+  request: CameraStreamSubscribeRequest,
+  emit: (message: CameraStreamPushMessage) => unknown,
+) => CameraStreamResultPayload;
+type PlayCameraStreamUnsubscribeHandler = (
+  request: CameraStreamUnsubscribeRequest,
+) => CameraStreamResultPayload;
 
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
@@ -85,6 +98,8 @@ interface UseWebSocketControlProps {
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
   onPlayGameCommand?: (command: PlayGameCommandInput) => boolean;
   onPlayGameQuery?: (query: PlayGameQueryInput) => unknown;
+  onPlayCameraStreamSubscribe?: PlayCameraStreamSubscribeHandler;
+  onPlayCameraStreamUnsubscribe?: PlayCameraStreamUnsubscribeHandler;
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
@@ -226,6 +241,8 @@ export function useWebSocketControl({
   onPlayGameAction,
   onPlayGameCommand,
   onPlayGameQuery,
+  onPlayCameraStreamSubscribe,
+  onPlayCameraStreamUnsubscribe,
   onCaptureInit,
   onCaptureComponents,
   onCaptureAppend,
@@ -517,6 +534,8 @@ export function useWebSocketControl({
       onPlayGameAction,
       onPlayGameCommand,
       onPlayGameQuery,
+      onPlayCameraStreamSubscribe,
+      onPlayCameraStreamUnsubscribe,
       onLiveStart,
       onLiveStop,
       onCaptureInit,
@@ -605,6 +624,8 @@ export function useWebSocketControl({
     onPlayGameAction,
     onPlayGameCommand,
     onPlayGameQuery,
+    onPlayCameraStreamSubscribe,
+    onPlayCameraStreamUnsubscribe,
     onLiveStart,
     onLiveStop,
     onCaptureInit,

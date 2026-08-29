@@ -14,6 +14,13 @@ export const CHASE_PASSIVE_OBSERVATION_PRESERVED_FIELDS = Object.freeze([
   "actorId",
   "cameraId",
 ]);
+export const CHASE_PASSIVE_OBSERVATION_SESSION_IDENTITY_FIELDS = Object.freeze([
+  "gameId",
+  "scenarioId",
+  "simulationEpoch",
+  "actorId",
+  "cameraId",
+]);
 
 export type ChaseControlInputFingerprint = {
   source: string;
@@ -119,7 +126,7 @@ function cloneControlInput(
   return input ? { ...input } : null;
 }
 
-function cloneFingerprint(
+export function cloneChasePassiveObservationFingerprint(
   fingerprint: ChasePassiveObservationFingerprint,
 ): ChasePassiveObservationFingerprint {
   return {
@@ -150,17 +157,18 @@ function buildUnsupported(
         code,
         message,
       },
-      ...(fingerprints.before ? { before: cloneFingerprint(fingerprints.before) } : {}),
-      ...(fingerprints.after ? { after: cloneFingerprint(fingerprints.after) } : {}),
+      ...(fingerprints.before ? { before: cloneChasePassiveObservationFingerprint(fingerprints.before) } : {}),
+      ...(fingerprints.after ? { after: cloneChasePassiveObservationFingerprint(fingerprints.after) } : {}),
     },
   };
 }
 
-function changedFingerprintFields(
+export function getChangedChasePassiveObservationFingerprintFields(
   before: ChasePassiveObservationFingerprint,
   after: ChasePassiveObservationFingerprint,
+  fields: readonly string[] = CHASE_PASSIVE_OBSERVATION_PRESERVED_FIELDS,
 ): string[] {
-  return CHASE_PASSIVE_OBSERVATION_PRESERVED_FIELDS.filter((field) =>
+  return fields.filter((field) =>
     JSON.stringify(before[field as keyof ChasePassiveObservationFingerprint])
       !== JSON.stringify(after[field as keyof ChasePassiveObservationFingerprint]));
 }
@@ -341,7 +349,7 @@ export function buildPassiveChaseEvaluationCapture({
       { before },
     );
   }
-  const changedFields = changedFingerprintFields(before, after);
+  const changedFields = getChangedChasePassiveObservationFingerprintFields(before, after);
   if (changedFields.length > 0) {
     return buildUnsupported(
       "session_changed",
@@ -377,8 +385,8 @@ export function buildPassiveChaseEvaluationCapture({
       preservedFields: [...CHASE_PASSIVE_OBSERVATION_PRESERVED_FIELDS],
       preservation: {
         preserved: true,
-        before: cloneFingerprint(before),
-        after: cloneFingerprint(after),
+        before: cloneChasePassiveObservationFingerprint(before),
+        after: cloneChasePassiveObservationFingerprint(after),
       },
     },
   };

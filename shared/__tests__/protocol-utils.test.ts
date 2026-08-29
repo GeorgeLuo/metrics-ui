@@ -344,8 +344,12 @@ test("buildCapabilitiesPayload names sub-apps and current command families", () 
   assert.ok(capabilities.commands.includes("play_game_action"));
   assert.ok(capabilities.commands.includes("play_game_command"));
   assert.ok(capabilities.commands.includes("play_game_query"));
+  assert.ok(capabilities.commands.includes("play_camera_stream_subscribe"));
+  assert.ok(capabilities.commands.includes("play_camera_stream_unsubscribe"));
   assert.ok(capabilities.commands.includes("get_play_game_usage"));
   assert.ok(capabilities.responses.includes("play_game_query_result"));
+  assert.ok(capabilities.responses.includes("play_camera_stream_frame"));
+  assert.ok(capabilities.responses.includes("play_camera_stream_result"));
   assert.ok(capabilities.responses.includes("play_game_usage"));
   assert.deepEqual(
     capabilities.subApps.map((subApp) => [subApp.id, subApp.label]),

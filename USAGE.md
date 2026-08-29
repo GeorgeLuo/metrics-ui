@@ -506,6 +506,8 @@ Play sub-app:
 - Agents should inspect `playSidebarSections` before sending `play_game_action` instead of assuming hardcoded action ids or units. Play controls are game-defined.
 - `{"type":"get_play_debug","request_id":"play-debug-1"}` returns the current game-published debug snapshot as `play_debug`. For Chase, this includes the current/frozen frame, actor IDAE snapshots, pattern prediction units, and the chaser Kuramoto prediction consensus path.
 - `{"type":"play_game_query","request_id":"evaluation-1","queryId":"atomic-evaluation-capture","payload":{"actorId":"chaser","cameraId":"front_camera"}}` invokes a read-only query published by the active game. Inspect `get_play_game_usage` at runtime for `protocol.passiveObservation`, including supported actors, cameras, and preserved session fields. The `play_game_query_result` response repeats the `queryId` and places game-owned data under `result`; unknown actors, cameras, and query IDs return explicit structured errors.
+- `{"type":"play_camera_stream_subscribe","request_id":"stream-sub-1","actorId":"chaser","cameraId":"front_camera","imageFormat":"image/jpeg","width":320,"height":240,"quality":0.6,"maxRateHz":15}` starts a read-only Chase camera stream; `play_camera_stream_frame` pushes JPEG `sensor.image` payloads tagged with `gameId`, `simulationEpoch`, and `frameIndex`, using latest-frame-only backpressure and cumulative `droppedFrameCount`.
+- `{"type":"play_camera_stream_unsubscribe","request_id":"stream-unsub-1","subscriptionId":"chase-cam:..."}` stops the stream. The stream contains no evaluator data; `atomic-evaluation-capture` remains the separate one-shot camera-plus-evaluator query. Unsupported requests, missing frontend registration, and frontend disconnects fail with the existing structured codes, and session identity changes end an active stream without an image.
 - Persist one Chase atomic evaluation response: `simeval ui play-evaluation-capture --actor chaser --out-dir ./evaluation-captures --ui ws://localhost:5050/ws/control`. SimEval writes the camera artifact separately from referenceable metadata containing the capture ID, frame identity, explicitly non-sensor evaluator shadow, and a before/after preservation receipt. The query does not change scenario, simulation epoch, frame, playback phase, control source/input, actor, or camera. Read requests fail immediately with `frontend_not_connected` when no frontend owns the active session and with `frontend_unresponsive` when a registered frontend does not answer within three seconds.
 - Exercise and validate the complete before/repeat/move/reset flow: `npm run play:chase:evaluation:capture -- --ui ws://localhost:5050/ws/control --out-dir /tmp/chase-evaluation-capture`. Keep the Play frontend tab active because Chase advances on browser animation frames; the fixture fails when no movement frame is observed.
 - Simeval CLI helper: `simeval ui play-debug --summary --ui ws://localhost:5050/ws/control` prints a compact interpretation of the current Chase debug frame; omit `--summary` to dump the full JSON payload.
@@ -713,6 +715,8 @@ Capture streaming (push records over WS):
 - `play_game_action`
 - `play_game_command`
 - `play_game_query`
+- `play_camera_stream_subscribe`
+- `play_camera_stream_unsubscribe`
 - `sync_capture_sources`
 - `live_start`
 - `live_stop`
@@ -773,6 +777,8 @@ Common responses include:
 - `play_debug`
 - `play_game_usage`
 - `play_game_query_result`
+- `play_camera_stream_frame`
+- `play_camera_stream_result`
 - `play_front_view_snapshot`
 - `ui_notice`
 - `ui_error`

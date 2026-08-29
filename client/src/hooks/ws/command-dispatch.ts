@@ -3,6 +3,7 @@ import type { WsCommandDispatchContext } from "@/hooks/ws/dispatch-context";
 import { handleEventCommand } from "@/hooks/ws/handlers/events";
 import { handleInteractionCommand } from "@/hooks/ws/handlers/interaction";
 import { handleQueryCommand } from "@/hooks/ws/handlers/query";
+import { handleCameraStreamCommand } from "@/hooks/ws/handlers/camera-stream";
 
 export type { WsCommandDispatchContext } from "@/hooks/ws/dispatch-context";
 
@@ -15,6 +16,9 @@ export function dispatchWsCommand(
     return;
   }
   if (handleQueryCommand(command, requestId, context)) {
+    return;
+  }
+  if (handleCameraStreamCommand(command, requestId, context)) {
     return;
   }
   handleEventCommand(command, requestId, context);

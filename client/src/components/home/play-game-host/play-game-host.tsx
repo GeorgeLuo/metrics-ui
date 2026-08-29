@@ -9,6 +9,8 @@ import type {
   PlayFrontViewSnapshotHandler,
   PlayGameCommandHandler,
   PlayGameQueryHandler,
+  PlayCameraStreamSubscribeHandler,
+  PlayCameraStreamUnsubscribeHandler,
   PlayGameUsageHandler,
   PlayGameHostProps,
   PlayViewportSpec,
@@ -26,6 +28,8 @@ export function PlayGameHost({
   onFrontViewSnapshotHandlerChange,
   onGameCommandHandlerChange,
   onGameQueryHandlerChange,
+  onCameraStreamSubscribeHandlerChange,
+  onCameraStreamUnsubscribeHandlerChange,
   onGameUsageHandlerChange,
 }: PlayGameHostProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -66,6 +70,16 @@ export function PlayGameHost({
   ) => {
     onGameQueryHandlerChange?.(handler ?? null);
   }, [onGameQueryHandlerChange]);
+  const setCameraStreamSubscribeHandler = useCallback((
+    handler: PlayCameraStreamSubscribeHandler | null | undefined,
+  ) => {
+    onCameraStreamSubscribeHandlerChange?.(handler ?? null);
+  }, [onCameraStreamSubscribeHandlerChange]);
+  const setCameraStreamUnsubscribeHandler = useCallback((
+    handler: PlayCameraStreamUnsubscribeHandler | null | undefined,
+  ) => {
+    onCameraStreamUnsubscribeHandlerChange?.(handler ?? null);
+  }, [onCameraStreamUnsubscribeHandlerChange]);
   const setGameUsageHandler = useCallback((
     handler: PlayGameUsageHandler | null | undefined,
   ) => {
@@ -89,6 +103,8 @@ export function PlayGameHost({
     setFrontViewSnapshotHandler,
     setGameCommandHandler,
     setGameQueryHandler,
+    setCameraStreamSubscribeHandler,
+    setCameraStreamUnsubscribeHandler,
     setGameUsageHandler,
   });
 

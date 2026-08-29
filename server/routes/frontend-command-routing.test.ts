@@ -21,6 +21,29 @@ test("read-only Play probes require a connected frontend response", () => {
   }), false);
 });
 
+test("camera stream subscribe and unsubscribe require a connected frontend", () => {
+  const subscribe = {
+    type: "play_camera_stream_subscribe" as const,
+    request_id: "stream-sub-1",
+  };
+  const unsubscribe = {
+    type: "play_camera_stream_unsubscribe" as const,
+    request_id: "stream-unsub-1",
+    subscriptionId: "chase-cam:test",
+  };
+
+  assert.equal(requiresFrontendResponse(subscribe), true);
+  assert.equal(requiresFrontendResponse(unsubscribe), true);
+  assert.equal(
+    (buildFrontendUnavailableResponse(subscribe).payload as { command: string }).command,
+    "play_camera_stream_subscribe",
+  );
+  assert.equal(
+    (buildFrontendUnavailableResponse(unsubscribe).payload as { command: string }).command,
+    "play_camera_stream_unsubscribe",
+  );
+});
+
 test("missing frontend returns structured unsupported query details", () => {
   assert.deepEqual(buildFrontendUnavailableResponse({
     type: "play_game_query",

@@ -5,6 +5,8 @@ import {
   type PlayFrontViewSnapshotHandler,
   type PlayGameCommandHandler,
   type PlayGameQueryHandler,
+  type PlayCameraStreamSubscribeHandler,
+  type PlayCameraStreamUnsubscribeHandler,
   type PlayGameUsageHandler,
   type PlaySidebarActionHandler,
   type PlayViewportSpec,
@@ -33,6 +35,12 @@ type PlayMainPanelProps = {
   onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
   onGameCommandHandlerChange?: (handler: PlayGameCommandHandler | null) => void;
   onGameQueryHandlerChange?: (handler: PlayGameQueryHandler | null) => void;
+  onCameraStreamSubscribeHandlerChange?: (
+    handler: PlayCameraStreamSubscribeHandler | null,
+  ) => void;
+  onCameraStreamUnsubscribeHandlerChange?: (
+    handler: PlayCameraStreamUnsubscribeHandler | null,
+  ) => void;
   onGameUsageHandlerChange?: (handler: PlayGameUsageHandler | null) => void;
 };
 
@@ -58,6 +66,8 @@ export function PlayMainPanel({
   onFrontViewSnapshotHandlerChange,
   onGameCommandHandlerChange,
   onGameQueryHandlerChange,
+  onCameraStreamSubscribeHandlerChange,
+  onCameraStreamUnsubscribeHandlerChange,
   onGameUsageHandlerChange,
 }: PlayMainPanelProps) {
   const [games, setGames] = useState<PlayGameCatalogEntry[]>([]);
@@ -145,6 +155,8 @@ export function PlayMainPanel({
               onFrontViewSnapshotHandlerChange={onFrontViewSnapshotHandlerChange}
               onGameCommandHandlerChange={onGameCommandHandlerChange}
               onGameQueryHandlerChange={onGameQueryHandlerChange}
+              onCameraStreamSubscribeHandlerChange={onCameraStreamSubscribeHandlerChange}
+              onCameraStreamUnsubscribeHandlerChange={onCameraStreamUnsubscribeHandlerChange}
               onGameUsageHandlerChange={onGameUsageHandlerChange}
             />
           )}
