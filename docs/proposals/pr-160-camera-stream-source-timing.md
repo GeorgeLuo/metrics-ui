@@ -4,8 +4,9 @@ Parent: [#160](https://github.com/GeorgeLuo/metrics-ui/pull/160) (`codex/camera-
 Issue: [#152](https://github.com/GeorgeLuo/metrics-ui/issues/152)
 Comments: [source clock](https://github.com/GeorgeLuo/metrics-ui/pull/160#issuecomment-5459627278), [agreement](https://github.com/GeorgeLuo/metrics-ui/pull/160#issuecomment-5459648363)
 
-This is an additive contract on the landed stream. It is not a milestone. Implementation
-must target `codex/camera-stream-contract` after this proposal is accepted.
+This is an additive contract on the landed stream. It is not a milestone. The
+proposal and implementation are kept together on the PR branch targeting
+`codex/camera-stream-contract`.
 
 ## Review question
 
@@ -14,9 +15,8 @@ send-time `publishedAtUs`) so a consumer can pace source-faithful 1× replay, an
 can subscribe select `dropPolicy: "none"` so sampled frames are queued instead
 of latest-frame dropped?
 
-Ready for a later implementer only if they can fill the locked types, clocks,
-drop policy, files, and tests below without choosing a different clock or
-inventing lossless buffering.
+The implementation must fill the locked types, clocks, drop policy, files, and
+tests below without choosing a different clock or inventing lossless buffering.
 
 ## Operator want
 
@@ -32,11 +32,11 @@ inventing lossless buffering.
 
 | Decision | Locked value | Forbidden |
 | --- | --- | --- |
-| Source clock | `sourceTimestampUs`: integer µs from `Math.round(performance.now() * 1000)` **immediately after** successful JPEG `capture()` for that frame | Unix `Date.now()`, WS send time, `frameIndex * dt` as a substitute |
+| Source clock | `sourceTimestampUs`: integer µs from `Math.round(performance.now() * 1000)` **immediately after** successful JPEG `capture()` for that frame, using a dedicated monotonic-only helper | Unix `Date.now()`, a helper that falls back to `Date.now()`, WS send time, `frameIndex * dt` as a substitute |
 | Publish clock | `publishedAtUs`: integer µs from the same `performance.now` origin **immediately before** the frontend `sendMessage` of that frame | Using `publishedAtUs` for replay pacing |
 | Where they appear | Every `play_camera_stream_frame` payload **and** the subscribe result `frame` | Optional-only source timestamp; omitting them on the first frame |
 | Default drop policy | `"latest-frame"` — current behavior, unchanged if the field is omitted | Changing default to no-drop |
-| No-drop policy | Subscribe `dropPolicy: "none"`: still sample with `maxRateHz`; do **not** replace an in-flight/pending sampled frame; FIFO queue of already-sampled frames, cap **8**; overflow ends the stream | Unbounded lossless buffer, binary WS, raising `maxRateHz` above 30 |
+| No-drop policy | Subscribe `dropPolicy: "none"`: still sample with `maxRateHz`; do **not** replace an in-flight/pending sampled frame; FIFO queue of already-sampled frames, cap **8** **excluding one in-flight handoff**; overflow ends the stream | Unbounded lossless buffer, binary WS, raising `maxRateHz` above 30 |
 | Consumer modes | Strict vs 1× real-time skipping is **not** implemented here. This repo only supplies clocks + producer drop policy | Auto-driving workbench, SimEval CLI |
 | Sampling vs drop | `maxRateHz` still skips unsampled simulation frames (Chase default render is 60 FPS; stream max 30 Hz). Those skips still increment `droppedFrameCount` | Treating `maxRateHz` sampling as a bug; emitting 60 Hz |
 | Privilege | Image-only sensor; no evaluator; no play/pause/reset/control | Reusing atomic evaluation capture |
@@ -120,33 +120,52 @@ clients keep working.
 ## Clock placement (do not invent another)
 
 1. **Source.** After `capture()` returns a valid JPEG, set
-   `sourceTimestampUs = Math.round(nowMs() * 1000)` where `nowMs` is
-   `performance.now` (injectable in tests, same helper the runtime already uses).
-   Do this for the subscribe first frame and for every later sampled frame.
+   `sourceTimestampUs = Math.round(monotonicNowMs() * 1000)` where
+   `monotonicNowMs` calls `performance.now()` and has **no `Date.now()` fallback**.
+   It is injectable in tests. If the monotonic clock is unavailable or produces
+   an invalid value, fail closed with `source_timestamp_invalid`. Do this for the
+   subscribe first frame and for every later sampled frame.
 2. **Publish.** In `emitMessage` / send path, copy the frame and set
    `publishedAtUs` immediately before `current.emit(...)`. Queued frames get
-   `publishedAtUs` at actual send, not at enqueue.
-3. **Builder.** `buildChaseCameraStreamFrame` requires `sourceTimestampUs`.
-   Missing / non-integer / negative → do not emit a frame. Subscribe path:
-   `source_timestamp_invalid` unsupported, no subscription. Active stream:
-   `ended` with `source_timestamp_invalid`, no image.
+   `publishedAtUs` at actual handoff, not at enqueue. The same stamp must be
+   applied immediately before sending the subscribe result that contains the
+   first frame.
+3. **Builder.** `buildChaseCameraStreamFrame` requires a validated
+   `sourceTimestampUs` and returns an internal frame draft with no
+   `publishedAtUs`. Missing / non-integer / negative → do not emit a frame.
+   Subscribe path: `source_timestamp_invalid` unsupported, no subscription.
+   Active stream: `ended` with `source_timestamp_invalid`, no image.
 4. **Stamp helper.** Add `stampCameraStreamFramePublished(frame, publishedAtUs)`
-   in `evaluation/camera-stream.ts`. Invalid publish stamp: same fail-closed
-   codes as source.
+   in `evaluation/camera-stream.ts`. Invalid source or publish stamps, or a
+   publish stamp earlier than the source stamp, fail closed. The public wire
+   frame type requires both timestamps; only the internal pre-publish draft may
+   omit `publishedAtUs`.
 
 Do not pass chase-loop rAF time as a substitute for post-capture time. Loop
-`onSimulationFrame` may stay as it is (`frameIndex`, `simulationEpoch`).
+`onSimulationFrame` may stay as it is (`frameIndex`, `simulationEpoch`). The
+publish stamp for the subscribe result belongs in the frontend WS handler,
+immediately before its `sendMessage` call, because the runtime returns that
+result to the handler.
 
 ## `dropPolicy: "none"` (producer)
 
 `maxRateHz` sampling is unchanged in both policies.
+
+The backpressure boundary is the runtime's `emit` handoff. The current browser
+and server WebSocket `send` calls are synchronous acceptance calls; this
+contract does not claim to observe when an agent has finished processing a
+frame, and it does not bound the WebSocket implementation's own internal
+buffers. A synchronous handoff therefore has no runtime-level in-flight queue.
+When an integration supplies an asynchronous handoff, the runtime bounds the
+frames waiting for that handoff as specified below. Consumer ACKs or transport
+buffer telemetry are outside this additive contract.
 
 | Event | `"latest-frame"` (default) | `"none"` |
 | --- | --- | --- |
 | `frameIndex` unchanged (paused) | No emit, not a drop | Same |
 | `frameIndex` changed but inside `maxRateHz` interval | `droppedFrameCount += 1`, no emit | Same |
 | Send in flight, another sampled frame ready | Replace single pending frame, `droppedFrameCount += 1` | Append to FIFO; `droppedFrameCount` unchanged |
-| FIFO length would exceed 8 | n/a | End stream: `event: "ended"`, `code: "backpressure_overflow"`, no image |
+| FIFO length would exceed 8 pending frames | n/a | End stream: `event: "ended"`, `code: "backpressure_overflow"`, no image |
 
 Do not grow `server/routes.ts` for this. Registry already forwards whole
 `play_camera_stream_frame` JSON; it must not strip the new fields. Add a
@@ -172,8 +191,7 @@ New reason code: `backpressure_overflow` and `drop_policy_invalid` and
 2. `buildChaseCameraStreamFrame` + `stampCameraStreamFramePublished` +
    `resolveChaseCameraStreamRequest` (`dropPolicy`) in
    `examples/play/chase/evaluation/camera-stream.ts`.
-3. Tests in `examples/play/chase/chase-camera-stream-regression.test.mjs`
-   (cases below) until green.
+3. Tests in the camera-stream regression files (cases below) until green.
 4. Runtime queue/clocks in `examples/play/chase/ui/camera-stream-runtime.mjs`.
    Keep `capture()` JPEG path; stamp source after capture, publish at send.
 5. Advertise capability via `buildChaseCameraStreamCapability` /
@@ -206,19 +224,21 @@ timestamp field is being stripped (then add the two keys only).
 9. `dropPolicy: "none"`: 9th queued sampled frame ends with
    `backpressure_overflow` and no image.
 10. `maxRateHz` skip still increments `droppedFrameCount` under `"none"`.
-11. `publishedAtUs` on a queued frame is taken at send, not enqueue (inject
-    `now`).
+11. `publishedAtUs` on a queued frame is taken at handoff, not enqueue (inject
+    the publish clock); the subscribe result is stamped immediately before
+    its send.
 12. Atomic `play_game_query` / `atomic-evaluation-capture` still returns
     evaluator (existing regression).
 
-## File impact (implementation PR only)
+## File impact
 
 | Path | Change |
 | --- | --- |
 | `shared/play-camera-stream.ts` | Frame timing fields, dropPolicy, reason codes, capability |
 | `examples/play/chase/evaluation/camera-stream.ts` | Require/stamp timestamps; parse dropPolicy |
-| `examples/play/chase/ui/camera-stream-runtime.mjs` | Capture clock, publish clock, FIFO when `"none"` |
-| `examples/play/chase/chase-camera-stream-regression.test.mjs` | Cases 1–12 |
+| `examples/play/chase/ui/camera-stream-runtime.mjs` | Capture clock, publish clock, FIFO when `"none"`; runtime handoff boundary |
+| `examples/play/chase/chase-camera-stream-regression.test.mjs` | Existing camera stream regressions plus additive field assertions |
+| `examples/play/chase/chase-camera-stream-timing-regression.test.mjs` | Timing, drop-policy, queue, and first-result stamping cases |
 | `examples/play/chase/ui/chase-play-usage.mjs` | Pass-through of new capability fields |
 | `USAGE.md` | Document clocks and `dropPolicy` |
 | `server/routes/camera-stream-subscriptions.test.ts` | Timestamp pass-through if needed |
@@ -238,7 +258,7 @@ No live Chase recapture. Parent #160 tests must stay green.
 
 ## Handoff
 
-After this proposal PR is reviewed on `codex/camera-stream-contract`, a lower
-coding model implements **only** this document on a sibling branch also
-targeting `codex/camera-stream-contract` (or stacked on the proposal merge
-commit). It must not retarget `main` and must not merge #160.
+This PR carries the contract and implementation together. A later consumer or
+workbench PR may use the timestamps and `dropPolicy: "none"`; it must not use
+`publishedAtUs` for replay pacing, assume downstream processing ACKs, or claim
+that the bounded producer queue makes the WebSocket transport lossless.

@@ -6,7 +6,7 @@ import type {
 import type { PlaySidebarSection } from "@/lib/play/sidebar-sections";
 import type {
   CameraStreamPushMessage,
-  CameraStreamResultPayload,
+  CameraStreamResultPayloadDraft,
   CameraStreamSubscribeRequest,
   CameraStreamUnsubscribeRequest,
 } from "@shared/play-camera-stream";
@@ -46,10 +46,10 @@ export type PlayCameraStreamEmit = (message: CameraStreamPushMessage) => unknown
 export type PlayCameraStreamSubscribeHandler = (
   request: CameraStreamSubscribeRequest,
   emit: PlayCameraStreamEmit,
-) => CameraStreamResultPayload;
+) => CameraStreamResultPayloadDraft;
 export type PlayCameraStreamUnsubscribeHandler = (
   request: CameraStreamUnsubscribeRequest,
-) => CameraStreamResultPayload;
+) => CameraStreamResultPayloadDraft;
 export type PlaySidebarActionHandler = (
   actionId: string,
   value?: unknown,

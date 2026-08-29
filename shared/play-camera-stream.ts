@@ -7,6 +7,8 @@ export const PLAY_CAMERA_STREAM_RESULT = "play_camera_stream_result" as const;
 
 export const CAMERA_STREAM_IMAGE_FORMAT = "image/jpeg" as const;
 
+export type CameraStreamDropPolicy = "latest-frame" | "none";
+
 export type CameraStreamSubscribeCommand = {
   type: typeof PLAY_CAMERA_STREAM_SUBSCRIBE;
   request_id?: string;
@@ -17,6 +19,7 @@ export type CameraStreamSubscribeCommand = {
   imageFormat?: unknown;
   quality?: unknown;
   maxRateHz?: unknown;
+  dropPolicy?: unknown;
 };
 
 export type CameraStreamUnsubscribeCommand = {
@@ -49,6 +52,7 @@ export type CameraStreamCapability = {
     height: number;
     quality: number;
     maxRateHz: number;
+    dropPolicy: CameraStreamDropPolicy;
   };
   bounds: {
     width: [number, number];
@@ -57,6 +61,11 @@ export type CameraStreamCapability = {
     maxRateHz: [number, number];
   };
   backpressure: "latest-frame";
+  timingFields: ["sourceTimestampUs", "publishedAtUs"];
+  sourceTimestampClock: "performance.now-microseconds-at-jpeg-capture";
+  publishedAtClock: "performance.now-microseconds-at-ws-send";
+  dropPolicies: CameraStreamDropPolicy[];
+  queueBound: 8;
   oneShotQueryId: "atomic-evaluation-capture";
   identityFields: ["gameId", "simulationEpoch", "frameIndex"];
   sessionIdentityFields: ["gameId", "scenarioId", "simulationEpoch", "actorId", "cameraId"];
@@ -92,7 +101,7 @@ export type CameraStreamImage = {
   dataUrl: string;
 };
 
-export type CameraStreamFrame = {
+type CameraStreamFrameFields = {
   subscriptionId: string;
   actorId: string;
   cameraId: string;
@@ -101,11 +110,22 @@ export type CameraStreamFrame = {
     simulationEpoch: string;
     frameIndex: number;
   };
+  sourceTimestampUs: number;
   playback: { advanced: false };
   droppedFrameCount: number;
   sensor: {
     image: CameraStreamImage;
   };
+};
+
+/** Internal frame before the publish-time timestamp is applied. */
+export type CameraStreamFrameDraft = CameraStreamFrameFields & {
+  publishedAtUs?: never;
+};
+
+/** Public wire frame; both timing fields are required once sent. */
+export type CameraStreamFrame = CameraStreamFrameFields & {
+  publishedAtUs: number;
 };
 
 export type CameraStreamReasonCode =
@@ -117,11 +137,14 @@ export type CameraStreamReasonCode =
   | "image_dimension_invalid"
   | "max_rate_invalid"
   | "quality_invalid"
+  | "drop_policy_invalid"
   | "already_subscribed"
   | "subscription_not_found"
   | "session_fingerprint_unavailable"
   | "capture_unavailable"
   | "capture_identity_mismatch"
+  | "source_timestamp_invalid"
+  | "backpressure_overflow"
   | "session_identity_changed"
   | "frontend_not_connected"
   | "frontend_unresponsive"
@@ -147,6 +170,13 @@ export type CameraStreamSubscribedPayload = {
     after: CameraStreamSessionFingerprint;
   };
   frame: CameraStreamFrame;
+};
+
+export type CameraStreamSubscribedPayloadDraft = Omit<
+  CameraStreamSubscribedPayload,
+  "frame"
+> & {
+  frame: CameraStreamFrameDraft;
 };
 
 export type CameraStreamUnsupportedPayload = {
@@ -178,6 +208,12 @@ export type CameraStreamResultPayload =
   | CameraStreamUnsubscribedPayload
   | CameraStreamEndedPayload;
 
+export type CameraStreamResultPayloadDraft =
+  | CameraStreamSubscribedPayloadDraft
+  | CameraStreamUnsupportedPayload
+  | CameraStreamUnsubscribedPayload
+  | CameraStreamEndedPayload;
+
 export type CameraStreamFrameMessage = {
   type: typeof PLAY_CAMERA_STREAM_FRAME;
   payload: CameraStreamFrame;
@@ -190,3 +226,44 @@ export type CameraStreamResultMessage = {
 };
 
 export type CameraStreamPushMessage = CameraStreamFrameMessage | CameraStreamResultMessage;
+
+export function isValidCameraStreamTimestamp(value: unknown): value is number {
+  return typeof value === "number"
+    && Number.isFinite(value)
+    && Number.isInteger(value)
+    && value >= 0;
+}
+
+/** Converts a monotonic millisecond clock reading to the wire's integer microseconds. */
+export function toCameraStreamTimestampUs(clockMs: unknown): number | null {
+  if (typeof clockMs !== "number" || !Number.isFinite(clockMs) || clockMs < 0) {
+    return null;
+  }
+  const timestampUs = Math.round(clockMs * 1000);
+  return isValidCameraStreamTimestamp(timestampUs) ? timestampUs : null;
+}
+
+/** Adds the publish-time stamp at the handoff boundary without mutating the draft. */
+export function stampCameraStreamFramePublished(
+  frame: CameraStreamFrameDraft | CameraStreamFrame,
+  publishedAtUs: unknown,
+): CameraStreamFrame | null {
+  if (!isValidCameraStreamTimestamp(frame.sourceTimestampUs)
+    || !isValidCameraStreamTimestamp(publishedAtUs)
+    || publishedAtUs < frame.sourceTimestampUs) {
+    return null;
+  }
+  return { ...frame, publishedAtUs };
+}
+
+/** Stamps the first frame nested in a subscribe result immediately before send. */
+export function stampCameraStreamResultPublished(
+  result: CameraStreamResultPayloadDraft,
+  publishedAtUs: unknown,
+): CameraStreamResultPayload | null {
+  if (result.event !== "subscribed") {
+    return result;
+  }
+  const frame = stampCameraStreamFramePublished(result.frame, publishedAtUs);
+  return frame ? { ...result, frame } : null;
+}
