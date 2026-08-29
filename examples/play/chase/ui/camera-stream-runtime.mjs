@@ -8,10 +8,8 @@ import {
   resolveChaseCameraStreamRequest,
   selectLatestCameraStreamFrame,
   stampCameraStreamFramePublished,
-} from "../evaluation/camera-stream.ts";
-import {
   toCameraStreamTimestampUs,
-} from "../../../../shared/play-camera-stream.ts";
+} from "../evaluation/camera-stream.ts";
 
 function createCameraStreamSubscriptionId() {
   const randomUuid = globalThis.crypto?.randomUUID?.();
