@@ -1,13 +1,16 @@
 import type {
   CameraStreamCapability,
-  CameraStreamFrame,
+  CameraStreamFrameDraft,
   CameraStreamImage,
+  CameraStreamDropPolicy,
   CameraStreamReason,
   CameraStreamReasonCode,
-  CameraStreamResultPayload,
+  CameraStreamResultPayloadDraft,
   CameraStreamSessionFingerprint,
   CameraStreamSubscribeRequest,
 } from "../../../../shared/play-camera-stream.ts";
+import { isValidCameraStreamTimestamp } from "../../../../shared/play-camera-stream.ts";
+export { stampCameraStreamFramePublished } from "../../../../shared/play-camera-stream.ts";
 import {
   CHASE_PASSIVE_OBSERVATION_CAMERA_ID,
   CHASE_PASSIVE_OBSERVATION_SESSION_IDENTITY_FIELDS,
@@ -23,6 +26,7 @@ export const CHASE_CAMERA_STREAM_SUBSCRIBE_TYPE = "play_camera_stream_subscribe"
 export const CHASE_CAMERA_STREAM_UNSUBSCRIBE_TYPE = "play_camera_stream_unsubscribe" as const;
 export const CHASE_CAMERA_STREAM_FRAME_TYPE = "play_camera_stream_frame" as const;
 export const CHASE_CAMERA_STREAM_RESULT_TYPE = "play_camera_stream_result" as const;
+export const CHASE_CAMERA_STREAM_QUEUE_BOUND = 8 as const;
 const CAMERA_STREAM_IMAGE_FORMAT = "image/jpeg" as const;
 
 export const CHASE_CAMERA_STREAM_DEFAULTS = Object.freeze({
@@ -30,6 +34,7 @@ export const CHASE_CAMERA_STREAM_DEFAULTS = Object.freeze({
   height: 240,
   quality: 0.6,
   maxRateHz: 15,
+  dropPolicy: "latest-frame" as CameraStreamDropPolicy,
 });
 
 export const CHASE_CAMERA_STREAM_BOUNDS = Object.freeze({
@@ -47,6 +52,7 @@ export type NormalizedChaseCameraStreamRequest = {
   imageFormat: typeof CAMERA_STREAM_IMAGE_FORMAT;
   quality: number;
   maxRateHz: number;
+  dropPolicy: CameraStreamDropPolicy;
 };
 
 export type ChaseCameraStreamCapture = Partial<CameraStreamImage> & {
@@ -59,7 +65,7 @@ export type ChaseCameraStreamCapture = Partial<CameraStreamImage> & {
 
 type InvalidRequest = {
   ok: false;
-  result: CameraStreamResultPayload;
+  result: CameraStreamResultPayloadDraft;
 };
 
 type ValidRequest = {
@@ -94,7 +100,7 @@ function buildReason(
 
 export function buildChaseCameraStreamUnsupportedResult(
   reason: CameraStreamReason,
-): CameraStreamResultPayload {
+): CameraStreamResultPayloadDraft {
   return {
     event: "unsupported",
     cameraStream: {
@@ -148,6 +154,17 @@ function resolveFiniteNumber(
   }
   const bounded = clamp(requested, bounds);
   return { ok: true, value: integer ? Math.round(bounded) : bounded };
+}
+
+function resolveDropPolicy(request: Record<string, unknown>, capability: CameraStreamCapability):
+  { ok: true; value: CameraStreamDropPolicy } | { ok: false; requested: unknown } {
+  if (!hasOwn(request, "dropPolicy")) {
+    return { ok: true, value: capability.defaults.dropPolicy };
+  }
+  const requested = request.dropPolicy;
+  return requested === "latest-frame" || requested === "none"
+    ? { ok: true, value: requested }
+    : { ok: false, requested };
 }
 
 /** Validates and clamps one untrusted subscribe payload without coercing types. */
@@ -251,6 +268,15 @@ export function resolveChaseCameraStreamRequest(
     });
   }
 
+  const dropPolicy = resolveDropPolicy(value, capability);
+  if (!dropPolicy.ok) {
+    return invalid("drop_policy_invalid", "Camera stream dropPolicy must be latest-frame or none.", {
+      field: "dropPolicy",
+      requested: dropPolicy.requested,
+      available: capability.dropPolicies,
+    });
+  }
+
   return {
     ok: true,
     value: {
@@ -261,6 +287,7 @@ export function resolveChaseCameraStreamRequest(
       imageFormat: CAMERA_STREAM_IMAGE_FORMAT,
       quality: quality.value,
       maxRateHz: maxRateHz.value,
+      dropPolicy: dropPolicy.value,
     },
   };
 }
@@ -288,6 +315,11 @@ export function buildChaseCameraStreamCapability({
       maxRateHz: [1, 30],
     },
     backpressure: "latest-frame",
+    timingFields: ["sourceTimestampUs", "publishedAtUs"],
+    sourceTimestampClock: "performance.now-microseconds-at-jpeg-capture",
+    publishedAtClock: "performance.now-microseconds-at-ws-send",
+    dropPolicies: ["latest-frame", "none"],
+    queueBound: CHASE_CAMERA_STREAM_QUEUE_BOUND,
     oneShotQueryId: CHASE_PASSIVE_OBSERVATION_QUERY_ID,
     identityFields: ["gameId", "simulationEpoch", "frameIndex"],
     sessionIdentityFields: ["gameId", "scenarioId", "simulationEpoch", "actorId", "cameraId"],
@@ -313,21 +345,19 @@ function toCameraStreamImage(
   };
 }
 
-function toSharedFingerprint(
-  fingerprint: ChasePassiveObservationFingerprint,
-): CameraStreamSessionFingerprint {
-  return cloneChasePassiveObservationFingerprint(fingerprint);
-}
+const toSharedFingerprint = (fingerprint: ChasePassiveObservationFingerprint): CameraStreamSessionFingerprint => cloneChasePassiveObservationFingerprint(fingerprint);
 
 function captureFailure(
   message: string,
   before?: ChasePassiveObservationFingerprint,
-): CameraStreamResultPayload {
+): CameraStreamResultPayloadDraft {
   return buildChaseCameraStreamUnsupportedResult(buildReason("capture_unavailable", message, {
     field: "cameraId",
     ...(before ? { requested: before.cameraId } : {}),
   }));
 }
+
+const sourceTimestampFailure = (requested?: unknown): CameraStreamResultPayloadDraft => buildChaseCameraStreamUnsupportedResult(buildReason("source_timestamp_invalid", "Camera stream capture did not produce a valid monotonic source timestamp.", { field: "sourceTimestampUs", ...(requested !== undefined ? { requested } : {}) }));
 
 export type BuildChaseCameraStreamSubscribeResultOptions = {
   subscriptionId: string;
@@ -338,6 +368,8 @@ export type BuildChaseCameraStreamSubscribeResultOptions = {
     cameraId: string,
   ) => ChasePassiveObservationFingerprint | null;
   capture: (options: NormalizedChaseCameraStreamRequest) => ChaseCameraStreamCapture | null;
+  sourceTimestampUs?: unknown;
+  getSourceTimestampUs?: () => unknown;
 };
 
 /** Builds a first stream result while proving the full passive fingerprint stayed stable. */
@@ -347,7 +379,9 @@ export function buildChaseCameraStreamSubscribeResult({
   capability,
   getFingerprint,
   capture,
-}: BuildChaseCameraStreamSubscribeResultOptions): CameraStreamResultPayload {
+  sourceTimestampUs,
+  getSourceTimestampUs,
+}: BuildChaseCameraStreamSubscribeResultOptions): CameraStreamResultPayloadDraft {
   const resolved = resolveChaseCameraStreamRequest(request, capability);
   if (!resolved.ok) {
     return resolved.result;
@@ -372,6 +406,20 @@ export function buildChaseCameraStreamSubscribeResult({
   const image = toCameraStreamImage(captured);
   if (!image) {
     return captureFailure("Camera capture is unavailable.", before);
+  }
+
+  const capturedAtUs = getSourceTimestampUs ? getSourceTimestampUs() : sourceTimestampUs;
+  const frame = buildChaseCameraStreamFrame({
+    subscriptionId,
+    actorId: normalized.actorId,
+    cameraId: normalized.cameraId,
+    fingerprint: before,
+    image,
+    sourceTimestampUs: capturedAtUs,
+    droppedFrameCount: 0,
+  });
+  if (!frame) {
+    return sourceTimestampFailure(capturedAtUs);
   }
 
   const fingerprintAfterCapture = getFingerprint(normalized.actorId, normalized.cameraId);
@@ -406,14 +454,7 @@ export function buildChaseCameraStreamSubscribeResult({
       before: toSharedFingerprint(before),
       after: toSharedFingerprint(after),
     },
-    frame: buildChaseCameraStreamFrame({
-      subscriptionId,
-      actorId: normalized.actorId,
-      cameraId: normalized.cameraId,
-      fingerprint: before,
-      image,
-      droppedFrameCount: 0,
-    }),
+    frame,
   };
 }
 
@@ -423,6 +464,7 @@ export function buildChaseCameraStreamFrame({
   cameraId,
   fingerprint,
   image,
+  sourceTimestampUs,
   droppedFrameCount = 0,
 }: {
   subscriptionId: string;
@@ -430,8 +472,12 @@ export function buildChaseCameraStreamFrame({
   cameraId: string;
   fingerprint: ChasePassiveObservationFingerprint;
   image: CameraStreamImage;
+  sourceTimestampUs: unknown;
   droppedFrameCount?: number;
-}): CameraStreamFrame {
+}): CameraStreamFrameDraft | null {
+  if (!isValidCameraStreamTimestamp(sourceTimestampUs)) {
+    return null;
+  }
   const normalizedDroppedFrameCount = Number.isFinite(droppedFrameCount)
     ? Math.max(0, Math.floor(droppedFrameCount))
     : 0;
@@ -444,6 +490,7 @@ export function buildChaseCameraStreamFrame({
       simulationEpoch: fingerprint.simulationEpoch,
       frameIndex: fingerprint.playback.frameIndex,
     },
+    sourceTimestampUs,
     playback: { advanced: false },
     droppedFrameCount: normalizedDroppedFrameCount,
     sensor: {
@@ -477,7 +524,7 @@ export function buildChaseCameraStreamEndedResult(
   code: CameraStreamReasonCode,
   message: string,
   changedFields?: string[],
-): CameraStreamResultPayload {
+): CameraStreamResultPayloadDraft {
   return {
     event: "ended",
     subscriptionId,
@@ -491,8 +538,8 @@ export function buildChaseCameraStreamEndedResult(
 
 /** Selects the newest candidate, keeping at most one frame for latest-frame delivery. */
 export function selectLatestCameraStreamFrame(
-  frames: readonly CameraStreamFrame[],
-): CameraStreamFrame | null {
+  frames: readonly CameraStreamFrameDraft[],
+): CameraStreamFrameDraft | null {
   return frames.length > 0 ? frames[frames.length - 1] ?? null : null;
 }
 

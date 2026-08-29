@@ -63,6 +63,7 @@ function buildSubscribeResult({
       return fingerprintCall === 1 ? before : after;
     },
     capture,
+    sourceTimestampUs: 1_000,
   });
 }
 
@@ -78,7 +79,13 @@ test("camera stream capability advertises stream types, JPEG defaults/bounds, an
     actors: ["chaser", "evader"],
     cameras: ["front_camera"],
     imageFormat: "image/jpeg",
-    defaults: { width: 320, height: 240, quality: 0.6, maxRateHz: 15 },
+    defaults: {
+      width: 320,
+      height: 240,
+      quality: 0.6,
+      maxRateHz: 15,
+      dropPolicy: "latest-frame",
+    },
     bounds: {
       width: [80, 640],
       height: [60, 480],
@@ -86,6 +93,11 @@ test("camera stream capability advertises stream types, JPEG defaults/bounds, an
       maxRateHz: [1, 30],
     },
     backpressure: "latest-frame",
+    timingFields: ["sourceTimestampUs", "publishedAtUs"],
+    sourceTimestampClock: "performance.now-microseconds-at-jpeg-capture",
+    publishedAtClock: "performance.now-microseconds-at-ws-send",
+    dropPolicies: ["latest-frame", "none"],
+    queueBound: 8,
     oneShotQueryId: "atomic-evaluation-capture",
     identityFields: ["gameId", "simulationEpoch", "frameIndex"],
     sessionIdentityFields: ["gameId", "scenarioId", "simulationEpoch", "actorId", "cameraId"],
@@ -105,6 +117,7 @@ test("camera stream subscribe defaults actor/camera and preserves a JPEG receipt
   assert.equal(result.frame.cameraId, "front_camera");
   assert.equal(result.frame.sensor.image.contentType, "image/jpeg");
   assert.match(result.frame.sensor.image.dataUrl, /^data:image\/jpeg/);
+  assert.equal(result.frame.sourceTimestampUs, 1_000);
   assert.equal("evaluator" in result.frame, false);
   assert.equal("request_id" in result.frame, false);
 });
@@ -122,6 +135,7 @@ test("camera stream subscribe does not call play, pause, reset, or control mutat
     capability: buildChaseCameraStreamCapability(),
     getFingerprint: () => buildFingerprint(),
     capture: () => buildImage(),
+    sourceTimestampUs: 1_000,
     ...mutators,
   });
 
@@ -163,6 +177,7 @@ test("unknown camera stream actor/camera fail closed without a capture call", ()
       captureCalls += 1;
       return buildImage();
     },
+    sourceTimestampUs: 1_000,
   });
 
   const actorResult = buildResult({ actorId: "evader" });
@@ -221,6 +236,7 @@ test("camera stream request normalization clamps finite dimensions, quality, and
     imageFormat: "image/jpeg",
     quality: 0.4,
     maxRateHz: 1,
+    dropPolicy: "latest-frame",
   });
 });
 
@@ -232,6 +248,8 @@ function createRuntimeHarness({ emit = () => true } = {}) {
     getFingerprint: () => fingerprint,
     capture: () => buildImage(),
     now: () => now,
+    sourceNow: () => now,
+    publishNow: () => now,
     createSubscriptionId: () => "chase-cam:test",
   });
   return {
@@ -285,6 +303,8 @@ test("camera stream frame identity changes emit the new frame index with the sam
   assert.equal(emitted[0].type, "play_camera_stream_frame");
   assert.equal(emitted[0].payload.frameIdentity.frameIndex, 43);
   assert.equal(emitted[0].payload.frameIdentity.simulationEpoch, "chase-run:test");
+  assert.equal(emitted[0].payload.sourceTimestampUs, 2_001_000);
+  assert.equal(emitted[0].payload.publishedAtUs, 2_001_000);
   assert.equal(emitted[0].payload.playback.advanced, false);
 });
 
@@ -332,6 +352,8 @@ test("camera stream rate limiting increments droppedFrameCount and latest-frame 
   deliveryResolvers[0]();
   assert.equal(emitted.length, 2);
   assert.equal(emitted[1].payload.frameIdentity.frameIndex, 46);
+  assert.ok(emitted[1].payload.sourceTimestampUs >= emitted[0].payload.sourceTimestampUs);
+  assert.ok(emitted[1].payload.publishedAtUs >= emitted[1].payload.sourceTimestampUs);
   assert.equal(emitted[1].payload.droppedFrameCount, 3);
   assert.equal(selectLatestCameraStreamFrame([
     emitted[0].payload,

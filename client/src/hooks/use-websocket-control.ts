@@ -16,7 +16,7 @@ import type {
 } from "@shared/schema";
 import type {
   CameraStreamPushMessage,
-  CameraStreamResultPayload,
+  CameraStreamResultPayloadDraft,
   CameraStreamSubscribeRequest,
   CameraStreamUnsubscribeRequest,
 } from "@shared/play-camera-stream";
@@ -41,10 +41,10 @@ type PlayGameQueryInput = Pick<
 type PlayCameraStreamSubscribeHandler = (
   request: CameraStreamSubscribeRequest,
   emit: (message: CameraStreamPushMessage) => unknown,
-) => CameraStreamResultPayload;
+) => CameraStreamResultPayloadDraft;
 type PlayCameraStreamUnsubscribeHandler = (
   request: CameraStreamUnsubscribeRequest,
-) => CameraStreamResultPayload;
+) => CameraStreamResultPayloadDraft;
 
 interface UseWebSocketControlProps {
   captures: CaptureSession[];

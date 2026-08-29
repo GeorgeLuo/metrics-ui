@@ -14,7 +14,7 @@ import type {
 } from "@shared/schema";
 import type {
   CameraStreamPushMessage,
-  CameraStreamResultPayload,
+  CameraStreamResultPayloadDraft,
   CameraStreamSubscribeRequest,
   CameraStreamUnsubscribeRequest,
 } from "@shared/play-camera-stream";
@@ -120,10 +120,10 @@ export interface WsCommandDispatchContext {
   onPlayCameraStreamSubscribe?: (
     request: CameraStreamSubscribeRequest,
     emit: (message: CameraStreamPushMessage) => unknown,
-  ) => CameraStreamResultPayload;
+  ) => CameraStreamResultPayloadDraft;
   onPlayCameraStreamUnsubscribe?: (
     request: CameraStreamUnsubscribeRequest,
-  ) => CameraStreamResultPayload;
+  ) => CameraStreamResultPayloadDraft;
   onLiveStart: (options: {
     source?: string;
     pollIntervalMs?: number;
