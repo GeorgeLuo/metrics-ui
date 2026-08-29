@@ -423,6 +423,8 @@ export function createChaseSceneView({
     width,
     height,
     includeDebugVisualizations = false,
+    contentType,
+    quality,
   } = {}) => {
     syncRenderingProfile();
     syncFloorMeshes();
@@ -446,6 +448,8 @@ export function createChaseSceneView({
         excludedObjects: includeDebugVisualizations ? [] : frontViewCaptureDebugObjects,
         width,
         height,
+        contentType,
+        quality,
       });
     }
     return actorViewImageCapture.capture({
@@ -461,6 +465,8 @@ export function createChaseSceneView({
       excludedObjects: includeDebugVisualizations ? [] : frontViewCaptureDebugObjects,
       width,
       height,
+      contentType,
+      quality,
     });
   };
 

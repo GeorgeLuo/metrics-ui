@@ -15,6 +15,8 @@ import type {
   PlayFrontViewSnapshotHandler,
   PlayGameCommandHandler,
   PlayGameQueryHandler,
+  PlayCameraStreamSubscribeHandler,
+  PlayCameraStreamUnsubscribeHandler,
   PlayGameUsageHandler,
   PlaySidebarActionHandler,
 } from "@/components/home/play-game-host";
@@ -628,6 +630,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const playFrontViewSnapshotHandlerRef = useRef<PlayFrontViewSnapshotHandler | null>(null);
   const playGameCommandHandlerRef = useRef<PlayGameCommandHandler | null>(null);
   const playGameQueryHandlerRef = useRef<PlayGameQueryHandler | null>(null);
+  const playCameraStreamSubscribeHandlerRef = useRef<PlayCameraStreamSubscribeHandler | null>(null);
+  const playCameraStreamUnsubscribeHandlerRef = useRef<PlayCameraStreamUnsubscribeHandler | null>(null);
   const playGameUsageHandlerRef = useRef<PlayGameUsageHandler | null>(null);
   const equationsProtocolHandlersRef = useRef<EquationsProtocolHandlers>({});
   const [playFrameGridDebugSnapshot, setPlayFrameGridDebugSnapshot] =
@@ -670,6 +674,16 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   ) => {
     playGameQueryHandlerRef.current = handler;
   }, []);
+  const handlePlayCameraStreamSubscribeHandlerChange = useCallback((
+    handler: PlayCameraStreamSubscribeHandler | null,
+  ) => {
+    playCameraStreamSubscribeHandlerRef.current = handler;
+  }, []);
+  const handlePlayCameraStreamUnsubscribeHandlerChange = useCallback((
+    handler: PlayCameraStreamUnsubscribeHandler | null,
+  ) => {
+    playCameraStreamUnsubscribeHandlerRef.current = handler;
+  }, []);
   const handlePlayGameUsageHandlerChange = useCallback((
     handler: PlayGameUsageHandler | null,
   ) => {
@@ -692,6 +706,34 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
   const handlePlayGameQuery = useCallback((
     query: Parameters<PlayGameQueryHandler>[0],
   ) => playGameQueryHandlerRef.current?.(query), []);
+  const handlePlayCameraStreamSubscribe = useCallback<PlayCameraStreamSubscribeHandler>(
+    (request, emit) => playCameraStreamSubscribeHandlerRef.current?.(request, emit)
+      ?? {
+        event: "unsupported",
+        cameraStream: {
+          supported: false,
+          reason: {
+            code: "capture_unavailable",
+            message: "Camera stream is not available.",
+          },
+        },
+      },
+    [],
+  );
+  const handlePlayCameraStreamUnsubscribe = useCallback<PlayCameraStreamUnsubscribeHandler>(
+    (request) => playCameraStreamUnsubscribeHandlerRef.current?.(request)
+      ?? {
+        event: "unsupported",
+        cameraStream: {
+          supported: false,
+          reason: {
+            code: "subscription_not_found",
+            message: "Camera stream subscription was not found.",
+          },
+        },
+      },
+    [],
+  );
   const getPlayGameUsage = useCallback(() => playGameUsageHandlerRef.current?.() ?? null, []);
   const handleSetEquationsTopicCommand = useCallback((topicId: string, options?: { preserveViewMode?: boolean }) =>
     equationsProtocolHandlersRef.current.setTopic?.(topicId, options) === true, []);
@@ -5552,6 +5594,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     onPlayGameAction: handlePlayGameAction,
     onPlayGameCommand: handlePlayGameCommand,
     onPlayGameQuery: handlePlayGameQuery,
+    onPlayCameraStreamSubscribe: handlePlayCameraStreamSubscribe,
+    onPlayCameraStreamUnsubscribe: handlePlayCameraStreamUnsubscribe,
     onLiveStart: startLiveStream,
     onLiveStop: stopLiveStream,
     onCaptureInit: handleCaptureInit,
@@ -6772,6 +6816,8 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
               onFrontViewSnapshotHandlerChange={handlePlayFrontViewSnapshotHandlerChange}
               onGameCommandHandlerChange={handlePlayGameCommandHandlerChange}
               onGameQueryHandlerChange={handlePlayGameQueryHandlerChange}
+              onCameraStreamSubscribeHandlerChange={handlePlayCameraStreamSubscribeHandlerChange}
+              onCameraStreamUnsubscribeHandlerChange={handlePlayCameraStreamUnsubscribeHandlerChange}
               onGameUsageHandlerChange={handlePlayGameUsageHandlerChange}
             />
           )}

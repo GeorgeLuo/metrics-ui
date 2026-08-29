@@ -3,6 +3,7 @@ import { CHASE_PLAY_QUERY_IDS } from "./chase-play-queries.mjs";
 
 export function buildChasePlayUsage({
   passiveObservation = null,
+  cameraStream = null,
 } = {}) {
   return {
     game: {
@@ -129,6 +130,7 @@ export function buildChasePlayUsage({
       queryResponseType: "play_game_query_result",
       evaluationCaptureQueryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
       passiveObservation,
+      cameraStream,
       usageQueryType: "get_play_game_usage",
       usageResponseType: "play_game_usage",
     },

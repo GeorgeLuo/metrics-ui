@@ -4,6 +4,12 @@ import type {
   FloatingFrameRegistryFrameOptions,
 } from "@/components/floating-frame-registry";
 import type { PlaySidebarSection } from "@/lib/play/sidebar-sections";
+import type {
+  CameraStreamPushMessage,
+  CameraStreamResultPayload,
+  CameraStreamSubscribeRequest,
+  CameraStreamUnsubscribeRequest,
+} from "@shared/play-camera-stream";
 
 export type PlayFloatingFrameOptions = FloatingFrameRegistryFrameOptions;
 export type PlayFloatingFrameHandle = FloatingFrameRegistryFrameHandle;
@@ -36,6 +42,14 @@ export type PlayGameQuery = {
 /** Returns game-owned query data, or undefined when the query id is unsupported. */
 export type PlayGameQueryHandler = (query: PlayGameQuery) => unknown;
 export type PlayGameUsageHandler = () => unknown;
+export type PlayCameraStreamEmit = (message: CameraStreamPushMessage) => unknown;
+export type PlayCameraStreamSubscribeHandler = (
+  request: CameraStreamSubscribeRequest,
+  emit: PlayCameraStreamEmit,
+) => CameraStreamResultPayload;
+export type PlayCameraStreamUnsubscribeHandler = (
+  request: CameraStreamUnsubscribeRequest,
+) => CameraStreamResultPayload;
 export type PlaySidebarActionHandler = (
   actionId: string,
   value?: unknown,
@@ -53,6 +67,12 @@ export type PlayGameHostProps = {
   onFrontViewSnapshotHandlerChange?: (handler: PlayFrontViewSnapshotHandler | null) => void;
   onGameCommandHandlerChange?: (handler: PlayGameCommandHandler | null) => void;
   onGameQueryHandlerChange?: (handler: PlayGameQueryHandler | null) => void;
+  onCameraStreamSubscribeHandlerChange?: (
+    handler: PlayCameraStreamSubscribeHandler | null,
+  ) => void;
+  onCameraStreamUnsubscribeHandlerChange?: (
+    handler: PlayCameraStreamUnsubscribeHandler | null,
+  ) => void;
   onGameUsageHandlerChange?: (handler: PlayGameUsageHandler | null) => void;
 };
 
@@ -85,6 +105,8 @@ export type PlayGameInstance = {
   getFrontViewSnapshot?: PlayFrontViewSnapshotHandler;
   handleCommand?: PlayGameCommandHandler;
   handleQuery?: PlayGameQueryHandler;
+  handleCameraStreamSubscribe?: PlayCameraStreamSubscribeHandler;
+  handleCameraStreamUnsubscribe?: PlayCameraStreamUnsubscribeHandler;
   getUsage?: PlayGameUsageHandler;
 };
 
