@@ -9,8 +9,8 @@ import type {
   CameraStreamSessionFingerprint,
   CameraStreamSubscribeRequest,
 } from "../../../../shared/play-camera-stream.ts";
-import { isValidCameraStreamTimestamp } from "../../../../shared/play-camera-stream.ts";
-export { stampCameraStreamFramePublished } from "../../../../shared/play-camera-stream.ts";
+import { isValidCameraStreamTimestamp } from "./camera-stream-timing.ts";
+export { stampCameraStreamFramePublished, toCameraStreamTimestampUs } from "./camera-stream-timing.ts";
 import {
   CHASE_PASSIVE_OBSERVATION_CAMERA_ID,
   CHASE_PASSIVE_OBSERVATION_SESSION_IDENTITY_FIELDS,

@@ -190,7 +190,8 @@ New reason code: `backpressure_overflow` and `drop_policy_invalid` and
    `publishedAtUs`, `dropPolicy`, new reason codes, capability fields).
 2. `buildChaseCameraStreamFrame` + `stampCameraStreamFramePublished` +
    `resolveChaseCameraStreamRequest` (`dropPolicy`) in
-   `examples/play/chase/evaluation/camera-stream.ts`.
+   `examples/play/chase/evaluation/camera-stream.ts`; keep runtime timing
+   helpers inside the served Chase module graph.
 3. Tests in the camera-stream regression files (cases below) until green.
 4. Runtime queue/clocks in `examples/play/chase/ui/camera-stream-runtime.mjs`.
    Keep `capture()` JPEG path; stamp source after capture, publish at send.
@@ -236,12 +237,14 @@ timestamp field is being stripped (then add the two keys only).
 | --- | --- |
 | `shared/play-camera-stream.ts` | Frame timing fields, dropPolicy, reason codes, capability |
 | `examples/play/chase/evaluation/camera-stream.ts` | Require/stamp timestamps; parse dropPolicy |
+| `examples/play/chase/evaluation/camera-stream-timing.ts` | Browser-served runtime timing helpers without outside-graph imports |
 | `examples/play/chase/ui/camera-stream-runtime.mjs` | Capture clock, publish clock, FIFO when `"none"`; runtime handoff boundary |
 | `examples/play/chase/chase-camera-stream-regression.test.mjs` | Existing camera stream regressions plus additive field assertions |
 | `examples/play/chase/chase-camera-stream-timing-regression.test.mjs` | Timing, drop-policy, queue, and first-result stamping cases |
 | `examples/play/chase/ui/chase-play-usage.mjs` | Pass-through of new capability fields |
 | `USAGE.md` | Document clocks and `dropPolicy` |
 | `server/routes/camera-stream-subscriptions.test.ts` | Timestamp pass-through if needed |
+| `server/routes/play-game-routes.test.ts` | Browser-resolved Chase module graph returns JavaScript within the game route |
 | `shared/schema.ts` | Only if subscribe command type must list `dropPolicy` |
 
 Do not modify `atomic-capture.ts` or `passive-observation.ts` reason codes
