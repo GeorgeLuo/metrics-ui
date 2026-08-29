@@ -12,6 +12,12 @@ import type {
   SubtitleOverlay,
   UiDebugResponse,
 } from "@shared/schema";
+import type {
+  CameraStreamPushMessage,
+  CameraStreamResultPayload,
+  CameraStreamSubscribeRequest,
+  CameraStreamUnsubscribeRequest,
+} from "@shared/play-camera-stream";
 
 export type RestoreStateCommand = Extract<ControlCommand, { type: "restore_state" }>;
 export type PlayGameCommandInput = Pick<
@@ -111,6 +117,13 @@ export interface WsCommandDispatchContext {
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
   onPlayGameCommand?: (command: PlayGameCommandInput) => boolean;
   onPlayGameQuery?: (query: PlayGameQueryInput) => unknown;
+  onPlayCameraStreamSubscribe?: (
+    request: CameraStreamSubscribeRequest,
+    emit: (message: CameraStreamPushMessage) => unknown,
+  ) => CameraStreamResultPayload;
+  onPlayCameraStreamUnsubscribe?: (
+    request: CameraStreamUnsubscribeRequest,
+  ) => CameraStreamResultPayload;
   onLiveStart: (options: {
     source?: string;
     pollIntervalMs?: number;

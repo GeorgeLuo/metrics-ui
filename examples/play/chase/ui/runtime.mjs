@@ -18,6 +18,9 @@ import {
   buildPassiveChaseEvaluationCapture,
 } from "../evaluation/passive-observation.ts";
 import {
+  buildChaseCameraStreamCapability,
+} from "../evaluation/camera-stream.ts";
+import {
   createChaserViewController,
   createEvaderViewController,
 } from "./actor-view-controller.mjs";
@@ -32,6 +35,7 @@ import {
   registerSidebarActions,
 } from "./sidebar-actions.mjs";
 import { createChaseLoop } from "./chase-loop.mjs";
+import { createChaseCameraStreamRuntime } from "./camera-stream-runtime.mjs";
 import { createControlInputTracker } from "./input-tracker.mjs";
 import { createChaseScenarioSession } from "./scenario-session.mjs";
 import {
@@ -200,6 +204,11 @@ export function createPlayGame({
       evaderExists: simulationState.evaderExists !== false,
     })
   );
+  const getCameraStreamCapability = () => (
+    buildChaseCameraStreamCapability({
+      evaderExists: simulationState.evaderExists !== false,
+    })
+  );
   const getCurrentControlInput = () => (
     simulationState.chaserControlSource === "programmatic"
       ? null
@@ -235,6 +244,33 @@ export function createPlayGame({
       },
     })
   );
+
+  const captureCameraStreamImage = (options) => {
+    const renderedImage = sceneView.captureActorView?.({
+      actorId: options.actorId,
+      cameraId: options.cameraId,
+      width: options.width,
+      height: options.height,
+      contentType: "image/jpeg",
+      quality: options.quality,
+      includeDebugVisualizations: false,
+    }) ?? null;
+    if (!renderedImage) {
+      return null;
+    }
+    return {
+      contentType: renderedImage.contentType,
+      rendererId: renderedImage.rendererId,
+      width: renderedImage.width,
+      height: renderedImage.height,
+      dataUrl: renderedImage.dataUrl,
+    };
+  };
+  const cameraStreamRuntime = createChaseCameraStreamRuntime({
+    getCapability: getCameraStreamCapability,
+    getFingerprint: getPassiveObservationFingerprint,
+    capture: captureCameraStreamImage,
+  });
   const greentextDebugOverlay = createGreentextDebugOverlay(container);
   const updateGreentextDebugOverlay = () => {
     greentextDebugOverlay.update({
@@ -377,12 +413,14 @@ export function createPlayGame({
     performanceTracker,
     getPredictionDebugState: () => idaePredictionDebug,
     getProjectionSettings: () => projectionSettings,
+    getSimulationEpoch: () => simulationEpochOwner.current(),
     getActionPathDebugSettings: () => actionPathDebugSettings,
     getMapKnowledgeDebugSettings: () => mapKnowledgeDebugSettings,
     getVisibility: () => ({ idaeDebug: idaeDebugVisible, chaserView: chaserViewVisible, evaderView: evaderViewVisible }),
     refreshSidebarSections,
     updateGreentextDebugOverlay,
     publishDebugSnapshot,
+    onSimulationFrame: cameraStreamRuntime.handleSimulationFrame,
   });
 
   return {
@@ -402,15 +440,19 @@ export function createPlayGame({
         getAtomicEvaluationCapture,
       });
     },
+    handleCameraStreamSubscribe: cameraStreamRuntime.handleSubscribe,
+    handleCameraStreamUnsubscribe: cameraStreamRuntime.handleUnsubscribe,
     getFrontViewSnapshot(options = {}) {
       return getFrontViewSnapshot(options);
     },
     getUsage() {
       return buildChasePlayUsage({
         passiveObservation: getPassiveObservationCapability(),
+        cameraStream: getCameraStreamCapability(),
       });
     },
     dispose() {
+      cameraStreamRuntime.dispose();
       runtimeLoop?.dispose();
       clearSidebarActions(
         setSidebarActionHandler,

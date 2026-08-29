@@ -68,6 +68,7 @@ import {
   requiresFrontendResponse,
 } from "./routes/frontend-command-routing";
 import { FrontendRequestTracker } from "./routes/frontend-request-tracker";
+import { createCameraStreamSubscriptionRegistry } from "./routes/camera-stream-subscriptions";
 import { HIGHMIX_BUNDLED_VISUALIZATION_ASSETS } from "./examples/highmix-visualization-assets";
 
 function resolveConfiguredPath(envKey: string, fallback: string) {
@@ -3919,6 +3920,10 @@ function sendToFrontend(command: ControlCommand | ControlResponse): boolean {
   return true;
 }
 
+const cameraStreamSubscriptions = createCameraStreamSubscriptionRegistry<WebSocket>({
+  sendToFrontend: (command) => sendToFrontend(command),
+});
+
 function sendCaptureComponents(captureId: string, components: ComponentNode[]) {
   if (!components || components.length === 0) {
     return;
@@ -5056,16 +5061,17 @@ export async function registerRoutes(
 	                } catch {
 	                  // ignore close errors
 	                }
-	                return;
-	              }
+                return;
+              }
 
-	              // Single-client assumption: replacing the frontend should close the old session.
-	              try {
-	                previous.close(4001, "frontend replaced");
-	              } catch {
-	                // ignore close errors
-	              }
-	            }
+              // Single-client assumption: replacing the frontend should close the old session.
+              cameraStreamSubscriptions.handleFrontendDisconnect();
+              try {
+                previous.close(4001, "frontend replaced");
+              } catch {
+                // ignore close errors
+              }
+            }
 
 	            frontendClient = ws;
 	            frontendInstanceId = instanceId || null;
@@ -5238,12 +5244,26 @@ export async function registerRoutes(
             const targetId = String(message.captureId ?? "");
             removeCaptureState(targetId);
           }
+          if (cameraStreamSubscriptions.handleFrontendMessage(message as ControlResponse)) {
+            frontendRequestTracker.resolve(ws, message as ControlResponse);
+            return;
+          }
           frontendRequestTracker.resolve(ws, message as ControlResponse);
           broadcastToAgents(message as ControlResponse);
           return;
         }
 
         const command = message as ControlCommand;
+        const isCameraStreamCommand =
+          command.type === "play_camera_stream_subscribe"
+          || command.type === "play_camera_stream_unsubscribe";
+        const cameraStreamCommand = isCameraStreamCommand
+          ? cameraStreamSubscriptions.handleAgentCommand(command, ws)
+          : { forward: false };
+        if (cameraStreamCommand.response) {
+          ws.send(JSON.stringify(cameraStreamCommand.response));
+          return;
+        }
         const captureId = "captureId" in command ? String(command.captureId ?? "") : "";
         if (command.type === "get_state" || command.type === "list_captures") {
           const snapshot = buildAgentStateSnapshot();
@@ -5446,6 +5466,9 @@ export async function registerRoutes(
 
         if (!frontendClient || frontendClient.readyState !== WebSocket.OPEN) {
           if (requiresResponse) {
+            if (isCameraStreamCommand) {
+              cameraStreamSubscriptions.cancelAgentCommand(command, ws);
+            }
             ws.send(JSON.stringify(buildFrontendUnavailableResponse(command)));
             return;
           }
@@ -5548,29 +5571,33 @@ export async function registerRoutes(
       pendingClients.delete(ws);
       const role = clientRoles.get(ws);
       clientRoles.delete(ws);
-	      if (role === "frontend") {
-	        frontendRequestTracker.failFrontend(ws);
-	        if (ws === frontendClient) {
-	          frontendClient = null;
-	          frontendInstanceId = null;
-	        }
-	        console.log("[ws] Frontend disconnected");
-	        return;
-	      }
+      if (role === "frontend") {
+        frontendRequestTracker.failFrontend(ws);
+        if (ws === frontendClient) {
+          cameraStreamSubscriptions.handleFrontendDisconnect();
+          frontendClient = null;
+          frontendInstanceId = null;
+        }
+        console.log("[ws] Frontend disconnected");
+        return;
+      }
       if (role === "agent") {
+        cameraStreamSubscriptions.handleAgentDisconnect(ws);
         frontendRequestTracker.removeAgent(ws);
         agentClients.delete(ws);
         console.log("[ws] Agent disconnected, remaining:", agentClients.size);
         return;
       }
-	      if (ws === frontendClient) {
-	        frontendRequestTracker.failFrontend(ws);
-	        frontendClient = null;
-	        frontendInstanceId = null;
-	        console.log("[ws] Frontend disconnected");
-	        return;
-	      }
+      if (ws === frontendClient) {
+        frontendRequestTracker.failFrontend(ws);
+        cameraStreamSubscriptions.handleFrontendDisconnect();
+        frontendClient = null;
+        frontendInstanceId = null;
+        console.log("[ws] Frontend disconnected");
+        return;
+      }
       agentClients.delete(ws);
+      cameraStreamSubscriptions.handleAgentDisconnect(ws);
       frontendRequestTracker.removeAgent(ws);
       console.log("[ws] Agent disconnected, remaining:", agentClients.size);
     });
