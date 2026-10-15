@@ -1,4 +1,5 @@
 export const CHASE_PLAY_QUERY_IDS = Object.freeze({
+  EVALUATION_TRACE: "evaluation-trace",
   ATOMIC_EVALUATION_CAPTURE: "atomic-evaluation-capture",
 });
 
@@ -26,6 +27,12 @@ function normalizeCaptureOptions(payload) {
 
 /** Adapts generic Play queries to Chase-owned read models. */
 export function handleChasePlayQuery(query = {}, handlers = {}) {
+  if (query.queryId === CHASE_PLAY_QUERY_IDS.EVALUATION_TRACE) {
+    if (typeof handlers.getEvaluationTrace !== "function") {
+      throw new Error("Chase evaluation trace is not available.");
+    }
+    return handlers.getEvaluationTrace(query.payload ?? {});
+  }
   if (query.queryId !== CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE) {
     return undefined;
   }

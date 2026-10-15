@@ -1,6 +1,7 @@
 import { CHASER_CONTROL_SOURCES } from "../config/constants.mjs";
 
 export const CHASE_PLAY_COMMAND_IDS = Object.freeze({
+  CONFIGURE_EVALUATION_TRACE: "configure-evaluation-trace",
   SET_CHASER_INPUT: "set-chaser-input",
   SET_CHASER_CONTROL_SOURCE: "set-chaser-control-source",
 });
@@ -28,6 +29,11 @@ function readChaserControlSourcePayload(payload) {
 export function handleChasePlayCommand(command = {}, handlers = {}) {
   const commandId = typeof command.commandId === "string" ? command.commandId.trim() : "";
   switch (commandId) {
+    case CHASE_PLAY_COMMAND_IDS.CONFIGURE_EVALUATION_TRACE: {
+      if (typeof handlers.configureEvaluationTrace !== "function") return false;
+      handlers.configureEvaluationTrace(command.payload);
+      return true;
+    }
     case CHASE_PLAY_COMMAND_IDS.SET_CHASER_INPUT: {
       handlers.setChaserInput?.(readChaserInputPayload(command.payload));
       return true;

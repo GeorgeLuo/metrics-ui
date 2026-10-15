@@ -5,7 +5,7 @@ import {
 } from "@shared/protocol-utils";
 import { normalizeCaptureAppendFrame } from "@/hooks/ws/normalizers";
 import type { WsCommandDispatchContext } from "@/hooks/ws/dispatch-context";
-
+import { sendPlayAck } from "./play-experiment-ack";
 export function handleInteractionCommand(
   command: ControlCommand | ControlResponse,
   requestId: string | undefined,
@@ -437,7 +437,7 @@ export function handleInteractionCommand(
         });
         return true;
       }
-      context.sendAck(requestId, command.type);
+      sendPlayAck(context, requestId, command);
       return true;
     }
     case "play_game_command": {
@@ -446,17 +446,20 @@ export function handleInteractionCommand(
         context.sendError(requestId, "play_game_command requires a non-empty commandId.");
         return true;
       }
-      const handled = context.onPlayGameCommand?.({
-        commandId,
-        payload: command.payload,
-      }) === true;
+      let handled: boolean;
+      try {
+        handled = context.onPlayGameCommand?.({ commandId, payload: command.payload }) === true;
+      } catch (error) {
+        context.sendError(requestId, error instanceof Error ? error.message : "Play game command failed.", { commandId });
+        return true;
+      }
       if (!handled) {
         context.sendError(requestId, "Play game command is unavailable. Activate the Play sub-app and wait for the game to load.", {
           commandId,
         });
         return true;
       }
-      context.sendAck(requestId, command.type);
+      sendPlayAck(context, requestId, command);
       return true;
     }
     case "state_sync": {

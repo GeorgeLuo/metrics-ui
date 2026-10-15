@@ -908,7 +908,7 @@ test("chase sidebar combines score and settings into the game section", () => {
   assert.equal(touchCountIndex, scoreHeaderIndex + 1);
   assert.equal(frameCountIndex, touchCountIndex + 1);
   assert.equal(touchRateIndex, frameCountIndex + 1);
-  assert.equal(simulationHeaderIndex, touchRateIndex + 1);
+  assert.equal(simulationHeaderIndex, touchRateIndex + 5);
   assert.equal(fpsIndex, simulationHeaderIndex + 1);
   assert.equal(playbackIndex, fpsIndex + 1);
   assert.equal(gameChaserControlSourceIndex, playbackIndex + 1);

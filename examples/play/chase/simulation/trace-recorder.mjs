@@ -185,6 +185,8 @@ export function createChaseTraceRecorder(
     appendLine,
     resetSink,
     fallbackSink = CHASE_TRACE_SINKS.MEMORY,
+    buildFrame = buildChaseTraceFrame,
+    maxFrames = null,
   } = {},
 ) {
   const resolvedConfig = resolveChaseTraceConfig(config);
@@ -207,6 +209,9 @@ export function createChaseTraceRecorder(
     warnings,
     frames: [],
     recordedFrameCount: 0,
+    droppedFrameCount: 0,
+    maxFrames,
+    buildFrame,
     appendLine,
     resetSink,
   };
@@ -229,7 +234,16 @@ export function recordChaseTraceFrame(recorder, state) {
     return null;
   }
 
-  const frame = buildChaseTraceFrame(state);
+  // A bounded evaluator recorder retains the first maxFrames records, then
+  // explicitly counts losses. Existing full/file traces keep their behavior.
+  if (recorder.effectiveSink === CHASE_TRACE_SINKS.MEMORY
+    && Number.isInteger(recorder.maxFrames) && recorder.maxFrames > 0
+    && recorder.frames.length >= recorder.maxFrames) {
+    recorder.recordedFrameCount += 1;
+    recorder.droppedFrameCount += 1;
+    return null;
+  }
+  const frame = recorder.buildFrame(state);
   if (recorder.effectiveSink === CHASE_TRACE_SINKS.MEMORY) {
     recorder.frames.push(frame);
   } else if (recorder.effectiveSink === CHASE_TRACE_SINKS.FILE) {

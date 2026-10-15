@@ -490,3 +490,44 @@ test("PiRacer room sketch viewport keeps fractional world units out of the Frame
   assert.deepEqual(viewportSpec?.frameAspect, [7.8, 6.2]);
   assert.equal(Object.hasOwn(viewportSpec ?? {}, "grid"), false);
 });
+
+
+test("walled chase preserves default actors and settings with dimension-matched perimeter walls", () => {
+  assert.ok(getChaseScenarioOptions().some((option) => option.value === "walled-chase"));
+  for (const grid of [undefined, GRID, { columns: 12, rows: 8 }]) {
+    const baseline = resolveChaseScenario(defaultScenarioDefinition, grid);
+    const scenario = resolveChaseScenario(getChaseScenarioDefinition("walled-chase"), grid);
+    assert.deepEqual(scenario.actors, baseline.actors);
+    assert.equal(scenario.actors.evader.exists, true);
+    for (const key of ["runtime", "vehicleSettings", "projectionSettings", "simulation", "policies", "engines", "rendering"]) {
+      assert.deepEqual(scenario[key], baseline[key]);
+    }
+    assert.deepEqual(scenario.map.obstacles.walls.filter((wall) => !wall.boundary), baseline.map.obstacles.walls);
+    const walls = scenario.map.obstacles.walls.filter((wall) => wall.boundary);
+    assert.equal(walls.length, 4);
+    assert.equal(walls.find((wall) => wall.id === "room-wall-east").x, scenario.map.columns / 2);
+    assert.equal(walls.find((wall) => wall.id === "room-wall-west").x, -scenario.map.columns / 2);
+    assert.equal(walls.find((wall) => wall.id === "room-wall-north").z, -scenario.map.rows / 2);
+    assert.equal(walls.find((wall) => wall.id === "room-wall-south").z, scenario.map.rows / 2);
+    assert.ok(walls.every((wall) => wall.height > 0 && wall.width > 0 && wall.depth > 0));
+    const state = createChaseSimulationState({ scenario });
+    assert.equal(state.columns, scenario.map.columns);
+    assert.equal(state.rows, scenario.map.rows);
+    assert.equal(state.evaderExists, true);
+    stepChaseSimulation(state, { humanInput: idleInput() });
+    assert.ok(state.lastStep.evaderMovementDecision);
+  }
+  assert.equal(defaultScenarioDefinition.map.boundaryWalls, undefined);
+});
+
+
+test("boundary wall opt-in is repeatable and false preserves the baseline obstacle list", () => {
+  const definition = getChaseScenarioDefinition("walled-chase");
+  const first = resolveChaseScenario(definition, GRID);
+  const second = resolveChaseScenario(definition, GRID);
+  assert.deepEqual(first.map.obstacles, second.map.obstacles);
+  assert.equal(first.map.obstacles.walls.filter((wall) => wall.boundary).length, 4);
+  assert.equal(definition.map.obstacles, undefined);
+  const disabled = resolveChaseScenario({ ...definition, map: { ...definition.map, boundaryWalls: false } }, GRID);
+  assert.deepEqual(disabled.map.obstacles, resolveChaseScenario(defaultScenarioDefinition, GRID).map.obstacles);
+});

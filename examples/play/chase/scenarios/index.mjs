@@ -8,10 +8,16 @@ import piracerRoomSketchScenarioDefinition from "./piracer-room-sketch.scenario.
 import surfacePatchesScenarioDefinition from "./surface-patches.scenario.mjs";
 import twoRoomsScenarioDefinition from "./two-rooms.scenario.mjs";
 
+import walledChaseScenarioDefinition from "./walled-chase.scenario.mjs";
+
+import wallEscapeScenarioDefinition from "./wall-escape.scenario.mjs";
+
 export const DEFAULT_CHASE_SCENARIO_ID = defaultScenarioDefinition.id;
 
 export const CHASE_SCENARIO_DEFINITIONS = Object.freeze([
   defaultScenarioDefinition,
+  walledChaseScenarioDefinition,
+  wallEscapeScenarioDefinition,
   openRoomScenarioDefinition,
   largeOpenRoomScenarioDefinition,
   chaserEmptyMapScenarioDefinition,

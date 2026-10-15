@@ -1,4 +1,4 @@
-import { CAR_BOUND_RADIUS } from "../config/constants.mjs";
+import { createRunMetrics, updateRunMetrics } from "./run-metrics.mjs";
 import {
   createChaserIdae,
   recordChaserSuccessMetrics,
@@ -30,43 +30,6 @@ import {
 } from "../debug/prediction-performance.mjs";
 import { resolveObstacleCollisions } from "../world/world.mjs";
 import { getSurfaceSpeedMultiplierAtPosition } from "../world/surfaces.mjs";
-
-function createRunMetrics() {
-  return {
-    elapsedFrames: 0,
-    touchCount: 0,
-    touchRatePerThousandFrames: 0,
-    evaderTouchActive: false,
-  };
-}
-
-function updateRunMetrics(runMetrics, chaserPosition, evaderPosition) {
-  if (!runMetrics) {
-    return;
-  }
-
-  runMetrics.elapsedFrames += 1;
-  if (!chaserPosition || !evaderPosition) {
-    runMetrics.evaderTouchActive = false;
-    runMetrics.touchRatePerThousandFrames = runMetrics.elapsedFrames > 0
-      ? (runMetrics.touchCount / runMetrics.elapsedFrames) * 1000
-      : 0;
-    return;
-  }
-
-  const touchesTarget = Math.hypot(
-    chaserPosition.x - evaderPosition.x,
-    chaserPosition.z - evaderPosition.z,
-  ) <= CAR_BOUND_RADIUS * 2;
-
-  if (touchesTarget && !runMetrics.evaderTouchActive) {
-    runMetrics.touchCount += 1;
-  }
-  runMetrics.evaderTouchActive = touchesTarget;
-  runMetrics.touchRatePerThousandFrames = runMetrics.elapsedFrames > 0
-    ? (runMetrics.touchCount / runMetrics.elapsedFrames) * 1000
-    : 0;
-}
 
 function cloneVector(vector, fallback = { x: 0, z: 0 }) {
   if (vector) {
@@ -359,7 +322,7 @@ function commitReasonedActionFrame(state, actionFrame) {
     evaderExists: state.evaderExists !== false,
     frameIndex: state.frameIndex + 1,
   });
-  updateRunMetrics(state.runMetrics, state.chaserPosition, state.evaderPosition);
+  updateRunMetrics(state);
   state.lastStep = {
     ...actionFrame,
     phase: "after-actions",
@@ -367,9 +330,11 @@ function commitReasonedActionFrame(state, actionFrame) {
     evaderMovementDecision,
     frontViewCaptures,
   };
+  state.lastCommittedActionFrame = state.lastStep;
   state.pendingActionFrame = null;
   state.frameIndex += 1;
   recordChaseTraceFrame(state.traceRecorder, state);
+  recordChaseTraceFrame(state.evaluationTraceRecorder, state);
   return state;
 }
 
@@ -427,6 +392,7 @@ export function createChaseSimulationState({
     runMetrics: createRunMetrics(),
     pendingHumanInput: { forward: false, reverse: false, steering: 0 },
     pendingActionFrame: null,
+    lastCommittedActionFrame: null,
     lastStep: {
       phase: "initial",
       frameIndex: 0,

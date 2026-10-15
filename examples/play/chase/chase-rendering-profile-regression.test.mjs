@@ -13,6 +13,7 @@ import {
   resolveChaseRenderingProfile,
 } from "./rendering/profiles.ts";
 import { CHASE_RENDERING_PROFILE_IDS } from "./rendering/profile-contract.ts";
+import { getChaseScenarioDefinition } from "./scenarios/index.mjs";
 import defaultScenarioDefinition from "./scenarios/default.scenario.mjs";
 import { resolveChaseScenario } from "./simulation/scenario.mjs";
 import { createChaseSimulationState } from "./simulation/simulation.mjs";
@@ -468,4 +469,53 @@ test("Game settings expose and dispatch the rendering profile selector", () => {
   descriptor.find((entry) => entry.id === RENDERING_SEED_ACTION_ID)?.handler("1234");
   assert.equal(selectedProfile, CHASE_RENDERING_PROFILE_IDS.RC_INDOOR);
   assert.equal(selectedSeed, 1234);
+});
+
+
+test("walled chase perimeter meshes intersect topdown and unoccluded front camera rays", () => {
+  const scenario = resolveChaseScenario(getChaseScenarioDefinition("walled-chase"));
+  const meshes = scenario.map.obstacles.walls.map((wall) => {
+    const mesh = createWall(wall, getWallMaterialOptions(wall, scenario.rendering.environment.materials));
+    mesh.userData.boundary = wall.boundary === true;
+    mesh.updateMatrixWorld(true);
+    return mesh;
+  });
+  try {
+    const topdown = new THREE.OrthographicCamera(-scenario.map.columns / 2, scenario.map.columns / 2,
+      scenario.map.rows / 2, -scenario.map.rows / 2, 0.1, 100);
+    topdown.position.set(0, 10, 0);
+    topdown.up.set(0, 0, -1);
+    topdown.lookAt(0, 0, 0);
+    topdown.updateMatrixWorld(true);
+    const front = new THREE.PerspectiveCamera();
+    const camera = resolveChaseCamera(scenario.rendering, {
+      fieldOfViewAngleRadians: scenario.vehicleSettings.fieldOfViewAngleRadians,
+      fieldOfViewDistance: scenario.vehicleSettings.fieldOfViewDistance,
+    });
+    front.fov = camera.projection.verticalFovDegrees;
+    front.aspect = camera.projection.aspect;
+    front.near = camera.projection.near;
+    front.far = camera.projection.far;
+    front.updateProjectionMatrix();
+    configureChaseActorCamera(front, scenario.actors.chaser.position, scenario.actors.chaser.direction, camera.mount);
+    front.updateMatrixWorld(true);
+    const raycaster = new THREE.Raycaster();
+    const visibleWalls = (view) => {
+      const seen = new Set();
+      const samples = Array.from({ length: 41 }, (_, index) => -0.995 + index * 1.99 / 40);
+      for (const x of samples) {
+        for (const y of samples) {
+          raycaster.setFromCamera(new THREE.Vector2(x, y), view);
+          raycaster.far = view.far;
+          const hit = raycaster.intersectObjects(meshes, false)[0];
+          if (hit?.object.userData.boundary) seen.add(hit.object);
+        }
+      }
+      return seen;
+    };
+    assert.equal(visibleWalls(topdown).size, 4);
+    assert.ok(visibleWalls(front).size > 0, "default chaser camera must see unoccluded perimeter geometry");
+  } finally {
+    meshes.forEach(disposeObject3D);
+  }
 });

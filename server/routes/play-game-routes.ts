@@ -1,5 +1,6 @@
 import type { Express, Response } from "express";
 import { transformSync } from "esbuild";
+import { createGameSnapshot, type GameSnapshot } from "./play-game-snapshot";
 import * as fs from "fs";
 import * as path from "path";
 import {
@@ -209,11 +210,26 @@ export function getPlayGameWatchFiles(projectRoot: string): string[] {
 export function registerPlayGameRoutes({ app, projectRoot }: RegisterPlayGameRoutesOptions) {
   registerPlayChaseActorViewImageRoute({ app, projectRoot });
 
+  const snapshots = new Map<string, GameSnapshot>();
+  const snapshotEntry = (catalogFile: string, game: PlayGameRouteRecord) => {
+    const directory = path.dirname(catalogFile);
+    const snapshot = createGameSnapshot(directory, game.modulePath, buildServedGameModuleSource);
+    snapshots.set(`${game.id}:${snapshot.digest}`, snapshot);
+    // Bound memory. Expired URLs fail explicitly; never serve changed bytes at an old URL.
+    if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value!);
+    return `/api/play/games/${game.id}/snapshots/${snapshot.digest}/files/${encodePathSegments(path.relative(directory, game.modulePath))}`;
+  };
+  app.get("/api/play/games/:gameId/snapshots/:digest/files/*", (req, res) => {
+    const snapshot = snapshots.get(`${req.params.gameId}:${req.params.digest}`);
+    const source = snapshot?.files.get((req.params as Record<string, string>)[0]);
+    if (source === undefined) return res.status(410).json({ error: "Game snapshot expired or file unavailable; request a new catalog" });
+    return res.set("Cache-Control", "public, max-age=31536000, immutable").type("application/javascript").send(source);
+  });
   app.get("/api/play/games", (_req, res) => {
     try {
-      const { games } = readPlayGames(projectRoot);
+      const { games, catalogFile } = readPlayGames(projectRoot);
       return res.json({
-        games: games.map(({ modulePath: _modulePath, ...game }) => game),
+        games: games.map(({ modulePath: _modulePath, ...game }) => ({ ...game, moduleUrl: snapshotEntry(catalogFile, { ...game, modulePath: _modulePath }) })),
       });
     } catch (error) {
       console.error("Failed to read Play game catalog:", error);
@@ -233,7 +249,7 @@ export function registerPlayGameRoutes({ app, projectRoot }: RegisterPlayGameRou
         return res.status(404).json({ error: "Play game not found." });
       }
 
-      return res.redirect(307, match.game.moduleUrl);
+      return res.redirect(307, snapshotEntry(match.catalogFile, match.game));
     } catch (error) {
       console.error("Failed to serve Play game module:", error);
       return res.status(500).json({ error: "Play game module is not available." });

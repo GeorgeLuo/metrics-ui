@@ -111,6 +111,14 @@ export function buildGameRows({
       label: "Touches / 1k frames",
       value: formatRunMetric(runMetrics.touchRatePerThousandFrames, 2),
     },
+    { kind: "value", label: "Wall touches", value: formatRunMetric(runMetrics.wallTouchCount, 0) },
+    { kind: "value", label: "Wall contact frames", value: formatRunMetric(runMetrics.wallTouchFrames, 0) },
+    { kind: "value", label: "Wall contact active", value: runMetrics.wallTouchActive ? "yes" : "no" },
+    {
+      kind: "value",
+      label: "Wall touches / 1k frames",
+      value: formatRunMetric(runMetrics.wallTouchRatePerThousandFrames, 2),
+    },
     ...buildScenarioRows(scenarioControls),
     { kind: "header", label: "Simulation" },
     {

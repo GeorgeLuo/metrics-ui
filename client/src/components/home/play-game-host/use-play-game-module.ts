@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getFrontendInstanceId } from "@/lib/frontend-identity";
 import type {
   PlayFloatingFrameOptions,
   PlayFloatingFrameHandle,
@@ -117,6 +118,8 @@ export function usePlayGameModule({
         }
         gameInstance = module.createPlayGame({
           container,
+          frontendInstanceId: getFrontendInstanceId(),
+          buildIdentity: module.experimentBuildIdentity ?? null,
           columns,
           rows,
           createFloatingFrame,

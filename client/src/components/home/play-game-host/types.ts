@@ -77,6 +77,8 @@ export type PlayGameHostProps = {
 };
 
 export type PlayGameRuntimeContext = {
+  frontendInstanceId?: string;
+  buildIdentity?: unknown;
   container: HTMLElement;
   columns: number;
   rows: number;
@@ -111,5 +113,6 @@ export type PlayGameInstance = {
 };
 
 export type PlayGameModule = {
+  experimentBuildIdentity?: unknown;
   createPlayGame?: (context: PlayGameRuntimeContext) => PlayGameInstance | void;
 };

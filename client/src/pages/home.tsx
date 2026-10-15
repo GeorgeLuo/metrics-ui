@@ -519,6 +519,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
     buildInitialEquationsPaneState,
   );
   const [sidebarApp, setSidebarApp] = useState<SidebarApp>(() => {
+    if (new URLSearchParams(window.location.search).has("playScenario")) return "play";
     const raw = readStorageString(DASHBOARD_STORAGE_KEYS.sidebarApp);
     return normalizeSidebarAppState(raw, "equations");
   });
@@ -3119,7 +3120,7 @@ export default function Home({ miniMode = false }: HomeProps = {}) {
       if (typeof state.displayDerivationGroupId === "string") {
         setDisplayDerivationGroupId(state.displayDerivationGroupId);
       }
-      if (isSidebarAppState(state.sidebarApp)) {
+      if (isSidebarAppState(state.sidebarApp) && !new URLSearchParams(window.location.search).has("playScenario")) {
         setSidebarApp(state.sidebarApp);
       }
       if (state.playback && typeof state.playback === "object") {
