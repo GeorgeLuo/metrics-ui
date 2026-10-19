@@ -16,6 +16,8 @@ const FRONTEND_RESPONSE_REQUIRED_COMMANDS = new Set<ControlCommand["type"]>([
   "get_play_debug",
   "get_play_game_usage",
   "play_game_query",
+  "play_camera_stream_subscribe",
+  "play_camera_stream_unsubscribe",
   "get_play_front_view_snapshot",
   "get_memory_stats",
   "get_metric_coverage",

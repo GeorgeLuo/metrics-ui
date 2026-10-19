@@ -80,15 +80,14 @@ export function createChaseScenarioSession({ columns, rows } = {}) {
     dimensions,
   );
 
-  const loadScenario = (scenarioId) => {
+  const loadScenario = (scenarioId, { preserveRenderingProfile = false } = {}) => {
     activeScenarioDefinition = getChaseScenarioDefinition(scenarioId);
     activeScenarioId = activeScenarioDefinition.id ?? DEFAULT_CHASE_SCENARIO_ID;
     evaderExistsOverride = getScenarioEvaderExists(activeScenarioDefinition, dimensions);
-    renderingProfileIdOverride = getScenarioRenderingProfileId(
-      activeScenarioDefinition,
-      dimensions,
-    );
-    renderingSeedOverride = getScenarioRenderingSeed(activeScenarioDefinition, dimensions);
+    if (!preserveRenderingProfile) {
+      renderingProfileIdOverride = getScenarioRenderingProfileId(activeScenarioDefinition, dimensions);
+      renderingSeedOverride = getScenarioRenderingSeed(activeScenarioDefinition, dimensions);
+    }
     return buildScenario();
   };
 

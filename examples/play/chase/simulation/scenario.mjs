@@ -27,6 +27,7 @@ import {
 } from "../decision-model/core/math.ts";
 import { CHASE_TRACE_SINKS } from "./trace-recorder.mjs";
 import { CHASER_PATTERN_IDS, CHASER_ACTION_PROPOSAL_IDS, EVADER_ACTION_PROPOSAL_IDS } from "../config/decision-ids.mjs";
+import { createRoomBoundaryWalls } from "../scenarios/room-boundary-walls.mjs";
 import { getFieldObstacleLayout } from "../world/world.mjs";
 import { resolveChaseRenderingProfile } from "../rendering/profiles.ts";
 
@@ -369,6 +370,9 @@ export function resolveChaseScenario(definition, { columns, rows } = {}) {
   const chaser = asRecord(actors.chaser) ?? {};
   const evader = asRecord(actors.evader) ?? {};
   const map = resolveMapScenario(root.map, safeColumns, safeRows);
+  if (asRecord(root.map)?.boundaryWalls === true) {
+    map.obstacles.walls.push(...createRoomBoundaryWalls(map.columns, map.rows));
+  }
   const fallbackChaserPosition = { x: -map.columns * 0.38, z: 0 };
   const fallbackEvaderPosition = { x: map.columns / 4, z: 0 };
   const fallbackChaserDirection = { x: 1, z: 0 };

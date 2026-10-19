@@ -1,3 +1,4 @@
+import type { CameraStreamSocketSession } from "./camera-stream-socket";
 import type {
   Annotation,
   CaptureSession,
@@ -12,6 +13,12 @@ import type {
   SubtitleOverlay,
   UiDebugResponse,
 } from "@shared/schema";
+import type {
+  CameraStreamPushMessage,
+  CameraStreamResultPayloadDraft,
+  CameraStreamSubscribeRequest,
+  CameraStreamUnsubscribeRequest,
+} from "@shared/play-camera-stream";
 
 export type RestoreStateCommand = Extract<ControlCommand, { type: "restore_state" }>;
 export type PlayGameCommandInput = Pick<
@@ -36,6 +43,7 @@ export type UiError = {
 };
 
 export interface WsCommandDispatchContext {
+  cameraStreamSession?: CameraStreamSocketSession;
   sendMessage: (message: ControlResponse | ControlCommand) => boolean;
   sendAck: (requestId: string | undefined, command: string) => void;
   sendError: (
@@ -111,6 +119,13 @@ export interface WsCommandDispatchContext {
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
   onPlayGameCommand?: (command: PlayGameCommandInput) => boolean;
   onPlayGameQuery?: (query: PlayGameQueryInput) => unknown;
+  onPlayCameraStreamSubscribe?: (
+    request: CameraStreamSubscribeRequest,
+    emit: (message: CameraStreamPushMessage) => unknown,
+  ) => CameraStreamResultPayloadDraft;
+  onPlayCameraStreamUnsubscribe?: (
+    request: CameraStreamUnsubscribeRequest,
+  ) => CameraStreamResultPayloadDraft;
   onLiveStart: (options: {
     source?: string;
     pollIntervalMs?: number;

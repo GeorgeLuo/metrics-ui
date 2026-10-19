@@ -17,3 +17,5 @@ The chase example keeps decision logic grouped by IDAE stage, with the RC chase 
 - `config/` contains chase constants, action proposal identifiers, motive identifiers, and pattern identifiers.
 
 The intended direction is that IDAE-stage code is discoverable in `decision-model/`, while actor adapters stay thin and world/UI/debug code remains outside the decision model.
+
+Vehicle collision response stops the full displacement at the first padded obstacle or field boundary, including oblique impacts and rotated obstacles. Continued throttle into that contact leaves the body stationary instead of sliding or accumulating steering yaw. Heading changes only for distance actually traveled; reversing away resumes normal motion. This is environment physics shared by both actors, independent of the selected controller. Contact dwell frames continue to accrue while the car remains against the obstacle.

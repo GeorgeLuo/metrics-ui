@@ -11,12 +11,16 @@ import { buildChaseDebugSnapshot } from "../debug/debug-snapshot.mjs";
 import { buildManualFrontViewSnapshot } from "./front-view-snapshot.ts";
 import { buildAtomicEvaluationCaptureFromSnapshot } from "../evaluation/atomic-capture.ts";
 import { buildActorControlReference } from "../evaluation/actor-control-reference.ts";
+import { createChaseEvaluationTrace } from "../evaluation/evaluation-trace.mjs";
 import { createChaseSimulationEpochOwner } from "../evaluation/runtime-identity.mjs";
 import {
   buildChasePassiveObservationCapability,
   buildChasePassiveObservationFingerprint,
   buildPassiveChaseEvaluationCapture,
 } from "../evaluation/passive-observation.ts";
+import {
+  buildChaseCameraStreamCapability,
+} from "../evaluation/camera-stream.ts";
 import {
   createChaserViewController,
   createEvaderViewController,
@@ -31,7 +35,12 @@ import {
   clearSidebarActions,
   registerSidebarActions,
 } from "./sidebar-actions.mjs";
+import { readExperimentStartup } from "../evaluation/experiment-startup.mjs";
+import { prepareChaseExperiment } from "../evaluation/experiment-prepare.mjs";
+import { createExperimentSession } from "../evaluation/experiment-session.mjs";
+import { createExperimentEvidence } from "../evaluation/experiment-evidence.mjs";
 import { createChaseLoop } from "./chase-loop.mjs";
+import { createChaseCameraStreamRuntime } from "./camera-stream-runtime.mjs";
 import { createControlInputTracker } from "./input-tracker.mjs";
 import { createChaseScenarioSession } from "./scenario-session.mjs";
 import {
@@ -64,10 +73,14 @@ function shouldCloseEvaderView(simulationState, evaderViewVisible) {
 export { createScenarioDefinitionWithEvaderOverride } from "./scenario-session.mjs";
 
 export function createPlayGame({
+  frontendInstanceId = null,
+  buildIdentity = null,
+  startup = readExperimentStartup(globalThis.location?.search ?? ""),
   container,
   columns,
   rows,
   createFloatingFrame,
+  createSceneView = createChaseSceneView,
   setSidebarSections,
   setSidebarActionHandler,
   setDebugSnapshot,
@@ -75,8 +88,12 @@ export function createPlayGame({
 }) {
   const scenarioSession = createChaseScenarioSession({ columns, rows });
   const simulationEpochOwner = createChaseSimulationEpochOwner();
-  let scenario = scenarioSession.buildScenario();
+  let scenario = startup ? scenarioSession.loadScenario(startup.scenarioId) : scenarioSession.buildScenario();
   const simulationState = createChaseSimulationState({ scenario, columns, rows });
+  const evaluationTrace = createChaseEvaluationTrace({
+    getState: () => simulationState,
+    getSimulationEpoch: () => simulationEpochOwner.current(),
+  });
   let actorActionProposalOverrides = cloneActorActionProposalCollections(
     getActorActionProposalCollections(simulationState),
   );
@@ -93,6 +110,22 @@ export function createPlayGame({
 
   const simulationSettings = simulationState.simulationSettings;
   normalizeSimulationSettings(simulationSettings);
+  if (startup) {
+    setChaserControlSource(simulationState, startup.controlSource);
+    simulationSettings.pauseBeforeActions = true;
+  }
+  const experiment = createExperimentSession({ state: simulationState, settings: simulationSettings, inputTracker,
+    getEpoch: simulationEpochOwner.current, buildIdentity, frontendInstanceId, trace: evaluationTrace,
+    resetTiming: () => runtimeLoop?.resetTiming() });
+  const experimentEvidence = createExperimentEvidence({ getState: experiment.snapshot, trace: evaluationTrace });
+  const receiveExperimentReceipt = (event) => {
+    const identity = event.detail?.receipt?.payload?.identity;
+    if (identity?.frontendInstanceId === frontendInstanceId
+      && identity?.simulationEpoch === simulationEpochOwner.current()) {
+      experimentEvidence.recordReceipt(event.detail);
+    }
+  };
+  globalThis.addEventListener?.("metrics-ui:play-receipt", receiveExperimentReceipt);
   const vehicleSettings = simulationState.vehicleSettings;
   const projectionSettings = {
     ...simulationState.projectionSettings,
@@ -111,6 +144,7 @@ export function createPlayGame({
   };
 
   const refreshSidebarSections = () => {
+    experiment.observePause();
     publishSidebarSections(
       setSidebarSections,
       simulationState.chaserControlSource,
@@ -179,7 +213,7 @@ export function createPlayGame({
     getPredictionDebugState: () => idaePredictionDebug,
   });
 
-  const sceneView = createChaseSceneView({
+  const sceneView = createSceneView({
     container,
     columns,
     rows,
@@ -197,6 +231,11 @@ export function createPlayGame({
   };
   const getPassiveObservationCapability = () => (
     buildChasePassiveObservationCapability({
+      evaderExists: simulationState.evaderExists !== false,
+    })
+  );
+  const getCameraStreamCapability = () => (
+    buildChaseCameraStreamCapability({
       evaderExists: simulationState.evaderExists !== false,
     })
   );
@@ -218,8 +257,9 @@ export function createPlayGame({
       cameraId,
     })
   );
-  const getAtomicEvaluationCapture = (options = {}) => (
-    buildPassiveChaseEvaluationCapture({
+  const getAtomicEvaluationCapture = (options = {}) => {
+    const captureStartedAtUs = Math.round(performance.now() * 1000);
+    const result = buildPassiveChaseEvaluationCapture({
       request: options,
       capability: getPassiveObservationCapability(),
       getFingerprint: getPassiveObservationFingerprint,
@@ -233,8 +273,37 @@ export function createPlayGame({
           { simulationEpoch: simulationEpochOwner.current() },
         );
       },
-    })
-  );
+    });
+    experimentEvidence.recordCamera(result, { captureStartedAtUs, capturedAtUs: Math.round(performance.now() * 1000) });
+    return result;
+  };
+
+  const captureCameraStreamImage = (options) => {
+    const renderedImage = sceneView.captureActorView?.({
+      actorId: options.actorId,
+      cameraId: options.cameraId,
+      width: options.width,
+      height: options.height,
+      contentType: "image/jpeg",
+      quality: options.quality,
+      includeDebugVisualizations: false,
+    }) ?? null;
+    if (!renderedImage) {
+      return null;
+    }
+    return {
+      contentType: renderedImage.contentType,
+      rendererId: renderedImage.rendererId,
+      width: renderedImage.width,
+      height: renderedImage.height,
+      dataUrl: renderedImage.dataUrl,
+    };
+  };
+  const cameraStreamRuntime = createChaseCameraStreamRuntime({
+    getCapability: getCameraStreamCapability,
+    getFingerprint: getPassiveObservationFingerprint,
+    capture: captureCameraStreamImage,
+  });
   const greentextDebugOverlay = createGreentextDebugOverlay(container);
   const updateGreentextDebugOverlay = () => {
     greentextDebugOverlay.update({
@@ -244,6 +313,8 @@ export function createPlayGame({
   };
 
   const replaceSimulationState = (nextScenario, { preserveSidebarSettings = false } = {}) => {
+    experiment.beginRun();
+    experimentEvidence.beginRun();
     const preservedSettings = preserveSidebarSettings ? {
       chaserControlSource: simulationState.chaserControlSource,
       simulationSettings: { ...simulationSettings },
@@ -272,6 +343,7 @@ export function createPlayGame({
     simulationState.projectionSettings = projectionSettings;
     applyActorActionProposalOverrides(simulationState, actorActionProposalOverrides);
 
+    evaluationTrace.beginRun();
     inputTracker.clearKeyboard();
     runtimeLoop?.resetTiming();
     performanceTracker.reset();
@@ -377,17 +449,37 @@ export function createPlayGame({
     performanceTracker,
     getPredictionDebugState: () => idaePredictionDebug,
     getProjectionSettings: () => projectionSettings,
+    getSimulationEpoch: () => simulationEpochOwner.current(),
     getActionPathDebugSettings: () => actionPathDebugSettings,
     getMapKnowledgeDebugSettings: () => mapKnowledgeDebugSettings,
     getVisibility: () => ({ idaeDebug: idaeDebugVisible, chaserView: chaserViewVisible, evaderView: evaderViewVisible }),
     refreshSidebarSections,
     updateGreentextDebugOverlay,
     publishDebugSnapshot,
+    onSimulationFrame: cameraStreamRuntime.handleSimulationFrame,
+    afterCommit: () => experiment.afterCommit(),
   });
 
   return {
     handleCommand(command = {}) {
+      if (command.commandId === "advance-frames") { experiment.advance(command.payload); return true; }
+      if (command.commandId === "prepare-experiment") {
+        prepareChaseExperiment(command.payload, {
+          pause: () => { experiment.cancel("prepared"); simulationSettings.pauseBeforeActions = true; },
+          neutralize: () => inputTracker.setWsInput({ forward: false, reverse: false, steering: 0 }),
+          replace: (options) => {
+            scenario = scenarioSession.loadScenario(options.scenarioId, { preserveRenderingProfile: true });
+            replaceSimulationState(scenario, { preserveSidebarSettings: true });
+            setChaserControlSource(simulationState, options.controlSource);
+            if (shouldCloseEvaderView(simulationState, evaderViewVisible)) evaderView.close();
+          },
+          configureTrace: evaluationTrace.configure,
+        });
+        return true;
+      }
+      if (command.commandId === "cancel-advance") { experiment.cancel(); return true; }
       return handleChasePlayCommand(command, {
+        configureEvaluationTrace: evaluationTrace.configure,
         setChaserInput: (input = {}) => {
           inputTracker.setWsInput(input);
         },
@@ -398,19 +490,29 @@ export function createPlayGame({
       });
     },
     handleQuery(query = {}) {
-      return handleChasePlayQuery(query, {
+      if (query.queryId === "experiment-state") return experiment.snapshot();
+      if (query.queryId === "advance-result") return experiment.result();
+      if (query.queryId === "experiment-evidence") return experimentEvidence.export(query.payload);
+      const result = handleChasePlayQuery(query, {
+        getEvaluationTrace: evaluationTrace.snapshot,
         getAtomicEvaluationCapture,
       });
+      return result && typeof result === "object" ? { ...result, experimentIdentity: experiment.identity() } : result;
     },
+    handleCameraStreamSubscribe: cameraStreamRuntime.handleSubscribe,
+    handleCameraStreamUnsubscribe: cameraStreamRuntime.handleUnsubscribe,
     getFrontViewSnapshot(options = {}) {
       return getFrontViewSnapshot(options);
     },
     getUsage() {
       return buildChasePlayUsage({
         passiveObservation: getPassiveObservationCapability(),
+        cameraStream: getCameraStreamCapability(),
       });
     },
     dispose() {
+      globalThis.removeEventListener?.("metrics-ui:play-receipt", receiveExperimentReceipt);
+      cameraStreamRuntime.dispose();
       runtimeLoop?.dispose();
       clearSidebarActions(
         setSidebarActionHandler,

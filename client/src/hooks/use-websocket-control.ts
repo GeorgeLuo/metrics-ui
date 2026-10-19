@@ -1,3 +1,4 @@
+import { createCameraStreamSocketSession, type CameraStreamSocketSession } from "./ws/camera-stream-socket";
 import { useEffect, useRef, useCallback, useMemo } from "react";
 import type {
   ControlCommand,
@@ -14,6 +15,12 @@ import type {
   MemoryStatsResponse,
   UiDebugResponse,
 } from "@shared/schema";
+import type {
+  CameraStreamPushMessage,
+  CameraStreamResultPayloadDraft,
+  CameraStreamSubscribeRequest,
+  CameraStreamUnsubscribeRequest,
+} from "@shared/play-camera-stream";
 import { RESPONSE_TYPES, QUEUED_COMMAND_TYPES, WS_CLOSE_FRONTEND_BUSY, WS_CLOSE_FRONTEND_REPLACED } from "@/hooks/ws/constants";
 import { dispatchWsCommand } from "@/hooks/ws/command-dispatch";
 import { sendControlSocketMessage } from "@/hooks/ws/socket-send";
@@ -32,6 +39,13 @@ type PlayGameQueryInput = Pick<
   Extract<ControlCommand, { type: "play_game_query" }>,
   "queryId" | "payload"
 >;
+type PlayCameraStreamSubscribeHandler = (
+  request: CameraStreamSubscribeRequest,
+  emit: (message: CameraStreamPushMessage) => unknown,
+) => CameraStreamResultPayloadDraft;
+type PlayCameraStreamUnsubscribeHandler = (
+  request: CameraStreamUnsubscribeRequest,
+) => CameraStreamResultPayloadDraft;
 
 interface UseWebSocketControlProps {
   captures: CaptureSession[];
@@ -85,6 +99,8 @@ interface UseWebSocketControlProps {
   onPlayGameAction?: (actionId: string, value?: unknown) => boolean;
   onPlayGameCommand?: (command: PlayGameCommandInput) => boolean;
   onPlayGameQuery?: (query: PlayGameQueryInput) => unknown;
+  onPlayCameraStreamSubscribe?: PlayCameraStreamSubscribeHandler;
+  onPlayCameraStreamUnsubscribe?: PlayCameraStreamUnsubscribeHandler;
   onToggleCapture: (captureId: string) => void;
   onRemoveCapture: (captureId: string) => void;
   onSelectMetric: (captureId: string, path: string[], groupId?: string) => void;
@@ -226,6 +242,8 @@ export function useWebSocketControl({
   onPlayGameAction,
   onPlayGameCommand,
   onPlayGameQuery,
+  onPlayCameraStreamSubscribe,
+  onPlayCameraStreamUnsubscribe,
   onCaptureInit,
   onCaptureComponents,
   onCaptureAppend,
@@ -261,6 +279,10 @@ export function useWebSocketControl({
   const autoSyncTimerRef = useRef<number | null>(null);
   const awaitingServerRestoreRef = useRef(false);
   const restoreFallbackTimerRef = useRef<number | null>(null);
+
+  const cameraStreamSessionRef = useRef<CameraStreamSocketSession>();
+  const cameraUnsubscribeRef = useRef(onPlayCameraStreamUnsubscribe);
+  cameraUnsubscribeRef.current = onPlayCameraStreamUnsubscribe;
 
   const sendMessage = useCallback((message: ControlResponse | ControlCommand) => {
     const type = (message as { type?: unknown }).type;
@@ -454,6 +476,7 @@ export function useWebSocketControl({
 
   const handleCommand = useCallback((command: ControlCommand | ControlResponse) => {
     dispatchWsCommand(command, {
+      cameraStreamSession: cameraStreamSessionRef.current,
       sendMessage,
       sendAck,
       sendError,
@@ -517,6 +540,8 @@ export function useWebSocketControl({
       onPlayGameAction,
       onPlayGameCommand,
       onPlayGameQuery,
+      onPlayCameraStreamSubscribe,
+      onPlayCameraStreamUnsubscribe,
       onLiveStart,
       onLiveStop,
       onCaptureInit,
@@ -605,6 +630,8 @@ export function useWebSocketControl({
     onPlayGameAction,
     onPlayGameCommand,
     onPlayGameQuery,
+    onPlayCameraStreamSubscribe,
+    onPlayCameraStreamUnsubscribe,
     onLiveStart,
     onLiveStop,
     onCaptureInit,
@@ -646,6 +673,9 @@ export function useWebSocketControl({
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws/control`);
       ownedSocket = ws;
+      cameraStreamSessionRef.current?.close();
+      const cameraSession = createCameraStreamSocketSession(ws, (request) => cameraUnsubscribeRef.current?.(request));
+      cameraStreamSessionRef.current = cameraSession;
       
       ws.onopen = () => {
         if (isCleanedUp || ownedSocket !== ws) {
@@ -790,6 +820,7 @@ export function useWebSocketControl({
       };
 
       ws.onclose = (event) => {
+        cameraSession.close();
         if (isCleanedUp || ownedSocket !== ws) {
           return;
         }
@@ -855,6 +886,7 @@ export function useWebSocketControl({
       if (wsRef.current === socketToClose) {
         wsRef.current = null;
       }
+      cameraStreamSessionRef.current?.close();
       socketToClose?.close();
     };
   }, []);

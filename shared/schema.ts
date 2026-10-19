@@ -1,5 +1,9 @@
 import { z } from "zod";
 import type { PlaySidebarSection } from "./play-sidebar";
+import type {
+  CameraStreamSubscribeCommand,
+  CameraStreamUnsubscribeCommand,
+} from "./play-camera-stream";
 
 export const captureRecordSchema = z.object({
   tick: z.number(),
@@ -890,6 +894,8 @@ export type ControlCommand =
       queryId: string;
       payload?: unknown;
     } & ControlRequestBase)
+  | CameraStreamSubscribeCommand
+  | CameraStreamUnsubscribeCommand
   | ({
       type: "sync_capture_sources";
       sources: Array<{
@@ -996,6 +1002,8 @@ export interface ControlResponse {
     | "play_debug"
     | "play_game_usage"
     | "play_game_query_result"
+    | "play_camera_stream_frame"
+    | "play_camera_stream_result"
     | "play_front_view_snapshot"
     | "ui_notice"
     | "ui_error"

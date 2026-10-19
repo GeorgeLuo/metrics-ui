@@ -1,3 +1,4 @@
+import { sendPlayAck } from "./play-experiment-ack";
 import type { ControlCommand, ControlResponse } from "@shared/schema";
 import {
   buildComponentsList,
@@ -274,6 +275,14 @@ export function handleQueryCommand(
         });
         return true;
       }
+      if (result instanceof Promise) {
+        result.then((value) => {
+          context.sendMessage({ type: "play_game_query_result", request_id: requestId, payload: { queryId, result: value } });
+          const saved = (value as { state?: { identity?: unknown; frameIndex?: number } })?.state;
+          sendPlayAck(context, requestId, command, saved);
+        }).catch((error) => context.sendError(requestId, String(error), { queryId }));
+        return true;
+      }
       context.sendMessage({
         type: "play_game_query_result",
         request_id: requestId,
@@ -282,7 +291,7 @@ export function handleQueryCommand(
           result,
         },
       });
-      context.sendAck(requestId, command.type);
+      sendPlayAck(context, requestId, command);
       return true;
     }
     case "get_play_front_view_snapshot": {

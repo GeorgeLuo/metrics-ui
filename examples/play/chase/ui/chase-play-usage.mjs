@@ -3,6 +3,7 @@ import { CHASE_PLAY_QUERY_IDS } from "./chase-play-queries.mjs";
 
 export function buildChasePlayUsage({
   passiveObservation = null,
+  cameraStream = null,
 } = {}) {
   return {
     game: {
@@ -104,6 +105,11 @@ export function buildChasePlayUsage({
     ],
     wireCommands: [
       {
+        commandId: CHASE_PLAY_COMMAND_IDS.CONFIGURE_EVALUATION_TRACE,
+        summary: "Explicit evaluator-only bounded capture. Enabling replaces prior capture; scene/reset starts a fresh trace under the new camera epoch. Disabling discards retained data, so export first.",
+        payload: { enabled: "boolean", maxFrames: "integer 2..20001 when enabled; includes baseline" },
+      },
+      {
         commandId: CHASE_PLAY_COMMAND_IDS.SET_CHASER_CONTROL_SOURCE,
         summary: "Select the chaser controller for the current frontend session.",
         payload: {
@@ -123,12 +129,23 @@ export function buildChasePlayUsage({
         cliAlias: "simeval ui play-chaser-control --motion forward --steering -0.35",
       },
     ],
+    experiments: {
+      pausedEntry: "/?playScenario=wall-escape&playControl=ws&playPaused=1",
+      commands: ["prepare-experiment", "advance-frames", "cancel-advance"],
+      queries: ["experiment-state", "advance-result", "experiment-evidence"],
+      documentation: "docs/reference/chase-experiments.md",
+      identityScope: "immutable game modules; excludes dashboard shell and external Three",
+    },
     protocol: {
       envelopeType: "play_game_command",
       queryEnvelopeType: "play_game_query",
       queryResponseType: "play_game_query_result",
+      evaluationTraceQueryId: CHASE_PLAY_QUERY_IDS.EVALUATION_TRACE,
+      evaluationTraceSchema: "chase_evaluation_trace_v1",
+      evaluationTraceQueryPayload: { expectedSimulationEpoch: "optional nonempty string" },
       evaluationCaptureQueryId: CHASE_PLAY_QUERY_IDS.ATOMIC_EVALUATION_CAPTURE,
       passiveObservation,
+      cameraStream,
       usageQueryType: "get_play_game_usage",
       usageResponseType: "play_game_usage",
     },
@@ -137,6 +154,7 @@ export function buildChasePlayUsage({
       "With the default play catalog, Chase is the active game. If multiple games are added later, select the Chase game before using these commands.",
       "Timeline commands are shell-level UI controls; chaser commands are game-level commands routed through the generic play_game_command envelope.",
       "Read-only game data uses the generic play_game_query envelope. Unsupported query IDs fail explicitly instead of returning an empty result.",
+      "Evaluation trace is disabled by default. Configure explicitly; query evaluation-trace for evaluator-only positions, wall metrics, committed-frame inputs and performance.now microsecond timestamps. Require complete=true, matching epoch, contiguous frame0..N and no gaps/truncation before scoring a full window. Trace truth must never feed camera perception, memory or control policy.",
       "Atomic evaluation capture is passive: it does not select a scenario, alter playback, change control ownership, or modify latched input.",
     ],
   };

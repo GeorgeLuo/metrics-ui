@@ -21,12 +21,15 @@ export function createChaseLoop({
   performanceTracker,
   getPredictionDebugState,
   getProjectionSettings,
+  getSimulationEpoch,
   getActionPathDebugSettings,
   getMapKnowledgeDebugSettings,
   getVisibility,
   refreshSidebarSections,
   updateGreentextDebugOverlay,
   publishDebugSnapshot,
+  onSimulationFrame,
+  afterCommit,
   closedAnimationFrameWatchdogMs = CLOSED_ANIMATION_FRAME_WATCHDOG_MS,
 }) {
   let animationFrame = 0;
@@ -148,10 +151,12 @@ export function createChaseLoop({
         accumulatedMs = 0;
         break;
       }
+      const previousFrame = simulationState.frameIndex;
       stepChaseSimulation(simulationState, { humanInput: chaserInput, pauseBeforeActions });
       accumulatedMs -= frameDurationMs;
       stepsThisTick += 1;
-      if (pauseBeforeActions && simulationState.pendingActionFrame) {
+      if (simulationState.frameIndex !== previousFrame) afterCommit?.();
+      if (simulationSettings.pauseBeforeActions && (!pauseBeforeActions || simulationState.pendingActionFrame)) {
         accumulatedMs = 0;
         break;
       }
@@ -162,6 +167,10 @@ export function createChaseLoop({
       predictionDebugState: getPredictionDebugState(),
       actionPathDebugSettings: getActionPathDebugSettings(),
       mapKnowledgeDebugSettings: getMapKnowledgeDebugSettings(),
+    });
+    onSimulationFrame?.({
+      frameIndex: simulationState.frameIndex,
+      simulationEpoch: getSimulationEpoch?.() ?? simulationState.simulationEpoch ?? null,
     });
     const idaeDebugStartMs = performance.now();
     idaeDebugFrame?.update({

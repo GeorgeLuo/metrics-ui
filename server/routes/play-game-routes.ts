@@ -1,5 +1,6 @@
 import type { Express, Response } from "express";
 import { transformSync } from "esbuild";
+import { createGameSnapshot, type GameSnapshot } from "./play-game-snapshot";
 import * as fs from "fs";
 import * as path from "path";
 import {
@@ -28,6 +29,7 @@ type RegisterPlayGameRoutesOptions = {
 const PLAY_GAME_CATALOG_ENV = "METRICS_UI_PLAY_GAME_CATALOG_FILE";
 const DEFAULT_PLAY_GAME_CATALOG_FILE = path.join("examples", "play", "play-game-catalog.json");
 const PLAY_GAME_RUNTIME_MODULE_EXTENSIONS = new Set([".mjs", ".ts"]);
+const PLAY_GAME_SNAPSHOTS_PER_GAME = 8;
 
 function isSafeGameId(id: string): boolean {
   return /^[a-zA-Z0-9._-]+$/.test(id);
@@ -209,12 +211,39 @@ export function getPlayGameWatchFiles(projectRoot: string): string[] {
 export function registerPlayGameRoutes({ app, projectRoot }: RegisterPlayGameRoutesOptions) {
   registerPlayChaseActorViewImageRoute({ app, projectRoot });
 
+  const snapshots = new Map<string, Map<string, GameSnapshot>>();
+  const pruneRemovedGames = (games: PlayGameRouteRecord[]) => {
+    const activeIds = new Set(games.map((game) => game.id));
+    for (const id of snapshots.keys()) {
+      if (!activeIds.has(id)) snapshots.delete(id);
+    }
+  };
+  const snapshotEntry = (catalogFile: string, game: PlayGameRouteRecord) => {
+    const directory = path.dirname(catalogFile);
+    const snapshot = createGameSnapshot(directory, game.modulePath, buildServedGameModuleSource);
+    const retained = snapshots.get(game.id) ?? new Map<string, GameSnapshot>();
+    // Refresh reused digests without consuming a revision slot. Other catalog
+    // games must not evict a snapshot advertised in this same response.
+    retained.delete(snapshot.digest);
+    retained.set(snapshot.digest, snapshot);
+    if (retained.size > PLAY_GAME_SNAPSHOTS_PER_GAME) retained.delete(retained.keys().next().value!);
+    snapshots.set(game.id, retained);
+    return `/api/play/games/${game.id}/snapshots/${snapshot.digest}/files/${encodePathSegments(path.relative(directory, game.modulePath))}`;
+  };
+  app.get("/api/play/games/:gameId/snapshots/:digest/files/*", (req, res) => {
+    const snapshot = snapshots.get(req.params.gameId)?.get(req.params.digest);
+    const source = snapshot?.files.get((req.params as Record<string, string>)[0]);
+    if (source === undefined) return res.status(410).json({ error: "Game snapshot expired or file unavailable; request a new catalog" });
+    return res.set("Cache-Control", "public, max-age=31536000, immutable").type("application/javascript").send(source);
+  });
   app.get("/api/play/games", (_req, res) => {
     try {
-      const { games } = readPlayGames(projectRoot);
-      return res.json({
-        games: games.map(({ modulePath: _modulePath, ...game }) => game),
-      });
+      const { games, catalogFile } = readPlayGames(projectRoot);
+      const entries = games.map(({ modulePath: _modulePath, ...game }) => ({
+        ...game, moduleUrl: snapshotEntry(catalogFile, { ...game, modulePath: _modulePath }),
+      }));
+      pruneRemovedGames(games);
+      return res.json({ games: entries });
     } catch (error) {
       console.error("Failed to read Play game catalog:", error);
       return res.status(500).json({ error: "Play game catalog is not available." });
@@ -228,12 +257,15 @@ export function registerPlayGameRoutes({ app, projectRoot }: RegisterPlayGameRou
         return res.status(400).json({ error: "Invalid game id." });
       }
 
-      const match = findPlayGame(projectRoot, gameId);
-      if (!match) {
+      const { games, catalogFile } = readPlayGames(projectRoot);
+      const game = games.find((candidate) => candidate.id === gameId);
+      if (!game) {
         return res.status(404).json({ error: "Play game not found." });
       }
 
-      return res.redirect(307, match.game.moduleUrl);
+      const moduleUrl = snapshotEntry(catalogFile, game);
+      pruneRemovedGames(games);
+      return res.redirect(307, moduleUrl);
     } catch (error) {
       console.error("Failed to serve Play game module:", error);
       return res.status(500).json({ error: "Play game module is not available." });

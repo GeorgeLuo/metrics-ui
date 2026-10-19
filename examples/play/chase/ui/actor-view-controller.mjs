@@ -141,6 +141,7 @@ export function createActorViewImageCapture({
     width,
     height,
     contentType = "image/png",
+    quality,
   } = {}) => {
     if (!scene || !actorMesh || !actorFieldOfView || !actorPosition || !actorLookDirection) {
       return null;
@@ -183,6 +184,9 @@ export function createActorViewImageCapture({
         sensorPipeline.render(nextScene, nextCamera, sensor, imageWidth, imageHeight);
       },
     });
+    const dataUrl = contentType === "image/jpeg"
+      ? resources.renderer.domElement.toDataURL(contentType, quality)
+      : resources.renderer.domElement.toDataURL(contentType);
     return {
       contentType,
       rendererId: ACTOR_VIEW_IMAGE_RENDERER_ID,
@@ -190,7 +194,7 @@ export function createActorViewImageCapture({
       height: imageHeight,
       camera: resolvedCamera,
       sensor,
-      dataUrl: resources.renderer.domElement.toDataURL(contentType),
+      dataUrl,
     };
   };
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getFrontendInstanceId } from "@/lib/frontend-identity";
 import type {
   PlayFloatingFrameOptions,
   PlayFloatingFrameHandle,
@@ -30,6 +31,12 @@ type UsePlayGameModuleOptions = {
   setGameQueryHandler: (
     handler: PlayGameInstance["handleQuery"] | null,
   ) => void;
+  setCameraStreamSubscribeHandler: (
+    handler: PlayGameInstance["handleCameraStreamSubscribe"] | null,
+  ) => void;
+  setCameraStreamUnsubscribeHandler: (
+    handler: PlayGameInstance["handleCameraStreamUnsubscribe"] | null,
+  ) => void;
   setGameUsageHandler: (
     handler: PlayGameInstance["getUsage"] | null,
   ) => void;
@@ -56,6 +63,8 @@ export function usePlayGameModule({
   setFrontViewSnapshotHandler,
   setGameCommandHandler,
   setGameQueryHandler,
+  setCameraStreamSubscribeHandler,
+  setCameraStreamUnsubscribeHandler,
   setGameUsageHandler,
 }: UsePlayGameModuleOptions) {
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -70,6 +79,8 @@ export function usePlayGameModule({
     setFrontViewSnapshotHandler(null);
     setGameCommandHandler(null);
     setGameQueryHandler(null);
+    setCameraStreamSubscribeHandler(null);
+    setCameraStreamUnsubscribeHandler(null);
     setGameUsageHandler(null);
   }, [
     clearFloatingFrames,
@@ -79,6 +90,8 @@ export function usePlayGameModule({
     setFrontViewSnapshotHandler,
     setGameCommandHandler,
     setGameQueryHandler,
+    setCameraStreamSubscribeHandler,
+    setCameraStreamUnsubscribeHandler,
     setGameUsageHandler,
     setSidebarSections,
     setViewportSpec,
@@ -105,6 +118,8 @@ export function usePlayGameModule({
         }
         gameInstance = module.createPlayGame({
           container,
+          frontendInstanceId: getFrontendInstanceId(),
+          buildIdentity: module.experimentBuildIdentity ?? null,
           columns,
           rows,
           createFloatingFrame,
@@ -123,6 +138,8 @@ export function usePlayGameModule({
         setFrontViewSnapshotHandler(gameInstance?.getFrontViewSnapshot ?? null);
         setGameCommandHandler(gameInstance?.handleCommand ?? null);
         setGameQueryHandler(gameInstance?.handleQuery ?? null);
+        setCameraStreamSubscribeHandler(gameInstance?.handleCameraStreamSubscribe ?? null);
+        setCameraStreamUnsubscribeHandler(gameInstance?.handleCameraStreamUnsubscribe ?? null);
         setGameUsageHandler(gameInstance?.getUsage ?? null);
       })
       .catch((error: unknown) => {
@@ -152,6 +169,8 @@ export function usePlayGameModule({
     setFrontViewSnapshotHandler,
     setGameCommandHandler,
     setGameQueryHandler,
+    setCameraStreamSubscribeHandler,
+    setCameraStreamUnsubscribeHandler,
     setGameUsageHandler,
     setSidebarActionHandler,
     setSidebarSections,
