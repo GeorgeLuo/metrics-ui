@@ -89,10 +89,10 @@ export function createChaseCameraStreamRuntime({
           }
           current.pendingFrames.push(message.payload);
         } else {
+          if (current.pendingFrame) current.droppedFrameCount += 1;
           current.pendingFrame = selectLatestCameraStreamFrame(
             [current.pendingFrame, message.payload].filter(Boolean),
           );
-          current.droppedFrameCount += 1;
         }
       }
       return;
@@ -116,10 +116,14 @@ export function createChaseCameraStreamRuntime({
     try {
       delivery = current.emit(outgoingMessage);
     } catch {
-      delivery = null;
+      delivery = false;
     }
-    const finishDelivery = () => {
+    const finishDelivery = (sent) => {
       if (subscription !== current || current.cancelled) {
+        return;
+      }
+      if (sent === false) {
+        end("frontend_disconnected", "Camera stream socket send failed.");
         return;
       }
       current.sending = false;
@@ -140,9 +144,9 @@ export function createChaseCameraStreamRuntime({
       });
     };
     if (delivery && typeof delivery.then === "function") {
-      delivery.then(finishDelivery, finishDelivery);
+      delivery.then(finishDelivery, () => finishDelivery(false));
     } else {
-      finishDelivery();
+      finishDelivery(delivery);
     }
   };
 

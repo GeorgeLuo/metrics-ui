@@ -80,6 +80,7 @@ export function createPlayGame({
   columns,
   rows,
   createFloatingFrame,
+  createSceneView = createChaseSceneView,
   setSidebarSections,
   setSidebarActionHandler,
   setDebugSnapshot,
@@ -208,7 +209,7 @@ export function createPlayGame({
     getPredictionDebugState: () => idaePredictionDebug,
   });
 
-  const sceneView = createChaseSceneView({
+  const sceneView = createSceneView({
     container,
     columns,
     rows,
@@ -463,7 +464,7 @@ export function createPlayGame({
           pause: () => { experiment.cancel("prepared"); simulationSettings.pauseBeforeActions = true; },
           neutralize: () => inputTracker.setWsInput({ forward: false, reverse: false, steering: 0 }),
           replace: (options) => {
-            scenario = scenarioSession.loadScenario(options.scenarioId);
+            scenario = scenarioSession.loadScenario(options.scenarioId, { preserveRenderingProfile: true });
             replaceSimulationState(scenario, { preserveSidebarSettings: true });
             setChaserControlSource(simulationState, options.controlSource);
             if (shouldCloseEvaderView(simulationState, evaderViewVisible)) evaderView.close();

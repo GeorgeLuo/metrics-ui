@@ -519,3 +519,21 @@ test("walled chase perimeter meshes intersect topdown and unoccluded front camer
     meshes.forEach(disposeObject3D);
   }
 });
+
+
+test("experiment scenario selection retains the selected rendering profile and seed", () => {
+  for (const profile of ["rc-indoor", "randomized"]) {
+    const session = createChaseScenarioSession(GRID);
+    session.setRenderingProfile(profile);
+    const selected = session.setRenderingSeed(17);
+    const scenario = session.loadScenario("wall-escape", { preserveRenderingProfile: true });
+    const state = createChaseSimulationState({ ...GRID, scenario });
+    assert.equal(scenario.id, "wall-escape");
+    assert.deepEqual(state.renderingProfile, selected.rendering);
+    assert.equal(session.getSidebarControls(state).renderingProfileId, profile);
+    assert.equal(session.getSidebarControls(state).renderingSeed, 17);
+    assert.deepEqual(session.buildScenario().rendering, selected.rendering);
+    // Ordinary scenario selection retains its original scenario-default behavior.
+    assert.equal(session.loadScenario("wall-escape").rendering.id, "simulation");
+  }
+});

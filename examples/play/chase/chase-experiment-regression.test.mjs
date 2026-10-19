@@ -164,3 +164,49 @@ test("prepare transaction validates before effects and selects neutral paused sc
   prepareChaseExperiment({ scenarioId: "wall-escape" }, handlers);
   assert.deepEqual(events, ["pause", "neutral", { scenarioId: "wall-escape", controlSource: "ws", paused: true }, { enabled: true, maxFrames: 20001 }]);
 });
+
+
+test("prepare-experiment preserves selected camera rendering through the real game command", async () => {
+  const { createPlayGame } = await import("./ui/runtime.mjs");
+  const oldWindow = globalThis.window, oldDocument = globalThis.document;
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, requestAnimationFrame: () => 1, cancelAnimationFrame() {} };
+  globalThis.document = { createElement: () => ({ style: {}, remove() {} }) };
+  try {
+    for (const profile of ["rc-indoor", "randomized"]) {
+      const actions = new Map();
+      let snapshot, cameraProfile;
+      const game = createPlayGame({ container: { appendChild() {} }, columns: 9, rows: 6,
+        setSidebarActionHandler: (id, handler) => actions.set(id, handler),
+        setDebugSnapshot: (value) => { snapshot = value; },
+        createSceneView: ({ simulationState }) => ({
+          updateRenderingProfile() { cameraProfile = simulationState.renderingProfile; },
+          updateFieldOfView() {}, resize() {}, dispose() {},
+        }),
+      });
+      try {
+        actions.get("rendering-profile")(profile);
+        actions.get("rendering-seed")(17);
+        game.handleCommand({ commandId: "set-chaser-input", payload: { forward: true, steering: .8 } });
+        const selected = structuredClone(snapshot.world.renderingProfile);
+        const beforeInvalid = game.handleQuery({ queryId: "experiment-state" });
+        assert.throws(() => game.handleCommand({ commandId: "prepare-experiment", payload: { scenarioId: "typo" } }));
+        assert.deepEqual(game.handleQuery({ queryId: "experiment-state" }), beforeInvalid);
+        game.handleCommand({ commandId: "prepare-experiment", payload: { scenarioId: "wall-escape" } });
+        const prepared = game.handleQuery({ queryId: "experiment-state" });
+        assert.equal(prepared.scenarioId, "wall-escape");
+        assert.equal(prepared.paused, true);
+        assert.equal(prepared.frameIndex, 0);
+        assert.equal(prepared.currentInput.forward, false);
+        assert.equal(prepared.currentInput.steering, 0);
+        assert.deepEqual(snapshot.world.renderingProfile, selected);
+        assert.deepEqual(cameraProfile, selected);
+        const trace = game.handleQuery({ queryId: "evaluation-trace" });
+        assert.equal(trace.enabled, true);
+        assert.equal(trace.frames[0].frameIndex, 0);
+        // The session override also survives the next reset.
+        actions.get("simulation-reset")();
+        assert.deepEqual(snapshot.world.renderingProfile, selected);
+      } finally { game.dispose(); }
+    }
+  } finally { globalThis.window = oldWindow; globalThis.document = oldDocument; }
+});

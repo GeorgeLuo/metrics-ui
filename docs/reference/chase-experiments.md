@@ -23,7 +23,8 @@ For an already loaded game, send `play_game_command` with
 `{scenarioId:"wall-escape", controlSource:"ws", maxFrames:20001}`. This synchronous
 transaction pauses, neutralizes WS input, replaces the scene, starts a fresh epoch
 and enables baseline-inclusive trace retention. Export wanted old evidence first.
-It preserves the current vehicle/rendering settings; verify settings separately.
+It preserves the current vehicle settings, selected rendering profile, and rendering
+seed, including RC indoor and randomized rendering. Verify settings separately.
 This is an explicit scene reset, not a read-only preflight or host-memory reset.
 An external observe-only session bound to the old epoch must be rebound separately.
 

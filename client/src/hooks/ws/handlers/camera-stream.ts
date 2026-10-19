@@ -41,6 +41,11 @@ function sendResult(
   requestId: string | undefined,
   result: CameraStreamResultPayloadDraft,
 ): void {
+  if (result.event === "subscribed" && context.cameraStreamSession) {
+    void context.cameraStreamSession.send({ type: "play_camera_stream_result", request_id: requestId, payload: result });
+    return;
+  }
+  if (result.event === "unsubscribed") context.cameraStreamSession?.release(result.subscriptionId);
   let wireResult: CameraStreamResultPayload;
   if (result.event === "subscribed") {
     const publishedAtUs = readPublishTimestampUs();
@@ -101,7 +106,9 @@ export function handleCameraStreamCommand(
       try {
         result = context.onPlayCameraStreamSubscribe(
           request,
-          (message: CameraStreamPushMessage) => context.sendMessage(message),
+          (message: CameraStreamPushMessage) => context.cameraStreamSession
+            ? context.cameraStreamSession.send(message)
+            : context.sendMessage(message),
         );
       } catch (error) {
         context.sendError(
@@ -116,6 +123,9 @@ export function handleCameraStreamCommand(
           command: "play_camera_stream_subscribe",
         });
         return true;
+      }
+      if (result.event === "subscribed") {
+        context.cameraStreamSession?.start(result.subscriptionId, request.dropPolicy === "none" ? "none" : "latest-frame");
       }
       sendResult(context, requestId, result);
       return true;
