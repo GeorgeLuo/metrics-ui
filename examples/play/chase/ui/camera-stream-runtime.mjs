@@ -111,7 +111,6 @@ export function createChaseCameraStreamRuntime({
       outgoingMessage = { ...message, payload: stampedFrame };
     }
     current.sending = true;
-    current.lastSentAt = rateNow();
     let delivery;
     try {
       delivery = current.emit(outgoingMessage);
@@ -213,7 +212,7 @@ export function createChaseCameraStreamRuntime({
       sessionFingerprint: result.preservation.before,
       lastFrameIndex: result.frame.frameIdentity.frameIndex,
       lastSourceTimestampUs: result.frame.sourceTimestampUs,
-      lastSentAt: rateNow(),
+      lastSampledAt: rateNow(),
       droppedFrameCount: 0,
       pendingFrame: null,
       pendingFrames: [],
@@ -281,7 +280,7 @@ export function createChaseCameraStreamRuntime({
     }
     current.lastFrameIndex = nextFrameIndex;
     const currentTime = rateNow();
-    if (currentTime - current.lastSentAt < 1000 / current.maxRateHz) {
+    if (currentTime - current.lastSampledAt < 1000 / current.maxRateHz) {
       current.droppedFrameCount += 1;
       return;
     }
@@ -325,6 +324,7 @@ export function createChaseCameraStreamRuntime({
       return;
     }
     current.lastSourceTimestampUs = frame.sourceTimestampUs;
+    current.lastSampledAt = currentTime;
     emitMessage(current, {
       type: "play_camera_stream_frame",
       payload: frame,

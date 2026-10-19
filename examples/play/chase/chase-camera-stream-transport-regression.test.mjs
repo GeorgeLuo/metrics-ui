@@ -14,12 +14,16 @@ function fixture() {
   const socket = { readyState: 1, bufferedAmount: 0, sent: [], block: false,
     send(data) { this.sent.push(JSON.parse(data)); if (this.block) this.bufferedAmount += Buffer.byteLength(data); } };
   let now = 0, id = 0;
+  const capturedAt = [];
   const runtime = createChaseCameraStreamRuntime({
     getCapability: () => buildChaseCameraStreamCapability(),
     getFingerprint: () => buildChasePassiveObservationFingerprint({ scenarioId: "test-scenario", simulationEpoch: "epoch", frameIndex: state.frameIndex,
       pauseBeforeActions: state.simulationSettings.pauseBeforeActions, pendingAction: Boolean(state.pendingActionFrame), controlSource: state.chaserControlSource,
       controlInput: null, actorId: "chaser" }),
-    capture: () => ({ contentType: "image/jpeg", rendererId: "test", width: 320, height: 240, dataUrl: "data:image/jpeg;base64,dGVzdA==" }),
+    capture: () => {
+      capturedAt.push(now);
+      return { contentType: "image/jpeg", rendererId: "test", width: 320, height: 240, dataUrl: "data:image/jpeg;base64,dGVzdA==" };
+    },
     now: () => now,
     sourceNow: () => performance.now(), publishNow: () => performance.now(),
     createSubscriptionId: () => `stream:${++id}`,
@@ -31,9 +35,9 @@ function fixture() {
     sendMessage(message) { socket.send(JSON.stringify(message)); return true; },
     sendError(...args) { assert.fail(JSON.stringify(args)); },
   };
-  return { state, socket, runtime, context,
-    subscribe(dropPolicy = "latest-frame") { handleCameraStreamCommand({ type: "play_camera_stream_subscribe", dropPolicy, maxRateHz: 30 }, "subscribe", context); },
-    step() { stepChaseSimulation(state); now += 100; runtime.handleSimulationFrame({ frameIndex: state.frameIndex, simulationEpoch: "epoch" }); },
+  return { state, socket, runtime, context, capturedAt,
+    subscribe(dropPolicy = "latest-frame", maxRateHz = 30) { handleCameraStreamCommand({ type: "play_camera_stream_subscribe", dropPolicy, maxRateHz }, "subscribe", context); },
+    step(time = now + 100) { stepChaseSimulation(state); now = time; runtime.handleSimulationFrame({ frameIndex: state.frameIndex, simulationEpoch: "epoch" }); },
     close() { context.cameraStreamSession.close(); },
   };
 }
@@ -133,3 +137,25 @@ test("a failed first image returns a correlated failure and releases the runtime
     assert.equal(f.socket.sent.at(-1).payload.event, "subscribed");
   } finally { f.close(); }
 });
+
+
+for (const policy of ["latest-frame", "none"]) {
+  test(`1 Hz ${policy} capture cadence survives a buffered socket and queued-frame drainage`, async () => {
+    const f = fixture();
+    try {
+      f.subscribe(policy, 1);
+      f.socket.block = true;
+      f.step(1000);
+      f.step(2000);
+      for (let time = 2100; time <= 2900; time += 100) f.step(time);
+      assert.deepEqual(f.capturedAt, [0, 1000, 2000]);
+      assert.equal(f.socket.sent.some((message) => message.payload.event === "ended"), false);
+      f.socket.block = false;
+      f.socket.bufferedAmount = 0;
+      await delay();
+      f.step(3000);
+      assert.deepEqual(f.capturedAt, [0, 1000, 2000, 3000]);
+      assert.equal(f.socket.sent.at(-1).type, "play_camera_stream_frame");
+    } finally { f.close(); }
+  });
+}

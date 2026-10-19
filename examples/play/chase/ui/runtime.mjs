@@ -119,7 +119,11 @@ export function createPlayGame({
     resetTiming: () => runtimeLoop?.resetTiming() });
   const experimentEvidence = createExperimentEvidence({ getState: experiment.snapshot, trace: evaluationTrace });
   const receiveExperimentReceipt = (event) => {
-    if (event.detail?.receipt?.payload?.identity?.frontendInstanceId === frontendInstanceId) experimentEvidence.recordReceipt(event.detail);
+    const identity = event.detail?.receipt?.payload?.identity;
+    if (identity?.frontendInstanceId === frontendInstanceId
+      && identity?.simulationEpoch === simulationEpochOwner.current()) {
+      experimentEvidence.recordReceipt(event.detail);
+    }
   };
   globalThis.addEventListener?.("metrics-ui:play-receipt", receiveExperimentReceipt);
   const vehicleSettings = simulationState.vehicleSettings;

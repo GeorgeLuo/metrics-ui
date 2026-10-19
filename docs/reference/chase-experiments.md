@@ -60,7 +60,9 @@ before injecting its own manifest (avoiding a circular self-hash). This is a
 **game-module capability identity**, not an attestation of the dashboard shell,
 external Three library, browser or host. It does not invent a whole-frontend build
 fingerprint. Expired snapshots fail with410 instead of serving different bytes;
-request a fresh catalog. Up to eight snapshots are retained per server process.
+request a fresh catalog. Up to eight distinct snapshots are retained per catalog
+game. Reusing a digest refreshes its retention order; a successful catalog reload
+or module redirect prunes games removed from the catalog.
 
 ## Exact committed-frame windows
 
@@ -93,6 +95,9 @@ atomic capture responses/images, preservation/frame identity, SHA-256 of image
 bytes, and identity-bound command receipts handed to the WS sender. Retention is
 bounded (64 atomic captures /32MiB approximate JSON characters;4,096 receipts);
 overflow counters are explicit. Export before reset/prepare clears retention.
+Only receipts matching the current frontend and simulation epoch are retained.
+An export finishing after preparation keeps its original response/ack identity,
+and its old-epoch acknowledgment is excluded from the new run's evidence.
 Camera-stream coverage is not synthesized: only requested atomic captures enter
 this bundle. It is sampled coverage, not every-frame camera evidence.
 
