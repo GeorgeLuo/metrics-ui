@@ -317,54 +317,57 @@ export function clampPosition(position, columns, rows) {
   };
 }
 
-function resolveWallCollision(position, previousPosition, columns, rows, wall) {
-  const bounds = getWallLocalBounds(wall, CAR_BOUND_RADIUS);
-  const localPosition = getWallLocalPoint(position, wall);
-  const localPreviousPosition = getWallLocalPoint(previousPosition, wall);
-  if (
-    !isPositionInsideBounds(localPosition, bounds)
-    && !doesLineSegmentIntersectBounds(localPreviousPosition, localPosition, bounds)
-  ) {
-    return position;
+function getBoundsEntryFraction(start, end, bounds) {
+  const epsilon = 1e-12;
+  let entry = -Infinity;
+  let exit = Infinity;
+  for (const [axis, min, max] of [
+    ["x", bounds.minX, bounds.maxX],
+    ["z", bounds.minZ, bounds.maxZ],
+  ]) {
+    const delta = end[axis] - start[axis];
+    if (Math.abs(delta) <= epsilon) {
+      // Touching an edge while moving parallel to it does not enter the wall.
+      if (start[axis] <= min + epsilon || start[axis] >= max - epsilon) return 1;
+      continue;
+    }
+    const first = (min - start[axis]) / delta;
+    const second = (max - start[axis]) / delta;
+    entry = Math.max(entry, Math.min(first, second));
+    exit = Math.min(exit, Math.max(first, second));
   }
-
-  let resolvedLocal = { ...localPosition };
-  if (localPreviousPosition.x <= bounds.minX) {
-    resolvedLocal.x = bounds.minX;
-  } else if (localPreviousPosition.x >= bounds.maxX) {
-    resolvedLocal.x = bounds.maxX;
-  } else if (localPreviousPosition.z <= bounds.minZ) {
-    resolvedLocal.z = bounds.minZ;
-  } else if (localPreviousPosition.z >= bounds.maxZ) {
-    resolvedLocal.z = bounds.maxZ;
-  } else {
-    const distances = [
-      { axis: "x", value: bounds.minX, distance: Math.abs(localPosition.x - bounds.minX) },
-      { axis: "x", value: bounds.maxX, distance: Math.abs(localPosition.x - bounds.maxX) },
-      { axis: "z", value: bounds.minZ, distance: Math.abs(localPosition.z - bounds.minZ) },
-      { axis: "z", value: bounds.maxZ, distance: Math.abs(localPosition.z - bounds.maxZ) },
-    ].sort((first, second) => first.distance - second.distance);
-    const nearestEdge = distances[0];
-    resolvedLocal = {
-      ...resolvedLocal,
-      [nearestEdge.axis]: nearestEdge.value,
-    };
-  }
-
-  return clampPosition(getWallWorldPoint(resolvedLocal, wall), columns, rows);
+  // An exit at zero is a car backing away from contact, not another impact.
+  if (entry >= exit - epsilon || exit <= epsilon || entry > 1) return 1;
+  return Math.max(0, entry);
 }
 
 export function resolveObstacleCollisions(position, previousPosition, columns, rows, obstacles) {
-  let resolved = clampPosition(position, columns, rows);
-
-  for (let iteration = 0; iteration < 2; iteration += 1) {
-    for (const wall of obstacles.walls) {
-      if (wall?.boundary === true) {
-        continue;
-      }
-      resolved = resolveWallCollision(resolved, previousPosition, columns, rows, wall);
+  const bounds = getGroundBounds(columns, rows);
+  let travelFraction = 1;
+  for (const [axis, min, max] of [
+    ["x", bounds.minX, bounds.maxX],
+    ["z", bounds.minZ, bounds.maxZ],
+  ]) {
+    const delta = position[axis] - previousPosition[axis];
+    if (position[axis] < min && delta < 0) {
+      travelFraction = Math.min(travelFraction, (min - previousPosition[axis]) / delta);
+    } else if (position[axis] > max && delta > 0) {
+      travelFraction = Math.min(travelFraction, (max - previousPosition[axis]) / delta);
     }
   }
-
-  return resolved;
+  for (const wall of obstacles?.walls ?? []) {
+    if (wall?.boundary === true) continue;
+    travelFraction = Math.min(travelFraction, getBoundsEntryFraction(
+      getWallLocalPoint(previousPosition, wall),
+      getWallLocalPoint(position, wall),
+      getWallLocalBounds(wall, CAR_BOUND_RADIUS),
+    ));
+  }
+  // Stop the entire displacement at the first contact; never project the
+  // remaining travel along a wall or through another obstacle.
+  travelFraction = Math.max(0, travelFraction);
+  return {
+    x: previousPosition.x + (position.x - previousPosition.x) * travelFraction,
+    z: previousPosition.z + (position.z - previousPosition.z) * travelFraction,
+  };
 }

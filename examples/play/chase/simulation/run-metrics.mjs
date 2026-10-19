@@ -21,7 +21,7 @@ export function updateRunMetrics({ runMetrics, chaserPosition, evaderPosition, c
 
   runMetrics.elapsedFrames += 1;
   // Match collision resolution: padded rectangles plus the ground clamp, including
-  // invisible field bounds. A corner or wall-to-wall slide is one contact episode.
+  // invisible field bounds. Sustained contact or a corner is one contact episode.
   const bounds = getGroundBounds(columns, rows);
   const epsilon = 1e-9;
   const touchesWall = Boolean(chaserPosition) && (

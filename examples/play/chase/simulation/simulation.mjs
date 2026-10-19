@@ -116,9 +116,34 @@ function applyVehicleAction({
     rows,
     obstacles,
   );
+  const intendedDistance = Math.hypot(
+    nextFrame.position.x - position.x,
+    nextFrame.position.z - position.z,
+  );
+  const traveledDistance = Math.hypot(
+    nextPosition.x - position.x,
+    nextPosition.z - position.z,
+  );
+  // Bicycle steering changes heading only while the car actually travels.
+  // A blocked throttle command must not rotate the body against the obstacle.
+  const travelFraction = intendedDistance > 0
+    ? Math.min(1, traveledDistance / intendedDistance)
+    : 0;
+  const directionAfterContact = travelFraction === 0
+    ? currentDirection
+    : travelFraction < 1
+      ? stepVehicleBicycleFrame({
+        position,
+        direction: currentDirection,
+        speedUnitsPerFrame: speed * travelFraction,
+        throttle: movementSign,
+        steering: steeringInput,
+        maxSteeringAngleRadians,
+      }).direction
+      : nextFrame.direction;
 
   return {
-    direction: nextFrame.direction,
+    direction: directionAfterContact,
     position: nextPosition,
   };
 }

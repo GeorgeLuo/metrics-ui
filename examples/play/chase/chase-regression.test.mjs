@@ -161,10 +161,10 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 180,
-      chaser: { x: -0.567, z: -1.0994, dx: -0.933, dz: 0.3599 },
-      evader: { x: 2.9594, z: 1.9734, dx: -0.0795, dz: -0.9968 },
+      chaser: { x: 0.6296, z: -1.2437, dx: 0.7965, dz: 0.6046 },
+      evader: { x: 4.2406, z: 1.6507, dx: 0.9187, dz: 0.3951 },
       touches: 0,
-      visible: false,
+      visible: true,
       prediction: {
         actionable: true,
         invalidReason: null,
@@ -173,7 +173,7 @@ const REGRESSION_CASES = [
         firstAhead: 20,
         sourcePatternIds: ["continuance"],
       },
-      inference: { speed: 0.042, wallScore: 0 },
+      inference: { speed: 0.0467, wallScore: 0 },
     },
   },
   {
@@ -189,7 +189,7 @@ const REGRESSION_CASES = [
     inputProvider: idleInput,
     expected: {
       frame: 158,
-      chaser: { x: 1.7818, z: -0.5441, dx: 0.6514, dz: 0.7587 },
+      chaser: { x: 0.8803, z: -1.0994, dx: 0.9376, dz: 0.3477 },
       evader: { x: 3.3773, z: 1.2482, dx: -0.4308, dz: 0.9024 },
       touches: 0,
       visible: true,
@@ -1322,6 +1322,11 @@ test("wall-avoidance pattern predictions expose the pattern strategy name", () =
 
 test("chaser pattern config filters prediction sources without disabling support state", () => {
   const scenario = buildScenario((draft) => {
+    // Observe the evader's approach before either controller stalls on contact.
+    draft.actors.chaser.position = { x: -3.7, z: -1.6 };
+    draft.actors.chaser.direction = { x: 1, z: 0 };
+    draft.actors.evader.position = { x: -1.5, z: -1.6 };
+    draft.actors.evader.direction = { x: 1, z: 0 };
     draft.runtime.programmaticChaserEnabled = true;
     draft.actors.chaser.actionProposals.mapDiscovery = false;
     draft.actors.chaser.actionProposals.mapRecencyRefresh = false;
@@ -1463,91 +1468,27 @@ test("chaser knowledge acquisition supersedes actionable prediction after losing
     rows: GRID.rows,
   });
 
-  let lostSightPursuitFrame = null;
-  for (let frame = 0; frame < 800; frame += 1) {
-    stepChaseSimulation(state, {
-      humanInput: idleInput(),
-    });
-    const snapshot = state.lastStep.chaserReasoning?.snapshot;
-    const plan = snapshot?.projections?.evaderMotion;
-    if (!snapshot?.memory?.directObservation?.evaderLocation?.visible && plan?.actionable) {
-      const wallPrediction = snapshot?.patternUnits?.wallAvoidance?.predictions?.[0] ?? null;
-      lostSightPursuitFrame = {
-        frame: state.frameIndex,
-        strategy: plan.prediction.strategy,
-        persisted: Boolean(plan.prediction.persisted),
-        pathLen: plan.path?.length ?? 0,
-        firstAhead: plan.path?.[0]?.framesAhead ?? null,
-        selectedActionProposalId: state.lastStep.chaserAction?.selectedActionProposalId ?? null,
-        motiveId: state.lastStep.chaserAction?.actionProposals?.motiveSignal?.id ?? null,
-        discoveryComplete: Boolean(
-          state.lastStep.chaserAction?.actionProposals?.knowledgeAcquisition?.discoveryComplete,
-        ),
-        hasDiscoveryCandidates:
-          (state.lastStep.chaserAction?.actionProposals?.knowledgeAcquisition
-            ?.discoveryCandidateCount ?? 0) > 0,
-        hasRecencyCandidates:
-          (state.lastStep.chaserAction?.actionProposals?.knowledgeAcquisition
-            ?.recencyCandidateCount ?? 0) > 0,
-        predictionPursuitActive: Boolean(
-          state.lastStep.chaserAction?.actionProposals?.evaderPredictionPursuit?.active,
-        ),
-        mapDiscoveryActive: Boolean(
-          state.lastStep.chaserAction?.actionProposals?.mapDiscovery?.active,
-        ),
-        mapRecencyRefreshActive: Boolean(
-          state.lastStep.chaserAction?.actionProposals?.mapRecencyRefresh?.active,
-        ),
-        mapRecencyRefreshInactiveReason:
-          state.lastStep.chaserAction?.actionProposals?.mapRecencyRefresh?.inactiveReason ?? null,
-        spinActive: Boolean(state.lastStep.chaserAction?.actionProposals?.spin?.active),
-        actionPathLen: state.lastStep.chaserAction?.actionPath?.length ?? 0,
-        spinPathLen: state.lastStep.chaserAction
-          ?.actionProposals
-          ?.spin
-          ?.actionPath
-          ?.length ?? 0,
-        localNavigationActive: Boolean(
-          state.lastStep.chaserAction?.actionProposals?.localNavigation?.active,
-        ),
-        wallPressure: state.lastStep.chaserAction
-          ?.actionProposals
-          ?.localNavigation
-          ?.movement
-          ?.wallPressure ?? null,
-        wallProbability: roundNumber(wallPrediction?.confidenceParts?.probability ?? 0, 4),
-        wallCredibleLowerBound: roundNumber(
-          wallPrediction?.confidenceParts?.credibleLowerBound ?? 0,
-          4,
-        ),
-      };
-      break;
-    }
+  // Explicitly turn away after acquiring a velocity estimate. The former
+  // 237-frame fixture depended on sliding around the center obstacle.
+  for (let frame = 0; frame < 10; frame += 1) {
+    stepChaseSimulation(state, { humanInput: idleInput() });
   }
+  assert.equal(state.lastStep.chaserReasoning.snapshot.memory.directObservation.evaderLocation.visible, true);
+  state.chaserLookDirection = { x: -1, z: 0 };
+  stepChaseSimulation(state, { humanInput: idleInput() });
 
-  assert.deepEqual(lostSightPursuitFrame, {
-    frame: 237,
-    strategy: "rectified-evader-projection",
-    persisted: false,
-    pathLen: 6,
-    firstAhead: 20,
-    selectedActionProposalId: "mapDiscovery+spin",
-    motiveId: "knowledgeAcquisition",
-    discoveryComplete: false,
-    hasDiscoveryCandidates: true,
-    hasRecencyCandidates: true,
-    predictionPursuitActive: false,
-    mapDiscoveryActive: true,
-    mapRecencyRefreshActive: false,
-    mapRecencyRefreshInactiveReason: "discovery-frontier-available",
-    spinActive: true,
-    actionPathLen: 36,
-    spinPathLen: 36,
-    localNavigationActive: false,
-    wallPressure: null,
-    wallProbability: 0.625,
-    wallCredibleLowerBound: 0.3475,
-  });
+  const snapshot = state.lastStep.chaserReasoning.snapshot;
+  const proposals = state.lastStep.chaserAction.actionProposals;
+  assert.equal(snapshot.memory.directObservation.evaderLocation.visible, false);
+  assert.equal(snapshot.projections.evaderMotion.actionable, true);
+  assert.ok(snapshot.projections.evaderMotion.path.length > 0);
+  assert.equal(proposals.motiveSignal.id, "knowledgeAcquisition");
+  assert.equal(state.lastStep.chaserAction.selectedActionProposalId, "mapDiscovery+spin");
+  assert.equal(proposals.evaderPredictionPursuit.active, false);
+  assert.equal(proposals.mapDiscovery.active, true);
+  assert.equal(proposals.mapRecencyRefresh.active, false);
+  assert.equal(proposals.spin.active, true);
+  assert.equal(proposals.knowledgeAcquisition.discoveryComplete, false);
 });
 
 test("evader IDAE evades when the chaser is in evader FOV", () => {
@@ -1871,7 +1812,7 @@ test("map discovery remains active if visible-evader chase action proposals are 
   );
 });
 
-test("map discovery-only chaser stops after remembered traversable map is covered", () => {
+test("map discovery-only chaser stops once observations cover the traversable map", () => {
   const scenarioDefinition = structuredClone(getChaseScenarioDefinition("no-evader"));
   scenarioDefinition.actors.chaser.actionProposals.evaderPredictionPursuit = false;
   scenarioDefinition.actors.chaser.actionProposals.lineOfSightPursuit = false;
@@ -1879,6 +1820,11 @@ test("map discovery-only chaser stops after remembered traversable map is covere
   scenarioDefinition.actors.chaser.actionProposals.mapRecencyRefresh = false;
   scenarioDefinition.actors.chaser.actionProposals.spin = false;
   const scenario = resolveChaseScenario(scenarioDefinition, GRID);
+  // Exercise coverage completion using controlled views, independently of
+  // navigation: the old route could cover the map only by sliding along walls.
+  scenario.map.obstacles = { walls: [] };
+  scenario.actors.chaser.position = { x: 0, z: 0 };
+  scenario.vehicleSettings.chaserSpeedUnitsPerFrame = 0;
   const state = createChaseSimulationState({
     scenario,
     columns: GRID.columns,
@@ -1886,10 +1832,11 @@ test("map discovery-only chaser stops after remembered traversable map is covere
   });
 
   let completionFrame = null;
-  for (let frame = 0; frame < 1100; frame += 1) {
-    stepChaseSimulation(state, {
-      humanInput: idleInput(),
-    });
+  for (let frame = 0; frame < 12; frame += 1) {
+    state.chaserLookDirection = {
+      x: Math.cos(frame * Math.PI / 6), z: Math.sin(frame * Math.PI / 6),
+    };
+    stepChaseSimulation(state, { humanInput: idleInput() });
     const knowledgeSignal = state.lastStep.chaserAction
       ?.actionProposals
       ?.knowledgeAcquisition;
@@ -1913,7 +1860,7 @@ test("map discovery-only chaser stops after remembered traversable map is covere
   const knownVertices = knownAreas.flatMap((area) => area.vertices ?? []);
   const fieldBounds = getFieldBounds(GRID.columns, GRID.rows);
 
-  assert.equal(completionFrame, 582);
+  assert.equal(completionFrame, 11);
   assert.equal(state.lastStep.chaserAction?.selectedActionProposalId, "none");
   assert.equal(state.lastStep.chaserAction?.forward, false);
   assert.equal(
@@ -1922,7 +1869,7 @@ test("map discovery-only chaser stops after remembered traversable map is covere
   );
   assert.equal(
     state.lastStep.chaserAction?.actionProposals?.knowledgeAcquisition?.knownAreaCount,
-    564,
+    600,
   );
   assert.deepEqual(
     {
@@ -1939,6 +1886,7 @@ test("map discovery-only chaser stops after remembered traversable map is covere
     },
   );
 
+  state.vehicleSettings.chaserSpeedUnitsPerFrame = scenarioDefinition.vehicleSettings.chaserSpeedUnitsPerFrame;
   for (let frame = 0; frame < 20; frame += 1) {
     stepChaseSimulation(state, {
       humanInput: idleInput(),
