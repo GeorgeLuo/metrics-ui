@@ -46,6 +46,7 @@ export function createChaseSceneView({
   vehicleSettings,
   chaserView,
   evaderView,
+  headless = false,
 }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   const actorViewImageCapture = createActorViewImageCapture();
@@ -370,7 +371,7 @@ export function createChaseSceneView({
     const sceneSyncMs = performance.now() - sceneSyncStartMs;
 
     const mainRenderStartMs = performance.now();
-    renderer.render(scene, camera);
+    if (!headless) renderer.render(scene, camera);
     const mainRenderMs = performance.now() - mainRenderStartMs;
 
     const chaserViewRenderStartMs = performance.now();

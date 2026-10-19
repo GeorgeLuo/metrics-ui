@@ -7,6 +7,7 @@ import { createChaseEvaluationTrace } from "./evaluation/evaluation-trace.mjs";
 import { createExperimentSession } from "./evaluation/experiment-session.mjs";
 import { createExperimentEvidence } from "./evaluation/experiment-evidence.mjs";
 import { readExperimentStartup } from "./evaluation/experiment-startup.mjs";
+import { applySidebarSettings } from "./ui/sidebar-actions.mjs";
 import { createChaseLoop } from "./ui/chase-loop.mjs";
 import { sendPlayAck } from "../../../client/src/hooks/ws/handlers/play-experiment-ack.ts";
 import { handleQueryCommand } from "../../../client/src/hooks/ws/handlers/query.ts";
@@ -31,6 +32,31 @@ test("explicit selected-scenario entry is inert and rejects typos before game cr
   assert.throws(() => readExperimentStartup("?playScenario=typo"));
   assert.throws(() => readExperimentStartup("?playScenario=wall-escape&playPaused=0"));
   assert.throws(() => readExperimentStartup("?playScenario=wall-escape&playControl=bad"));
+});
+
+test("startup settings and headless flag are explicit and reject non-setting actions", () => {
+  const settings = encodeURIComponent(JSON.stringify({ "simulation-fps": 60, "simulation-pause-before-actions": true }));
+  assert.deepEqual(readExperimentStartup(`?playScenario=wall-escape&playSettings=${settings}&playHeadless=1`), {
+    scenarioId: "wall-escape", controlSource: "ws", paused: true,
+    settings: [["simulation-fps", 60], ["simulation-pause-before-actions", true]], headless: true,
+  });
+  assert.throws(() => readExperimentStartup("?playScenario=wall-escape&playHeadless=0"));
+  assert.throws(() => readExperimentStartup("?playScenario=wall-escape&playSettings=%7Bbad"));
+  assert.throws(() => readExperimentStartup(`?playScenario=wall-escape&playSettings=${encodeURIComponent("[1]")}`));
+  for (const id of ["scenario-select", "simulation-reset", "chaser-view", "evader-view", "idae-debug"]) {
+    assert.throws(() => readExperimentStartup(`?playScenario=wall-escape&playSettings=${encodeURIComponent(JSON.stringify({ [id]: true }))}`));
+  }
+});
+
+test("startup settings run the left-pane handlers in order and check every id first", () => {
+  const simulationSettings = { framesPerSecond: 30, pauseBeforeActions: true };
+  const vehicleSettings = { chaserSpeedUnitsPerFrame: 0.05 };
+  const context = { simulationSettings, vehicleSettings, refreshSidebarSections() {} };
+  applySidebarSettings(context, [["simulation-fps", 45], ["simulation-fps", 60], ["chaser-speed", "0.037"], ["simulation-pause-before-actions", true]]);
+  assert.deepEqual(simulationSettings, { framesPerSecond: 60, pauseBeforeActions: false });
+  assert.equal(vehicleSettings.chaserSpeedUnitsPerFrame, 0.037);
+  assert.throws(() => applySidebarSettings(context, [["simulation-fps", 20], ["no-such-setting", 1]]), /Unknown startup setting no-such-setting/);
+  assert.equal(simulationSettings.framesPerSecond, 60);
 });
 
 test("read-only experiment state separates live latch, frozen pending action and last commit", () => {

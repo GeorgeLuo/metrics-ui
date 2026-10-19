@@ -32,6 +32,7 @@ import {
 } from "./greentext-debug-overlay.mjs";
 import { createChaseSceneView } from "./scene-view.mjs";
 import {
+  applySidebarSettings,
   clearSidebarActions,
   registerSidebarActions,
 } from "./sidebar-actions.mjs";
@@ -216,6 +217,7 @@ export function createPlayGame({
     vehicleSettings,
     chaserView,
     evaderView,
+    headless: Boolean(startup?.headless),
   });
   const getFrontViewSnapshot = (options = {}) => {
     const renderedImage = sceneView.captureActorView?.(options) ?? null;
@@ -388,7 +390,7 @@ export function createPlayGame({
 
   updateGreentextDebugOverlay();
   refreshSidebarSections();
-  const registeredSidebarActionIds = registerSidebarActions({
+  const sidebarActionContext = {
     setSidebarActionHandler,
     getProgrammaticChaserEnabled: () => simulationState.programmaticChaserEnabled,
     setProgrammaticChaserEnabled: (value) => {
@@ -433,7 +435,9 @@ export function createPlayGame({
     },
     getPredictionDebugState: () => idaePredictionDebug,
     setPredictionDebugState: applyPredictionDebugState,
-  });
+  };
+  const registeredSidebarActionIds = registerSidebarActions(sidebarActionContext);
+  if (startup?.settings) applySidebarSettings(sidebarActionContext, startup.settings);
 
   runtimeLoop = createChaseLoop({
     simulationState,

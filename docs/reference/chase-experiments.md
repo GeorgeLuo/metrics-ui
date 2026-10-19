@@ -27,6 +27,49 @@ It preserves the current vehicle/rendering settings; verify settings separately.
 This is an explicit scene reset, not a read-only preflight or host-memory reset.
 An external observe-only session bound to the old epoch must be rebound separately.
 
+## Headless simulator
+
+Chase advances on browser animation frames, which a hidden tab stops. To run the
+simulator without a visible window, configured from the start:
+
+```sh
+npm run play:chase:headless -- --port 5064 --config examples/play/chase/config/headless/chaser-depth-obstacles-rc-indoor.json
+```
+
+The launcher starts its own server on `--port` and opens the Play page in headless
+Chrome with a fresh profile, so no stored left-pane state applies. It refuses a
+port already in use, because the server accepts one frontend. Chrome comes from
+`--chrome`, `CHROME_PATH`, the macOS app, or `google-chrome`/`chromium` on PATH.
+When the published `playSidebarSections` match the config and frames advance, it
+prints the effective settings and `CHASE_UI_WS_URL=ws://127.0.0.1:<port>/ws/control`,
+then runs until interrupted. If Chrome or the server exits, it stops the other and
+exits non-zero; a pane that does not match the config within 30 s also exits 1.
+
+The config names the scenario, the chaser control source and left-pane settings:
+
+```json
+{
+  "scenario": "chaser-depth-obstacles",
+  "controlSource": "ws",
+  "settings": { "rendering-profile": "rc-indoor", "simulation-fps": 60, "simulation-pause-before-actions": true }
+}
+```
+
+Settings keys are the action ids listed in `playSidebarSections`. Each value runs
+through that id's left-pane handler, in order, after the explicit entry starts
+paused; an id without a handler fails before the loop is created. The scenario
+comes only from `scenario`, and `scenario-select`, `simulation-reset` and the
+`chaser-view`/`evader-view`/`idae-debug` window toggles are rejected. As in the
+pane, `"simulation-pause-before-actions": true` turns Playback on; omit it to
+start paused.
+
+The launcher carries the config in the page URL as
+`playSettings=<URL-encoded JSON>` with `playHeadless=1`. Headless pages skip the
+top-down map draw; camera captures and the camera stream render separately and are
+unaffected. Change settings on the running page with `play_game_action` as usual.
+The launcher runs the server in development mode, so an edit to this checkout
+reloads the page, which restarts from frame 0 with the same config.
+
 ## Read state and identify the responding game
 
 `play_game_query`, `queryId: "experiment-state"`, returns:
