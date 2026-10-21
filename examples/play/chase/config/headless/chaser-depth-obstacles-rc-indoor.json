@@ -1,0 +1,14 @@
+{
+  "scenario": "chaser-depth-obstacles",
+  "controlSource": "ws",
+  "settings": {
+    "rendering-profile": "rc-indoor",
+    "rendering-seed": 0,
+    "simulation-fps": 60,
+    "chaser-speed": 0.037,
+    "vehicle-max-steering-angle": 37,
+    "vehicle-fov": 90,
+    "vehicle-fov-distance": 14,
+    "simulation-pause-before-actions": true
+  }
+}
