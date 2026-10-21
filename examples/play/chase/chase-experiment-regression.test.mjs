@@ -190,3 +190,113 @@ test("prepare transaction validates before effects and selects neutral paused sc
   prepareChaseExperiment({ scenarioId: "wall-escape" }, handlers);
   assert.deepEqual(events, ["pause", "neutral", { scenarioId: "wall-escape", controlSource: "ws", paused: true }, { enabled: true, maxFrames: 20001 }]);
 });
+
+
+test("prepare-experiment preserves selected camera rendering through the real game command", async () => {
+  const { createPlayGame } = await import("./ui/runtime.mjs");
+  const oldWindow = globalThis.window, oldDocument = globalThis.document;
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, requestAnimationFrame: () => 1, cancelAnimationFrame() {} };
+  globalThis.document = { createElement: () => ({ style: {}, remove() {} }) };
+  try {
+    for (const profile of ["rc-indoor", "randomized"]) {
+      const actions = new Map();
+      let snapshot, cameraProfile;
+      const game = createPlayGame({ container: { appendChild() {} }, columns: 9, rows: 6,
+        setSidebarActionHandler: (id, handler) => actions.set(id, handler),
+        setDebugSnapshot: (value) => { snapshot = value; },
+        createSceneView: ({ simulationState }) => ({
+          updateRenderingProfile() { cameraProfile = simulationState.renderingProfile; },
+          updateFieldOfView() {}, resize() {}, dispose() {},
+        }),
+      });
+      try {
+        actions.get("rendering-profile")(profile);
+        actions.get("rendering-seed")(17);
+        game.handleCommand({ commandId: "set-chaser-input", payload: { forward: true, steering: .8 } });
+        const selected = structuredClone(snapshot.world.renderingProfile);
+        const beforeInvalid = game.handleQuery({ queryId: "experiment-state" });
+        assert.throws(() => game.handleCommand({ commandId: "prepare-experiment", payload: { scenarioId: "typo" } }));
+        assert.deepEqual(game.handleQuery({ queryId: "experiment-state" }), beforeInvalid);
+        game.handleCommand({ commandId: "prepare-experiment", payload: { scenarioId: "wall-escape" } });
+        const prepared = game.handleQuery({ queryId: "experiment-state" });
+        assert.equal(prepared.scenarioId, "wall-escape");
+        assert.equal(prepared.paused, true);
+        assert.equal(prepared.frameIndex, 0);
+        assert.equal(prepared.currentInput.forward, false);
+        assert.equal(prepared.currentInput.steering, 0);
+        assert.deepEqual(snapshot.world.renderingProfile, selected);
+        assert.deepEqual(cameraProfile, selected);
+        const trace = game.handleQuery({ queryId: "evaluation-trace" });
+        assert.equal(trace.enabled, true);
+        assert.equal(trace.frames[0].frameIndex, 0);
+        // The session override also survives the next reset.
+        actions.get("simulation-reset")();
+        assert.deepEqual(snapshot.world.renderingProfile, selected);
+      } finally { game.dispose(); }
+    }
+  } finally { globalThis.window = oldWindow; globalThis.document = oldDocument; }
+});
+
+test("an export completing after preparation keeps its old ack outside the new run's receipts", async (t) => {
+  const { createPlayGame } = await import("./ui/runtime.mjs");
+  const originalGlobals = { window: globalThis.window, document: globalThis.document,
+    addEventListener: globalThis.addEventListener, removeEventListener: globalThis.removeEventListener };
+  const events = new EventTarget();
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, requestAnimationFrame: () => 1,
+    cancelAnimationFrame() {}, dispatchEvent: events.dispatchEvent.bind(events) };
+  globalThis.addEventListener = events.addEventListener.bind(events);
+  globalThis.removeEventListener = events.removeEventListener.bind(events);
+  globalThis.document = { createElement: () => ({ style: {}, remove() {} }) };
+  let game;
+  try {
+    game = createPlayGame({ frontendInstanceId: "tab1", container: { appendChild() {} }, columns: 9, rows: 6,
+      createSceneView: () => ({ updateRenderingProfile() {}, updateFieldOfView() {}, resize() {}, dispose() {},
+        captureActorView: () => ({ contentType: "image/png", rendererId: "test", width: 320, height: 240, dataUrl: "data:image/png;base64,YWJj" }),
+      }),
+    });
+    const prepare = () => game.handleCommand({ commandId: "prepare-experiment", payload: { scenarioId: "wall-escape" } });
+    prepare();
+    const oldIdentity = game.handleQuery({ queryId: "experiment-state" }).identity;
+    const capture = game.handleQuery({ queryId: "atomic-evaluation-capture" });
+    assert.equal(capture.passiveObservation.supported, true);
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    let finishHash, started;
+    const hashingStarted = new Promise((resolve) => { started = resolve; });
+    t.mock.method(crypto.subtle, "digest", (...args) => {
+      const hash = digest(...args);
+      return new Promise((resolve, reject) => {
+        finishHash = () => hash.then(resolve, reject);
+        started();
+      });
+    });
+    let finishAck;
+    const acknowledged = new Promise((resolve) => { finishAck = resolve; });
+    const sent = [];
+    const context = { onPlayGameQuery: game.handleQuery,
+      sendMessage(message) { sent.push(message); if (message.type === "ack" && message.request_id === "old-export") finishAck(); return true; },
+      sendAck() { assert.fail("Expected identity-bound acknowledgment"); }, sendError(...args) { assert.fail(JSON.stringify(args)); },
+    };
+    handleQueryCommand({ type: "play_game_query", queryId: "experiment-evidence", payload: { expectedSimulationEpoch: oldIdentity.simulationEpoch } }, "old-export", context);
+    await hashingStarted;
+    prepare();
+    const currentIdentity = game.handleQuery({ queryId: "experiment-state" }).identity;
+    assert.notEqual(currentIdentity.simulationEpoch, oldIdentity.simulationEpoch);
+    finishHash();
+    await acknowledged;
+    assert.deepEqual(sent.find((message) => message.type === "play_game_query_result").payload.result.state.identity, oldIdentity);
+    assert.deepEqual(sent.find((message) => message.type === "ack").payload.identity, oldIdentity);
+    for (const [requestId, identity] of [
+      ["foreign-tab", { ...currentIdentity, frontendInstanceId: "other" }],
+      ["missing-epoch", { frontendInstanceId: currentIdentity.frontendInstanceId }],
+    ]) {
+      window.dispatchEvent(new CustomEvent("metrics-ui:play-receipt", { detail: { receipt: { type: "ack", request_id: requestId, payload: { identity } } } }));
+    }
+    sendPlayAck(context, "current-run", { type: "play_game_command", commandId: "prepare-experiment" });
+    const evidence = await game.handleQuery({ queryId: "experiment-evidence", payload: { expectedSimulationEpoch: currentIdentity.simulationEpoch } });
+    assert.deepEqual(evidence.commandReceipts.map((entry) => entry.receipt.request_id), ["current-run"]);
+    assert.equal(evidence.cameraRecords.length, 0);
+  } finally {
+    game?.dispose();
+    Object.assign(globalThis, originalGlobals);
+  }
+});

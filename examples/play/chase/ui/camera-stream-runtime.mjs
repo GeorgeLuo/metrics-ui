@@ -89,10 +89,10 @@ export function createChaseCameraStreamRuntime({
           }
           current.pendingFrames.push(message.payload);
         } else {
+          if (current.pendingFrame) current.droppedFrameCount += 1;
           current.pendingFrame = selectLatestCameraStreamFrame(
             [current.pendingFrame, message.payload].filter(Boolean),
           );
-          current.droppedFrameCount += 1;
         }
       }
       return;
@@ -111,15 +111,18 @@ export function createChaseCameraStreamRuntime({
       outgoingMessage = { ...message, payload: stampedFrame };
     }
     current.sending = true;
-    current.lastSentAt = rateNow();
     let delivery;
     try {
       delivery = current.emit(outgoingMessage);
     } catch {
-      delivery = null;
+      delivery = false;
     }
-    const finishDelivery = () => {
+    const finishDelivery = (sent) => {
       if (subscription !== current || current.cancelled) {
+        return;
+      }
+      if (sent === false) {
+        end("frontend_disconnected", "Camera stream socket send failed.");
         return;
       }
       current.sending = false;
@@ -140,9 +143,9 @@ export function createChaseCameraStreamRuntime({
       });
     };
     if (delivery && typeof delivery.then === "function") {
-      delivery.then(finishDelivery, finishDelivery);
+      delivery.then(finishDelivery, () => finishDelivery(false));
     } else {
-      finishDelivery();
+      finishDelivery(delivery);
     }
   };
 
@@ -209,7 +212,7 @@ export function createChaseCameraStreamRuntime({
       sessionFingerprint: result.preservation.before,
       lastFrameIndex: result.frame.frameIdentity.frameIndex,
       lastSourceTimestampUs: result.frame.sourceTimestampUs,
-      lastSentAt: rateNow(),
+      lastSampledAt: rateNow(),
       droppedFrameCount: 0,
       pendingFrame: null,
       pendingFrames: [],
@@ -277,7 +280,7 @@ export function createChaseCameraStreamRuntime({
     }
     current.lastFrameIndex = nextFrameIndex;
     const currentTime = rateNow();
-    if (currentTime - current.lastSentAt < 1000 / current.maxRateHz) {
+    if (currentTime - current.lastSampledAt < 1000 / current.maxRateHz) {
       current.droppedFrameCount += 1;
       return;
     }
@@ -321,6 +324,7 @@ export function createChaseCameraStreamRuntime({
       return;
     }
     current.lastSourceTimestampUs = frame.sourceTimestampUs;
+    current.lastSampledAt = currentTime;
     emitMessage(current, {
       type: "play_camera_stream_frame",
       payload: frame,

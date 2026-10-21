@@ -1,3 +1,4 @@
+import { createCameraStreamTransport } from "../../shared/camera-stream-transport";
 import type { ControlCommand, ControlResponse } from "@shared/schema";
 import type {
   CameraStreamEndedPayload,
@@ -8,6 +9,7 @@ import type {
 
 export type CameraStreamSocket = {
   readyState?: number;
+  bufferedAmount?: number;
   send: (data: string) => unknown;
 };
 
@@ -90,13 +92,13 @@ export class CameraStreamSubscriptionRegistry<
 > {
   private readonly bySubscription = new Map<string, TSocket>();
 
+  private readonly transports = new Map<string, ReturnType<typeof createCameraStreamTransport>>();
+
   private readonly byAgent = new Map<TSocket, string>();
 
   private readonly pendingByAgent = new Map<TSocket, PendingCommand<TSocket>>();
 
   private readonly pendingByRequest = new Map<string, PendingCommand<TSocket>>();
-
-  private readonly orphanedRequests = new Set<string>();
 
   private readonly isOpen: (socket: TSocket) => boolean;
 
@@ -135,6 +137,8 @@ export class CameraStreamSubscriptionRegistry<
   }
 
   private clearMapping(agent: TSocket, subscriptionId: string): void {
+    this.transports.get(subscriptionId)?.cancel();
+    this.transports.delete(subscriptionId);
     if (this.bySubscription.get(subscriptionId) === agent) {
       this.bySubscription.delete(subscriptionId);
     }
@@ -147,7 +151,40 @@ export class CameraStreamSubscriptionRegistry<
     if (!this.isOpen(agent)) {
       return false;
     }
+    const subscriptionId = readSubscriptionId(message.payload);
+    const transport = subscriptionId ? this.transports.get(subscriptionId) : null;
+    if (transport && (message.type === "play_camera_stream_frame"
+      || readResultPayload(message)?.event === "subscribed")) {
+      void transport.send(message);
+      return true;
+    }
     return this.sendToAgent(agent, message);
+  }
+
+  private openTransport(agent: TSocket, subscriptionId: string, command: ControlCommand): void {
+    let subscribedSent = false;
+    const transport = createCameraStreamTransport({
+      socket: {
+        get readyState() { return agent.readyState; },
+        get bufferedAmount() { return agent.bufferedAmount ?? 0; },
+        send: (data) => {
+          if (!this.sendToAgent(agent, JSON.parse(data) as ControlResponse)) throw new Error("Camera send failed");
+        },
+      },
+      dropPolicy: "dropPolicy" in command && command.dropPolicy === "none" ? "none" : "latest-frame",
+      onSent: (message) => {
+        if (readResultPayload(message)?.event === "subscribed") subscribedSent = true;
+      },
+      onFailure: (code) => {
+        this.clearMapping(agent, subscriptionId);
+        this.sendFrontendUnsubscribe(subscriptionId);
+        const reason = { code, message: "Camera stream agent transport ended." };
+        transport.end(subscribedSent
+          ? { type: "play_camera_stream_result", payload: { event: "ended", subscriptionId, reason } }
+          : buildUnsupportedResponse(command, reason));
+      },
+    });
+    this.transports.set(subscriptionId, transport);
   }
 
   private sendFrontendUnsubscribe(subscriptionId: string): void {
@@ -200,7 +237,15 @@ export class CameraStreamSubscriptionRegistry<
   cancelAgentCommand(command: ControlCommand, agent: TSocket): void {
     const pending = this.pendingByAgent.get(agent);
     if (pending?.command === command) {
-      this.clearPending(pending);
+      this.failPending(pending);
+    }
+  }
+
+  private failPending(pending: PendingCommand<TSocket>): void {
+    this.clearPending(pending);
+    if (pending.subscriptionId) {
+      this.clearMapping(pending.agent, pending.subscriptionId);
+      this.sendFrontendUnsubscribe(pending.subscriptionId);
     }
   }
 
@@ -258,8 +303,10 @@ export class CameraStreamSubscriptionRegistry<
       if (subscriptionId) {
         const agent = this.bySubscription.get(subscriptionId);
         if (agent) {
+          const transport = this.transports.get(subscriptionId);
           this.clearMapping(agent, subscriptionId);
-          this.sendAgent(agent, message);
+          if (transport) transport.end(message);
+          else this.sendAgent(agent, message);
         }
       }
       return true;
@@ -267,19 +314,12 @@ export class CameraStreamSubscriptionRegistry<
 
     const pending = this.findPending(message);
     if (!pending) {
-      const orphaned = Boolean(
-        message.request_id && this.orphanedRequests.has(message.request_id),
-      );
-      if (message.request_id && orphaned) {
-        this.orphanedRequests.delete(message.request_id);
-      }
-      if (!message.request_id || orphaned) {
-        if (payload.event === "subscribed") {
-          const subscriptionId = readSubscriptionId(payload);
-          if (subscriptionId) {
-            this.sendFrontendUnsubscribe(subscriptionId);
-          }
-        }
+      // A timed-out or failed request may still establish a frontend stream.
+      // Never adopt an unreserved result, or unsubscribe a duplicate active result.
+      const subscriptionId = readSubscriptionId(payload);
+      if (payload.event === "subscribed" && subscriptionId
+        && !this.bySubscription.has(subscriptionId)) {
+        this.sendFrontendUnsubscribe(subscriptionId);
       }
       return true;
     }
@@ -290,6 +330,7 @@ export class CameraStreamSubscriptionRegistry<
       if (subscriptionId && this.isOpen(agent)) {
         this.bySubscription.set(subscriptionId, agent);
         this.byAgent.set(agent, subscriptionId);
+        this.openTransport(agent, subscriptionId, pending.command);
       } else if (subscriptionId) {
         this.sendFrontendUnsubscribe(subscriptionId);
       }
@@ -315,6 +356,14 @@ export class CameraStreamSubscriptionRegistry<
 
   /** Intercepts camera messages before the server's general agent broadcast. */
   handleFrontendMessage(message: ControlResponse): boolean {
+    if ((message.type === "error" || message.type === "ui_error") && message.request_id) {
+      const pending = this.pendingByRequest.get(message.request_id);
+      if (pending) {
+        this.failPending(pending);
+        this.sendAgent(pending.agent, message);
+        return true;
+      }
+    }
     if (message.type === "play_camera_stream_frame") {
       return this.handleFrame(message);
     }
@@ -355,11 +404,7 @@ export class CameraStreamSubscriptionRegistry<
     }
     const pending = this.pendingByAgent.get(agent);
     if (pending) {
-      const requestId = pending.command.request_id;
-      if (requestId) {
-        this.orphanedRequests.add(requestId);
-      }
-      this.clearPending(pending);
+      this.failPending(pending);
     }
   }
 

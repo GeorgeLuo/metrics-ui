@@ -23,7 +23,8 @@ For an already loaded game, send `play_game_command` with
 `{scenarioId:"wall-escape", controlSource:"ws", maxFrames:20001}`. This synchronous
 transaction pauses, neutralizes WS input, replaces the scene, starts a fresh epoch
 and enables baseline-inclusive trace retention. Export wanted old evidence first.
-It preserves the current vehicle/rendering settings; verify settings separately.
+It preserves the current vehicle settings, selected rendering profile, and rendering
+seed, including RC indoor and randomized rendering. Verify settings separately.
 This is an explicit scene reset, not a read-only preflight or host-memory reset.
 An external observe-only session bound to the old epoch must be rebound separately.
 
@@ -102,7 +103,9 @@ before injecting its own manifest (avoiding a circular self-hash). This is a
 **game-module capability identity**, not an attestation of the dashboard shell,
 external Three library, browser or host. It does not invent a whole-frontend build
 fingerprint. Expired snapshots fail with410 instead of serving different bytes;
-request a fresh catalog. Up to eight snapshots are retained per server process.
+request a fresh catalog. Up to eight distinct snapshots are retained per catalog
+game. Reusing a digest refreshes its retention order; a successful catalog reload
+or module redirect prunes games removed from the catalog.
 
 ## Exact committed-frame windows
 
@@ -135,6 +138,9 @@ atomic capture responses/images, preservation/frame identity, SHA-256 of image
 bytes, and identity-bound command receipts handed to the WS sender. Retention is
 bounded (64 atomic captures /32MiB approximate JSON characters;4,096 receipts);
 overflow counters are explicit. Export before reset/prepare clears retention.
+Only receipts matching the current frontend and simulation epoch are retained.
+An export finishing after preparation keeps its original response/ack identity,
+and its old-epoch acknowledgment is excluded from the new run's evidence.
 Camera-stream coverage is not synthesized: only requested atomic captures enter
 this bundle. It is sampled coverage, not every-frame camera evidence.
 

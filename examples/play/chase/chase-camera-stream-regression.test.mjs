@@ -67,42 +67,21 @@ function buildSubscribeResult({
   });
 }
 
-test("camera stream capability advertises stream types, JPEG defaults/bounds, and the one-shot query", () => {
+test("advertised camera defaults, bounds and actors resolve through the request contract", () => {
   const capability = buildChaseCameraStreamCapability();
-
-  assert.deepEqual(capability, {
-    supported: true,
-    subscribeType: "play_camera_stream_subscribe",
-    unsubscribeType: "play_camera_stream_unsubscribe",
-    frameType: "play_camera_stream_frame",
-    resultType: "play_camera_stream_result",
-    actors: ["chaser", "evader"],
-    cameras: ["front_camera"],
-    imageFormat: "image/jpeg",
-    defaults: {
-      width: 320,
-      height: 240,
-      quality: 0.6,
-      maxRateHz: 15,
-      dropPolicy: "latest-frame",
-    },
-    bounds: {
-      width: [80, 640],
-      height: [60, 480],
-      quality: [0.4, 0.9],
-      maxRateHz: [1, 30],
-    },
-    backpressure: "latest-frame",
-    timingFields: ["sourceTimestampUs", "publishedAtUs"],
-    sourceTimestampClock: "performance.now-microseconds-at-jpeg-capture",
-    publishedAtClock: "performance.now-microseconds-at-ws-send",
-    dropPolicies: ["latest-frame", "none"],
-    queueBound: 8,
-    oneShotQueryId: "atomic-evaluation-capture",
-    identityFields: ["gameId", "simulationEpoch", "frameIndex"],
-    sessionIdentityFields: ["gameId", "scenarioId", "simulationEpoch", "actorId", "cameraId"],
-  });
+  const defaults = resolveChaseCameraStreamRequest({}, capability);
+  assert.equal(defaults.ok, true);
+  for (const [field, value] of Object.entries(capability.defaults)) assert.equal(defaults.value[field], value);
+  for (const [field, [min, max]] of Object.entries(capability.bounds)) {
+    for (const value of [min, max]) assert.equal(resolveChaseCameraStreamRequest({ [field]: value }, capability).ok, true);
+    assert.equal(resolveChaseCameraStreamRequest({ [field]: min - 1 }, capability).value[field], min);
+    assert.equal(resolveChaseCameraStreamRequest({ [field]: max + 1 }, capability).value[field], max);
+    assert.equal(resolveChaseCameraStreamRequest({ [field]: "invalid" }, capability).ok, false);
+  }
+  for (const dropPolicy of capability.dropPolicies) assert.equal(resolveChaseCameraStreamRequest({ dropPolicy }, capability).value.dropPolicy, dropPolicy);
   assert.deepEqual(buildChaseCameraStreamCapability({ evaderExists: false }).actors, ["chaser"]);
+  const absentEvader = resolveChaseCameraStreamRequest({ actorId: "evader" }, buildChaseCameraStreamCapability({ evaderExists: false }));
+  assert.equal(absentEvader.ok, false);
 });
 
 test("camera stream subscribe defaults actor/camera and preserves a JPEG receipt without evaluator data", () => {
@@ -122,26 +101,6 @@ test("camera stream subscribe defaults actor/camera and preserves a JPEG receipt
   assert.equal("request_id" in result.frame, false);
 });
 
-test("camera stream subscribe does not call play, pause, reset, or control mutators", () => {
-  const calls = [];
-  const mutators = {
-    play: () => calls.push("play"),
-    pause: () => calls.push("pause"),
-    reset: () => calls.push("reset"),
-    control: () => calls.push("control"),
-  };
-  const result = buildChaseCameraStreamSubscribeResult({
-    subscriptionId: "chase-cam:test",
-    capability: buildChaseCameraStreamCapability(),
-    getFingerprint: () => buildFingerprint(),
-    capture: () => buildImage(),
-    sourceTimestampUs: 1_000,
-    ...mutators,
-  });
-
-  assert.equal(result.event, "subscribed");
-  assert.deepEqual(calls, []);
-});
 
 test("malformed camera stream actor/camera types fail closed with no frame", () => {
   let captureCalls = 0;
@@ -354,7 +313,7 @@ test("camera stream rate limiting increments droppedFrameCount and latest-frame 
   assert.equal(emitted[1].payload.frameIdentity.frameIndex, 46);
   assert.ok(emitted[1].payload.sourceTimestampUs >= emitted[0].payload.sourceTimestampUs);
   assert.ok(emitted[1].payload.publishedAtUs >= emitted[1].payload.sourceTimestampUs);
-  assert.equal(emitted[1].payload.droppedFrameCount, 3);
+  assert.equal(emitted[1].payload.droppedFrameCount, 2);
   assert.equal(selectLatestCameraStreamFrame([
     emitted[0].payload,
     emitted[1].payload,

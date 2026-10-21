@@ -1,3 +1,4 @@
+import type { CameraStreamSocketSession } from "./camera-stream-socket";
 import type {
   Annotation,
   CaptureSession,
@@ -42,6 +43,7 @@ export type UiError = {
 };
 
 export interface WsCommandDispatchContext {
+  cameraStreamSession?: CameraStreamSocketSession;
   sendMessage: (message: ControlResponse | ControlCommand) => boolean;
   sendAck: (requestId: string | undefined, command: string) => void;
   sendError: (

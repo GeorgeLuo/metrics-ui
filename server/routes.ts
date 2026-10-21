@@ -5535,6 +5535,7 @@ export async function registerRoutes(
             frontend: commandFrontend,
             agent: ws,
             respond: (response) => {
+              cameraStreamSubscriptions.cancelAgentCommand(command, ws);
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify(response));
               }
