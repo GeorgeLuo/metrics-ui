@@ -731,6 +731,7 @@ export type ControlCommand =
   | ({ type: "hello" } & ControlRequestBase)
   | ({ type: "get_state" } & ControlRequestBase)
   | ({ type: "list_captures" } & ControlRequestBase)
+  | ({ type: "list_agents" } & ControlRequestBase)
   | ({
       type: "restore_state";
       state: Partial<Pick<
@@ -989,6 +990,7 @@ export interface ControlResponse {
   type:
     | "state_update"
     | "captures_list"
+    | "agent_list"
     | "error"
     | "ack"
     | "capabilities"

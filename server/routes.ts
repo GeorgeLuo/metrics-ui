@@ -68,6 +68,7 @@ import {
   requiresFrontendResponse,
 } from "./routes/frontend-command-routing";
 import { FrontendRequestTracker } from "./routes/frontend-request-tracker";
+import { AgentRegistry } from "./routes/agent-registry";
 import { createCameraStreamSubscriptionRegistry } from "./routes/camera-stream-subscriptions";
 import { HIGHMIX_BUNDLED_VISUALIZATION_ASSETS } from "./examples/highmix-visualization-assets";
 
@@ -484,7 +485,7 @@ async function extractSeriesBatchFromSource(options: {
   });
 }
 
-const agentClients = new Set<WebSocket>();
+const agentClients = new AgentRegistry<WebSocket>();
 let frontendClient: WebSocket | null = null;
 let frontendInstanceId: string | null = null;
 const clientRoles = new Map<WebSocket, "frontend" | "agent">();
@@ -3905,11 +3906,11 @@ function updateCaptureComponents(
 
 function broadcastToAgents(message: ControlResponse) {
   const data = JSON.stringify(message);
-  agentClients.forEach(client => {
+  for (const client of agentClients.sockets()) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(data);
     }
-  });
+  }
 }
 
 function sendToFrontend(command: ControlCommand | ControlResponse): boolean {
@@ -4982,7 +4983,7 @@ export async function registerRoutes(
     const shutdown = () => {
       for (const client of wss.clients) {
         try {
-          client.close(1001, "server shutdown");
+          client.close(1001, `server shutdown (${reason})`);
         } catch {
           // ignore close errors
         }
@@ -5098,9 +5099,9 @@ export async function registerRoutes(
 	            }
 	            flushQueuedCommands();
 	          } else {
-            agentClients.add(ws);
+            agentClients.add(ws, message.client);
             clientRoles.set(ws, "agent");
-            console.log("[ws] Agent registered, total agents:", agentClients.size);
+            console.log("[ws] Agent registered, total agents:", agentClients.size, agentClients.describe(ws) ?? "");
             ws.send(JSON.stringify({ type: "ack", payload: "registered as agent" }));
           }
           return;
@@ -5265,6 +5266,16 @@ export async function registerRoutes(
           return;
         }
         const captureId = "captureId" in command ? String(command.captureId ?? "") : "";
+        if (command.type === "list_agents") {
+          ws.send(
+            JSON.stringify({
+              type: "agent_list",
+              payload: { agents: agentClients.list(ws) },
+              request_id: command.request_id,
+            } as ControlResponse),
+          );
+          return;
+        }
         if (command.type === "get_state" || command.type === "list_captures") {
           const snapshot = buildAgentStateSnapshot();
           ws.send(
