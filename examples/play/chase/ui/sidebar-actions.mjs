@@ -1,5 +1,6 @@
 import { createActorActionProposalToggleActionId } from "./sidebar.mjs";
 import { createSidebarActionDescriptors } from "./sidebar-action-descriptors.mjs";
+import { applyStartupSettings } from "../evaluation/experiment-startup.mjs";
 
 export function registerSidebarActions(context) {
   const { setSidebarActionHandler } = context;
@@ -12,6 +13,11 @@ export function registerSidebarActions(context) {
     setSidebarActionHandler(descriptor.id, descriptor.handler);
   });
   return descriptors.map((descriptor) => descriptor.id);
+}
+
+/** Apply startup settings through the same handlers the left pane uses. */
+export function applySidebarSettings(context, settings) {
+  applyStartupSettings(createSidebarActionDescriptors(context), settings);
 }
 
 export function getSidebarActionIds(actorActionProposalCollections = {}) {
