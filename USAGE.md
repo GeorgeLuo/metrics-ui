@@ -420,6 +420,21 @@ Use `wss://` if the site is served over HTTPS.
 {"type":"register","role":"agent"}
 ```
 
+An agent may describe itself with an optional `client` object, which the server keeps unchanged while the socket stays open:
+
+```json
+{"type":"register","role":"agent","client":{"kind":"vehicle-host","vehicle_id":"chase-sim-chaser","url":"http://127.0.0.1:51395"}}
+```
+
+`list_agents` answers with every other registered agent, oldest connection first. `client` is `null` for an agent that sent no description:
+
+```json
+{"type":"list_agents","request_id":"1"}
+{"type":"agent_list","request_id":"1","payload":{"agents":[{"client":{"kind":"vehicle-host","vehicle_id":"chase-sim-chaser","url":"http://127.0.0.1:51395"},"connectedAt":"2026-10-23T17:20:04.112Z"}]}}
+```
+
+When the server shuts down it closes every socket with code `1001` and a reason naming the cause, such as `server shutdown (api)` after `POST /api/shutdown`.
+
 ### Capabilities and State
 
 ```json
@@ -659,6 +674,7 @@ Capture streaming (push records over WS):
 - `hello`
 - `get_state`
 - `list_captures`
+- `list_agents`
 - `restore_state`
 - `set_sidebar_app`
 - `toggle_capture`
@@ -766,6 +782,7 @@ Common responses include:
 - `ack`
 - `error`
 - `state_update`
+- `agent_list`
 - `capabilities`
 - `derivation_plugins`
 - `display_snapshot`
